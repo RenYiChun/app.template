@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-dependencies</artifactId>
+        <version>2.1.1</version>
+        <relativePath>./template-dependencies</relativePath>
+    </parent>
+    <artifactId>app.template</artifactId>
+    <version>2.1.1</version>
+    <packaging>pom</packaging>
+    <name>app.template</name>
+    <description>rapid development of templates based on spring cloud microservices</description>
+    <url>http://www.lrenyi.com</url>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>RenYiChun</name>
+            <email>lrenyi.com@gmail.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:RenYiChun/app.template.git</connection>
+        <developerConnection>scm:git:git@github.com:RenYiChun/app.template.git</developerConnection>
+        <url>https://github.com/RenYiChun/app.template</url>
+    </scm>
+
+    <properties>
+        <checkstyle.related.dir/>
+        <template-dependencies.version>${project.version}</template-dependencies.version>
+        <checkstyle.file.dir>${project.basedir}/${checkstyle.related.dir}/checker/
+        </checkstyle.file.dir>
+
+        <spotbugs-maven-plugin.version>4.8.1.0</spotbugs-maven-plugin.version>
+        <maven-checkstyle-plugin.version>3.3.1</maven-checkstyle-plugin.version>
+        <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
+    </properties>
+
+    <modules>
+        <module>template-core</module>
+        <module>template-service</module>
+        <module>template-web</module>
+        <module>template-oauth2-service</module>
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <includeFilterFile>${checkstyle.file.dir}/spotbugs-security-include.xml
+                    </includeFilterFile>
+                    <excludeFilterFile>${checkstyle.file.dir}/spotbugs-security-exclude.xml
+                    </excludeFilterFile>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.h3xstream.findsecbugs</groupId>
+                            <artifactId>findsecbugs-plugin</artifactId>
+                            <version>1.12.0</version>
+                        </plugin>
+                    </plugins>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven-checkstyle-plugin.version}</version>
+                <configuration>
+                    <configLocation>${checkstyle.file.dir}/checkStyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                    <failOnViolation>true</failOnViolation>
+                    <sourceDirectories>
+                        <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
+                        <sourceDirectory>${project.build.testSourceDirectory}</sourceDirectory>
+                    </sourceDirectories>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <reporting>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>${maven-site-plugin.version}</version>
+                <configuration>
+                    <locales>en_US</locales>
+                </configuration>
+            </plugin>
+        </plugins>
+    </reporting>
+</project>
