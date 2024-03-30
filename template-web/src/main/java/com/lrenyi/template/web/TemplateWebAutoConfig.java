@@ -4,8 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.lrenyi.template.core.annotation.Function;
 import com.lrenyi.template.core.boot.Interface;
 import com.lrenyi.template.core.util.SpringContextUtil;
-import com.lrenyi.template.web.authorization.RsaPublicAndPrivateKey;
-import com.lrenyi.template.web.authorization.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.web.config.ConfigImportSelect;
 import com.lrenyi.template.web.converter.FastJsonHttpMessageConverter;
 import java.util.ArrayList;
@@ -17,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
@@ -38,12 +35,6 @@ import org.springframework.web.util.pattern.PathPattern;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "app.template.config.enable", matchIfMissing = true)
 public class TemplateWebAutoConfig {
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public RsaPublicAndPrivateKey rsaPublicAndPrivateKey() {
-        return new TemplateRsaPublicAndPrivateKey();
-    }
     
     @Bean
     public FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {

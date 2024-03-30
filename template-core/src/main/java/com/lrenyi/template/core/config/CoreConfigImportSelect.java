@@ -9,7 +9,7 @@ import org.springframework.context.annotation.ImportSelector;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.util.ClassUtils;
 
-public class ConfigImportSelect implements ImportSelector {
+public class CoreConfigImportSelect implements ImportSelector {
     
     @Override
     public String[] selectImports(@NonNull AnnotationMetadata importingClassMetadata) {

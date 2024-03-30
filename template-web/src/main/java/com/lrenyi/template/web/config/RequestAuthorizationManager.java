@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.authorization;
+package com.lrenyi.template.web.config;
 
 import com.lrenyi.template.core.util.SpringContextUtil;
 import java.util.Collection;
@@ -22,9 +22,9 @@ public class RequestAuthorizationManager implements AuthorizationManager<Request
     
     @Override
     public AuthorizationDecision check(Supplier<Authentication> supplier, RequestAuthorizationContext context) {
-        TemplateAuthorization bean = SpringContextUtil.getBean(TemplateAuthorization.class);
+        RolePermissionService bean = SpringContextUtil.getBean(RolePermissionService.class);
         if (bean == null) {
-            throw new IllegalArgumentException("not find bean TemplateAuthorization");
+            throw new IllegalArgumentException("not find bean RolePermissionService");
         }
         Authentication authentication = supplier.get();
         boolean anonymous = this.trustResolver.isAnonymous(authentication);
@@ -38,7 +38,7 @@ public class RequestAuthorizationManager implements AuthorizationManager<Request
                                         .map(GrantedAuthority::getAuthority)
                                         .map(data -> data.replace(DEFAULT_AUTHORITY_PREFIX, ""))
                                         .collect(Collectors.toSet());
-        boolean authorization = bean.authorization(scopes, requestURI);
+        boolean authorization = bean.check(scopes, requestURI);
         return new AuthorizationDecision(authorization);
     }
 }
