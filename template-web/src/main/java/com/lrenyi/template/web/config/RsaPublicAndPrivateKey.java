@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.authorization;
+package com.lrenyi.template.web.config;
 
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;

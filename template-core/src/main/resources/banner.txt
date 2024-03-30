@@ -4,4 +4,4 @@
 \ '-'  || '-' '| '-' '   |  |  \   --.|  |  |  || '-' '|  |\ '-'  |  |  |  \   --.
  `--`--'|  |-' |  |-'    `--'   `----'`--`--`--'|  |-' `--' `--`--'  `--'   `----'
         `--'   `--'                             `--'
-:: app template ${app.template.version} :: Powered by Spring Boot ${spring-boot.version} ::
+:: App Template ${app.template.version} :: Powered by Spring Boot ${spring-boot.version} ::
