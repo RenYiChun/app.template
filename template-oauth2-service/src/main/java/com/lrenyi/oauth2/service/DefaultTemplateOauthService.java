@@ -50,7 +50,9 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
     }
     
     @Override
-    public Result<TokenBean> login(String type, MultiValueMap<String, String> body, HttpHeaders header) {
+    public Result<TokenBean> login(String type,
+            MultiValueMap<String, String> body,
+            HttpHeaders header) {
         header.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, header);
         TokenBean tokenBean;
@@ -94,11 +96,21 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
         }
         try {
             String host = String.format("%s://localhost:%s%s", type, port, oauthPath);
-            Result<?> result = template.postForObject(host, entity, Result.class);
-            if (result == null) {
-                return Result.getError(false, "退出登录失败，oauth返回为null");
+            template.postForObject(host, entity, Result.class);
+            String tokenInfo = header.getFirst("Authorization");
+            if (StringUtils.hasLength(tokenInfo)) {
+                String[] split = tokenInfo.split(" ");
+                if (split.length >= 2) {
+                    OAuth2Authorization authorization =
+                            oAuth2AuthorizationService.findByToken(split[1],
+                                                                   OAuth2TokenType.ACCESS_TOKEN
+                            );
+                    if (authorization != null) {
+                        oAuth2AuthorizationService.remove(authorization);
+                    }
+                }
             }
-            return result;
+            return Result.getSuccess("ok");
         } catch (Throwable cause) {
             String message = "调用/oauth/token过程中发送异常";
             log.error(message, cause);
@@ -112,7 +124,8 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
     @Override
     public Map<String, String> getUserNameByToken(String token) {
         Map<String, String> result = new HashMap<>();
-        OAuth2Authorization authorization = oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
+        OAuth2Authorization authorization =
+                oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
         if (authorization == null) {
             return result;
         }

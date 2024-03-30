@@ -1,7 +1,9 @@
 package com.lrenyi.template.core.config.properties;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import lombok.Data;
 import lombok.Getter;
@@ -20,7 +22,7 @@ public class CustomSecurityConfigProperties implements InitializingBean {
     private boolean enable = true;
     private Set<String> allPermitUrls = new HashSet<>();
     private Set<String> defaultPermitUrls = new HashSet<>();
-    private Set<String> permitUrls = new HashSet<>();
+    private Map<String, Set<String>> permitUrls = new HashMap<>();
     private Set<String> resourcePermitUrls = new HashSet<>();
     private boolean autoRedirectLoginPage = false;
     private String redirectLoginPageUrl = "";
@@ -39,17 +41,22 @@ public class CustomSecurityConfigProperties implements InitializingBean {
     
     @Override
     public void afterPropertiesSet() {
+        defaultPermitUrls.addAll(Arrays.asList("/oauth2/token",
+                                               "/opaque/token/check",
+                                               "/jwt/public/key",
+                                               "/favicon",
+                                               "/static/**",
+                                               "/webjars/**"
+        ));
         allPermitUrls.addAll(defaultPermitUrls);
-        allPermitUrls.addAll(Arrays.asList("/oauth2/token", "/login", "/opaque/token/check", "/jwt/public/key"));
-        if (!permitUrls.isEmpty()) {
-            allPermitUrls.addAll(permitUrls);
-        }
+        permitUrls.forEach((key, vales) -> {
+            allPermitUrls.addAll(vales);
+        });
         if (StringUtils.hasLength(customizeLoginPage)) {
             allPermitUrls.add(customizeLoginPage);
         }
         if (!resourcePermitUrls.isEmpty()) {
             allPermitUrls.addAll(resourcePermitUrls);
-            allPermitUrls.addAll(Arrays.asList("/favicon", "/static/**", "/webjars/**"));
         }
     }
     

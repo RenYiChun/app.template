@@ -11,7 +11,7 @@ public class ConfigImportSelect implements ImportSelector {
     @Override
     public String[] selectImports(@NonNull AnnotationMetadata importingClassMetadata) {
         List<String> configs = new ArrayList<>();
-        configs.add(WebMvcConfig.class.getName());
+        configs.add(WebGlobalConfig.class.getName());
         configs.add(TemplateHttpSecurityConfig.class.getName());
         return configs.toArray(new String[0]);
     }

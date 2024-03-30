@@ -1,6 +1,6 @@
-package com.lrenyi.template.web.authorization;
+package com.lrenyi.template.web.config;
 
-import com.lrenyi.template.web.config.WebMvcConfig;
+import com.lrenyi.template.web.config.WebGlobalConfig;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -10,13 +10,13 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 
 
 public class CustomAccessDeniedHandler implements AccessDeniedHandler {
-    private final WebMvcConfig.GlobalExceptionHandler globalExceptionHandler =
-            new WebMvcConfig.GlobalExceptionHandler();
+    private final WebGlobalConfig.GlobalExceptionHandler globalExceptionHandler =
+            new WebGlobalConfig.GlobalExceptionHandler();
     
     @Override
     public void handle(HttpServletRequest request,
-                       HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) throws IOException, ServletException {
+            HttpServletResponse response,
+            AccessDeniedException accessDeniedException) throws IOException, ServletException {
         globalExceptionHandler.handleException(request, response, accessDeniedException);
     }
 }

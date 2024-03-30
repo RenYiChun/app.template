@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Slf4j
-public class WebMvcConfig implements WebMvcConfigurer {
+public class WebGlobalConfig implements WebMvcConfigurer {
     
     @Bean
     public GlobalExceptionHandler globalExceptionHandler() {

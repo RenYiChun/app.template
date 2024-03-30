@@ -1,7 +1,7 @@
 package com.lrenyi.oauth2.service.endpoint;
 
 import com.alibaba.fastjson2.JSON;
-import com.lrenyi.template.web.authorization.RsaPublicAndPrivateKey;
+import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import jakarta.servlet.FilterChain;
@@ -27,7 +27,7 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
     private final RequestMatcher endpointMatcher;
     private RsaPublicAndPrivateKey rsaPublicAndPrivateKey;
     
-    @Autowired
+    @Autowired(required = false)
     public void setRsaPublicAndPrivateKey(RsaPublicAndPrivateKey rsaPublicAndPrivateKey) {
         this.rsaPublicAndPrivateKey = rsaPublicAndPrivateKey;
     }
