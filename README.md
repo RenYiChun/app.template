@@ -2,41 +2,42 @@
 
 基于spring-boot,spring-cloud,spring-cloud-alibaba的微服务应用，独立单应用的快速开发脚手架，内置提供如下能力：
 
-- [x] Nats广播事件的支持；
-- [x] 自定义配置文件内容加解密策略，支持spring的配置文件配置的值，环境变量中的值，nacos配置中的值的加密配置；
-- [x] 加密策略的变更不会影响之前已经配置的内容；
-- [x] Oauth2 自定义用户名密码认证策略的支持；
+- [x] Nats事件的定义及其消息发送和接受的封装，一个消息只需要实现接口EventProcessor即可；
+- [x] 扩展Spring的PasswordEncoder接口TemplateDataCoder，增加直接解密的方法支持；
+- [x] TemplateDataCoder接口默认提供两种实现，一种default加密方式，一种RSA2048加解密方式；
+- [x] spring的配置属性加密方式的扩展，支持TemplateDataCoder定义的加解密方式，密码字段用"aENC("开头，“)"结尾；
+- [x] 配置的加密方式支持环境变量配置，nacos配置，启动命令参数配置，bootstrap.yml/application.yml等配置
+- [x] Oauth2 支持用户名密码认证的方式；
 - [x] Oauth2 不透明token功能的支持；
-- [x] 默认集成Spring security，已完成默认配置的定义，开箱即用；
+- [x] jwt的token支持本地和远程校验两种方式；
 - [x] 统一Spring Mvc接口返回数据和OpenFeign中数据序列化方式为fastjson;
 
 # 生产注意事项
 
-1. 替换默认的RSA公钥，私钥，及其基于这个公钥的JWT
-   > 此三个文件都存放在项目的resource目录下
-
-   > 文件名分别是： rsa_public.pem, rsa_private.pem, rsa_public.jwt;
-   此三个文件的生产可以参考工具类：RSAUtils
+1. 替换默认的RSA公钥，私钥，覆盖如下Bean的定义
+   ```java
+    @Bean
+    @ConditionalOnMissingBean
+    public RsaPublicAndPrivateKey rsaPublicAndPrivateKey() {
+        return new TemplateRsaPublicAndPrivateKey();
+    }
+   ```
 
 # 快速开始
 
 需准备如下环境
 
 1. JDK 21的运行环境
-2. maven 3.9及其以上版本
-
+2. maven 3.6及其以上版本
+3. 新应用的pom.xml中的parent继承如下pom
+   ```xml
+   <parent>
+       <groupId>com.lrenyi</groupId>
+       <artifactId>template-dependencies</artifactId>
+       <version>${template-dependencies.version}</version>
+   </parent>
+   ```
 ## 微服务应用
-
-应用的pom.xml中的parent继承如下pom:
-
-```xml
-
-<parent>
-    <groupId>com.lrenyi</groupId>
-    <artifactId>template-dependencies</artifactId>
-    <version>${template-dependencies.version}</version>
-</parent>
-```
 
 在pom中引入如下依赖即可：
 
@@ -50,18 +51,6 @@
 ```
 
 ## 独立单应用
-
-应用的pom.xml中的parent继承如下pom:
-
-```xml
-
-<parent>
-    <groupId>com.lrenyi</groupId>
-    <artifactId>template-dependencies</artifactId>
-    <version>${template-dependencies.version}</version>
-</parent>
-```
-
 在pom中引入如下依赖即可：
 
 ```xml
