@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.nats;
 
+import com.lrenyi.spring.nats.ConnectionHolder;
 import com.lrenyi.template.core.nats.event.EventProcessor;
 import com.lrenyi.template.core.util.StringUtils;
 import io.nats.client.Connection;
@@ -9,16 +10,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Optional;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TemplateNatsService {
     
-    private final Connection connection;
+    private final ConnectionHolder connectionHolder;
     
-    public TemplateNatsService(Connection connection) {
-        this.connection = connection;
+    public TemplateNatsService(ConnectionHolder connectionHolder) {
+        this.connectionHolder = connectionHolder;
     }
     
     public Response publishEvent(@NonNull String subject, @NonNull String eventName, String jsonBody) {
@@ -37,6 +39,11 @@ public class TemplateNatsService {
         } else {
             eventBuf.writeInt(0);
         }
+        Optional<Connection> connectionOptional = connectionHolder.getValidateConnection();
+        if (connectionOptional.isEmpty()) {
+            throw new RuntimeException("the connection of nats is null when publish event.");
+        }
+        Connection connection = connectionOptional.get();
         String replay = connection.createInbox();
         connection.publish(subject, replay, eventBuf.array());
         Subscription subscribe = connection.subscribe(replay);
@@ -106,11 +113,12 @@ public class TemplateNatsService {
         if (bodyLength != 0) {
             jsonBody = bodyBuf.readBytes(bodyLength).toString(StandardCharsets.UTF_8);
         }
+        Connection connection = message.getConnection();
         String replyTo = message.getReplyTo();
         String response;
         boolean success = true;
         try {
-            response = processor.handler(jsonBody, message.getConnection());
+            response = processor.handler(jsonBody, connection);
         } catch (Throwable e) {
             success = false;
             response = e.getMessage();
