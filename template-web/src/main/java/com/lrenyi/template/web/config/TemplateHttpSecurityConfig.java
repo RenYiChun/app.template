@@ -56,33 +56,33 @@ public class TemplateHttpSecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
         if (!securityConfig.isEnable()) {
             http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
-        } else {
-            String appName = environment.getProperty("spring.application.name");
-            Set<String> permitUrlsOfApp = securityConfig.getDefaultPermitUrls();
-            Map<String, Set<String>> permitUrls = securityConfig.getPermitUrls();
-            Set<String> set = permitUrls.get(appName);
-            permitUrlsOfApp.addAll(set);
-            log.info("the permit urls of service {} is: {}",
-                     appName,
-                     String.join(",", permitUrlsOfApp)
-            );
-            http.authorizeHttpRequests(authorize -> {
-                String[] permitUrlsArray = permitUrlsOfApp.toArray(new String[0]);
-                authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR)
-                         .permitAll();
-                authorize.requestMatchers(permitUrlsArray)
-                         .permitAll()
-                         .anyRequest()
-                         .access(new RequestAuthorizationManager());
-            });
+            return http.build();
         }
+        String appName = environment.getProperty("spring.application.name");
+        Set<String> permitUrlsOfApp = securityConfig.getDefaultPermitUrls();
+        Map<String, Set<String>> permitUrls = securityConfig.getPermitUrls();
+        Set<String> set = permitUrls.get(appName);
+        permitUrlsOfApp.addAll(set);
+        log.info("the permit urls of service {} is: {}",
+                appName,
+                String.join(",", permitUrlsOfApp)
+        );
+        http.authorizeHttpRequests(authorize -> {
+            String[] permitUrlsArray = permitUrlsOfApp.toArray(new String[0]);
+            authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR)
+                    .permitAll();
+            authorize.requestMatchers(permitUrlsArray)
+                    .permitAll()
+                    .anyRequest()
+                    .access(new RequestAuthorizationManager());
+        });
         CustomSecurityConfigProperties.OpaqueToken opaqueToken = securityConfig.getOpaqueToken();
         if (opaqueToken.isEnable()) {
             http.oauth2ResourceServer((oauth2) -> oauth2.opaqueToken((opaque) -> {
                 opaque.introspectionUri(opaqueToken.getIntrospectionUri())
-                      .introspectionClientCredentials(opaqueToken.getIntrospectionClientId(),
-                                                      opaqueToken.getIntrospectionClientSecret()
-                      );
+                        .introspectionClientCredentials(opaqueToken.getIntrospectionClientId(),
+                                opaqueToken.getIntrospectionClientSecret()
+                        );
             }));
         } else {
             // @formatter:off
