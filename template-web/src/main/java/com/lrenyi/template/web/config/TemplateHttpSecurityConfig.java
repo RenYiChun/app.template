@@ -62,7 +62,9 @@ public class TemplateHttpSecurityConfig {
         Set<String> permitUrlsOfApp = securityConfig.getDefaultPermitUrls();
         Map<String, Set<String>> permitUrls = securityConfig.getPermitUrls();
         Set<String> set = permitUrls.get(appName);
-        permitUrlsOfApp.addAll(set);
+        if (set != null) {
+            permitUrlsOfApp.addAll(set);
+        }
         log.info("the permit urls of service {} is: {}",
                 appName,
                 String.join(",", permitUrlsOfApp)
