@@ -3,12 +3,10 @@ package com.lrenyi.oauth2.service;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuthorizationServerPropertiesMapper;
 import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
-import com.lrenyi.oauth2.service.oauth2.TemplateOauthPasswordEncoder;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
-import com.lrenyi.template.core.coder.GlobalDataCoder;
 import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
@@ -31,13 +29,11 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
@@ -53,7 +49,6 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.web.client.RestTemplate;
 
@@ -81,8 +76,7 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(OAuth2AuthorizationServerProperties properties) {
-        OAuth2AuthorizationServerPropertiesMapper mapper =
-                new OAuth2AuthorizationServerPropertiesMapper(properties);
+        OAuth2AuthorizationServerPropertiesMapper mapper = new OAuth2AuthorizationServerPropertiesMapper(properties);
         List<RegisteredClient> registeredClients = mapper.asRegisteredClients();
         return new InMemoryRegisteredClientRepository(registeredClients.toArray(new RegisteredClient[0]));
     }
@@ -103,16 +97,16 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @Order(1)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-            CustomSecurityConfigProperties properties,
-            OAuth2AuthorizationService authorizationService,
-            OAuth2TokenGenerator<?> tokenGenerator,
-            TemplateLogOutHandler handler,
-            AuthenticationFailureHandler templateAuthenticationFailureHandler) throws Exception {
+                                                                      CustomSecurityConfigProperties properties,
+                                                                      OAuth2AuthorizationService authorizationService,
+                                                                      OAuth2TokenGenerator<?> tokenGenerator,
+                                                                      TemplateLogOutHandler handler,
+                                                                      AuthenticationFailureHandler templateAuthenticationFailureHandler) throws Exception {
         String loginPage = properties.getCustomizeLoginPage();
         
         http.exceptionHandling((exceptions) -> {
-            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(
-                    StringUtils.hasLength(loginPage) ? loginPage : "/login");
+            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(StringUtils.hasLength(
+                    loginPage) ? loginPage : "/login");
             MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
             exceptions.defaultAuthenticationEntryPointFor(point, matcher);
         });
@@ -129,15 +123,11 @@ public class Oauth2ServerAutoConfiguration {
         
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         
-        OAuth2AuthorizationServerConfigurer configurer =
-                http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
+        OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         configurer.tokenEndpoint(point -> {
             point.errorResponseHandler(templateAuthenticationFailureHandler);
             point.accessTokenRequestConverter(new PasswordGrantAuthenticationConverter());
-            point.authenticationProvider(new PasswordGrantAuthenticationProvider(
-                    authorizationService,
-                    tokenGenerator
-            ));
+            point.authenticationProvider(new PasswordGrantAuthenticationProvider(authorizationService, tokenGenerator));
         });
         configurer.oidc(Customizer.withDefaults());
         return http.build();
@@ -156,15 +146,6 @@ public class Oauth2ServerAutoConfiguration {
         return new DelegatingOAuth2TokenGenerator(jwtGenerator,
                                                   new UuidOAuth2TokenGenerator(),
                                                   new UuidOAuth2RefreshTokenGenerator()
-        );
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean(PasswordEncoder.class)
-    public PasswordEncoder passwordEncoder(CustomSecurityConfigProperties properties,
-            GlobalDataCoder globalDataCoder) {
-        return new TemplateOauthPasswordEncoder(properties.getDefaultPasswordEncoderKey(),
-                                                globalDataCoder
         );
     }
 }

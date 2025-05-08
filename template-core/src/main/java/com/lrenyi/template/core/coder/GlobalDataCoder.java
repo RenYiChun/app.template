@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.coder;
 
+import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -8,6 +9,8 @@ import java.util.ServiceLoader;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,20 +18,24 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class GlobalDataCoder implements TemplateDataCoder {
+public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
+    private CustomSecurityConfigProperties customSecurityConfigProperties;
+    
+    @Autowired
+    public void setCustomSecurityConfigProperties(CustomSecurityConfigProperties customSecurityConfigProperties) {
+        this.customSecurityConfigProperties = customSecurityConfigProperties;
+    }
     
     static {
         ServiceLoader<TemplateDataCoder> load = ServiceLoader.load(TemplateDataCoder.class);
         for (TemplateDataCoder encoder : load) {
             ALL_ENCODER.put(encoder.type(), encoder);
         }
-        PasswordEncoder defaultPasswordEncoder =
-                PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        PasswordEncoder defaultPasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
         if (defaultPasswordEncoder instanceof DelegatingPasswordEncoder delegatingPasswordEncoder) {
             try {
-                Field encoder =
-                        DelegatingPasswordEncoder.class.getDeclaredField("idToPasswordEncoder");
+                Field encoder = DelegatingPasswordEncoder.class.getDeclaredField("idToPasswordEncoder");
                 encoder.setAccessible(true);
                 Object mapValue = encoder.get(delegatingPasswordEncoder);
                 if (mapValue instanceof Map<?, ?> map) {
@@ -141,6 +148,11 @@ public class GlobalDataCoder implements TemplateDataCoder {
         return prefixEncodedPassword.substring(start + 1);
     }
     
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        setDefaultPasswordEncoderForMatches(customSecurityConfigProperties.getDefaultPasswordEncoderKey());
+    }
+    
     @Data
     @AllArgsConstructor
     static class KeyPassword {
@@ -162,8 +174,7 @@ public class GlobalDataCoder implements TemplateDataCoder {
             if (keyPassword != null) {
                 id = keyPassword.encoderKey;
             }
-            throw new IllegalArgumentException(
-                    "There is no PasswordEncoder mapped for the id: \"" + id + "\"");
+            throw new IllegalArgumentException("There is no PasswordEncoder mapped for the id: \"" + id + "\"");
         }
         
         @Override
