@@ -124,9 +124,9 @@ under the License.
         </server>
         -->
         <server>
-            <id>ossrh</id>
-            <username>${OSSRH_USERNAME}</username>
-            <password>${OSSRH_PASSWORD}</password>
+            <id>central</id>
+            <username>${CENTRAL_USERNAME}</username>
+            <password>${CENTRAL_PASSWORD}</password>
         </server>
 
         <!-- Another sample, using keys to authenticate.
