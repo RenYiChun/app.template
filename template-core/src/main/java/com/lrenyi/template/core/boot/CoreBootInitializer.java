@@ -1,7 +1,6 @@
 package com.lrenyi.template.core.boot;
 
 import com.lrenyi.template.core.coder.ConfigDecryption;
-import com.lrenyi.template.core.nats.event.EventInitService;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.context.ApplicationContextInitializer;
@@ -34,7 +33,6 @@ public class CoreBootInitializer extends ConfigDecryption implements
                                                            decryptedProperties
             ));
         }
-        EventInitService.init();
     }
     
     @Override

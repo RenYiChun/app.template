@@ -1,8 +1,5 @@
 package com.lrenyi.template.core.util;
 
-import com.alibaba.fastjson2.JSON;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +18,6 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import javax.crypto.Cipher;
 import lombok.Getter;
 import org.apache.commons.codec.binary.Base64;
@@ -192,32 +188,4 @@ public class RsaUtils {
         return (RSAPrivateKey) privateKey;
     }
     
-    public static void makeJwtString() {
-        String kid = UUID.randomUUID().toString();
-        RSAKey rsaKey = new RSAKey.Builder((RSAPublicKey) publicKey).privateKey(privateKey).keyID(kid).build();
-        Map<String, Object> jsonObject = new JWKSet(rsaKey).toJSONObject(true);
-        try (FileWriter writer = new FileWriter("default_rsa_public.jwt")) {
-            writer.write(JSON.toJSONString(jsonObject));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-    
-    public static String getJwtKid() {
-        String jwtFileName = "rsa_public.jwt";
-        if (FileUtil.isResourceFileNotExists(jwtFileName)) {
-            jwtFileName = "default_rsa_public.jwt";
-        }
-        try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(jwtFileName)) {
-            if (inputStream == null) {
-                throw new NullPointerException("loader file：" + jwtFileName + " faild");
-            }
-            byte[] keyBytes = inputStream.readAllBytes();
-            String value = new String(keyBytes);
-            return String.valueOf(JSON.parseObject(value).get("kid"));
-        } catch (Throwable cause) {
-            logger.error("", cause);
-            return null;
-        }
-    }
 }

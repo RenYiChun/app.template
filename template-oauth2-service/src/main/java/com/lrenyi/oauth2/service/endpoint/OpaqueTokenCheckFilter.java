@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service.endpoint;
 
-import com.alibaba.fastjson2.JSON;
+import com.lrenyi.template.core.config.json.JsonService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,8 +18,8 @@ import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNam
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -29,6 +29,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
     private static final String ENDPOINT_URI = "/opaque/token/check";
     private final RequestMatcher endpointMatcher;
+    private JsonService jsonService;
     
     private OAuth2AuthorizationService oAuth2AuthorizationService;
     
@@ -37,26 +38,29 @@ public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
         this.oAuth2AuthorizationService = oAuth2AuthorizationService;
     }
     
+    @Autowired
+    public void setJsonService(JsonService jsonService) {
+        this.jsonService = jsonService;
+    }
+    
     public OpaqueTokenCheckFilter() {
         this.endpointMatcher = createDefaultRequestMatcher();
     }
     
     private RequestMatcher createDefaultRequestMatcher() {
-        String method = HttpMethod.POST.name();
-        RequestMatcher requestMatcher =
-                new AntPathRequestMatcher(OpaqueTokenCheckFilter.ENDPOINT_URI, method);
+        PathPatternRequestMatcher.Builder builder = PathPatternRequestMatcher.withDefaults();
+        RequestMatcher requestMatcher = builder.matcher(HttpMethod.POST, OpaqueTokenCheckFilter.ENDPOINT_URI);
         RequestMatcher contextType = request -> {
             String contentType = request.getContentType();
-            return StringUtils.hasText(contentType) && contentType.startsWith(
-                    "application/x-www-form-urlencoded");
+            return StringUtils.hasText(contentType) && contentType.startsWith("application/x-www-form-urlencoded");
         };
         return new AndRequestMatcher(requestMatcher, contextType);
     }
     
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) throws ServletException, IOException {
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain filterChain) throws ServletException, IOException {
         if (!endpointMatcher.matches(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -66,8 +70,7 @@ public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
         String token = parameterMap.get("token")[0];
         
         boolean active = false;
-        OAuth2Authorization authorization =
-                oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
+        OAuth2Authorization authorization = oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
         if (authorization != null) {
             Map<String, Object> attributes = authorization.getAttributes();
             Set<String> scopes = authorization.getAuthorizedScopes();
@@ -80,7 +83,7 @@ public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
             active = true;
         }
         result.put(OAuth2TokenIntrospectionClaimNames.ACTIVE, active);
-        String value = JSON.toJSONString(result);
+        String value = jsonService.serialize(result);
         response.setContentType("application/json");
         OutputStream outputStream = response.getOutputStream();
         outputStream.write(value.getBytes(StandardCharsets.UTF_8));

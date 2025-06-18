@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.config;
 
-import com.lrenyi.template.core.config.nats.NatsConfig;
 import com.lrenyi.template.core.config.redis.RedisConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,10 +19,6 @@ public class CoreConfigImportSelect implements ImportSelector {
         );
         if (present) {
             imports.add(RedisConfig.class.getName());
-        }
-        present = ClassUtils.isPresent("io.nats.client.Connection", loader);
-        if (present) {
-            imports.add(NatsConfig.class.getName());
         }
         return imports.toArray(new String[0]);
     }

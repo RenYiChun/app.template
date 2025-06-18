@@ -1,11 +1,10 @@
 package com.lrenyi.template.web;
 
-import com.alibaba.fastjson2.JSON;
 import com.lrenyi.template.core.annotation.Function;
 import com.lrenyi.template.core.boot.Interface;
+import com.lrenyi.template.core.config.json.JsonService;
 import com.lrenyi.template.core.util.SpringContextUtil;
 import com.lrenyi.template.web.config.ConfigImportSelect;
-import com.lrenyi.template.web.converter.FastJsonHttpMessageConverter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -15,9 +14,9 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -36,9 +35,11 @@ import org.springframework.web.util.pattern.PathPattern;
 @ConditionalOnProperty(name = "app.template.config.enable", matchIfMissing = true)
 public class TemplateWebAutoConfig {
     
-    @Bean
-    public FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {
-        return new FastJsonHttpMessageConverter();
+    private JsonService jsonService;
+    
+    @Autowired
+    public void setJsonService(JsonService jsonService) {
+        this.jsonService = jsonService;
     }
     
     @EventListener(ApplicationReadyEvent.class)
@@ -94,7 +95,7 @@ public class TemplateWebAutoConfig {
         allDomainFunction.forEach((domain, interfaces) -> {
             log.debug("发现一个功能域：{}， 域下共有接口{}个: ", domain, interfaces.size());
             for (Interface anInterface : interfaces) {
-                log.debug(">>:{}", JSON.toJSONString(anInterface));
+                log.debug(">>:{}", jsonService.serialize(anInterface));
             }
         });
         Collection<List<Interface>> interfaces = allDomainFunction.values();

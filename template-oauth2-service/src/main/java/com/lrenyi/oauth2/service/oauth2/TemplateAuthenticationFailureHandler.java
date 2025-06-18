@@ -1,7 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONWriter;
+import com.lrenyi.template.core.config.json.JsonService;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.core.util.TokenBean;
 import jakarta.servlet.ServletException;
@@ -9,7 +8,9 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -20,6 +21,14 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class TemplateAuthenticationFailureHandler implements AuthenticationFailureHandler {
+    
+    private JsonService jsonService;
+    
+    @Autowired
+    public void setJsonService(JsonService jsonService) {
+        this.jsonService = jsonService;
+    }
+    
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
@@ -35,12 +44,12 @@ public class TemplateAuthenticationFailureHandler implements AuthenticationFailu
             }
             response.setContentType(MediaType.APPLICATION_JSON.toString());
             ServletOutputStream outputStream = response.getOutputStream();
-            outputStream.write(JSON.toJSONBytes(result, JSONWriter.Feature.WriteNullStringAsEmpty));
+            outputStream.write(jsonService.serialize(result).getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
             return;
         }
         String simpleName = AuthenticationException.class.getSimpleName();
         String name = OAuth2AuthenticationException.class.getName();
-        log.warn(simpleName + " must be of type " + name + " but was " + exception.getClass().getName());
+        log.warn("{} must be of type {} but was {}", simpleName, name, exception.getClass().getName());
     }
 }

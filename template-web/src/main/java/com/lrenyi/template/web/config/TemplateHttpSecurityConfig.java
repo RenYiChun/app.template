@@ -1,5 +1,6 @@
 package com.lrenyi.template.web.config;
 
+import com.lrenyi.template.core.config.json.JsonService;
 import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
 import com.lrenyi.template.core.util.SpringContextUtil;
 import jakarta.annotation.Resource;
@@ -51,8 +52,9 @@ public class TemplateHttpSecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,
-            RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
-            Environment environment) throws Exception {
+                                                          RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
+                                                          Environment environment,
+                                                          JsonService jsonService) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         if (!securityConfig.isEnable()) {
             http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
@@ -109,7 +111,7 @@ public class TemplateHttpSecurityConfig {
             }
             // @formatter:on
         }
-        http.exceptionHandling((exceptionHandling) -> exceptionHandling.accessDeniedHandler(new CustomAccessDeniedHandler()));
+        http.exceptionHandling((exceptionHandling) -> exceptionHandling.accessDeniedHandler(new CustomAccessDeniedHandler(jsonService)));
         if (httpConfigurer != null) {
             httpConfigurer.accept(http);
         }

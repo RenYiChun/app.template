@@ -10,7 +10,6 @@ import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
-import com.lrenyi.template.web.converter.FastJsonHttpMessageConverter;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -60,11 +59,8 @@ public class Oauth2ServerAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public RestTemplate restTemplate(FastJsonHttpMessageConverter fastJsonHttpMessageConverter) {
-        RestTemplate template = new RestTemplate();
-        List<HttpMessageConverter<?>> messageConverters = template.getMessageConverters();
-        messageConverters.add(fastJsonHttpMessageConverter);
-        return template;
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
     
     @Bean
@@ -104,12 +100,14 @@ public class Oauth2ServerAutoConfiguration {
                                                                       AuthenticationFailureHandler templateAuthenticationFailureHandler) throws Exception {
         String loginPage = properties.getCustomizeLoginPage();
         
-        http.exceptionHandling((exceptions) -> {
-            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(StringUtils.hasLength(
-                    loginPage) ? loginPage : "/login");
-            MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
-            exceptions.defaultAuthenticationEntryPointFor(point, matcher);
-        });
+        // 配置安全匹配器，只匹配OAuth2相关的端点
+        http.securityMatcher("/oauth2/**", "/login/**", "/logout", "/.well-known/**", "/jwks", "/jwt/public/key")
+            .exceptionHandling((exceptions) -> {
+                LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(StringUtils.hasLength(
+                        loginPage) ? loginPage : "/login");
+                MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
+                exceptions.defaultAuthenticationEntryPointFor(point, matcher);
+            });
         Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
         if (StringUtils.hasLength(loginPage)) {
             loginCustomizer = form -> form.loginPage(loginPage);
@@ -119,9 +117,10 @@ public class Oauth2ServerAutoConfiguration {
         
         Set<String> allPermitUrls = properties.getAllPermitUrls();
         http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))
-                                                     .permitAll());
+                                                     .permitAll()
+                                                     .anyRequest().authenticated());
         
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+        http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
         
         OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         configurer.tokenEndpoint(point -> {

@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.lrenyi.template.core.config.json.JsonService;
 import com.lrenyi.template.core.util.MCode;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.core.util.StringUtils;
@@ -28,6 +28,12 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
     private RestTemplate template;
     private Environment environment;
     private OAuth2AuthorizationService oAuth2AuthorizationService;
+    private JsonService jsonService;
+    
+    @Autowired
+    public void setJsonService(JsonService jsonService) {
+        this.jsonService = jsonService;
+    }
     
     @Autowired
     public void setoAuth2AuthorizationService(OAuth2AuthorizationService oAuth2AuthorizationService) {
@@ -50,9 +56,7 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
     }
     
     @Override
-    public Result<TokenBean> login(String type,
-            MultiValueMap<String, String> body,
-            HttpHeaders header) {
+    public Result<TokenBean> login(String type, MultiValueMap<String, String> body, HttpHeaders header) {
         header.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, header);
         TokenBean tokenBean;
@@ -65,14 +69,15 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
         }
         try {
             String host = String.format("%s://localhost:%s%s", type, port, oauthPath);
-            JSONObject strValue = template.postForObject(host, entity, JSONObject.class);
+            Object strValue = template.postForObject(host, entity, Object.class);
             if (strValue == null) {
                 result.setCode(MCode.NO_PERMISSIONS.getCode());
                 result.setMessage("oauth认证返回数据异常");
                 return result;
             }
             result.setCode(MCode.SUCCESS.getCode());
-            tokenBean = strValue.to(TokenBean.class);
+            String serialize = jsonService.serialize(strValue);
+            tokenBean = jsonService.deserialize(serialize, TokenBean.class);
             result.setData(tokenBean);
             return result;
         } catch (Throwable cause) {
@@ -101,10 +106,9 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
             if (StringUtils.hasLength(tokenInfo)) {
                 String[] split = tokenInfo.split(" ");
                 if (split.length >= 2) {
-                    OAuth2Authorization authorization =
-                            oAuth2AuthorizationService.findByToken(split[1],
-                                                                   OAuth2TokenType.ACCESS_TOKEN
-                            );
+                    OAuth2Authorization authorization = oAuth2AuthorizationService.findByToken(split[1],
+                                                                                               OAuth2TokenType.ACCESS_TOKEN
+                    );
                     if (authorization != null) {
                         oAuth2AuthorizationService.remove(authorization);
                     }
@@ -124,8 +128,7 @@ public class DefaultTemplateOauthService implements TemplateOauthService {
     @Override
     public Map<String, String> getUserNameByToken(String token) {
         Map<String, String> result = new HashMap<>();
-        OAuth2Authorization authorization =
-                oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
+        OAuth2Authorization authorization = oAuth2AuthorizationService.findByToken(token, OAuth2TokenType.ACCESS_TOKEN);
         if (authorization == null) {
             return result;
         }
