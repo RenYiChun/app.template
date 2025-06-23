@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service.endpoint;
 
-import com.lrenyi.template.core.config.json.JsonService;
+import com.lrenyi.template.core.json.JsonService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

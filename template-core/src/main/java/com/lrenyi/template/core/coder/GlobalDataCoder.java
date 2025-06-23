@@ -1,6 +1,6 @@
 package com.lrenyi.template.core.coder;
 
-import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -20,11 +20,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
-    private CustomSecurityConfigProperties customSecurityConfigProperties;
+    private TemplateConfigProperties templateConfigProperties;
     
     @Autowired
-    public void setCustomSecurityConfigProperties(CustomSecurityConfigProperties customSecurityConfigProperties) {
-        this.customSecurityConfigProperties = customSecurityConfigProperties;
+    public void setCustomSecurityConfigProperties(TemplateConfigProperties templateConfigProperties) {
+        this.templateConfigProperties = templateConfigProperties;
     }
     
     static {
@@ -149,8 +149,8 @@ public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
     }
     
     @Override
-    public void afterPropertiesSet() throws Exception {
-        setDefaultPasswordEncoderForMatches(customSecurityConfigProperties.getDefaultPasswordEncoderKey());
+    public void afterPropertiesSet() {
+        setDefaultPasswordEncoderForMatches(templateConfigProperties.getSecurity().getSecurityKey());
     }
     
     @Data

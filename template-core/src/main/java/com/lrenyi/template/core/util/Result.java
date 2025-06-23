@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.util;
 
-import com.lrenyi.template.core.config.properties.ExceptionConfig;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

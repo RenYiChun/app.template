@@ -1,8 +1,7 @@
-package com.lrenyi.template.core.config.json;
+package com.lrenyi.template.core.json;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.lrenyi.template.core.config.properties.AppJsonConfigProperties;
 import java.util.List;
 import java.util.Map;
 import lombok.Getter;
@@ -17,20 +16,14 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class JsonService {
-    
-    /**
-     * 获取底层的JSON处理器实例
-     */
     private final JsonProcessor processor;
-    /**
-     * 获取配置的处理器类型
-     */
-    private final String processorType;
     
-    public JsonService(JsonProcessor processor, AppJsonConfigProperties properties) {
+    public JsonService(JsonProcessor processor) {
         this.processor = processor;
-        this.processorType = properties.getProcessorType();
-        log.info("JsonService initialized with processor: {} ({})", processor.getProcessorName(), processorType);
+        log.info("JsonService initialized with processor: {} ({})",
+                 processor.getProcessorName(),
+                 processor.getProcessorName()
+        );
     }
     
     /**

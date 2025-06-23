@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.config.json;
+package com.lrenyi.template.core.json;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;

@@ -7,7 +7,6 @@ import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConv
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
-import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -29,7 +28,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;

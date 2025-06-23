@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service.endpoint;
 
-import com.lrenyi.template.core.config.json.JsonService;
+import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;

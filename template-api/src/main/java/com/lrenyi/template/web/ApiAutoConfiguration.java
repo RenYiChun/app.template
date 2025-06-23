@@ -1,7 +1,7 @@
 package com.lrenyi.template.web;
 
-import com.lrenyi.template.core.config.json.JsonService;
-import com.lrenyi.template.core.config.properties.CustomSecurityConfigProperties;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.web.config.RequestAuthorizationManager;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
@@ -104,16 +104,17 @@ public class ApiAutoConfiguration {
                                                               RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
                                                               Environment environment,
                                                               Consumer<HttpSecurity> httpConfigurer,
-                                                              CustomSecurityConfigProperties securityConfig,
+                                                              TemplateConfigProperties templateConfigProperties,
                                                               JsonService jsonService) throws Exception {
             http.csrf(AbstractHttpConfigurer::disable);
-            if (!securityConfig.isEnable()) {
+            TemplateConfigProperties.SecurityConfig security = templateConfigProperties.getSecurity();
+            if (!security.isEnable()) {
                 http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
                 return http.build();
             }
             String appName = environment.getProperty("spring.application.name");
-            Set<String> permitUrlsOfApp = securityConfig.getDefaultPermitUrls();
-            Map<String, Set<String>> permitUrls = securityConfig.getPermitUrls();
+            Set<String> permitUrlsOfApp = security.getDefaultPermitUrls();
+            Map<String, Set<String>> permitUrls = security.getPermitUrls();
             Set<String> set = permitUrls.get(appName);
             if (set != null) {
                 permitUrlsOfApp.addAll(set);
@@ -127,7 +128,8 @@ public class ApiAutoConfiguration {
                          .anyRequest()
                          .access(new RequestAuthorizationManager());
             });
-            CustomSecurityConfigProperties.OpaqueToken opaqueToken = securityConfig.getOpaqueToken();
+            TemplateConfigProperties.OAuth2Config oAuth2Config = templateConfigProperties.getOauth2();
+            TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oAuth2Config.getOpaqueToken();
             if (opaqueToken.isEnable()) {
                 http.oauth2ResourceServer((oauth2) -> oauth2.opaqueToken((opaque) -> {
                     opaque.introspectionUri(opaqueToken.getIntrospectionUri())
@@ -137,7 +139,7 @@ public class ApiAutoConfiguration {
                 }));
             } else {
                 // @formatter:off
-                if (securityConfig.isLocalJwtPublicKey()) {
+                if (security.isLocalJwtPublicKey()) {
                     // 加载本地公钥
                     RSAPublicKey publicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
                     // 使用公钥创建JwtDecoder
@@ -148,7 +150,7 @@ public class ApiAutoConfiguration {
                                     .jwt(jwt -> jwt.decoder(jwtDecoder)));
                 } else {
                     http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {
-                        String domain = securityConfig.getNetJwtPublicKeyDomain();
+                        String domain = security.getNetJwtPublicKeyDomain();
                         char c = domain.charAt(domain.length() - 1);
                         if (c == '/') {
                             domain = domain.substring(0, domain.length() - 1);

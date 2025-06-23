@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service;
 
-import com.lrenyi.template.core.config.json.JsonService;
+import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.MCode;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.core.util.StringUtils;

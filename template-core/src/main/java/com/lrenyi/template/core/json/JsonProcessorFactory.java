@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.config.json;
+package com.lrenyi.template.core.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -18,7 +18,6 @@ public class JsonProcessorFactory {
     
     // 处理器类型常量
     public static final String JACKSON = "jackson";
-    public static final String GSON = "gson";
     public static final String DEFAULT = JACKSON;
     
     static {
@@ -86,13 +85,6 @@ public class JsonProcessorFactory {
      */
     public static JsonProcessor createJacksonProcessor(ObjectMapper objectMapper) {
         return new JacksonJsonProcessor(objectMapper);
-    }
-    
-    /**
-     * 创建Gson处理器
-     */
-    public static JsonProcessor createGsonProcessor() {
-        return createProcessor(GSON);
     }
     
     /**
