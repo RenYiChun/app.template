@@ -1,10 +1,10 @@
 package com.lrenyi.template.web;
 
+import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.web.config.FeignClientConfiguration;
-import com.lrenyi.template.web.config.RequestAuthorizationManager;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.web.config.TemplateRsaPublicAndPrivateKey;
 import com.nimbusds.common.contenttype.ContentType;
@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -54,9 +55,10 @@ import org.springframework.security.web.SecurityFilterChain;
  */
 @Slf4j
 @Configuration(proxyBeanMethods = false)
+@AutoConfigureAfter(CoreAutoConfiguration.class)
+@Import(ApiAutoConfiguration.SecurityAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnProperty(name = "app.template.enabled", matchIfMissing = true)
-@Import(ApiAutoConfiguration.SecurityAutoConfiguration.class)
 public class ApiAutoConfiguration {
     
     static class SecurityAutoConfiguration {
@@ -103,10 +105,7 @@ public class ApiAutoConfiguration {
             http.authorizeHttpRequests(authorize -> {
                 String[] permitUrlsArray = permitUrlsOfApp.toArray(new String[0]);
                 authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll();
-                authorize.requestMatchers(permitUrlsArray)
-                         .permitAll()
-                         .anyRequest()
-                         .access(new RequestAuthorizationManager());
+                authorize.requestMatchers(permitUrlsArray).permitAll().anyRequest().authenticated();
             });
             TemplateConfigProperties.OAuth2Config oAuth2Config = templateConfigProperties.getOauth2();
             TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oAuth2Config.getOpaqueToken();
