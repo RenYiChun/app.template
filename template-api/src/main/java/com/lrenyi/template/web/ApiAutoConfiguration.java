@@ -56,9 +56,22 @@ import org.springframework.security.web.SecurityFilterChain;
 @Slf4j
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureAfter(CoreAutoConfiguration.class)
-@Import(ApiAutoConfiguration.SecurityAutoConfiguration.class)
+@Import(
+        {ApiAutoConfiguration.SecurityAutoConfiguration.class, ApiAutoConfiguration.FeignAutoConfiguration.class,}
+)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class ApiAutoConfiguration {
+    
+    /**
+     * Feign配置模块 - 条件导入
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "feign.RequestInterceptor")
+    @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
+    @Import(FeignClientConfiguration.class)
+    static class FeignAutoConfiguration {
+        // 空的配置类，仅用于条件导入
+    }
     
     static class SecurityAutoConfiguration {
         
@@ -66,17 +79,6 @@ public class ApiAutoConfiguration {
         @ConditionalOnMissingBean
         public RsaPublicAndPrivateKey rsaPublicAndPrivateKey() {
             return new TemplateRsaPublicAndPrivateKey();
-        }
-        
-        /**
-         * Feign配置模块 - 条件导入
-         */
-        @Configuration(proxyBeanMethods = false)
-        @ConditionalOnClass(name = "feign.RequestInterceptor")
-        @ConditionalOnProperty(name = "app.template.feign.enabled")
-        @Import(FeignClientConfiguration.class)
-        static class FeignAutoConfiguration {
-            // 空的配置类，仅用于条件导入
         }
         
         @Bean

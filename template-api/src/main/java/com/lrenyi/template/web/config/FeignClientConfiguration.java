@@ -12,7 +12,7 @@ public class FeignClientConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public RequestInterceptor feignClientInterceptor() {
+    public RequestInterceptor requestInterceptor() {
         return template -> {
             // 获取对象
             ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();

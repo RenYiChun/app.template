@@ -3,6 +3,7 @@ package com.lrenyi.template.core;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.Getter;
@@ -19,7 +20,7 @@ import org.springframework.util.StringUtils;
 @Setter
 @Getter
 @ConfigurationProperties(prefix = "app.template")
-public class TemplateConfigProperties {
+public class TemplateConfigProperties implements InitializingBean {
     private boolean enabled = true;
     
     /**
@@ -39,6 +40,15 @@ public class TemplateConfigProperties {
      */
     @NestedConfigurationProperty
     private WebProperties web = new WebProperties();
+    
+    @NestedConfigurationProperty
+    private FeignProperties feign = new FeignProperties();
+    
+    @Setter
+    @Getter
+    public static class FeignProperties {
+        private boolean enabled = true;
+    }
     
     /**
      * Web模块配置
@@ -117,7 +127,7 @@ public class TemplateConfigProperties {
      */
     @Setter
     @Getter
-    public static class SecurityProperties implements InitializingBean {
+    public static class SecurityProperties {
         private boolean enabled = true;
         private String securityKey = "default";
         private Set<String> allPermitUrls = new HashSet<>();
@@ -133,24 +143,19 @@ public class TemplateConfigProperties {
          * AuthorizationService的类型，目前支持两种，memory, redis
          */
         private String authorizationType = "memory";
-        
-        @Override
-        public void afterPropertiesSet() {
-            defaultPermitUrls.addAll(Arrays.asList("/oauth2/token",
-                                                   "/opaque/token/check",
-                                                   "/jwt/public/key",
-                                                   "/favicon",
-                                                   "/static/**",
-                                                   "/webjars/**"
-            ));
-            allPermitUrls.addAll(defaultPermitUrls);
-            permitUrls.forEach((key, vales) -> allPermitUrls.addAll(vales));
-            if (StringUtils.hasLength(customizeLoginPage)) {
-                allPermitUrls.add(customizeLoginPage);
-            }
-            if (!resourcePermitUrls.isEmpty()) {
-                allPermitUrls.addAll(resourcePermitUrls);
-            }
+    }
+    
+    @Override
+    public void afterPropertiesSet() {
+        List<String> list = Arrays.asList("/oauth2/token", "/opaque/token/check", "/jwt/public/key", "/favicon");
+        security.defaultPermitUrls.addAll(list);
+        security.allPermitUrls.addAll(security.defaultPermitUrls);
+        security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
+        if (StringUtils.hasLength(security.customizeLoginPage)) {
+            security.allPermitUrls.add(security.customizeLoginPage);
+        }
+        if (!security.resourcePermitUrls.isEmpty()) {
+            security.allPermitUrls.addAll(security.resourcePermitUrls);
         }
     }
 }
