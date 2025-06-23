@@ -17,9 +17,9 @@ import org.springframework.context.annotation.Import;
 @Import(CoreAutoConfiguration.WebConfig.class)
 @AutoConfigureAfter(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(TemplateConfigProperties.class)
-@ConditionalOnProperty(name = "app.template.enabled", matchIfMissing = true)
 public class CoreAutoConfiguration {
     
+    @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
     static class WebConfig {
         @Bean
         @ConditionalOnMissingBean(JsonProcessor.class)

@@ -58,7 +58,6 @@ import org.springframework.security.web.SecurityFilterChain;
 @AutoConfigureAfter(CoreAutoConfiguration.class)
 @Import(ApiAutoConfiguration.SecurityAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "app.template.enabled", matchIfMissing = true)
 public class ApiAutoConfiguration {
     
     static class SecurityAutoConfiguration {
@@ -87,10 +86,10 @@ public class ApiAutoConfiguration {
                                                               Environment environment,
                                                               ObjectProvider<Consumer<HttpSecurity>> httpConfigurerProvider,
                                                               TemplateConfigProperties templateConfigProperties,
-                                                              JsonService jsonService) throws Exception {
+                                                              ObjectProvider<JsonService> jsonServiceProvider) throws Exception {
             http.csrf(AbstractHttpConfigurer::disable);
             TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
-            if (!security.isEnabled()) {
+            if (!templateConfigProperties.isEnabled() || !security.isEnabled()) {
                 http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
                 return http.build();
             }
@@ -145,14 +144,19 @@ public class ApiAutoConfiguration {
                 Result<String> error = new Result<>();
                 error.makeThrowable(accessDeniedException, "发生了未被处理的异常");
                 error.setData(request.getRequestURI());
-                String jsonString = jsonService.serialize(error);
-                response.setContentType(ContentType.APPLICATION_JSON.getType());
-                try {
-                    ServletOutputStream outputStream = response.getOutputStream();
-                    outputStream.write(jsonString.getBytes(StandardCharsets.UTF_8));
-                    outputStream.flush();
-                } catch (IOException e) {
-                    log.error("返回异常结果给前端时出现异常", e);
+                JsonService jsonService = jsonServiceProvider.getIfAvailable();
+                if (jsonService != null) {
+                    String jsonString = jsonService.serialize(error);
+                    response.setContentType(ContentType.APPLICATION_JSON.getType());
+                    try {
+                        ServletOutputStream outputStream = response.getOutputStream();
+                        outputStream.write(jsonString.getBytes(StandardCharsets.UTF_8));
+                        outputStream.flush();
+                    } catch (IOException e) {
+                        log.error("返回异常结果给前端时出现异常", e);
+                    }
+                } else {
+                    log.warn("the bean of JsonService is null");
                 }
             }));
             Consumer<HttpSecurity> consumer = httpConfigurerProvider.getIfAvailable();
