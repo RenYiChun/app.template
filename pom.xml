@@ -50,7 +50,7 @@
     <modules>
         <module>template-core</module>
         <module>template-service</module>
-        <module>template-web</module>
+        <module>template-api</module>
         <module>template-oauth2-service</module>
     </modules>
 
