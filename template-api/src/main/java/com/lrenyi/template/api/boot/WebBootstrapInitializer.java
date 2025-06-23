@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.boot;
+package com.lrenyi.template.api.boot;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.BootstrapRegistry;

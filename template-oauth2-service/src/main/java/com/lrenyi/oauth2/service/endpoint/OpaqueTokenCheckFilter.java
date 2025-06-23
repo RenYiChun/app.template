@@ -74,7 +74,7 @@ public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
         if (authorization != null) {
             Map<String, Object> attributes = authorization.getAttributes();
             Set<String> scopes = authorization.getAuthorizedScopes();
-            Object username = attributes.get("username");
+            Object username = attributes.get(OAuth2TokenIntrospectionClaimNames.USERNAME);
             if (username == null) {
                 username = authorization.getPrincipalName();
             }

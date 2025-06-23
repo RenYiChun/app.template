@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.websocket;
+package com.lrenyi.template.api.websocket;
 
 import com.lrenyi.template.core.util.SpringContextUtil;
 import java.util.List;

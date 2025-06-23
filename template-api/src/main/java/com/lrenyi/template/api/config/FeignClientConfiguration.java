@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.config;
+package com.lrenyi.template.api.config;
 
 import feign.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,11 +9,13 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 public class FeignClientConfiguration {
+    public static final String HEADER_NAME = "X-Internal-Call";
     
     @Bean
     @ConditionalOnMissingBean
     public RequestInterceptor requestInterceptor() {
         return template -> {
+            template.header(HEADER_NAME, "true");
             // 获取对象
             ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attribute == null) {

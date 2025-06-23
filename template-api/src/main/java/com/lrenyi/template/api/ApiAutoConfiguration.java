@@ -1,12 +1,15 @@
-package com.lrenyi.template.web;
+package com.lrenyi.template.api;
 
+import com.lrenyi.template.api.audit.aspect.AuditLogAspect;
+import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
+import com.lrenyi.template.api.audit.service.AuditLogService;
 import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
-import com.lrenyi.template.web.config.FeignClientConfiguration;
-import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
-import com.lrenyi.template.web.config.TemplateRsaPublicAndPrivateKey;
+import com.lrenyi.template.api.config.FeignClientConfiguration;
+import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
+import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.nimbusds.common.contenttype.ContentType;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletOutputStream;
@@ -28,6 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -56,9 +60,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Slf4j
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureAfter(CoreAutoConfiguration.class)
-@Import(
-        {ApiAutoConfiguration.SecurityAutoConfiguration.class, ApiAutoConfiguration.FeignAutoConfiguration.class,}
-)
+//@formatter:off
+@Import({
+        ApiAutoConfiguration.SecurityAutoConfiguration.class,
+        ApiAutoConfiguration.FeignAutoConfiguration.class,
+        ApiAutoConfiguration.AuditLogConfiguration.class
+})
+//@formatter:on
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class ApiAutoConfiguration {
     
@@ -71,6 +79,28 @@ public class ApiAutoConfiguration {
     @Import(FeignClientConfiguration.class)
     static class FeignAutoConfiguration {
         // 空的配置类，仅用于条件导入
+    }
+    
+    @EnableAsync
+    @ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true", matchIfMissing = true)
+    static class AuditLogConfiguration {
+        
+        @Bean
+        @ConditionalOnMissingBean
+        public AuditLogProcessor auditLogProcessor() {
+            // 默认的日志处理器，打印到控制台
+            return System.out::println;
+        }
+        
+        @Bean
+        public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor) {
+            return new AuditLogService(auditLogProcessor);
+        }
+        
+        @Bean
+        public AuditLogAspect auditLogAspect(AuditLogService auditLogService) {
+            return new AuditLogAspect(auditLogService);
+        }
     }
     
     static class SecurityAutoConfiguration {

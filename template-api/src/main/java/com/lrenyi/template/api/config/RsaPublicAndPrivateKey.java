@@ -1,4 +1,4 @@
-package com.lrenyi.template.web.config;
+package com.lrenyi.template.api.config;
 
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;

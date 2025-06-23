@@ -11,7 +11,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationChecker;
-import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
+import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;

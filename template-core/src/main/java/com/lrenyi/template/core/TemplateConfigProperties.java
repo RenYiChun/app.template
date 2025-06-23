@@ -44,6 +44,14 @@ public class TemplateConfigProperties implements InitializingBean {
     @NestedConfigurationProperty
     private FeignProperties feign = new FeignProperties();
     
+    private AuditLogProperties audit = new AuditLogProperties();
+    
+    @Setter
+    @Getter
+    public static class AuditLogProperties {
+        private boolean enabled = true;
+    }
+    
     @Setter
     @Getter
     public static class FeignProperties {

@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -86,7 +87,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         }
         UserDetails userDetails;
         LoginNameUserDetailService userDetailService = LoginNameUserDetailService.ALL_LOGIN_NAME_TYPE.get(type);
-        if (userDetailService == null && !"username".equals(type)) {
+        if (userDetailService == null && !OAuth2TokenIntrospectionClaimNames.USERNAME.equals(type)) {
             userDetailService =
                     LoginNameUserDetailService.ALL_LOGIN_NAME_TYPE.get(LoginNameType.USER_NAME.getCode());
         }
@@ -173,7 +174,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         this.authorizationService.save(authorization);
         HashMap<String, Object> parameter = new HashMap<>();
         parameter.put("id", authorization.getId());
-        parameter.put("userName", username);
+        parameter.put(OAuth2TokenIntrospectionClaimNames.USERNAME, username);
         return new OAuth2AccessTokenAuthenticationToken(client,
                                                         principal,
                                                         accessToken,
