@@ -67,32 +67,9 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class OAuth2Config {
         private boolean enabled = true;
-        private AuthorizationServerConfig authorizationServer = new AuthorizationServerConfig();
-        private PasswordGrantConfig passwordGrant = new PasswordGrantConfig();
-        private JwtConfig jwt = new JwtConfig();
+        private boolean skipPreAuthentication;
         @NestedConfigurationProperty
         private OpaqueTokenConfig opaqueToken = new OpaqueTokenConfig();
-        private StorageConfig storage = new StorageConfig();
-        private ClientManagementConfig clientManagement = new ClientManagementConfig();
-        private EndpointsConfig endpoints = new EndpointsConfig();
-        
-        @Setter
-        @Getter
-        public static class AuthorizationServerConfig {
-            private boolean enabled = true;
-        }
-        
-        @Setter
-        @Getter
-        public static class PasswordGrantConfig {
-            private boolean enabled = true;
-        }
-        
-        @Setter
-        @Getter
-        public static class JwtConfig {
-            private boolean enabled = true;
-        }
         
         @Setter
         @Getter
@@ -101,24 +78,6 @@ public class TemplateConfigProperties implements InitializingBean {
             private boolean enable = false;
             private String introspectionClientId = "default-client-id";
             private String introspectionClientSecret = "app.template";
-        }
-        
-        @Setter
-        @Getter
-        public static class StorageConfig {
-            private String type = "memory"; // memory or redis
-        }
-        
-        @Setter
-        @Getter
-        public static class ClientManagementConfig {
-            private boolean enabled = true;
-        }
-        
-        @Setter
-        @Getter
-        public static class EndpointsConfig {
-            private boolean enabled = true;
         }
     }
     
@@ -134,8 +93,6 @@ public class TemplateConfigProperties implements InitializingBean {
         private Set<String> defaultPermitUrls = new HashSet<>();
         private Map<String, Set<String>> permitUrls = new HashMap<>();
         private Set<String> resourcePermitUrls = new HashSet<>();
-        private boolean autoRedirectLoginPage = false;
-        private String redirectLoginPageUrl = "";
         private boolean localJwtPublicKey = true;
         private String netJwtPublicKeyDomain;
         private String customizeLoginPage;

@@ -9,6 +9,8 @@ import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
+import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationFilter;
+import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationChecker;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
@@ -48,6 +51,7 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.web.client.RestTemplate;
 
@@ -93,12 +97,14 @@ public class Oauth2ServerAutoConfiguration {
     
     @Bean
     @Order(1)
+    @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
                                                                       TemplateConfigProperties templateConfigProperties,
                                                                       OAuth2AuthorizationService authorizationService,
                                                                       OAuth2TokenGenerator<?> tokenGenerator,
                                                                       TemplateLogOutHandler handler,
-                                                                      AuthenticationFailureHandler templateAuthenticationFailureHandler) throws Exception {
+                                                                      AuthenticationFailureHandler templateAuthenticationFailureHandler,
+                                                                      PreAuthenticationFilter preAuthenticationFilter) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
         
@@ -122,7 +128,7 @@ public class Oauth2ServerAutoConfiguration {
                                                      .permitAll()
                                                      .anyRequest()
                                                      .authenticated());
-        
+        http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
         
         OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
@@ -133,6 +139,12 @@ public class Oauth2ServerAutoConfiguration {
         });
         configurer.oidc(Customizer.withDefaults());
         return http.build();
+    }
+    
+    @Bean
+    public PreAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
+                                                           TemplateConfigProperties templateConfigProperties) {
+        return new PreAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
     }
     
     @Bean
