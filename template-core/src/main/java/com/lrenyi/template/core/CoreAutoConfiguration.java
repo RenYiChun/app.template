@@ -13,7 +13,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration(proxyBeanMethods = false)
 @Import(CoreAutoConfiguration.WebConfig.class)
@@ -40,8 +39,9 @@ public class CoreAutoConfiguration {
         
         @Bean
         @ConditionalOnMissingBean
-        public PasswordEncoder passwordEncoder(DefaultTemplateEncryptService defaultTemplateEncryptService) {
-            return defaultTemplateEncryptService;
+        public DefaultTemplateEncryptService defaultTemplateEncryptService(
+                TemplateConfigProperties templateConfigProperties) {
+            return new DefaultTemplateEncryptService(templateConfigProperties);
         }
     }
 }

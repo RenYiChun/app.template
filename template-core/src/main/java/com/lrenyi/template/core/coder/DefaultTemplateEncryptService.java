@@ -10,21 +10,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
 public class DefaultTemplateEncryptService implements TemplateEncryptService, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
-    private TemplateConfigProperties templateConfigProperties;
+    private final TemplateConfigProperties templateConfigProperties;
     
-    public DefaultTemplateEncryptService() {}
-    
-    @Autowired
     public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
         this.templateConfigProperties = templateConfigProperties;
     }
@@ -51,15 +45,15 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         }
     }
     
-    private String defaultPasswordEncoderKey;
-    private PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
+    private static String defaultPasswordEncoderKey;
+    private static PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
     
-    public void setDefaultPasswordEncoderForMatches(String encoderKey) {
+    public static void setDefaultPasswordEncoderForMatches(String encoderKey) {
         if (!StringUtils.hasLength(encoderKey)) {
             throw new IllegalArgumentException("defaultPasswordEncoderForMatches cannot be null");
         }
-        this.defaultPasswordEncoderKey = encoderKey;
-        this.defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
+        defaultPasswordEncoderKey = encoderKey;
+        defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
     }
     
     @Override
@@ -69,6 +63,10 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     
     @Override
     public String decode(String encodedPassword) {
+        return decodeStatic(encodedPassword);
+    }
+    
+    public static String decodeStatic(String encodedPassword) {
         KeyPassword keyPassword = encodedBySelf(encodedPassword);
         if (keyPassword == null) {
             throw new IllegalArgumentException("can not decode data of the encoder");
@@ -91,6 +89,10 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     
     @Override
     public String encode(CharSequence rawPassword) {
+        return encodeStatic(rawPassword);
+    }
+    
+    public static String encodeStatic(CharSequence rawPassword) {
         if (rawPassword == null) {
             return null;
         }
@@ -106,6 +108,10 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     
     @Override
     public boolean matches(CharSequence rawPassword, String encodedPassword) {
+        return matchesStatic(rawPassword, encodedPassword);
+    }
+    
+    public static boolean matchesStatic(CharSequence rawPassword, String encodedPassword) {
         KeyPassword keyPassword = encodedBySelf(encodedPassword);
         if (keyPassword == null) {
             String keyId = extractId(encodedPassword);
@@ -115,7 +121,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
                          keyId,
                          defaultPasswordEncoderForMatches.getClass().getName()
                 );
-                return this.defaultPasswordEncoderForMatches.matches(rawPassword, encodedPassword);
+                return defaultPasswordEncoderForMatches.matches(rawPassword, encodedPassword);
             }
             String password = extractEncodedPassword(encodedPassword);
             return encoder.matches(rawPassword, password);
@@ -124,7 +130,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
             PasswordEncoder encoder = ALL_ENCODER.get(encoderKey);
             if (encoder == null) {
                 log.error("no {} type codec found", encoderKey);
-                return this.defaultPasswordEncoderForMatches.matches(rawPassword, encodedPassword);
+                return defaultPasswordEncoderForMatches.matches(rawPassword, encodedPassword);
             }
             return encoder.matches(rawPassword, keyPassword.password);
         }
