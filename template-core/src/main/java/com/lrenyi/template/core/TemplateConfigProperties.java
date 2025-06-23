@@ -119,7 +119,7 @@ public class TemplateConfigProperties {
     @Getter
     public static class SecurityProperties implements InitializingBean {
         private boolean enabled = true;
-        private String securityKey;
+        private String securityKey = "default";
         private Set<String> allPermitUrls = new HashSet<>();
         private Set<String> defaultPermitUrls = new HashSet<>();
         private Map<String, Set<String>> permitUrls = new HashMap<>();
@@ -129,7 +129,6 @@ public class TemplateConfigProperties {
         private boolean localJwtPublicKey = true;
         private String netJwtPublicKeyDomain;
         private String customizeLoginPage;
-        private String defaultPasswordEncoderKey = "default";
         /**
          * AuthorizationService的类型，目前支持两种，memory, redis
          */

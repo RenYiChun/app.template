@@ -23,7 +23,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
@@ -54,17 +53,12 @@ import org.springframework.security.web.SecurityFilterChain;
  * <p>
  */
 @Slf4j
-@ComponentScan
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnProperty(name = "app.template.enabled", matchIfMissing = true)
+@Import(ApiAutoConfiguration.SecurityAutoConfiguration.class)
 public class ApiAutoConfiguration {
     
-    /**
-     * 安全配置模块
-     */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnProperty(name = "app.template.security.enabled", matchIfMissing = true)
     static class SecurityAutoConfiguration {
         
         @Bean
