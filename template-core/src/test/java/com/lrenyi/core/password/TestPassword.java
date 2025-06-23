@@ -1,17 +1,13 @@
 package com.lrenyi.core.password;
 
-import com.lrenyi.template.core.coder.GlobalDataCoder;
-import com.lrenyi.template.core.coder.coder.DefaultTemplateDataCoder;
-import com.lrenyi.template.core.coder.coder.TemplateRsa2048Coder;
+import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.crypto.password.MessageDigestPasswordEncoder;
 
 public class TestPassword {
-    static GlobalDataCoder encoder = new GlobalDataCoder();
+    static DefaultTemplateEncryptService encoder = new DefaultTemplateEncryptService();
     
     @Test
     public void testEncoder() {

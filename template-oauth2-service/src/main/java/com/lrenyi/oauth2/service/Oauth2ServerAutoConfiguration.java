@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -54,6 +55,7 @@ import org.springframework.web.client.RestTemplate;
 @ComponentScan
 @Import(ConfigImportSelector.class)
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
 public class Oauth2ServerAutoConfiguration {
     
     @Bean
@@ -101,13 +103,13 @@ public class Oauth2ServerAutoConfiguration {
         String loginPage = security.getCustomizeLoginPage();
         
         // 配置安全匹配器，只匹配OAuth2相关的端点
-        http.securityMatcher("/oauth2/**", "/login/**", "/logout", "/.well-known/**", "/jwks", "/jwt/public/key")
-            .exceptionHandling((exceptions) -> {
-                LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(StringUtils.hasLength(
-                        loginPage) ? loginPage : "/login");
-                MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
-                exceptions.defaultAuthenticationEntryPointFor(point, matcher);
-            });
+        String[] uris = {"/oauth2/**", "/login/**", "/logout", "/jwks", "/jwt/public/key"};
+        http.securityMatcher(uris).exceptionHandling((exceptions) -> {
+            String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
+            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
+            MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
+            exceptions.defaultAuthenticationEntryPointFor(point, matcher);
+        });
         Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
         if (StringUtils.hasLength(loginPage)) {
             loginCustomizer = form -> form.loginPage(loginPage);

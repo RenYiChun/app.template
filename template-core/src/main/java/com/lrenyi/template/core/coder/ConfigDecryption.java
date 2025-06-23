@@ -5,7 +5,7 @@ import org.springframework.core.env.EnumerablePropertySource;
 
 public class ConfigDecryption {
     protected static final String DECRYPTED_PROPERTY_SOURCE_NAME = "decryptedProperties";
-    GlobalDataCoder encoder = new GlobalDataCoder();
+    DefaultTemplateEncryptService encoder = new DefaultTemplateEncryptService();
     
     protected void decryptionCommon(EnumerablePropertySource<?> enumerablePropertySource,
             Map<String, Object> decryptedProperties) {

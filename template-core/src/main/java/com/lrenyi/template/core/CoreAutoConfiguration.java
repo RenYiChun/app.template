@@ -1,6 +1,7 @@
 package com.lrenyi.template.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import com.lrenyi.template.core.json.JacksonJsonProcessor;
 import com.lrenyi.template.core.json.JsonProcessor;
 import com.lrenyi.template.core.json.JsonService;
@@ -12,6 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration(proxyBeanMethods = false)
 @Import(CoreAutoConfiguration.WebConfig.class)
@@ -34,6 +36,12 @@ public class CoreAutoConfiguration {
         @ConditionalOnMissingBean
         public JsonService jsonService(JsonProcessor jsonProcessor) {
             return new JsonService(jsonProcessor);
+        }
+        
+        @Bean
+        @ConditionalOnMissingBean
+        public PasswordEncoder passwordEncoder(DefaultTemplateEncryptService defaultTemplateEncryptService) {
+            return defaultTemplateEncryptService;
         }
     }
 }

@@ -18,18 +18,20 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
+public class DefaultTemplateEncryptService implements TemplateEncryptService, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
     private TemplateConfigProperties templateConfigProperties;
     
+    public DefaultTemplateEncryptService() {}
+    
     @Autowired
-    public void setCustomSecurityConfigProperties(TemplateConfigProperties templateConfigProperties) {
+    public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
         this.templateConfigProperties = templateConfigProperties;
     }
     
     static {
-        ServiceLoader<TemplateDataCoder> load = ServiceLoader.load(TemplateDataCoder.class);
-        for (TemplateDataCoder encoder : load) {
+        ServiceLoader<TemplateEncryptService> load = ServiceLoader.load(TemplateEncryptService.class);
+        for (TemplateEncryptService encoder : load) {
             ALL_ENCODER.put(encoder.type(), encoder);
         }
         PasswordEncoder defaultPasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
@@ -72,7 +74,7 @@ public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
             throw new IllegalArgumentException("can not decode data of the encoder");
         }
         PasswordEncoder encoder = ALL_ENCODER.get(keyPassword.encoderKey);
-        if (encoder instanceof TemplateDataCoder templateDataCoder) {
+        if (encoder instanceof TemplateEncryptService templateDataCoder) {
             return templateDataCoder.decode(keyPassword.password);
         }
         throw new IllegalArgumentException("not find decoder: " + keyPassword.encoderKey);
@@ -150,7 +152,11 @@ public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
     
     @Override
     public void afterPropertiesSet() {
-        setDefaultPasswordEncoderForMatches(templateConfigProperties.getSecurity().getSecurityKey());
+        String defaultEncryptKey = "default";
+        if (templateConfigProperties != null) {
+            defaultEncryptKey = templateConfigProperties.getSecurity().getSecurityKey();
+        }
+        setDefaultPasswordEncoderForMatches(defaultEncryptKey);
     }
     
     @Data
@@ -160,7 +166,7 @@ public class GlobalDataCoder implements TemplateDataCoder, InitializingBean {
         private String password;
     }
     
-    private static class UnmappedIdPasswordEncoder implements TemplateDataCoder {
+    private static class UnmappedIdPasswordEncoder implements TemplateEncryptService {
         
         @Override
         public String encode(CharSequence rawPassword) {
