@@ -7,6 +7,7 @@ import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConv
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -91,12 +92,13 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @Order(1)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-                                                                      CustomSecurityConfigProperties properties,
+                                                                      TemplateConfigProperties templateConfigProperties,
                                                                       OAuth2AuthorizationService authorizationService,
                                                                       OAuth2TokenGenerator<?> tokenGenerator,
                                                                       TemplateLogOutHandler handler,
                                                                       AuthenticationFailureHandler templateAuthenticationFailureHandler) throws Exception {
-        String loginPage = properties.getCustomizeLoginPage();
+        TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
+        String loginPage = security.getCustomizeLoginPage();
         
         // 配置安全匹配器，只匹配OAuth2相关的端点
         http.securityMatcher("/oauth2/**", "/login/**", "/logout", "/.well-known/**", "/jwks", "/jwt/public/key")
@@ -113,10 +115,11 @@ public class Oauth2ServerAutoConfiguration {
         http.formLogin(loginCustomizer);
         http.logout(form -> form.addLogoutHandler(handler));
         
-        Set<String> allPermitUrls = properties.getAllPermitUrls();
+        Set<String> allPermitUrls = security.getAllPermitUrls();
         http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))
                                                      .permitAll()
-                                                     .anyRequest().authenticated());
+                                                     .anyRequest()
+                                                     .authenticated());
         
         http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
         

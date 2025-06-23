@@ -3,27 +3,29 @@ package com.lrenyi.template.web;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
+import com.lrenyi.template.web.config.FeignClientConfiguration;
 import com.lrenyi.template.web.config.RequestAuthorizationManager;
 import com.lrenyi.template.web.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.web.config.TemplateRsaPublicAndPrivateKey;
 import com.nimbusds.common.contenttype.ContentType;
-import feign.RequestInterceptor;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -31,8 +33,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * 此模块作为表现层的自动配置类
@@ -54,9 +54,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>
  */
 @Slf4j
+@ComponentScan
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "app.template.web.enabled", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.template.enabled", matchIfMissing = true)
 public class ApiAutoConfiguration {
     
     /**
@@ -72,30 +73,15 @@ public class ApiAutoConfiguration {
             return new TemplateRsaPublicAndPrivateKey();
         }
         
-        @Bean
-        @ConditionalOnMissingBean
-        public RequestInterceptor feignClientInterceptor() {
-            return template -> {
-                // 获取对象
-                ServletRequestAttributes attribute =
-                        (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-                if (attribute == null) {
-                    return;
-                }
-                // 获取请求对象
-                HttpServletRequest request = attribute.getRequest();
-                // 获取当前请求的header，获取到jwt令牌
-                Enumeration<String> headerNames = request.getHeaderNames();
-                if (headerNames == null) {
-                    return;
-                }
-                while (headerNames.hasMoreElements()) {
-                    String headerName = headerNames.nextElement();
-                    String headerValue = request.getHeader(headerName);
-                    // 将header向下传递
-                    template.header(headerName, headerValue);
-                }
-            };
+        /**
+         * Feign配置模块 - 条件导入
+         */
+        @Configuration(proxyBeanMethods = false)
+        @ConditionalOnClass(name = "feign.RequestInterceptor")
+        @ConditionalOnProperty(name = "app.template.feign.enabled")
+        @Import(FeignClientConfiguration.class)
+        static class FeignAutoConfiguration {
+            // 空的配置类，仅用于条件导入
         }
         
         @Bean
@@ -103,12 +89,12 @@ public class ApiAutoConfiguration {
         public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,
                                                               RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
                                                               Environment environment,
-                                                              Consumer<HttpSecurity> httpConfigurer,
+                                                              ObjectProvider<Consumer<HttpSecurity>> httpConfigurerProvider,
                                                               TemplateConfigProperties templateConfigProperties,
                                                               JsonService jsonService) throws Exception {
             http.csrf(AbstractHttpConfigurer::disable);
-            TemplateConfigProperties.SecurityConfig security = templateConfigProperties.getSecurity();
-            if (!security.isEnable()) {
+            TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
+            if (!security.isEnabled()) {
                 http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
                 return http.build();
             }
@@ -176,8 +162,9 @@ public class ApiAutoConfiguration {
                     log.error("返回异常结果给前端时出现异常", e);
                 }
             }));
-            if (httpConfigurer != null) {
-                httpConfigurer.accept(http);
+            Consumer<HttpSecurity> consumer = httpConfigurerProvider.getIfAvailable();
+            if (consumer != null) {
+                consumer.accept(http);
             }
             return http.build();
         }

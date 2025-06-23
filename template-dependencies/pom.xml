@@ -166,11 +166,6 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-service</artifactId>
-                <version>${app.template.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.lrenyi</groupId>
                 <artifactId>template-api</artifactId>
                 <version>${app.template.version}</version>
             </dependency>

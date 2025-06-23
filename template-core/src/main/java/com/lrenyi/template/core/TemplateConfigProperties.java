@@ -1,8 +1,5 @@
 package com.lrenyi.template.core;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lrenyi.template.core.json.JacksonJsonProcessor;
-import com.lrenyi.template.core.json.JsonProcessor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,12 +8,8 @@ import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
-import org.springframework.context.annotation.Bean;
 import org.springframework.util.StringUtils;
 
 /**
@@ -27,6 +20,7 @@ import org.springframework.util.StringUtils;
 @Getter
 @ConfigurationProperties(prefix = "app.template")
 public class TemplateConfigProperties {
+    private boolean enabled = true;
     
     /**
      * OAuth2模块配置
@@ -38,32 +32,22 @@ public class TemplateConfigProperties {
      * 安全配置
      */
     @NestedConfigurationProperty
-    private SecurityConfig security = new SecurityConfig();
+    private SecurityProperties security = new SecurityProperties();
     
     /**
      * Web模块配置
      */
     @NestedConfigurationProperty
-    private WebConfig web = new WebConfig();
+    private WebProperties web = new WebProperties();
     
     /**
      * Web模块配置
      */
     @Setter
     @Getter
-    public static class WebConfig {
+    public static class WebProperties {
         private String jsonProcessorType;
         private boolean exportExceptionDetail;
-        
-        @Bean
-        @ConditionalOnMissingBean(JsonProcessor.class)
-        @ConditionalOnBean(ObjectMapper.class)
-        @ConditionalOnProperty(
-                name = "app.template.web.json-processor-type", havingValue = "jackson", matchIfMissing = true
-        )
-        public JsonProcessor jacksonJsonProcessor(ObjectMapper objectMapper) {
-            return new JacksonJsonProcessor(objectMapper);
-        }
     }
     
     /**
@@ -73,9 +57,6 @@ public class TemplateConfigProperties {
     @Getter
     public static class OAuth2Config {
         private boolean enabled = true;
-        
-        
-        
         private AuthorizationServerConfig authorizationServer = new AuthorizationServerConfig();
         private PasswordGrantConfig passwordGrant = new PasswordGrantConfig();
         private JwtConfig jwt = new JwtConfig();
@@ -136,8 +117,8 @@ public class TemplateConfigProperties {
      */
     @Setter
     @Getter
-    public static class SecurityConfig implements InitializingBean {
-        private boolean enable = true;
+    public static class SecurityProperties implements InitializingBean {
+        private boolean enabled = true;
         private String securityKey;
         private Set<String> allPermitUrls = new HashSet<>();
         private Set<String> defaultPermitUrls = new HashSet<>();

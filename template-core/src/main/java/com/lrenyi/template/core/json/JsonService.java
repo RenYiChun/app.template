@@ -4,20 +4,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 /**
  * JSON服务类
  * 提供统一的JSON处理接口，支持多种JSON处理器
  */
-@Getter
 @Slf4j
-@Service
-public class JsonService {
-    private final JsonProcessor processor;
-    
+public record JsonService(JsonProcessor processor) {
     public JsonService(JsonProcessor processor) {
         this.processor = processor;
         log.info("JsonService initialized with processor: {} ({})",
