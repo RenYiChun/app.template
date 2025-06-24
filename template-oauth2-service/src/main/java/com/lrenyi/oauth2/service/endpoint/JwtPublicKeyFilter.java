@@ -16,8 +16,8 @@ import java.util.Map;
 import lombok.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -43,7 +43,8 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
     }
     
     private RequestMatcher createDefaultRequestMatcher() {
-        return PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, JwtPublicKeyFilter.ENDPOINT_URI);
+        String method = HttpMethod.GET.name();
+        return new AntPathRequestMatcher(JwtPublicKeyFilter.ENDPOINT_URI, method);
     }
     
     @Override

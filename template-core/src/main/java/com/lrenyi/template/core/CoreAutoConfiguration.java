@@ -11,9 +11,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+@ComponentScan
 @Configuration(proxyBeanMethods = false)
 @Import(CoreAutoConfiguration.WebConfig.class)
 @AutoConfigureAfter(JacksonAutoConfiguration.class)
@@ -39,8 +41,7 @@ public class CoreAutoConfiguration {
         
         @Bean
         @ConditionalOnMissingBean
-        public DefaultTemplateEncryptService defaultTemplateEncryptService(
-                TemplateConfigProperties templateConfigProperties) {
+        public DefaultTemplateEncryptService defaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
             return new DefaultTemplateEncryptService(templateConfigProperties);
         }
     }

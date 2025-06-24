@@ -18,8 +18,8 @@ import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNam
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -48,8 +48,8 @@ public class OpaqueTokenCheckFilter extends OncePerRequestFilter {
     }
     
     private RequestMatcher createDefaultRequestMatcher() {
-        PathPatternRequestMatcher.Builder builder = PathPatternRequestMatcher.withDefaults();
-        RequestMatcher requestMatcher = builder.matcher(HttpMethod.POST, OpaqueTokenCheckFilter.ENDPOINT_URI);
+        String method = HttpMethod.POST.name();
+        RequestMatcher requestMatcher = new AntPathRequestMatcher(OpaqueTokenCheckFilter.ENDPOINT_URI, method);
         RequestMatcher contextType = request -> {
             String contentType = request.getContentType();
             return StringUtils.hasText(contentType) && contentType.startsWith("application/x-www-form-urlencoded");

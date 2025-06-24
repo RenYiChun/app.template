@@ -17,6 +17,7 @@ import org.springframework.security.config.annotation.web.configurers.FormLoginC
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
@@ -63,7 +64,7 @@ public class SecurityFilterChainBuilder {
                                                      .anyRequest()
                                                      .authenticated());
         http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
+        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         
         OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         configurer.tokenEndpoint(point -> {
