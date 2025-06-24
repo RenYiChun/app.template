@@ -1,4 +1,4 @@
-package com.lrenyi.template.api.rbac.model;
+package com.lrenyi.oauth2.service.config;
 
 public enum IdentifierType {
     USERNAME,

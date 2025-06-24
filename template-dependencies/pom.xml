@@ -48,9 +48,7 @@
 
         <spring-boot.version>3.5.0</spring-boot.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
-        <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
 
-        <fastjson2.version>2.0.20</fastjson2.version>
         <metainf-services.version>1.9</metainf-services.version>
         <commons-text.version>1.11.0</commons-text.version>
         <commons-lang3.version>3.13.0</commons-lang3.version>
@@ -69,7 +67,6 @@
         <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
         <asciidoctor-maven-plugin.version>2.2.1</asciidoctor-maven-plugin.version>
         <spring-restdocs-asciidoctor.version>3.0.0</spring-restdocs-asciidoctor.version>
-        <mysql.version>8.2.0</mysql.version>
     </properties>
 
     <profiles>
@@ -173,13 +170,6 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -2,13 +2,10 @@ package com.lrenyi.oauth2.service;
 
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuthorizationServerPropertiesMapper;
-import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
-import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
-import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
+import com.lrenyi.oauth2.service.config.SecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationChecker;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
@@ -20,7 +17,6 @@ import com.nimbusds.jose.proc.SecurityContext;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -32,10 +28,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.MediaType;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
@@ -44,15 +37,10 @@ import org.springframework.security.oauth2.server.authorization.client.InMemoryR
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
-import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.web.client.RestTemplate;
 
 @Slf4j
@@ -99,46 +87,8 @@ public class Oauth2ServerAutoConfiguration {
     @Order(1)
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
-                                                              TemplateConfigProperties templateConfigProperties,
-                                                              OAuth2AuthorizationService authorizationService,
-                                                              OAuth2TokenGenerator<?> tokenGenerator,
-                                                              TemplateLogOutHandler handler,
-                                                              AuthenticationFailureHandler templateAuthenticationFailureHandler,
-                                                              PreAuthenticationFilter preAuthenticationFilter) throws Exception {
-        TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
-        String loginPage = security.getCustomizeLoginPage();
-        
-        // 配置安全匹配器，只匹配OAuth2相关的端点
-        String[] uris = {"/oauth2/**", "/login/**", "/logout", "/jwks", "/jwt/public/key"};
-        http.securityMatcher(uris).exceptionHandling((exceptions) -> {
-            String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
-            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
-            MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
-            exceptions.defaultAuthenticationEntryPointFor(point, matcher);
-        });
-        Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
-        if (StringUtils.hasLength(loginPage)) {
-            loginCustomizer = form -> form.loginPage(loginPage);
-        }
-        http.formLogin(loginCustomizer);
-        http.logout(form -> form.addLogoutHandler(handler));
-        
-        Set<String> allPermitUrls = security.getAllPermitUrls();
-        http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))
-                                                     .permitAll()
-                                                     .anyRequest()
-                                                     .authenticated());
-        http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        http.with(OAuth2AuthorizationServerConfigurer.authorizationServer(), Customizer.withDefaults());
-        
-        OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
-        configurer.tokenEndpoint(point -> {
-            point.errorResponseHandler(templateAuthenticationFailureHandler);
-            point.accessTokenRequestConverter(new PasswordGrantAuthenticationConverter());
-            point.authenticationProvider(new PasswordGrantAuthenticationProvider(authorizationService, tokenGenerator));
-        });
-        configurer.oidc(Customizer.withDefaults());
-        return http.build();
+                                                              SecurityFilterChainBuilder builder) throws Exception {
+        return builder.build(http);
     }
     
     @Bean

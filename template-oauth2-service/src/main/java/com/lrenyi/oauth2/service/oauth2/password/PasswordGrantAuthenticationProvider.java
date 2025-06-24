@@ -1,8 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
-import com.lrenyi.template.api.rbac.service.RbacUserDetailsService;
+import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.core.util.OAuth2Constant;
-import jakarta.annotation.Resource;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.Collection;
@@ -17,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClaimAccessor;
@@ -46,17 +46,19 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
-    @Resource
-    private PasswordEncoder passwordEncoder;
-    @Resource
-    private RbacUserDetailsService userDetailsService;
+    private final PasswordEncoder passwordEncoder;
+    private final UserDetailsService userDetailsService;
     
     public PasswordGrantAuthenticationProvider(OAuth2AuthorizationService authorizationService,
-                                               OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
+                                               OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
+                                               PasswordEncoder passwordEncoder,
+                                               UserDetailsService userDetailsService) {
         Assert.notNull(authorizationService, "authorizationService cannot be null");
         Assert.notNull(tokenGenerator, "tokenGenerator cannot be null");
         this.authorizationService = authorizationService;
         this.tokenGenerator = tokenGenerator;
+        this.passwordEncoder = passwordEncoder;
+        this.userDetailsService = userDetailsService;
     }
     
     // @formatter:off
@@ -70,7 +72,9 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         AuthorizationGrantType grantType = grantToken.getGrantType();
         String username = (String) parameters.get(OAuth2ParameterNames.USERNAME);
         String type = (String) parameters.get(OAuth2Constant.LOGIN_USER_NAME_TYPE_KEY);
-        
+        if (!StringUtils.hasLength(type)) {
+            type = IdentifierType.USERNAME.name();
+        }
         //请求参数权限范围
         String requestScopesStr = (String) parameters.get(OAuth2ParameterNames.SCOPE);
         Set<String> requestScopeSet = new HashSet<>();

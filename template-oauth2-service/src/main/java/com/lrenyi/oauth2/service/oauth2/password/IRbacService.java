@@ -1,6 +1,6 @@
-package com.lrenyi.template.api.rbac.service;
+package com.lrenyi.oauth2.service.oauth2.password;
 
-import com.lrenyi.template.api.rbac.model.IdentifierType;
+import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.api.rbac.model.Permission;
 import com.lrenyi.template.api.rbac.model.Role;
 import com.lrenyi.template.api.rbac.model.User;
