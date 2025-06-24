@@ -25,11 +25,12 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
-public class SecurityFilterChainBuilder {
+public class OauthSecurityFilterChainBuilder {
     private TemplateConfigProperties templateConfigProperties;
     private OAuth2AuthorizationService authorizationService;
     private OAuth2TokenGenerator<?> tokenGenerator;
@@ -42,15 +43,18 @@ public class SecurityFilterChainBuilder {
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
+        RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
         
         // 配置安全匹配器，只匹配OAuth2相关的端点
         String[] uris = {"/oauth2/**", "/login/**", "/logout", "/jwks", "/jwt/public/key"};
-        http.securityMatcher(uris).exceptionHandling((exceptions) -> {
+        http.securityMatcher(endpointsMatcher).exceptionHandling((exceptions) -> {
             String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
             LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
             MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
             exceptions.defaultAuthenticationEntryPointFor(point, matcher);
         });
+        http.csrf((csrf) -> csrf.ignoringRequestMatchers(new RequestMatcher[]{endpointsMatcher}));
         Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
         if (StringUtils.hasLength(loginPage)) {
             loginCustomizer = form -> form.loginPage(loginPage);
@@ -64,7 +68,7 @@ public class SecurityFilterChainBuilder {
                                                      .anyRequest()
                                                      .authenticated());
         http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+        http.with(authorizationServerConfigurer, Customizer.withDefaults());
         
         OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         configurer.tokenEndpoint(point -> {

@@ -2,7 +2,7 @@ package com.lrenyi.oauth2.service;
 
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuthorizationServerPropertiesMapper;
-import com.lrenyi.oauth2.service.config.SecurityFilterChainBuilder;
+import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -87,7 +87,7 @@ public class Oauth2ServerAutoConfiguration {
     @Order(1)
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
-                                                              SecurityFilterChainBuilder builder) throws Exception {
+                                                              OauthSecurityFilterChainBuilder builder) throws Exception {
         return builder.build(http);
     }
     
