@@ -1,5 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
+import com.lrenyi.template.api.rbac.service.RbacUserDetailsService;
 import com.lrenyi.template.core.util.OAuth2Constant;
 import jakarta.annotation.Resource;
 import java.security.Principal;
@@ -47,9 +48,11 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
     @Resource
     private PasswordEncoder passwordEncoder;
+    @Resource
+    private RbacUserDetailsService userDetailsService;
     
     public PasswordGrantAuthenticationProvider(OAuth2AuthorizationService authorizationService,
-            OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
+                                               OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
         Assert.notNull(authorizationService, "authorizationService cannot be null");
         Assert.notNull(tokenGenerator, "tokenGenerator cannot be null");
         this.authorizationService = authorizationService;
@@ -85,16 +88,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         if (client == null || !client.getAuthorizationGrantTypes().contains(grantType)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
         }
-        UserDetails userDetails;
-        LoginNameUserDetailService userDetailService = LoginNameUserDetailService.ALL_LOGIN_NAME_TYPE.get(type);
-        if (userDetailService == null && !OAuth2TokenIntrospectionClaimNames.USERNAME.equals(type)) {
-            userDetailService =
-                    LoginNameUserDetailService.ALL_LOGIN_NAME_TYPE.get(LoginNameType.USER_NAME.getCode());
-        }
-        if (userDetailService == null) {
-            throw new OAuth2AuthenticationException("没有找到" + type + "类型的登录name字段类型的UserDetailService");
-        }
-        userDetails = userDetailService.loadUserDetail(username);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(type + ":" +username);
         String password = (String) parameters.get(OAuth2ParameterNames.PASSWORD);
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             OAuth2Error error = new OAuth2Error(OAuth2Constant.LOGIN_FAIL_OF_PASSWORD, "password is incorrect", "");
@@ -114,6 +108,9 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         // @formatter:on
         
         OAuth2Token generatedAccessToken = this.tokenGenerator.generate(tokenContext);
+        if (generatedAccessToken == null) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_TOKEN);
+        }
         OAuth2AccessToken accessToken = getAuth2AccessToken(generatedAccessToken, collect);
         
         // @formatter:off
@@ -128,8 +125,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         
         OAuth2Authorization.Builder builder = OAuth2Authorization.withRegisteredClient(client);
         builder.principalName(principal.getName());
-        OAuth2Authorization.Builder authorizationBuilder =
-                builder.authorizationGrantType(grantType);
+        OAuth2Authorization.Builder authorizationBuilder = builder.authorizationGrantType(grantType);
         
         if (generatedAccessToken instanceof ClaimAccessor) {
             authorizationBuilder.token(accessToken, (metadata) -> {
@@ -141,8 +137,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             authorizationBuilder.accessToken(accessToken);
         }
         parameters.forEach((key, value) -> {
-            if (OAuth2ParameterNames.PASSWORD.equals(key)
-                    || OAuth2ParameterNames.CLIENT_SECRET.equals(key)) {
+            if (OAuth2ParameterNames.PASSWORD.equals(key) || OAuth2ParameterNames.CLIENT_SECRET.equals(key)) {
                 return;
             }
             authorizationBuilder.attribute(key, value);
@@ -152,10 +147,8 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         OAuth2Authorization authorization = authorizationBuilder.build();
         
         OAuth2RefreshToken refreshToken = null;
-        boolean refresh =
-                client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN);
-        boolean eqNone =
-                !principal.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE);
+        boolean refresh = client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN);
+        boolean eqNone = !principal.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE);
         
         if (refresh && eqNone) {
             tokenContext = tokenContextBuilder.tokenType(OAuth2TokenType.REFRESH_TOKEN).build();
@@ -175,12 +168,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         HashMap<String, Object> parameter = new HashMap<>();
         parameter.put("id", authorization.getId());
         parameter.put(OAuth2TokenIntrospectionClaimNames.USERNAME, username);
-        return new OAuth2AccessTokenAuthenticationToken(client,
-                                                        principal,
-                                                        accessToken,
-                                                        refreshToken,
-                                                        parameter
-        );
+        return new OAuth2AccessTokenAuthenticationToken(client, principal, accessToken, refreshToken, parameter);
     }
     
     @Override
@@ -190,8 +178,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     
     private static OAuth2ClientAuthenticationToken getClient(Authentication authentication) {
         OAuth2ClientAuthenticationToken clientPrincipal = null;
-        if (OAuth2ClientAuthenticationToken.class.isAssignableFrom(authentication.getPrincipal()
-                                                                                 .getClass())) {
+        if (OAuth2ClientAuthenticationToken.class.isAssignableFrom(authentication.getPrincipal().getClass())) {
             clientPrincipal = (OAuth2ClientAuthenticationToken) authentication.getPrincipal();
         }
         if (clientPrincipal != null && clientPrincipal.isAuthenticated()) {
@@ -200,14 +187,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
     }
     
-    private static OAuth2AccessToken getAuth2AccessToken(OAuth2Token generatedAccessToken,
-            Set<String> collect) {
-        if (generatedAccessToken == null) {
-            String description = "the token generator failed to generate the access token.";
-            String serverError = OAuth2ErrorCodes.SERVER_ERROR;
-            OAuth2Error error = new OAuth2Error(serverError, description, null);
-            throw new OAuth2AuthenticationException(error);
-        }
+    private static OAuth2AccessToken getAuth2AccessToken(OAuth2Token generatedAccessToken, Set<String> collect) {
         OAuth2AccessToken.TokenType bearer = OAuth2AccessToken.TokenType.BEARER;
         String value = generatedAccessToken.getTokenValue();
         Instant issuedAt = generatedAccessToken.getIssuedAt();
