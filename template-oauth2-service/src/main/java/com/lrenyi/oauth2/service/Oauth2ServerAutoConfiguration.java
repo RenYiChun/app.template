@@ -98,13 +98,13 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @Order(1)
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-                                                                      TemplateConfigProperties templateConfigProperties,
-                                                                      OAuth2AuthorizationService authorizationService,
-                                                                      OAuth2TokenGenerator<?> tokenGenerator,
-                                                                      TemplateLogOutHandler handler,
-                                                                      AuthenticationFailureHandler templateAuthenticationFailureHandler,
-                                                                      PreAuthenticationFilter preAuthenticationFilter) throws Exception {
+    public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
+                                                              TemplateConfigProperties templateConfigProperties,
+                                                              OAuth2AuthorizationService authorizationService,
+                                                              OAuth2TokenGenerator<?> tokenGenerator,
+                                                              TemplateLogOutHandler handler,
+                                                              AuthenticationFailureHandler templateAuthenticationFailureHandler,
+                                                              PreAuthenticationFilter preAuthenticationFilter) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
         

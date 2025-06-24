@@ -1,7 +1,6 @@
 package com.lrenyi.template.api.rbac.service;
 
 import com.lrenyi.template.api.rbac.model.Permission;
-import com.lrenyi.template.api.rbac.model.Role;
 import com.lrenyi.template.api.rbac.model.SystemPermission;
 import com.lrenyi.template.api.rbac.model.SystemRole;
 import lombok.extern.slf4j.Slf4j;
@@ -49,5 +48,4 @@ public class SystemRoleInitializer implements CommandLineRunner {
             });
         }
     }
-    
 }
