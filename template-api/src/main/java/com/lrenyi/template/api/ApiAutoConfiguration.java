@@ -32,10 +32,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
@@ -64,7 +67,8 @@ import org.springframework.security.web.SecurityFilterChain;
 @Import({
         ApiAutoConfiguration.SecurityAutoConfiguration.class,
         ApiAutoConfiguration.FeignAutoConfiguration.class,
-        ApiAutoConfiguration.AuditLogConfiguration.class
+        ApiAutoConfiguration.AuditLogConfiguration.class,
+        ApiAutoConfiguration.MethodSecurityConfig.class
 })
 //@formatter:on
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -73,12 +77,17 @@ public class ApiAutoConfiguration {
     /**
      * Feign配置模块 - 条件导入
      */
-    @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "feign.RequestInterceptor")
     @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
     @Import(FeignClientConfiguration.class)
     static class FeignAutoConfiguration {
         // 空的配置类，仅用于条件导入
+    }
+    
+    @EnableMethodSecurity()
+    @ConditionalOnProperty(name = "app.template.authorize.enabled", havingValue = "true", matchIfMissing = true)
+    static class MethodSecurityConfig {
+        // 可以在这里添加其他方法级别安全的配置
     }
     
     @EnableAsync
@@ -112,13 +121,27 @@ public class ApiAutoConfiguration {
         }
         
         @Bean
+        public JwtAuthenticationConverter jwtAuthenticationConverter() {
+            JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+            // 设置权限前缀为空字符串（因为我们的权限格式是 user:create，不需要 SCOPE_ 前缀）
+            authoritiesConverter.setAuthorityPrefix("");
+            // 设置从 scope 字段提取权限
+            authoritiesConverter.setAuthoritiesClaimName("scope");
+            
+            JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+            converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+            return converter;
+        }
+        
+        @Bean
         @Order(2)
         public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,
                                                               RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
                                                               Environment environment,
                                                               ObjectProvider<Consumer<HttpSecurity>> httpConfigurerProvider,
                                                               TemplateConfigProperties templateConfigProperties,
-                                                              ObjectProvider<JsonService> jsonServiceProvider) throws Exception {
+                                                              ObjectProvider<JsonService> jsonServiceProvider,
+                                                              JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
             http.csrf(AbstractHttpConfigurer::disable);
             TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
             if (!templateConfigProperties.isEnabled() || !security.isEnabled()) {
@@ -156,8 +179,8 @@ public class ApiAutoConfiguration {
                     JwtDecoder jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
                     // 配置资源服务器
                     http.oauth2ResourceServer(
-                            oauth2ResourceServer -> oauth2ResourceServer
-                                    .jwt(jwt -> jwt.decoder(jwtDecoder)));
+                            oauth2ResourceServer -> oauth2ResourceServer.jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter))
+                    );
                 } else {
                     http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {
                         String domain = security.getNetJwtPublicKeyDomain();
@@ -165,7 +188,7 @@ public class ApiAutoConfiguration {
                         if (c == '/') {
                             domain = domain.substring(0, domain.length() - 1);
                         }
-                        jwt.jwkSetUri(domain + "/jwt/public/key");
+                        jwt.jwkSetUri(domain + "/jwt/public/key").jwtAuthenticationConverter(jwtAuthenticationConverter);
                     }));
                 }
                 // @formatter:on

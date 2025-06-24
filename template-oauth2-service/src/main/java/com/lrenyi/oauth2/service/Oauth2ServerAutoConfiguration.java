@@ -6,7 +6,7 @@ import com.lrenyi.oauth2.service.config.SecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationFilter;
+import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationChecker;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -92,9 +92,9 @@ public class Oauth2ServerAutoConfiguration {
     }
     
     @Bean
-    public PreAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
-                                                           TemplateConfigProperties templateConfigProperties) {
-        return new PreAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
+    public PasswordAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
+                                                                TemplateConfigProperties templateConfigProperties) {
+        return new PasswordAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
     }
     
     @Bean

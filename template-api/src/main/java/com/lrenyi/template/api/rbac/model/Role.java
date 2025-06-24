@@ -8,6 +8,10 @@ public interface Role extends Serializable {
     
     void setId(String id);
     
+    String getCode();
+    
+    void setCode(String code);
+    
     String getName();
     
     void setName(String name);

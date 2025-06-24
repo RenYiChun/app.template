@@ -1,18 +1,16 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
 import com.lrenyi.oauth2.service.config.IdentifierType;
-import com.lrenyi.template.api.rbac.model.Permission;
 import com.lrenyi.template.api.rbac.model.Role;
 import com.lrenyi.template.api.rbac.model.User;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.GrantedAuthority;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +25,7 @@ public class RbacUserDetailsService implements UserDetailsService {
     }
     
     @Override
+    @Cacheable(value = "userDetails", key = "#username")
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         if (rbacService == null) {
             throw new UsernameNotFoundException("rbacService is null, please create it first");
@@ -41,19 +40,17 @@ public class RbacUserDetailsService implements UserDetailsService {
         } catch (IllegalArgumentException e) {
             throw new UsernameNotFoundException("Invalid identifier type: " + parts[0]);
         }
-        
         String identifier = parts[1];
         User user = rbacService.findUserByIdentifier(identifier, identifierType);
-        
         List<Role> roles = rbacService.getRolesByUserId(user.getId());
-        List<GrantedAuthority> authorities = new ArrayList<>(roles.stream()
-                                                                  .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
-                                                                  .toList());
-        List<Permission> permissions = roles.stream()
-                                            .flatMap(role -> rbacService.getPermissionsByRoleId(role.getId()).stream())
-                                            .toList();
-        authorities.addAll(permissions.stream().map(p -> new SimpleGrantedAuthority(p.getPermission())).toList());
         
+        //@formatter:off
+        List<SimpleGrantedAuthority> authorities = roles.stream()
+                                                        .flatMap(role -> rbacService.getPermissionsByRoleId(role.getId()).stream())
+                                                        .distinct()
+                                                        .map(permission -> new SimpleGrantedAuthority(permission.getPermission()))
+                                                        .toList();
+        //@formatter:on
         return new org.springframework.security.core.userdetails.User(user.getUsername(),
                                                                       user.getPassword(),
                                                                       authorities

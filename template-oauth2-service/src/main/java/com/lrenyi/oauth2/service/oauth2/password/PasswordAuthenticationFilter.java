@@ -14,12 +14,12 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-public class PreAuthenticationFilter extends OncePerRequestFilter {
+public class PasswordAuthenticationFilter extends OncePerRequestFilter {
     private final TemplateConfigProperties templateConfigProperties;
     private final ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers;
     
-    public PreAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
-                                   TemplateConfigProperties templateConfigProperties) {
+    public PasswordAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
+                                        TemplateConfigProperties templateConfigProperties) {
         this.preAuthenticationCheckers = preAuthenticationCheckers;
         this.templateConfigProperties = templateConfigProperties;
     }

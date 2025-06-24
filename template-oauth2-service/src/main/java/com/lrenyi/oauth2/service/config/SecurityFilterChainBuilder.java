@@ -3,7 +3,7 @@ package com.lrenyi.oauth2.service.config;
 import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
-import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationFilter;
+import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.RbacUserDetailsService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.StringUtils;
@@ -34,7 +34,7 @@ public class SecurityFilterChainBuilder {
     private OAuth2TokenGenerator<?> tokenGenerator;
     private TemplateLogOutHandler handler;
     private AuthenticationFailureHandler templateAuthenticationFailureHandler;
-    private PreAuthenticationFilter preAuthenticationFilter;
+    private PasswordAuthenticationFilter preAuthenticationFilter;
     private PasswordEncoder passwordEncoder;
     private UserDetailsService userDetailsService;
     
@@ -105,7 +105,7 @@ public class SecurityFilterChainBuilder {
     }
     
     @Autowired
-    public void setPreAuthenticationFilter(PreAuthenticationFilter preAuthenticationFilter) {
+    public void setPreAuthenticationFilter(PasswordAuthenticationFilter preAuthenticationFilter) {
         this.preAuthenticationFilter = preAuthenticationFilter;
     }
     

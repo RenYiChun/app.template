@@ -29,6 +29,9 @@ public class TemplateConfigProperties implements InitializingBean {
     @NestedConfigurationProperty
     private OAuth2Config oauth2 = new OAuth2Config();
     
+    @NestedConfigurationProperty
+    private AuthorizeConfig authorize = new AuthorizeConfig();
+    
     /**
      * 安全配置
      */
@@ -45,6 +48,12 @@ public class TemplateConfigProperties implements InitializingBean {
     private FeignProperties feign = new FeignProperties();
     
     private AuditLogProperties audit = new AuditLogProperties();
+    
+    @Setter
+    @Getter
+    public static class AuthorizeConfig {
+        private boolean enabled = true;
+    }
     
     @Setter
     @Getter
