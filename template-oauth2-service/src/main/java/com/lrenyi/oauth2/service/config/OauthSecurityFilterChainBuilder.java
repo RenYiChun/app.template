@@ -80,6 +80,8 @@ public class OauthSecurityFilterChainBuilder {
                                                                                  userDetailsService
             ));
         });
+        // 配置内省端点 - 启用标准 /oauth2/introspect
+        configurer.tokenIntrospectionEndpoint(Customizer.withDefaults());
         configurer.oidc(Customizer.withDefaults());
         return http.build();
     }

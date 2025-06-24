@@ -91,10 +91,10 @@ public class TemplateConfigProperties implements InitializingBean {
         @Setter
         @Getter
         public static class OpaqueTokenConfig {
-            private String introspectionUri = "http://127.0.0.1/opaque/token/check";
+            private String introspectionUri = "http://127.0.0.1/oauth2/introspect";
             private boolean enabled = false;
-            private String clientId = "default-client-id";
-            private String clientSecret = "app.template";
+            private String clientId = "introspection-client";
+            private String clientSecret = "introspection-secret-key";
         }
     }
     
@@ -121,7 +121,7 @@ public class TemplateConfigProperties implements InitializingBean {
     
     @Override
     public void afterPropertiesSet() {
-        List<String> list = Arrays.asList("/oauth2/token", "/opaque/token/check", "/jwt/public/key", "/favicon");
+        List<String> list = Arrays.asList("/jwt/public/key", "/favicon");
         security.defaultPermitUrls.addAll(list);
         security.allPermitUrls.addAll(security.defaultPermitUrls);
         security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
