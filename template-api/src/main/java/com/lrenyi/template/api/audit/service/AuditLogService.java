@@ -6,7 +6,10 @@ import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.core.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Date;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
@@ -14,6 +17,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
@@ -21,9 +25,23 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 public class AuditLogService {
     
     private final AuditLogProcessor auditLogProcessor;
+    private final String serviceName;
     
-    public AuditLogService(AuditLogProcessor auditLogProcessor) {
+    private final String serverIp;
+    
+    public AuditLogService(AuditLogProcessor auditLogProcessor, String serviceName) {
         this.auditLogProcessor = auditLogProcessor;
+        this.serviceName = serviceName;
+        this.serverIp = getServerIp();
+    }
+    
+    private String getServerIp() {
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            log.warn("failed to get server IP address", e);
+            return "unknown";
+        }
     }
     
     @Async
@@ -68,7 +86,32 @@ public class AuditLogService {
             }
             logInfo.setUserName(name);
         }
+        
+        // 设置服务名称和服务器IP
+        logInfo.setServiceName(serviceName);
+        logInfo.setServerIp(serverIp);
+        
         auditLogProcessor.process(logInfo);
+    }
+    
+    public String extractUserName(Authentication authentication) {
+        String name = authentication.getName();
+        final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
+        switch (authentication) {
+            case BearerTokenAuthentication bearerAuth ->
+                    name = String.valueOf(bearerAuth.getTokenAttributes().get(username));
+            case JwtAuthenticationToken jwtToken -> name = jwtToken.getToken().getClaimAsString(username);
+            case OAuth2AccessTokenAuthenticationToken oauthToken -> {
+                Map<String, Object> parameters = oauthToken.getAdditionalParameters();
+                Object object = parameters.get(username);
+                if (object != null) {
+                    name = String.valueOf(object);
+                }
+            }
+            default -> {
+            }
+        }
+        return name;
     }
     
     private String getIpAddress(HttpServletRequest request) {
@@ -96,10 +139,14 @@ public class AuditLogService {
     }
     
     @Async
-    public void recordAuditLog(HttpServletRequest request, String userName, boolean success, String exception) {
+    public void recordAuditLog(HttpServletRequest request,
+                               String userName,
+                               String desc,
+                               boolean success,
+                               String exception) {
         AuditLogInfo logInfo = new AuditLogInfo();
         logInfo.setUserName(userName);
-        logInfo.setDescription("退出登录");
+        logInfo.setDescription(desc);
         logInfo.setOperationTime(new Date());
         logInfo.setSuccess(success);
         logInfo.setExceptionDetails(exception);
@@ -108,6 +155,11 @@ public class AuditLogService {
             logInfo.setRequestUri(request.getRequestURI());
             logInfo.setRequestMethod(request.getMethod());
         }
+        
+        // 设置服务名称和服务器IP
+        logInfo.setServiceName(serviceName);
+        logInfo.setServerIp(serverIp);
+        
         auditLogProcessor.process(logInfo);
     }
 }

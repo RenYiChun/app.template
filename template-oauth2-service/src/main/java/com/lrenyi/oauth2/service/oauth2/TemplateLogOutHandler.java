@@ -59,7 +59,7 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
             log.error("Logout failed for user {}", userName, e);
         } finally {
             // 记录审计日志
-            auditLogService.recordAuditLog(request, userName, success, exceptionDetails);
+            auditLogService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
         }
     }
     

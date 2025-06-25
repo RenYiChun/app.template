@@ -17,10 +17,12 @@ public class AuditLogInfo implements Serializable {
     private String requestMethod;
     private boolean success;
     private String exceptionDetails;
+    private String serviceName;
+    private String serverIp;
     
     @Override
     public String toString() {
         return "AuditLogInfo{" + "userName='" + userName + '\'' + ", description='" + description + '\'' + ", " +
-                "operationTime=" + operationTime + ", executionTimeMs=" + executionTimeMs + ", requestIp='" + requestIp + '\'' + ", requestUri='" + requestUri + '\'' + ", requestMethod='" + requestMethod + '\'' + ", success=" + success + ", exceptionDetails='" + exceptionDetails + '\'' + '}';
+                "operationTime=" + operationTime + ", executionTimeMs=" + executionTimeMs + ", requestIp='" + requestIp + '\'' + ", requestUri='" + requestUri + '\'' + ", requestMethod='" + requestMethod + '\'' + ", success=" + success + ", exceptionDetails='" + exceptionDetails + '\'' + ", serviceName='" + serviceName + '\'' + ", serverIp='" + serverIp + '\'' + '}';
     }
 }

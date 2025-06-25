@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -95,8 +96,9 @@ public class ApiAutoConfiguration {
         }
         
         @Bean
-        public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor) {
-            return new AuditLogService(auditLogProcessor);
+        public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor,
+                                               @Value("${spring.application.name:unknown-service}") String serviceName) {
+            return new AuditLogService(auditLogProcessor, serviceName);
         }
         
         @Bean

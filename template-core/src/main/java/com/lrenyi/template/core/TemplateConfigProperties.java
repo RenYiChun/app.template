@@ -1,6 +1,8 @@
 package com.lrenyi.template.core;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,6 +61,7 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class AuditLogProperties {
         private boolean enabled = true;
+        private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
     }
     
     @Setter
