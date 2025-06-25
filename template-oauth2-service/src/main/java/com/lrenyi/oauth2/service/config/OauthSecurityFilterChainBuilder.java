@@ -17,7 +17,6 @@ import org.springframework.security.config.annotation.web.configurers.FormLoginC
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
@@ -47,7 +46,7 @@ public class OauthSecurityFilterChainBuilder {
         RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
         
         // 配置安全匹配器，只匹配OAuth2相关的端点
-        String[] uris = {"/oauth2/**", "/login/**", "/logout", "/jwks", "/jwt/public/key"};
+        String[] uris = {"/jwt/public/key"};
         http.securityMatcher(endpointsMatcher).exceptionHandling((exceptions) -> {
             String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
             LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);

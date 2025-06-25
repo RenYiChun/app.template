@@ -3,9 +3,11 @@ package com.lrenyi.template.api.audit.service;
 import com.lrenyi.template.api.audit.annotation.AuditLog;
 import com.lrenyi.template.api.audit.model.AuditLogInfo;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
+import com.lrenyi.template.core.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
 import java.util.Date;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.scheduling.annotation.Async;
@@ -13,7 +15,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+@Slf4j
 public class AuditLogService {
     
     private final AuditLogProcessor auditLogProcessor;
@@ -55,13 +59,15 @@ public class AuditLogService {
             logInfo.setRequestMethod(request.getMethod());
             Authentication authentication = context.getAuthentication();
             String name = authentication.getName();
-            if (name == null && authentication instanceof BearerTokenAuthentication authentic) {
-                Object username = authentic.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME);
-                name = String.valueOf(username);
+            if (authentication instanceof BearerTokenAuthentication bearerAuth) {
+                name = String.valueOf(bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME));
+            } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
+                name = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
+            } else if (!StringUtils.hasLength(name)) {
+                log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
             }
             logInfo.setUserName(name);
         }
-        
         auditLogProcessor.process(logInfo);
     }
     

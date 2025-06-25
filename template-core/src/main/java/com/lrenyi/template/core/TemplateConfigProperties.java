@@ -93,8 +93,8 @@ public class TemplateConfigProperties implements InitializingBean {
         public static class OpaqueTokenConfig {
             private String introspectionUri = "http://127.0.0.1/oauth2/introspect";
             private boolean enabled = false;
-            private String clientId = "introspection-client";
-            private String clientSecret = "introspection-secret-key";
+            private String clientId = "default-client-id";
+            private String clientSecret = "app.template";
         }
     }
     

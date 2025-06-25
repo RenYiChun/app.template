@@ -3,6 +3,7 @@ package com.lrenyi.oauth2.service;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuthorizationServerPropertiesMapper;
 import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
+import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationToken;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -17,6 +18,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -29,6 +31,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
@@ -39,6 +43,8 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenClaimsContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.client.RestTemplate;
@@ -104,12 +110,29 @@ public class Oauth2ServerAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnMissingBean
+    public OAuth2TokenCustomizer<OAuth2TokenClaimsContext> accessTokenCustomizer() {
+        return context -> {
+            // 从 AuthorizationGrant 获取额外参数
+            if (context.getAuthorizationGrant() instanceof PasswordGrantAuthenticationToken) {
+                PasswordGrantAuthenticationToken grantToken = context.getAuthorizationGrant();
+                Map<String, Object> parameters = grantToken.getAdditionalParameters();
+                String usernameFromParams = (String) parameters.get(OAuth2ParameterNames.USERNAME);
+                if (usernameFromParams != null) {
+                    // 将用户名添加到 token claims 中
+                    context.getClaims().claim(OAuth2TokenIntrospectionClaimNames.USERNAME, usernameFromParams);
+                }
+            }
+        };
+    }
+    
+    @Bean
     @ConditionalOnMissingBean(OAuth2TokenGenerator.class)
-    OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource) {
+    OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource,
+                                           OAuth2TokenCustomizer<OAuth2TokenClaimsContext> contextOAuth2TokenCustomizer) {
         JwtGenerator jwtGenerator = new JwtGenerator(new NimbusJwtEncoder(jwkSource));
-        return new DelegatingOAuth2TokenGenerator(jwtGenerator,
-                                                  new UuidOAuth2TokenGenerator(),
-                                                  new UuidOAuth2RefreshTokenGenerator()
-        );
+        UuidOAuth2TokenGenerator tokenGenerator = new UuidOAuth2TokenGenerator();
+        tokenGenerator.setAccessTokenCustomizer(contextOAuth2TokenCustomizer);
+        return new DelegatingOAuth2TokenGenerator(jwtGenerator, tokenGenerator, new UuidOAuth2RefreshTokenGenerator());
     }
 }
