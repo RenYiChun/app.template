@@ -94,4 +94,20 @@ public class AuditLogService {
         }
         return ip;
     }
+    
+    @Async
+    public void recordAuditLog(HttpServletRequest request, String userName, boolean success, String exception) {
+        AuditLogInfo logInfo = new AuditLogInfo();
+        logInfo.setUserName(userName);
+        logInfo.setDescription("退出登录");
+        logInfo.setOperationTime(new Date());
+        logInfo.setSuccess(success);
+        logInfo.setExceptionDetails(exception);
+        if (request != null) {
+            logInfo.setRequestIp(getIpAddress(request));
+            logInfo.setRequestUri(request.getRequestURI());
+            logInfo.setRequestMethod(request.getMethod());
+        }
+        auditLogProcessor.process(logInfo);
+    }
 }

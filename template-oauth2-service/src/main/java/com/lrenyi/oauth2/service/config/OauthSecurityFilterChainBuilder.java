@@ -23,7 +23,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 
@@ -44,10 +46,12 @@ public class OauthSecurityFilterChainBuilder {
         String loginPage = security.getCustomizeLoginPage();
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
         RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
-        
-        // 配置安全匹配器，只匹配OAuth2相关的端点
+        // 创建组合匹配器，包含OAuth2端点和logout端点
+        AntPathRequestMatcher postLogOut = new AntPathRequestMatcher("/logout", "POST");
+        RequestMatcher combinedMatcher = new OrRequestMatcher(endpointsMatcher, postLogOut);
+
         String[] uris = {"/jwt/public/key"};
-        http.securityMatcher(endpointsMatcher).exceptionHandling((exceptions) -> {
+        http.securityMatcher(combinedMatcher).exceptionHandling((exceptions) -> {
             String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
             LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
             MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
@@ -59,7 +63,7 @@ public class OauthSecurityFilterChainBuilder {
             loginCustomizer = form -> form.loginPage(loginPage);
         }
         http.formLogin(loginCustomizer);
-        http.logout(form -> form.addLogoutHandler(handler));
+        http.logout(logout -> logout.logoutUrl("/logout").addLogoutHandler(handler).logoutSuccessHandler(handler));
         
         Set<String> allPermitUrls = security.getAllPermitUrls();
         http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))

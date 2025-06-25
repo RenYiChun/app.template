@@ -106,6 +106,7 @@ public class DefaultSecurityFilterChainBuilder {
                 log.warn("the bean of JsonService is null");
             }
         }));
+        
         Consumer<HttpSecurity> consumer = httpConfigurerProvider.getIfAvailable();
         if (consumer != null) {
             consumer.accept(http);
