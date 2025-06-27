@@ -1,11 +1,11 @@
 package com.lrenyi.template.core.coder.coder;
 
-import com.lrenyi.template.core.coder.TemplateDataCoder;
+import com.lrenyi.template.core.coder.TemplateEncryptService;
 import com.lrenyi.template.core.util.RsaUtils;
 import org.kohsuke.MetaInfServices;
 
 @MetaInfServices
-public class TemplateRsa2048Coder implements TemplateDataCoder {
+public class TemplateRsa2048Coder implements TemplateEncryptService {
     
     @Override
     public String type() {

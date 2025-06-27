@@ -1,6 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2;
 
-import com.lrenyi.template.core.config.json.JsonService;
+import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.core.util.TokenBean;
 import jakarta.servlet.ServletException;

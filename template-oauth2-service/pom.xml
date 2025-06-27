@@ -17,7 +17,7 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-web</artifactId>
+            <artifactId>template-api</artifactId>
             <version>${template-dependencies.version}</version>
         </dependency>
         <dependency>

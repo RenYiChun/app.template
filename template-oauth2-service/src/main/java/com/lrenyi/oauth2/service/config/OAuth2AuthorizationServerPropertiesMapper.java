@@ -10,7 +10,6 @@ import org.springframework.security.oauth2.jose.jws.JwsAlgorithm;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
@@ -20,25 +19,6 @@ public class OAuth2AuthorizationServerPropertiesMapper {
     
     public OAuth2AuthorizationServerPropertiesMapper(OAuth2AuthorizationServerProperties properties) {
         this.properties = properties;
-    }
-    
-    AuthorizationServerSettings asAuthorizationServerSettings() {
-        PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
-        OAuth2AuthorizationServerProperties.Endpoint endpoint = this.properties.getEndpoint();
-        OAuth2AuthorizationServerProperties.OidcEndpoint oidc = endpoint.getOidc();
-        AuthorizationServerSettings.Builder builder = AuthorizationServerSettings.builder();
-        map.from(this.properties::getIssuer).to(builder::issuer);
-        map.from(endpoint::getAuthorizationUri).to(builder::authorizationEndpoint);
-        map.from(endpoint::getDeviceAuthorizationUri).to(builder::deviceAuthorizationEndpoint);
-        map.from(endpoint::getDeviceVerificationUri).to(builder::deviceVerificationEndpoint);
-        map.from(endpoint::getTokenUri).to(builder::tokenEndpoint);
-        map.from(endpoint::getJwkSetUri).to(builder::jwkSetEndpoint);
-        map.from(endpoint::getTokenRevocationUri).to(builder::tokenRevocationEndpoint);
-        map.from(endpoint::getTokenIntrospectionUri).to(builder::tokenIntrospectionEndpoint);
-        map.from(oidc::getLogoutUri).to(builder::oidcLogoutEndpoint);
-        map.from(oidc::getClientRegistrationUri).to(builder::oidcClientRegistrationEndpoint);
-        map.from(oidc::getUserInfoUri).to(builder::oidcUserInfoEndpoint);
-        return builder.build();
     }
     
     public List<RegisteredClient> asRegisteredClients() {

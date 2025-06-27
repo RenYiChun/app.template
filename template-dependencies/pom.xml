@@ -46,17 +46,14 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <spring-boot.version>3.5.0</spring-boot.version>
-        <spring-cloud.version>2025.0.0</spring-cloud.version>
-        <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
+        <spring-boot.version>3.3.13</spring-boot.version>
+        <spring-cloud.version>2023.0.5</spring-cloud.version>
+        <enforce-plugin.skip>false</enforce-plugin.skip>
 
-        <fastjson2.version>2.0.20</fastjson2.version>
         <metainf-services.version>1.9</metainf-services.version>
         <commons-text.version>1.11.0</commons-text.version>
         <commons-lang3.version>3.13.0</commons-lang3.version>
-        <commons-exec.version>1.3</commons-exec.version>
         <spotbugs-annotations.version>4.8.0</spotbugs-annotations.version>
-        <oshi-core.version>6.4.7</oshi-core.version>
         <snakeyaml.version>2.2</snakeyaml.version>
         <bcprov-jdk18on.version>1.77</bcprov-jdk18on.version>
         <commons-codec.version>1.16.0</commons-codec.version>
@@ -69,7 +66,6 @@
         <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
         <asciidoctor-maven-plugin.version>2.2.1</asciidoctor-maven-plugin.version>
         <spring-restdocs-asciidoctor.version>3.0.0</spring-restdocs-asciidoctor.version>
-        <mysql.version>8.2.0</mysql.version>
     </properties>
 
     <profiles>
@@ -166,25 +162,13 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-service</artifactId>
-                <version>${app.template.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.lrenyi</groupId>
-                <artifactId>template-web</artifactId>
+                <artifactId>template-api</artifactId>
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -204,24 +188,9 @@
                 <version>${commons-lang3.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.github.spotbugs</groupId>
-                <artifactId>spotbugs-annotations</artifactId>
-                <version>${spotbugs-annotations.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.oshi</groupId>
-                <artifactId>oshi-core</artifactId>
-                <version>${oshi-core.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.yaml</groupId>
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-exec</artifactId>
-                <version>${commons-exec.version}</version>
             </dependency>
             <dependency>
                 <groupId>commons-codec</groupId>
@@ -318,6 +287,7 @@
                         </goals>
                         <phase>validate</phase>
                         <configuration>
+                            <skip>${enforce-plugin.skip}</skip>
                             <rules>
                                 <dependencyConvergence/>
                                 <requireJavaVersion>

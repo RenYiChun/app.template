@@ -1,1 +1,0 @@
-org.springframework.boot.BootstrapRegistryInitializer=com.lrenyi.template.service.boot.ServiceBootstrapInitializer

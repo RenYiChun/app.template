@@ -1,6 +1,6 @@
 package com.lrenyi.template.core.boot;
 
-import com.lrenyi.template.core.coder.ConfigDecryption;
+import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.context.ApplicationContextInitializer;
@@ -12,8 +12,8 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 
-public class CoreBootInitializer extends ConfigDecryption implements
-        ApplicationContextInitializer<ConfigurableApplicationContext>, Ordered {
+public class CoreBootInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext>, Ordered {
+    protected static final String DECRYPTED_PROPERTY_SOURCE_NAME = "decryptedProperties";
     
     @Override
     public void initialize(ConfigurableApplicationContext applicationContext) {
@@ -24,15 +24,27 @@ public class CoreBootInitializer extends ConfigDecryption implements
             if (!(propertySource instanceof EnumerablePropertySource<?> enumerablePropertySource)) {
                 continue;
             }
-            decryptionCommon(enumerablePropertySource, decryptedProperties);
+            for (String key : enumerablePropertySource.getPropertyNames()) {
+                Object rawValue = enumerablePropertySource.getProperty(key);
+                if (!(rawValue instanceof String encryptedValue)) {
+                    continue;
+                }
+                if (encryptedValue.startsWith("aENC(") && encryptedValue.endsWith(")")) {
+                    String decryptedValue = decryptValue(encryptedValue);
+                    decryptedProperties.put(key, decryptedValue);
+                }
+            }
         }
         
         if (!decryptedProperties.isEmpty()) {
             propertySources.remove(DECRYPTED_PROPERTY_SOURCE_NAME);
-            propertySources.addFirst(new MapPropertySource(DECRYPTED_PROPERTY_SOURCE_NAME,
-                                                           decryptedProperties
-            ));
+            propertySources.addFirst(new MapPropertySource(DECRYPTED_PROPERTY_SOURCE_NAME, decryptedProperties));
         }
+    }
+    
+    private String decryptValue(String encryptedValue) {
+        String ciphertext = encryptedValue.substring(5, encryptedValue.length() - 1);
+        return DefaultTemplateEncryptService.decodeStatic(ciphertext);
     }
     
     @Override

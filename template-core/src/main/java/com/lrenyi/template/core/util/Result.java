@@ -1,6 +1,6 @@
 package com.lrenyi.template.core.util;
 
-import com.lrenyi.template.core.config.properties.ExceptionConfig;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -34,8 +34,8 @@ public class Result<T> {
     public void makeThrowable(Throwable cause, String defaultMessage) {
         setCode(MCode.EXCEPTION.getCode());
         String info;
-        ExceptionConfig config = SpringContextUtil.getBean(ExceptionConfig.class);
-        if (config != null && config.isExport()) {
+        TemplateConfigProperties config = SpringContextUtil.getBean(TemplateConfigProperties.class);
+        if (config != null && config.getWeb().isExportExceptionDetail()) {
             info = cause.getMessage();
             if (!StringUtils.hasLength(info)) {
                 info = cause.getClass().getName() + "->" + defaultMessage;

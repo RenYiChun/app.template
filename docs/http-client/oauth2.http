@@ -1,0 +1,14 @@
+### 登录获取token
+POST http://localhost:8080/oauth2/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type = authorization_password &
+username = admin &
+password = app.template &
+client_id = default-client-id &
+client_secret = app.template
+
+
+### 访问受保护的资源
+POST http://localhost:8080/your-protected-endpoint
+Authorization: Bearer YOUR_ACCESS_TOKEN

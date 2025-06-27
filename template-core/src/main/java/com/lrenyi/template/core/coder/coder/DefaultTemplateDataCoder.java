@@ -1,6 +1,6 @@
 package com.lrenyi.template.core.coder.coder;
 
-import com.lrenyi.template.core.coder.TemplateDataCoder;
+import com.lrenyi.template.core.coder.TemplateEncryptService;
 import com.lrenyi.template.core.util.Digests;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.text.StringEscapeUtils;
@@ -8,11 +8,11 @@ import org.kohsuke.MetaInfServices;
 import org.springframework.util.StringUtils;
 
 @MetaInfServices
-public class DefaultTemplateDataCoder implements TemplateDataCoder {
+public class DefaultTemplateDataCoder implements TemplateEncryptService {
     
     @Override
     public String type() {
-        return TemplateDataCoder.DEFAULT_ENCODER_KEY;
+        return TemplateEncryptService.DEFAULT_ENCODER_KEY;
     }
     
     @Override
