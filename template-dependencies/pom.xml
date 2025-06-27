@@ -48,6 +48,7 @@
 
         <spring-boot.version>3.3.13</spring-boot.version>
         <spring-cloud.version>2023.0.5</spring-cloud.version>
+        <enforce-plugin.skip>false</enforce-plugin.skip>
 
         <metainf-services.version>1.9</metainf-services.version>
         <commons-text.version>1.11.0</commons-text.version>
@@ -286,6 +287,7 @@
                         </goals>
                         <phase>validate</phase>
                         <configuration>
+                            <skip>${enforce-plugin.skip}</skip>
                             <rules>
                                 <dependencyConvergence/>
                                 <requireJavaVersion>
