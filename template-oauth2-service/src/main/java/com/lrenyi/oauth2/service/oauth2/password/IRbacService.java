@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface IRbacService {
     
-    AppUser findUserByIdentifier(String identifier, IdentifierType identifierType);
+    AppUser<?> findUserByIdentifier(String identifier, IdentifierType identifierType);
     
     <T> List<Role> getRolesByUserId(T userId);
     

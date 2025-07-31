@@ -8,12 +8,12 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class AppUser implements Serializable {
+public class AppUser<T> implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
-    private int id;
+    private T id;
     private String username;
     private String password;
-    private String employeeId;
-    private List<String> roles;
+    private T employeeId;
+    private List<T> roles;
 }

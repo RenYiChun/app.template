@@ -40,7 +40,7 @@ public class RbacUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("Invalid identifier type: " + parts[0]);
         }
         String identifier = parts[1];
-        AppUser user = rbacService.findUserByIdentifier(identifier, identifierType);
+        AppUser<?> user = rbacService.findUserByIdentifier(identifier, identifierType);
         List<Role> roles = rbacService.getRolesByUserId(user.getId());
         
         //@formatter:off
