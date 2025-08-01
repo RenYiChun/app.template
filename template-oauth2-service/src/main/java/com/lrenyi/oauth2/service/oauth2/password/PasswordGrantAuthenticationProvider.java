@@ -105,6 +105,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             .principal(principal)
             .authorizationServerContext(AuthorizationServerContextHolder.getContext())
             .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+            .authorizedScopes(client.getScopes())
             .authorizationGrantType(grantType)
             .authorizedScopes(collect)
             .authorizationGrant(grantToken)
