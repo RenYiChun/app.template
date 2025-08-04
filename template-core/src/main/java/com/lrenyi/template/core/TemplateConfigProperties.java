@@ -1,6 +1,5 @@
 package com.lrenyi.template.core;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

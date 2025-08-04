@@ -1,4 +1,4 @@
-package com.lrenyi.template.api.config;
+package com.lrenyi.template.cloud.config;
 
 import feign.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;

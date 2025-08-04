@@ -166,6 +166,11 @@
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-cloud</artifactId>
+                <version>${app.template.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>

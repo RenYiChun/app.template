@@ -4,10 +4,9 @@ import com.lrenyi.template.api.audit.aspect.AuditLogAspect;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.api.audit.service.AuditLogService;
 import com.lrenyi.template.api.config.DefaultSecurityFilterChainBuilder;
-import com.lrenyi.template.core.CoreAutoConfiguration;
-import com.lrenyi.template.api.config.FeignClientConfiguration;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
+import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,7 +14,6 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -60,23 +58,12 @@ import org.springframework.security.web.SecurityFilterChain;
 //@formatter:off
 @Import({
         ApiAutoConfiguration.SecurityAutoConfiguration.class,
-        ApiAutoConfiguration.FeignAutoConfiguration.class,
         ApiAutoConfiguration.AuditLogConfiguration.class,
         ApiAutoConfiguration.MethodSecurityConfig.class
 })
 //@formatter:on
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class ApiAutoConfiguration {
-    
-    /**
-     * Feign配置模块 - 条件导入
-     */
-    @ConditionalOnClass(name = "feign.RequestInterceptor")
-    @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
-    @Import(FeignClientConfiguration.class)
-    static class FeignAutoConfiguration {
-        // 空的配置类，仅用于条件导入
-    }
     
     @EnableMethodSecurity()
     @ConditionalOnProperty(name = "app.template.authorize.enabled", havingValue = "true", matchIfMissing = true)
@@ -130,11 +117,10 @@ public class ApiAutoConfiguration {
             introspector.setAuthenticationConverter(accessor -> {
                 Collection<GrantedAuthority> authorities = new ArrayList<>();
                 List<String> scopes = accessor.getScopes();
-                if (scopes == null) {
-                    return null;
-                }
-                for (String scope : scopes) {
-                    authorities.add(new SimpleGrantedAuthority(scope));
+                if (scopes != null) {
+                    for (String scope : scopes) {
+                        authorities.add(new SimpleGrantedAuthority(scope));
+                    }
                 }
                 return new OAuth2IntrospectionAuthenticatedPrincipal(accessor.getClaims(), authorities);
             });
