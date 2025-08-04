@@ -1,12 +1,12 @@
 package com.lrenyi.template.api.audit.aspect;
 
 import com.lrenyi.template.api.audit.service.AuditLogService;
-import com.lrenyi.template.api.config.FeignClientConfiguration;
+import com.lrenyi.template.core.util.TemplateConstant;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import lombok.extern.slf4j.Slf4j;
-import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -44,7 +44,7 @@ public class AuditLogAspect {
         HttpServletRequest request = null;
         if (attributes != null) {
             request = attributes.getRequest();
-            String internalCallHeader = request.getHeader(FeignClientConfiguration.HEADER_NAME);
+            String internalCallHeader = request.getHeader(TemplateConstant.HEADER_NAME);
             if ("true".equalsIgnoreCase(internalCallHeader)) {
                 // This is an internal call from another service, skip logging.
                 return joinPoint.proceed();
