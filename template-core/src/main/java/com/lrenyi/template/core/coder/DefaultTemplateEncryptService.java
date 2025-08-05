@@ -108,17 +108,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     
     @Override
     public boolean matches(CharSequence rawPassword, String encodedPassword) {
-        String raw = rawPassword.toString();
-        try {
-            KeyPassword keyPassword = encodedBySelf(raw);
-            if (keyPassword != null) {
-                PasswordEncoder encoder = ALL_ENCODER.get(keyPassword.encoderKey);
-                if (encoder instanceof TemplateEncryptService templateDataCoder) {
-                    raw = templateDataCoder.decode(keyPassword.password);
-                }
-            }
-        } catch (Exception ignore) {}
-        return matchesStatic(raw, encodedPassword);
+        return matchesStatic(rawPassword, encodedPassword);
     }
     
     public static boolean matchesStatic(CharSequence rawPassword, String encodedPassword) {
