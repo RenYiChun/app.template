@@ -110,12 +110,11 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     public boolean matches(CharSequence rawPassword, String encodedPassword) {
         String raw = rawPassword.toString();
         try {
-            String keyId = extractId(raw);
-            if (keyId != null) {
-                PasswordEncoder encoder = ALL_ENCODER.get(keyId);
+            KeyPassword keyPassword = encodedBySelf(raw);
+            if (keyPassword != null) {
+                PasswordEncoder encoder = ALL_ENCODER.get(keyPassword.encoderKey);
                 if (encoder instanceof TemplateEncryptService templateDataCoder) {
-                    String password = extractEncodedPassword(raw);
-                    raw = templateDataCoder.decode(password);
+                    raw = templateDataCoder.decode(keyPassword.password);
                 }
             }
         } catch (Exception ignore) {}
