@@ -1,5 +1,8 @@
 package com.lrenyi.oauth2.service.oauth2.token;
 
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.util.SpringContextUtil;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
@@ -41,8 +44,16 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         RegisteredClient registeredClient = context.getRegisteredClient();
         
         Instant issuedAt = Instant.now();
-        Instant expiresAt =
-                issuedAt.plus(registeredClient.getTokenSettings().getAccessTokenTimeToLive());
+        Duration duration = registeredClient.getTokenSettings().getAccessTokenTimeToLive();
+        TemplateConfigProperties properties = SpringContextUtil.getBean(TemplateConfigProperties.class);
+        if (properties != null) {
+            TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
+            Long seconds = security.getSessionTimeOutSeconds();
+            if (seconds != null) {
+                duration = Duration.ofSeconds(seconds);
+            }
+        }
+        Instant expiresAt = issuedAt.plus(duration);
         
         // @formatter:off
         OAuth2TokenClaimsSet.Builder claimsBuilder = OAuth2TokenClaimsSet.builder();

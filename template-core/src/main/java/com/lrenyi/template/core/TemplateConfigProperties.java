@@ -115,6 +115,8 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean localJwtPublicKey = true;
         private String netJwtPublicKeyDomain;
         private String customizeLoginPage;
+        private Long sessionTimeOutSeconds;
+        
         /**
          * AuthorizationService的类型，目前支持两种，memory, redis
          */
