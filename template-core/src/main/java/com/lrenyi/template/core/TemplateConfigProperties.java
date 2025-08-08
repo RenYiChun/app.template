@@ -115,6 +115,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean localJwtPublicKey = true;
         private String netJwtPublicKeyDomain;
         private String customizeLoginPage;
+        private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
         
         /**

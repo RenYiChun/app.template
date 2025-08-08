@@ -1,11 +1,15 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.OAuth2Constant;
+import com.lrenyi.template.core.util.SpringContextUtil;
 import jakarta.annotation.Resource;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -65,7 +69,35 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     public OAuth2Authorization findById(String id) {
         byte[] value = byteArrayRedisTemplate.opsForValue()
                                              .get(OAuth2Constant.TOKEN_ID_KEY_IN_REDIS + ":" + id);
-        return strategy.deserialize(value, OAuth2Authorization.class);
+        OAuth2Authorization authorization = strategy.deserialize(value, OAuth2Authorization.class);
+        return updateToken(authorization);
+    }
+    
+    private OAuth2Authorization updateToken(OAuth2Authorization authorization) {
+        TemplateConfigProperties properties = SpringContextUtil.getBean(TemplateConfigProperties.class);
+        if (properties == null || !properties.getSecurity().isSessionIdleTimeout()) {
+            return authorization;
+        }
+        TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
+        Long time = security.getSessionTimeOutSeconds();
+        if (time == null) {
+            return authorization;
+        }
+        OAuth2Authorization.Token<OAuth2AccessToken> accessToken = authorization.getAccessToken();
+        OAuth2AccessToken originalToken = accessToken.getToken();
+        OAuth2AccessToken newAccessToken = new OAuth2AccessToken(originalToken.getTokenType(),
+                                                                 originalToken.getTokenValue(),
+                                                                 originalToken.getIssuedAt(),
+                                                                 Instant.now().plus(Duration.ofSeconds(time)),
+                                                                 originalToken.getScopes()
+        );
+        String metadataName = OAuth2Authorization.Token.CLAIMS_METADATA_NAME;
+        Consumer<Map<String, Object>> mapConsumer = (metadata) -> metadata.put(metadataName, accessToken.getClaims());
+        OAuth2Authorization updatedAuthorization = OAuth2Authorization.from(authorization)
+                                                                      .token(newAccessToken, mapConsumer)
+                                                                      .build();
+        save(updatedAuthorization);
+        return updatedAuthorization;
     }
     
     @Override
@@ -78,10 +110,9 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
                 if (value == null) {
                     continue;
                 }
-                OAuth2Authorization authorization =
-                        strategy.deserialize(value, OAuth2Authorization.class);
+                OAuth2Authorization authorization = strategy.deserialize(value, OAuth2Authorization.class);
                 if (hasToken(authorization, token, tokenType)) {
-                    return authorization;
+                    return updateToken(authorization);
                 }
             }
         }
