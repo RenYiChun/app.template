@@ -3,6 +3,7 @@ package com.lrenyi.template.core.util;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.util.StringUtils;
 
 @Data
 @NoArgsConstructor

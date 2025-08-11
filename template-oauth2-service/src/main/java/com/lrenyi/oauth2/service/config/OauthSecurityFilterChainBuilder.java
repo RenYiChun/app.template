@@ -6,7 +6,6 @@ import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProv
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.RbacUserDetailsService;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.StringUtils;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,6 +27,7 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)

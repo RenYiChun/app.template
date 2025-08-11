@@ -3,7 +3,6 @@ package com.lrenyi.template.api.audit.service;
 import com.lrenyi.template.api.audit.annotation.AuditLog;
 import com.lrenyi.template.api.audit.model.AuditLogInfo;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
-import com.lrenyi.template.core.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -20,6 +19,7 @@ import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNam
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 public class AuditLogService {
