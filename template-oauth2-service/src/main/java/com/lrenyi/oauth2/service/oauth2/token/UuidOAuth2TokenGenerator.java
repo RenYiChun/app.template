@@ -49,7 +49,7 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         if (properties != null) {
             TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
             Long seconds = security.getSessionTimeOutSeconds();
-            if (seconds != null && security.isEnabled()) {
+            if (seconds != null && security.isSessionIdleTimeout() && seconds > 0) {
                 duration = Duration.ofSeconds(seconds);
             }
         }
