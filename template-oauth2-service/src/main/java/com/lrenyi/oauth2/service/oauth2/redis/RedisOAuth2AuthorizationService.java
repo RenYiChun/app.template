@@ -4,15 +4,14 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.Digests;
 import com.lrenyi.template.core.util.SpringContextUtil;
 import com.lrenyi.template.core.util.TemplateConstant;
+import io.netty.buffer.ByteBufUtil;
 import jakarta.annotation.Resource;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.zip.CRC32;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -34,8 +33,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     
     private final JdkSerializationStrategy strategy = new JdkSerializationStrategy();
     @Resource
-    private RedisTemplate<String, String> byteArrayRedisTemplate;
-    private final CRC32 crc32 = new CRC32();
+    private RedisTemplate<String, String> stringRedisTemplate;
     
     @Override
     public void save(OAuth2Authorization authorization) {
@@ -54,14 +52,14 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         String tokenValue = token.getTokenValue();
         String shorten = Digests.shorten(tokenValue, TemplateConstant.SHOT_TOKEN_LENGTH);
         long minutes = duration.toMinutes();
-        String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + ":" + shorten;
-        HashOperations<String, String, String> forHash = byteArrayRedisTemplate.opsForHash();
-        forHash.put(key, TemplateConstant.AUTHORIZATION_DATA_KEY, new String(serialize, StandardCharsets.UTF_8));
+        String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + shorten;
+        HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
+        forHash.put(key, TemplateConstant.AUTHORIZATION_DATA_KEY, ByteBufUtil.hexDump(serialize));
         Map<String, Object> claims = tokenToken.getClaims();
         if (claims != null) {
             claims.forEach((k, value) -> forHash.put(key, k, value.toString()));
         }
-        byteArrayRedisTemplate.expire(key, minutes, TimeUnit.MINUTES);
+        stringRedisTemplate.expire(key, minutes, TimeUnit.MINUTES);
     }
     
     @Override
@@ -73,23 +71,23 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         OAuth2AccessToken token = tokenToken.getToken();
         String tokenValue = token.getTokenValue();
         String shorten = Digests.shorten(tokenValue, TemplateConstant.SHOT_TOKEN_LENGTH);
-        String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + ":" + shorten;
-        byteArrayRedisTemplate.delete(key);
+        String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + shorten;
+        stringRedisTemplate.delete(key);
     }
     
     @Override
     public OAuth2Authorization findById(String id) {
-        Set<String> keys = byteArrayRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + ":*");
+        Set<String> keys = stringRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "*");
         if (keys == null) {
             return null;
         }
-        HashOperations<String, String, String> forHash = byteArrayRedisTemplate.opsForHash();
+        HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
         for (String key : keys) {
             String authorData = forHash.get(key, TemplateConstant.AUTHORIZATION_DATA_KEY);
             if (authorData == null) {
                 continue;
             }
-            byte[] value = authorData.getBytes(StandardCharsets.UTF_8);
+            byte[] value = ByteBufUtil.decodeHexDump(authorData);
             OAuth2Authorization authorization = strategy.deserialize(value, OAuth2Authorization.class);
             String id1 = authorization.getId();
             if (id.equals(id1)) {
@@ -128,17 +126,17 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
-        Set<String> keys = byteArrayRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + ":*");
+        Set<String> keys = stringRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "*");
         if (keys == null) {
             return null;
         }
-        HashOperations<String, String, String> forHash = byteArrayRedisTemplate.opsForHash();
+        HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
         for (String key : keys) {
             String authorData = forHash.get(key, TemplateConstant.AUTHORIZATION_DATA_KEY);
             if (authorData == null) {
                 continue;
             }
-            byte[] value = authorData.getBytes(StandardCharsets.UTF_8);
+            byte[] value = ByteBufUtil.decodeHexDump(authorData);
             OAuth2Authorization authorization = strategy.deserialize(value, OAuth2Authorization.class);
             if (hasToken(authorization, token, tokenType)) {
                 return updateToken(authorization);
