@@ -1,7 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2;
 
 import com.lrenyi.template.core.json.JsonService;
-import com.lrenyi.template.core.util.StringUtils;
 import com.lrenyi.template.core.util.TokenBean;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
@@ -17,6 +16,7 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component

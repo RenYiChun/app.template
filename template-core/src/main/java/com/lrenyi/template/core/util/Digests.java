@@ -2,9 +2,12 @@ package com.lrenyi.template.core.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -104,5 +107,29 @@ public class Digests {
         byte[] bytes = new byte[numBytes];
         random.nextBytes(bytes);
         return bytes;
+    }
+    
+    public static String shorten(String original, int maxLength) {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            return original;
+        }
+        byte[] hashBytes = digest.digest(original.getBytes(StandardCharsets.UTF_8));
+        
+        // 截取所需长度（这里取前32字节）
+        byte[] shortened = Arrays.copyOf(hashBytes, Math.min(maxLength, hashBytes.length));
+        return bytesToHex(shortened);
+    }
+    
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : bytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {hexString.append('0');}
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 }
