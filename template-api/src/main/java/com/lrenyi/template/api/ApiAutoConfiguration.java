@@ -72,7 +72,7 @@ public class ApiAutoConfiguration {
     }
     
     @EnableAsync
-    @ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
     static class AuditLogConfiguration {
         
         @Bean
