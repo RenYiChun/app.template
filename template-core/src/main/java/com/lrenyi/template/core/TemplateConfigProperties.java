@@ -60,7 +60,7 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class AuditLogProperties {
-        private boolean enabled = true;
+        private boolean enabled = false;
         private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
     }
     
