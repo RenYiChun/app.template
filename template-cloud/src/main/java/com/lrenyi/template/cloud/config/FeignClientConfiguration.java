@@ -1,13 +1,18 @@
 package com.lrenyi.template.cloud.config;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.util.SpringContextUtil;
 import com.lrenyi.template.core.util.TemplateConstant;
 import feign.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -34,14 +39,35 @@ public class FeignClientConfiguration {
             if (headerNames == null) {
                 return;
             }
+            boolean haveAuthorization = false;
             while (headerNames.hasMoreElements()) {
                 String headerName = headerNames.nextElement();
+                if ("authorization".equalsIgnoreCase(headerName)) {
+                    haveAuthorization = true;
+                }
                 if (headers.contains(headerName)) {
                     log.info("headerName:{} It will be automatically passed to the downstream service", headerName);
                     String headerValue = request.getHeader(headerName);
                     // 将header向下传递
                     template.header(headerName, headerValue);
                 }
+            }
+            if (!haveAuthorization) {
+                Class<OAuth2AuthorizationServerProperties> clazz = OAuth2AuthorizationServerProperties.class;
+                OAuth2AuthorizationServerProperties bean = SpringContextUtil.getBean(clazz);
+                if (bean == null) {
+                    return;
+                }
+                Map<String, OAuth2AuthorizationServerProperties.Client> client = bean.getClient();
+                String appName = SpringContextUtil.getProperties("spring.application.name");
+                OAuth2AuthorizationServerProperties.Client authClient = client.get(appName);
+                if (authClient == null) {
+                    return;
+                }
+                OAuth2AuthorizationServerProperties.Registration registration = authClient.getRegistration();
+                String auth = registration.getClientId() + ":" + registration.getClientSecret();
+                String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+                template.header("Authorization", "Basic " + encodedAuth);
             }
         };
     }
