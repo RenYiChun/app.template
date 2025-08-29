@@ -50,17 +50,23 @@ public class AuditLogAspect {
                 return joinPoint.proceed();
             }
         }
+        if (request == null) {
+            return joinPoint.proceed();
+        }
         long startTime = System.currentTimeMillis();
         Object result;
         SecurityContext context = SecurityContextHolder.getContext();
+        String ipAddress = auditLogService.getIpAddress(request);
+        String uri = request.getRequestURI();
+        String method = request.getMethod();
         try {
             result = joinPoint.proceed();
             long executionTime = System.currentTimeMillis() - startTime;
-            auditLogService.saveLog(joinPoint, request, context, executionTime, null);
+            auditLogService.saveLog(joinPoint, ipAddress, uri, method, context, executionTime, null);
             return result;
         } catch (Throwable e) {
             long executionTime = System.currentTimeMillis() - startTime;
-            auditLogService.saveLog(joinPoint, request, context, executionTime, e);
+            auditLogService.saveLog(joinPoint, ipAddress, uri, method, context, executionTime, e);
             throw e;
         }
     }
