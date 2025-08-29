@@ -1,5 +1,6 @@
 package com.lrenyi.template.core;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +68,7 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class FeignProperties {
         private boolean enabled = true;
+        private List<String> headers = new ArrayList<>();
     }
     
     /**
