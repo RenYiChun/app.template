@@ -39,12 +39,13 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
             return;
         }
         boolean haveAuthorization = false;
+        List<String> lowerHeader = headers.stream().map(String::toLowerCase).toList();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
             if ("authorization".equalsIgnoreCase(headerName)) {
                 haveAuthorization = true;
             }
-            if (headers.contains(headerName)) {
+            if (lowerHeader.contains(headerName.toLowerCase())) {
                 log.info("headerName:{} It will be automatically passed to the downstream service", headerName);
                 String headerValue = request.getHeader(headerName);
                 // 将header向下传递
