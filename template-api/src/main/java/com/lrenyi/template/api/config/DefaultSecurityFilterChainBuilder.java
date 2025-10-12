@@ -53,8 +53,12 @@ public class DefaultSecurityFilterChainBuilder {
         log.info("the permit urls of service {} is: {}", appName, String.join(",", permitUrlsOfApp));
         http.authorizeHttpRequests(authorize -> {
             String[] permitUrlsArray = permitUrlsOfApp.toArray(new String[0]);
-            authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll();
-            authorize.requestMatchers(permitUrlsArray).permitAll().anyRequest().authenticated();
+            authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR)
+                     .permitAll()
+                     .requestMatchers(permitUrlsArray)
+                     .permitAll()
+                     .anyRequest()
+                     .authenticated();
         });
         TemplateConfigProperties.OAuth2Config oAuth2Config = templateConfigProperties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oAuth2Config.getOpaqueToken();

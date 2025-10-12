@@ -21,10 +21,12 @@ public class RedisOauthServiceConfig {
     
     @Bean
     @ConditionalOnProperty(value = "app.template.security.authorization-type", havingValue = "redis")
-    public RegisteredClientRepository registerClientRepository(RedisTemplate<String, byte[]> brt,
+    public RegisteredClientRepository registerClientRepository(RedisTemplate<String, String> templateStringRedis,
                                                                OAuth2AuthorizationServerProperties properties) {
         OAuth2AuthorizationServerPropertiesMapper mapper = new OAuth2AuthorizationServerPropertiesMapper(properties);
         List<RegisteredClient> registeredClients = mapper.asRegisteredClients();
-        return new RedisRegisteredClientRepository(brt, registeredClients.toArray(new RegisteredClient[0]));
+        return new RedisRegisteredClientRepository(templateStringRedis,
+                                                   registeredClients.toArray(new RegisteredClient[0])
+        );
     }
 }

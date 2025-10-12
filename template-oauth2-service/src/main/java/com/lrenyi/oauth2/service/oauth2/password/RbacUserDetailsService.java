@@ -1,8 +1,9 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
 import com.lrenyi.oauth2.service.config.IdentifierType;
+import com.lrenyi.template.api.rbac.model.AppUser;
 import com.lrenyi.template.api.rbac.model.Role;
-import com.lrenyi.template.api.rbac.model.User;
+import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -10,8 +11,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-
-import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -41,7 +40,7 @@ public class RbacUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("Invalid identifier type: " + parts[0]);
         }
         String identifier = parts[1];
-        User user = rbacService.findUserByIdentifier(identifier, identifierType);
+        AppUser<?> user = rbacService.findUserByIdentifier(identifier, identifierType);
         List<Role> roles = rbacService.getRolesByUserId(user.getId());
         
         //@formatter:off

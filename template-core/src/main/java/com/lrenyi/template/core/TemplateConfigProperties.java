@@ -60,7 +60,7 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class AuditLogProperties {
-        private boolean enabled = true;
+        private boolean enabled = false;
         private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
     }
     
@@ -68,6 +68,9 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class FeignProperties {
         private boolean enabled = true;
+        private List<String> headers = new ArrayList<>();
+        private String oauthClientId;
+        private String oauthClientSecret;
     }
     
     /**
@@ -116,6 +119,9 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean localJwtPublicKey = true;
         private String netJwtPublicKeyDomain;
         private String customizeLoginPage;
+        private boolean sessionIdleTimeout = false;
+        private Long sessionTimeOutSeconds;
+        
         /**
          * AuthorizationService的类型，目前支持两种，memory, redis
          */

@@ -3,7 +3,6 @@ package com.lrenyi.template.api.audit.service;
 import com.lrenyi.template.api.audit.annotation.AuditLog;
 import com.lrenyi.template.api.audit.model.AuditLogInfo;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
-import com.lrenyi.template.core.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -20,6 +19,7 @@ import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNam
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 public class AuditLogService {
@@ -45,8 +45,7 @@ public class AuditLogService {
     }
     
     @Async
-    public void saveLog(ProceedingJoinPoint joinPoint,
-                        HttpServletRequest request,
+    public void saveLog(ProceedingJoinPoint joinPoint, String ipAddress, String uri, String httpMethod,
                         SecurityContext context,
                         long time,
                         Throwable e) {
@@ -71,21 +70,19 @@ public class AuditLogService {
             String methodName = signature.getName();
             logInfo.setDescription(className + "#" + methodName);
         }
-        if (request != null) {
-            logInfo.setRequestIp(getIpAddress(request));
-            logInfo.setRequestUri(request.getRequestURI());
-            logInfo.setRequestMethod(request.getMethod());
-            Authentication authentication = context.getAuthentication();
-            String name = authentication.getName();
-            if (authentication instanceof BearerTokenAuthentication bearerAuth) {
-                name = String.valueOf(bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME));
-            } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
-                name = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
-            } else if (!StringUtils.hasLength(name)) {
-                log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
-            }
-            logInfo.setUserName(name);
+        logInfo.setRequestIp(ipAddress);
+        logInfo.setRequestUri(uri);
+        logInfo.setRequestMethod(httpMethod);
+        Authentication authentication = context.getAuthentication();
+        String name = authentication.getName();
+        if (authentication instanceof BearerTokenAuthentication bearerAuth) {
+            name = String.valueOf(bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME));
+        } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
+            name = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
+        } else if (!StringUtils.hasLength(name)) {
+            log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
         }
+        logInfo.setUserName(name);
         
         // 设置服务名称和服务器IP
         logInfo.setServiceName(serviceName);
@@ -114,7 +111,7 @@ public class AuditLogService {
         return name;
     }
     
-    private String getIpAddress(HttpServletRequest request) {
+    public String getIpAddress(HttpServletRequest request) {
         String ip = request.getHeader("x-forwarded-for");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getHeader("Proxy-Client-IP");

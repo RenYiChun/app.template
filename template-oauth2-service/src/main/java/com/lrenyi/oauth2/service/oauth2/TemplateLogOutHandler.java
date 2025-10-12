@@ -1,7 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2;
 
 import com.lrenyi.template.api.audit.service.AuditLogService;
-import com.lrenyi.template.core.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component
@@ -22,7 +22,7 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
     private OAuth2AuthorizationService oAuth2AuthorizationService;
     private AuditLogService auditLogService;
     
-    @Autowired
+    @Autowired(required = false)
     public void setAuditLogService(AuditLogService auditLogService) {
         this.auditLogService = auditLogService;
     }
@@ -58,8 +58,9 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
             exceptionDetails = e.getMessage();
             log.error("Logout failed for user {}", userName, e);
         } finally {
-            // 记录审计日志
-            auditLogService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
+            if (auditLogService != null) {
+                auditLogService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
+            }
         }
     }
     

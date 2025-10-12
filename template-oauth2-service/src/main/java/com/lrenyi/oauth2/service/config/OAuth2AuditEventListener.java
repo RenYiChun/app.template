@@ -26,7 +26,7 @@ public class OAuth2AuditEventListener {
         this.properties = properties;
     }
     
-    @Autowired
+    @Autowired(required = false)
     public void setAuditLogService(AuditLogService auditLogService) {
         this.auditLogService = auditLogService;
     }
@@ -48,7 +48,7 @@ public class OAuth2AuditEventListener {
         }
         HttpServletRequest request = attributes.getRequest();
         String uri = request.getRequestURI();
-        if (!endpoints.contains(uri)) {
+        if (!endpoints.contains(uri) || auditLogService == null) {
             return;
         }
         String userName = auditLogService.extractUserName(authentication);

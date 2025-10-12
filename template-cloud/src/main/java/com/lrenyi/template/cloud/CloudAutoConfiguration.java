@@ -1,0 +1,63 @@
+package com.lrenyi.template.cloud;
+
+import com.lrenyi.template.cloud.config.FeignClientConfiguration;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.client.support.BasicAuthenticationInterceptor;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.server.resource.introspection.OAuth2IntrospectionAuthenticatedPrincipal;
+import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
+import org.springframework.web.client.RestTemplate;
+
+@ComponentScan
+@Configuration(proxyBeanMethods = false)
+@Import({CloudAutoConfiguration.FeignAutoConfiguration.class})
+public class CloudAutoConfiguration {
+    
+    /**
+     * Feign配置模块 - 条件导入
+     */
+    @ConditionalOnClass(name = "feign.RequestInterceptor")
+    @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
+    @Import(FeignClientConfiguration.class)
+    static class FeignAutoConfiguration {
+        // 空的配置类，仅用于条件导入
+    }
+    
+    @Bean
+    @ConditionalOnProperty(
+            name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
+    )
+    public SpringOpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
+                                                                 @LoadBalanced RestTemplate restTemplate) {
+        
+        TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
+        TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();
+        String uri = opaqueToken.getIntrospectionUri();
+        String clientId = opaqueToken.getClientId();
+        String clientSecret = opaqueToken.getClientSecret();
+        restTemplate.getInterceptors().add(new BasicAuthenticationInterceptor(clientId, clientSecret));
+        SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, restTemplate);
+        introspector.setAuthenticationConverter(accessor -> {
+            Collection<GrantedAuthority> authorities = new ArrayList<>();
+            List<String> scopes = accessor.getScopes();
+            if (scopes != null) {
+                for (String scope : scopes) {
+                    authorities.add(new SimpleGrantedAuthority(scope));
+                }
+            }
+            return new OAuth2IntrospectionAuthenticatedPrincipal(accessor.getClaims(), authorities);
+        });
+        return introspector;
+    }
+}

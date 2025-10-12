@@ -1,7 +1,6 @@
 package com.lrenyi.template.core.coder;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.StringUtils;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +12,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 public class DefaultTemplateEncryptService implements TemplateEncryptService, InitializingBean {
