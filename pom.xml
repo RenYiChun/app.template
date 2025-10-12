@@ -12,8 +12,8 @@
     <artifactId>app.template</artifactId>
     <version>2.4.0</version>
     <packaging>pom</packaging>
-    <name>app.template</name>
-    <description>rapid development of templates based on spring cloud microservices</description>
+    <name>App Template</name>
+    <description>A quick-to-use template library focusing on Spring Boot Security and OAuth2</description>
     <url>https://github.com/RenYiChun/app.template</url>
 
     <licenses>
@@ -63,6 +63,24 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>oss</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
