@@ -10,6 +10,8 @@
     </parent>
     <artifactId>template-oauth2-service</artifactId>
     <name>Template Oauth2 Service</name>
+    <version>2.4.1</version>
+    
     <properties>
         <checkstyle.related.dir>..</checkstyle.related.dir>
     </properties>
