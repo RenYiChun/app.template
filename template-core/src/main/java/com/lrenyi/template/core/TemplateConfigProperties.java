@@ -121,6 +121,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String customizeLoginPage;
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
+        private Long tokenMaxLifetimeSeconds = 24 * 3600L;
         
         /**
          * AuthorizationService的类型，目前支持两种，memory, redis

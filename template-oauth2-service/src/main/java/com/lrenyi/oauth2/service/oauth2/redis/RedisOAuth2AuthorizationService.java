@@ -65,22 +65,18 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     @Override
     public void remove(OAuth2Authorization authorization) {
         OAuth2Authorization.Token<OAuth2AccessToken> tokenToken = authorization.getAccessToken();
-        if (tokenToken == null) {
-            throw new IllegalArgumentException("access token is null");
+        if (tokenToken != null) {
+            OAuth2AccessToken token = tokenToken.getToken();
+            String tokenValue = token.getTokenValue();
+            String shorten = Digests.shorten(tokenValue, TemplateConstant.SHOT_TOKEN_LENGTH);
+            String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + shorten;
+            stringRedisTemplate.delete(key);
         }
-        OAuth2AccessToken token = tokenToken.getToken();
-        String tokenValue = token.getTokenValue();
-        String shorten = Digests.shorten(tokenValue, TemplateConstant.SHOT_TOKEN_LENGTH);
-        String key = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + shorten;
-        stringRedisTemplate.delete(key);
     }
     
     @Override
     public OAuth2Authorization findById(String id) {
         Set<String> keys = stringRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "*");
-        if (keys == null) {
-            return null;
-        }
         HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
         for (String key : keys) {
             String authorData = forHash.get(key, TemplateConstant.AUTHORIZATION_DATA_KEY);
@@ -109,10 +105,18 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         }
         OAuth2Authorization.Token<OAuth2AccessToken> accessToken = authorization.getAccessToken();
         OAuth2AccessToken originalToken = accessToken.getToken();
+        Long lifetimeSeconds = security.getTokenMaxLifetimeSeconds();
+        Instant issuedAt = originalToken.getIssuedAt();
+        if (issuedAt != null) {
+            long diffSeconds = Duration.between(issuedAt, Instant.now()).getSeconds();
+            if (diffSeconds > lifetimeSeconds) {
+                remove(authorization);
+                return null;
+            }
+        }
+        Instant plus = Instant.now().plus(Duration.ofSeconds(time));
         OAuth2AccessToken newAccessToken = new OAuth2AccessToken(originalToken.getTokenType(),
-                                                                 originalToken.getTokenValue(),
-                                                                 originalToken.getIssuedAt(),
-                                                                 Instant.now().plus(Duration.ofSeconds(time)),
+                                                                 originalToken.getTokenValue(), issuedAt, plus,
                                                                  originalToken.getScopes()
         );
         String metadataName = OAuth2Authorization.Token.CLAIMS_METADATA_NAME;
@@ -127,9 +131,6 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
         Set<String> keys = stringRedisTemplate.keys(TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "*");
-        if (keys == null) {
-            return null;
-        }
         HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
         for (String key : keys) {
             String authorData = forHash.get(key, TemplateConstant.AUTHORIZATION_DATA_KEY);
