@@ -3,6 +3,7 @@ package com.lrenyi.template.cloud;
 import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import java.net.URI;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -42,7 +43,9 @@ public class CloudAutoConfiguration {
         String uri = opaqueToken.getIntrospectionUri();
         String clientId = opaqueToken.getClientId();
         String clientSecret = opaqueToken.getClientSecret();
-        int indexOf = uri.indexOf(":");
+        URI url = URI.create(uri);
+        String host = url.getHost();
+        int indexOf = host.indexOf(":");
         if (indexOf != -1) {
             //配置带端口信息的url便于开发时的调试
             restTemplate = new RestTemplate();
