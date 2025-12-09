@@ -1,10 +1,8 @@
 package com.lrenyi.template.cloud;
 
+import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -13,9 +11,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.client.support.BasicAuthenticationInterceptor;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.server.resource.introspection.OAuth2IntrospectionAuthenticatedPrincipal;
 import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.web.client.RestTemplate;
 
@@ -39,25 +34,21 @@ public class CloudAutoConfiguration {
             name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
     )
     public SpringOpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
-                                                                 @LoadBalanced RestTemplate restTemplate) {
+                                                                 @LoadBalanced RestTemplate restTemplate,
+                                                                 ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
         
         TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();
         String uri = opaqueToken.getIntrospectionUri();
         String clientId = opaqueToken.getClientId();
         String clientSecret = opaqueToken.getClientSecret();
+        int indexOf = uri.indexOf(":");
+        if (indexOf != -1) {
+            //配置带端口信息的url便于开发时的调试
+            restTemplate = new RestTemplate();
+        }
         restTemplate.getInterceptors().add(new BasicAuthenticationInterceptor(clientId, clientSecret));
         SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, restTemplate);
-        introspector.setAuthenticationConverter(accessor -> {
-            Collection<GrantedAuthority> authorities = new ArrayList<>();
-            List<String> scopes = accessor.getScopes();
-            if (scopes != null) {
-                for (String scope : scopes) {
-                    authorities.add(new SimpleGrantedAuthority(scope));
-                }
-            }
-            return new OAuth2IntrospectionAuthenticatedPrincipal(accessor.getClaims(), authorities);
-        });
-        return introspector;
+        return securityAutoConfiguration.makeSpringOpaqueTokenIntrospector(introspector);
     }
 }

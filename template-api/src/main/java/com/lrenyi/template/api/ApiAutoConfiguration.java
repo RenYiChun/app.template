@@ -94,7 +94,7 @@ public class ApiAutoConfiguration {
         }
     }
     
-    static class SecurityAutoConfiguration {
+    public static class SecurityAutoConfiguration {
         
         @Bean
         @ConditionalOnMissingBean
@@ -114,6 +114,10 @@ public class ApiAutoConfiguration {
             String clientId = opaqueToken.getClientId();
             String clientSecret = opaqueToken.getClientSecret();
             SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, clientId, clientSecret);
+            return makeSpringOpaqueTokenIntrospector(introspector);
+        }
+        
+        public SpringOpaqueTokenIntrospector makeSpringOpaqueTokenIntrospector(SpringOpaqueTokenIntrospector introspector) {
             introspector.setAuthenticationConverter(accessor -> {
                 Collection<GrantedAuthority> authorities = new ArrayList<>();
                 List<String> scopes = accessor.getScopes();
