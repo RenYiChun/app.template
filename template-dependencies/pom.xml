@@ -32,6 +32,19 @@
         <url>https://github.com/RenYiChun/app.template</url>
     </scm>
 
+    <distributionManagement>
+        <repository>
+            <id>releases</id>
+            <name>Releases Repository</name>
+            <url>http://nexus.htcc.com:8081/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <name>Snapshot Repository</name>
+            <url>http://nexus.htcc.com:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
         <app.template.version>2.4.2-SNAPSHOT</app.template.version>
         <nats-spring.version>1.5.8</nats-spring.version>
