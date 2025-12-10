@@ -44,9 +44,8 @@ public class CloudAutoConfiguration {
         String clientId = opaqueToken.getClientId();
         String clientSecret = opaqueToken.getClientSecret();
         URI url = URI.create(uri);
-        String host = url.getHost();
-        int indexOf = host.indexOf(":");
-        if (indexOf != -1) {
+        int port = url.getPort();
+        if (port != -1) {
             //配置带端口信息的url便于开发时的调试
             restTemplate = new RestTemplate();
         }
