@@ -19,7 +19,7 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     
     public RedisRegisteredClientRepository(RedisTemplate<String, String> stringRedisTemplate,
-            RegisteredClient... registrations) {
+                                           RegisteredClient... registrations) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.initialClients = registrations != null ? registrations.clone() : new RegisteredClient[0];
         ensureClientsInitialized();
@@ -73,7 +73,7 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
         try {
             HashOperations<String, String, String> hashOperations = stringRedisTemplate.opsForHash();
             Long size = hashOperations.size(REGISTERED_CLIENT_ID_KEY);
-            return size != null && size > 0;
+            return size > 0;
         } catch (Exception e) {
             log.warn("检查 Redis 中的客户端配置时发生异常: {}", e.getMessage());
             return false;
