@@ -7,7 +7,6 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import feign.codec.ErrorDecoder;
 import java.net.URI;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +33,6 @@ public class CloudAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnMissingBean
     public ErrorDecoder errorDecoder() {
         return new FeignClientErrorDecoder();
     }
