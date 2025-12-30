@@ -28,7 +28,11 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         template.header(TemplateConstant.HEADER_NAME, "true");
         // 获取对象
         ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attribute == null || headers == null || headers.isEmpty()) {
+        if (attribute == null) {
+            makeClientOauth(template, feign);
+            return;
+        }
+        if (headers == null || headers.isEmpty()) {
             return;
         }
         // 获取请求对象
@@ -53,14 +57,22 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
             }
         }
         if (!haveAuthorization) {
-            String oauthClientId = feign.getOauthClientId();
-            String oauthClientSecret = feign.getOauthClientSecret();
-            if (oauthClientId == null || oauthClientSecret == null) {
-                return;
-            }
-            String auth = oauthClientId + ":" + oauthClientSecret;
-            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-            template.header("Authorization", "Basic " + encodedAuth);
+            makeClientOauth(template, feign);
         }
+    }
+    
+    private void makeClientOauth(RequestTemplate template, TemplateConfigProperties.FeignProperties feign) {
+        boolean enabled = templateConfigProperties.getSecurity().isEnabled();
+        if (!enabled) {
+            return;
+        }
+        String oauthClientId = feign.getOauthClientId();
+        String oauthClientSecret = feign.getOauthClientSecret();
+        if (oauthClientId == null || oauthClientSecret == null) {
+            return;
+        }
+        String auth = oauthClientId + ":" + oauthClientSecret;
+        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+        template.header("Authorization", "Basic " + encodedAuth);
     }
 }
