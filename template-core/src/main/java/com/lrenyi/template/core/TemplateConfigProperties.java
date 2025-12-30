@@ -91,6 +91,7 @@ public class TemplateConfigProperties implements InitializingBean {
     public static class OAuth2Config {
         private boolean enabled = true;
         private boolean skipPreAuthentication;
+        private String tokenUrl;
         @NestedConfigurationProperty
         private OpaqueTokenConfig opaqueToken = new OpaqueTokenConfig();
         
