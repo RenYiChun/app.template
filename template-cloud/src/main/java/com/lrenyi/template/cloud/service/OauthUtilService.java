@@ -2,9 +2,6 @@ package com.lrenyi.template.cloud.service;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
 import jakarta.annotation.Resource;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -110,26 +107,11 @@ public class OauthUtilService {
         return Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
     }
     
-    public static String findHostFromUrl(String urlStr) {
-        try {
-            URL url = URI.create(urlStr).toURL();
-            return url.getHost();
-        } catch (MalformedURLException e) {
-            String[] split = urlStr.split("//");
-            if (split.length > 1) {
-                String[] hosts = split[1].split("/");
-                return hosts[0];
-            }
-            return split[0];
-        }
-    }
-    
     public <T, R> R sendRequest(HttpHeaders headers,
                                 String url,
                                 HttpMethod method,
                                 T rb,
                                 ParameterizedTypeReference<R> rt) {
-        makeCommonHeaders(url, headers);
         HttpEntity<T> entity;
         if (rb == null) {
             entity = new HttpEntity<>(headers);
@@ -143,19 +125,5 @@ public class OauthUtilService {
             log.error("请求失败: url={}, status={}", url, response.getStatusCode());
             return null;
         }
-    }
-    
-    private void makeCommonHeaders(String path, HttpHeaders headers) {
-        boolean enabled = templateConfigProperties.getSecurity().isEnabled();
-        if (!enabled) {
-            return;
-        }
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String host = findHostFromUrl(path);
-        String token = fetchToken(host);
-        if (!org.springframework.util.StringUtils.hasLength(token)) {
-            throw new IllegalArgumentException("Invalid token");
-        }
-        headers.set("Authorization", "Bearer " + token);
     }
 }
