@@ -1,12 +1,11 @@
 package com.lrenyi.template.cloud.config;
 
+import com.lrenyi.template.cloud.service.OauthUtilService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.TemplateConstant;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Enumeration;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +15,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Slf4j
 public class TemplateRequestInterceptor implements RequestInterceptor {
     private final TemplateConfigProperties templateConfigProperties;
+    private final OauthUtilService oauthUtilService;
     
-    public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties) {
+    public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties,
+                                      OauthUtilService oauthUtilService) {
         this.templateConfigProperties = templateConfigProperties;
+        this.oauthUtilService = oauthUtilService;
     }
     
     @Override
@@ -29,7 +31,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         // 获取对象
         ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attribute == null) {
-            makeClientOauth(template, feign);
+            makeClientOauth(template);
             return;
         }
         if (headers == null || headers.isEmpty()) {
@@ -57,22 +59,16 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
             }
         }
         if (!haveAuthorization) {
-            makeClientOauth(template, feign);
+            makeClientOauth(template);
         }
     }
     
-    private void makeClientOauth(RequestTemplate template, TemplateConfigProperties.FeignProperties feign) {
+    private void makeClientOauth(RequestTemplate template) {
         boolean enabled = templateConfigProperties.getSecurity().isEnabled();
         if (!enabled) {
             return;
         }
-        String oauthClientId = feign.getOauthClientId();
-        String oauthClientSecret = feign.getOauthClientSecret();
-        if (oauthClientId == null || oauthClientSecret == null) {
-            return;
-        }
-        String auth = oauthClientId + ":" + oauthClientSecret;
-        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-        template.header("Authorization", "Basic " + encodedAuth);
+        String token = oauthUtilService.fetchToken("server");
+        template.header("Authorization", "Bearer " + token);
     }
 }
