@@ -2,9 +2,12 @@ package com.lrenyi.template.cloud;
 
 import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
+import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import feign.codec.ErrorDecoder;
 import java.net.URI;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +31,12 @@ public class CloudAutoConfiguration {
     @Import(FeignClientConfiguration.class)
     static class FeignAutoConfiguration {
         // 空的配置类，仅用于条件导入
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public ErrorDecoder errorDecoder() {
+        return new FeignClientErrorDecoder();
     }
     
     @Bean
