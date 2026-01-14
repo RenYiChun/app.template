@@ -1,5 +1,6 @@
 package com.lrenyi.template.api.config;
 
+import com.lrenyi.template.api.feign.InternalRequestMatcher;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -53,12 +55,16 @@ public class DefaultSecurityFilterChainBuilder {
         log.info("the permit urls of service {} is: {}", appName, String.join(",", permitUrlsOfApp));
         http.authorizeHttpRequests(authorize -> {
             String[] permitUrlsArray = permitUrlsOfApp.toArray(new String[0]);
-            authorize.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR)
-                     .permitAll()
-                     .requestMatchers(permitUrlsArray)
-                     .permitAll()
-                     .anyRequest()
-                     .authenticated();
+            AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry registry =
+                    authorize.dispatcherTypeMatchers(
+                    DispatcherType.FORWARD,
+                    DispatcherType.ERROR
+            ).permitAll().requestMatchers(permitUrlsArray).permitAll();
+            TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
+            if (feign.isNotOauth()) {
+                registry = registry.requestMatchers(new InternalRequestMatcher()).permitAll();
+            }
+            registry.anyRequest().authenticated();
         });
         TemplateConfigProperties.OAuth2Config oAuth2Config = templateConfigProperties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oAuth2Config.getOpaqueToken();
