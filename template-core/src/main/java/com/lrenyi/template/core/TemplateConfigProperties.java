@@ -69,6 +69,7 @@ public class TemplateConfigProperties implements InitializingBean {
     public static class FeignProperties {
         private boolean enabled = true;
         private List<String> headers = new ArrayList<>();
+        private boolean notOauth = true;
         private String oauthClientId;
         private String oauthClientSecret;
     }

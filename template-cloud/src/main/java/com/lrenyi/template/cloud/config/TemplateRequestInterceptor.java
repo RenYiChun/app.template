@@ -28,6 +28,9 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
         List<String> headers = feign.getHeaders();
         template.header(TemplateConstant.HEADER_NAME, "true");
+        if (feign.isNotOauth()) {
+            return;
+        }
         // 获取对象
         ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attribute == null) {
