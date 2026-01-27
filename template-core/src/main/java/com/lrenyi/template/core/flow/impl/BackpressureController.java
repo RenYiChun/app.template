@@ -1,0 +1,48 @@
+package com.lrenyi.template.core.flow.impl;
+
+import com.lrenyi.template.core.flow.storage.FlowStorage;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class BackpressureController {
+    private final Lock lock = new ReentrantLock();
+    private final Condition notFull = lock.newCondition();
+    private final FlowStorage<?> flowStorage;
+    
+    public BackpressureController(FlowStorage<?> flowStorage) {
+        this.flowStorage = flowStorage;
+    }
+    
+    // 生产者调用：如果满了就挂起
+    public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException {
+        lock.lock();
+        try {
+            // 只要缓存中的数据量（Active/In-Cache）超过阈值，就阻塞
+            while (flowStorage.size() >= flowStorage.maxCacheSize() && !stopCheck.getAsBoolean()) {
+                // 增加 1 秒超时兜底，即使信号丢失，1秒后也会重新 check 一次 size
+                if (!notFull.await(2, TimeUnit.SECONDS) && log.isTraceEnabled()) {
+                    log.trace("Backpressure: timeout waiting for space, retrying check...");
+                }
+                
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    // 消费者调用：当数据处理完离场时调用
+    public void signalRelease() {
+        lock.lock();
+        try {
+            // 唤醒正在等待的生产者线程
+            notFull.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
