@@ -53,7 +53,7 @@ public class FlowManager {
     }
     
     private FlowManager init() {
-        this.flowCacheManager = new FlowCacheManager();
+        this.flowCacheManager = new FlowCacheManager(globalExecutor);
         this.flowProgressDisplay = new FlowProgressDisplay(this);
         this.finalizer = new FlowFinalizer<>(this);
         int second = globalConfig.getProgressDisplaySecond();

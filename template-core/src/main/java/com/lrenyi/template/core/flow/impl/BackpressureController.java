@@ -39,8 +39,8 @@ public class BackpressureController {
     public void signalRelease() {
         lock.lock();
         try {
-            // 唤醒正在等待的生产者线程
-            notFull.signalAll();
+            // 每次只唤醒一个等待者，减轻惊群、提升出缓存并发下的 TPS
+            notFull.signal();
         } finally {
             lock.unlock();
         }

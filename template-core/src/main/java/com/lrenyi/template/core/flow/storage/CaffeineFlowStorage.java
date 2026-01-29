@@ -11,6 +11,7 @@ import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,15 +32,17 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final long maxCacheSize;
     
     /**
-     * @param maxSize    最大存储容量（背压控制）
-     * @param ttlSeconds 存活时间（超时触发 onFailed）
-     * @param joiner     业务回调接口
+     * @param maxSize      最大存储容量（背压控制）
+     * @param ttlSeconds   存活时间（超时触发 onFailed）
+     * @param joiner       业务回调接口
+     * @param removalExecutor removalListener 专用 executor，避免与 ForkJoinPool.commonPool() 争用，提升出缓存并发
      */
     public CaffeineFlowStorage(long maxSize,
                                long ttlSeconds,
                                FlowJoiner<T> joiner,
                                FlowFinalizer<T> finalizer,
-                               ProgressTracker progressTracker) {
+                               ProgressTracker progressTracker,
+                               Executor removalExecutor) {
         this.joiner = joiner;
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
@@ -47,6 +50,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
+                             .executor(removalExecutor)
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
                                  if (entry == null) {
                                      return;
@@ -68,6 +72,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                 // 旧数据被顶替了，必须物理终结它（归还信号量、减进度）
                 try (oldEntry) {
                     joiner.onFailed(oldEntry.getData(), oldEntry.getJobId());
+                } finally {
+                    progressTracker.onPassiveEgress();
                 }
             }
             // 返回 true：告知外层 entry 已经成功入库，请释放当前线程持有的信号量许可（归还门票）

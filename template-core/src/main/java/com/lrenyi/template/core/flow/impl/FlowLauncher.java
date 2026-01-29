@@ -6,6 +6,7 @@ import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.config.FlowStorageType;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
@@ -126,12 +127,11 @@ public class FlowLauncher<T> {
         // 这样当 activeConsumers 归零时，getCompletionFuture() 就会完成。
         taskOrchestrator.getTracker().markSourceFinished(jobId);
         FlowCacheManager flowCacheManager = flowManager.getFlowCacheManager();
-        Class<T> dataType = flowJoiner.getDataType();
-        // 强制模式：清空缓存，触发 FlowEntry 回收逻辑
+        // 强制模式：按 jobId+storageType 失效并 shutdown，与 getOrCreateStorage 的 key 一致
         if (force) {
             try {
-                String cacheName = jobConfig.getCacheName() != null ? jobConfig.getCacheName() : jobId;
-                flowCacheManager.invalidate(cacheName, dataType);
+                FlowStorageType type = flowJoiner.getStorageType();
+                flowCacheManager.invalidateByJobId(jobId, type);
             } catch (Exception e) {
                 log.error("Job [{}] 强制停止清理失败", jobId, e);
             }
