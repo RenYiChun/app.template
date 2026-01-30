@@ -13,9 +13,22 @@ public class FlowProgressDisplay {
     private final FlowManager flowManager;
     private final ScheduledExecutorService scheduler;
     
-    // 延伸了分隔线以容纳新增的列，总宽度调整为 144
-    private static final String LINE =
-            "+------------------+------+----------+----------+----------+----------+-------+-------+------------------+----------+----------+---------+---------+";
+    // 数字列宽度支持上亿（9 位）及以上展示
+    private static final int W_JOB_ID = 16;
+    private static final int W_STAT = 4;
+    private static final int W_IN_TOTAL = 12;
+    private static final int W_WAIT_Q = 10;
+    private static final int W_ACTIVE_C = 10;
+    private static final int W_STUCK = 10;
+    private static final int W_SUCC = 12;
+    private static final int W_LOSS = 12;
+    private static final int W_CACHE = 24;
+    private static final int W_TPS = 10;
+    private static final int W_DURATION = 8;
+    private static final int W_PROGRESS = 7;
+    private static final int W_SUCCESS = 7;
+    
+    private static final String LINE = renderLine();
     private static final int TOTAL_W = LINE.length();
     
     public FlowProgressDisplay(FlowManager flowManager) {
@@ -28,6 +41,9 @@ public class FlowProgressDisplay {
     }
     
     public void start(long initialDelay, long period, TimeUnit unit) {
+        if (period <= 0) {
+            return;
+        }
         // 启动时输出字段解析，帮助理解物理位移模型
         log.info("Starting Flow Progress Monitor...\n{}", getMetadataDescription());
         scheduler.scheduleAtFixedRate(() -> {
@@ -40,7 +56,7 @@ public class FlowProgressDisplay {
         if (launchers.isEmpty()) {return;}
         
         StringBuilder sb = new StringBuilder("\n");
-        sb.append(centerText("Flow Monitoring Dashboard (Physical Model)")).append("\n");
+        sb.append(centerText()).append("\n");
         
         int available = flowManager.getGlobalSemaphore().availablePermits();
         int limit = flowManager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
@@ -51,9 +67,7 @@ public class FlowProgressDisplay {
         ));
         
         sb.append(LINE).append("\n");
-        // 修改表头：将原本的 Yield 拆分为 Progress(完成率) 和 Success(成功率)
-        sb.append("| JobId            | Stat | In(Total)| Wait(Q)  | Active(C)| Stuck(S) | Succ  | Loss  | Cache" +
-                          "(Used/Cap)  | TPS      | Duration | Progress| Success |\n");
+        renderHeader(sb);
         sb.append(LINE);
         
         launchers.forEach((id, l) -> {
@@ -66,6 +80,68 @@ public class FlowProgressDisplay {
         log.info(sb.toString());
     }
     
+    private void renderHeader(StringBuilder sb) {
+        sb.append("| ")
+          .append(fix("JobId", W_JOB_ID))
+          .append(" | ")
+          .append(fix("Stat", W_STAT))
+          .append(" | ")
+          .append(fix("In(Total)", W_IN_TOTAL))
+          .append(" | ")
+          .append(fix("Wait(Q)", W_WAIT_Q))
+          .append(" | ")
+          .append(fix("Active(C)", W_ACTIVE_C))
+          .append(" | ")
+          .append(fix("Stuck(S)", W_STUCK))
+          .append(" | ")
+          .append(fix("Succ", W_SUCC))
+          .append(" | ")
+          .append(fix("Loss", W_LOSS))
+          .append(" | ")
+          .append(fix("Cache(Used/Cap)", W_CACHE))
+          .append(" | ")
+          .append(fix("TPS", W_TPS))
+          .append(" | ")
+          .append(fix("Duration", W_DURATION))
+          .append(" | ")
+          .append(fix("Progress", W_PROGRESS))
+          .append(" | ")
+          .append(fix("Success", W_SUCCESS))
+          .append(" |\n");
+    }
+    
+    private static String renderLine() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("+ ")
+          .append(fix("-", W_JOB_ID))
+          .append(" + ")
+          .append(fix("-", W_STAT))
+          .append(" + ")
+          .append(fix("-", W_IN_TOTAL))
+          .append(" + ")
+          .append(fix("-", W_WAIT_Q))
+          .append(" + ")
+          .append(fix("-", W_ACTIVE_C))
+          .append(" + ")
+          .append(fix("-", W_STUCK))
+          .append(" + ")
+          .append(fix("-", W_SUCC))
+          .append(" + ")
+          .append(fix("-", W_LOSS))
+          .append(" + ")
+          .append(fix("-", W_CACHE))
+          .append(" + ")
+          .append(fix("-", W_TPS))
+          .append(" + ")
+          .append(fix("-", W_DURATION))
+          .append(" + ")
+          .append(fix("-", W_PROGRESS))
+          .append(" + ")
+          .append(fix("-", W_SUCCESS))
+          .append(" +");
+        return sb.toString();
+    }
+    
     private void renderRow(StringBuilder sb, String id, FlowLauncher<?> launcher) {
         FlowProgressSnapshot s = launcher.getTaskOrchestrator().getTracker().getSnapshot();
         String status = s.endTimeMillis() > 0 ? "DONE" : "RUN";
@@ -74,51 +150,57 @@ public class FlowProgressDisplay {
                 (s.endTimeMillis() > 0 ? s.endTimeMillis() : System.currentTimeMillis()) - s.startTimeMillis();
         
         sb.append("\n| ")
-          .append(fix(id, 16))
+          .append(fix(id, W_JOB_ID))
           .append(" | ")
-          .append(fix(status, 4))
+          .append(fix(status, W_STAT))
           .append(" | ")
-          .append(fix(String.valueOf(s.productionAcquired()), 8))
+          .append(fix(String.valueOf(s.productionAcquired()), W_IN_TOTAL))
           .append(" | ")
-          .append(fix(String.valueOf(s.getInProductionCount()), 8))
+          .append(fix(String.valueOf(s.getInProductionCount()), W_WAIT_Q))
           .append(" | ")
-          .append(fix(String.valueOf(s.activeConsumers()), 8))
+          .append(fix(String.valueOf(s.activeConsumers()), W_ACTIVE_C))
           .append(" | ")
-          .append(fix(String.valueOf(s.getStuckCount()), 8))
+          .append(fix(String.valueOf(s.getStuckCount()), W_STUCK))
           .append(" | ")
-          .append(fix(String.valueOf(s.activeEgress()), 5))
+          .append(fix(String.valueOf(s.activeEgress()), W_SUCC))
           .append(" | ")
-          .append(fix(String.valueOf(s.passiveEgress()), 5))
+          .append(fix(String.valueOf(s.passiveEgress()), W_LOSS))
           .append(" | ")
-          .append(fix(cacheInfo, 16))
+          .append(fix(cacheInfo, W_CACHE))
           .append(" | ")
-          .append(fix(String.format("%.1f", s.getTps()), 8))
+          .append(fix(String.format("%.1f", s.getTps()), W_TPS))
           .append(" | ")
-          .append(fix(formatDuration(durationMs / 1000), 8))
+          .append(fix(formatDuration(durationMs / 1000), W_DURATION))
           .append(" | ")
-          // 对应 getCompletionRate (物理处理了多少)
-          .append(fix(String.format("%.1f%%", s.getCompletionRate() * 100), 7))
+          .append(fix(String.format("%.1f%%", s.getCompletionRate() * 100), W_PROGRESS))
           .append(" | ")
-          // 对应 getSuccessRate (处理完的里成了多少)
-          .append(fix(String.format("%.1f%%", s.getSuccessRate() * 100), 7))
+          .append(fix(String.format("%.1f%%", s.getSuccessRate() * 100), W_SUCCESS))
           .append(" |");
     }
     
-    private String fix(String text, int width) {
-        if (text == null) {text = "";}
+    private static String fix(String text, int width) {
+        if (text == null) {
+            text = "";
+        }
         int visualWidth = 0;
         for (char c : text.toCharArray()) {
             visualWidth += (c > 127) ? 2 : 1;
         }
         int padding = width - visualWidth;
-        if (padding <= 0) {return text.substring(0, Math.min(text.length(), width));}
-        return text + " ".repeat(padding);
+        if (padding <= 0) {
+            return text.substring(0, Math.min(text.length(), width));
+        }
+        String repeat = " ";
+        if (text.equalsIgnoreCase("-")) {
+            repeat = "-";
+        }
+        return text + repeat.repeat(padding);
     }
     
-    private String centerText(String title) {
-        int side = (TOTAL_W - title.length() - 2) / 2;
-        return "=".repeat(Math.max(0, side)) + " " + title + " " + "=".repeat(Math.max(0,
-                                                                                       TOTAL_W - side - title.length() - 2
+    private String centerText() {
+        int side = (TOTAL_W - "Flow Monitoring Dashboard (Physical Model)".length() - 2) / 2;
+        return "=".repeat(Math.max(0, side)) + " " + "Flow Monitoring Dashboard (Physical Model)" + " " + "=".repeat(
+                Math.max(0, TOTAL_W - side - "Flow Monitoring Dashboard (Physical Model)".length() - 2
         ));
     }
     

@@ -13,7 +13,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -44,7 +46,12 @@ public class FlowManager {
     private FlowProgressDisplay flowProgressDisplay;
     private boolean printProgressDisplay = true;
     private FlowFinalizer<?> finalizer;
-    
+    /**
+     * 所有 store 实现中「从存储取出数据」的专用单物理线程（有界队列）。
+     * 用于 Caffeine removal、或其它需要在此线程中 acquire 后交给虚拟线程处理的离场路径，防止无限积压导致 OOM。
+     */
+    private ExecutorService storageEgressExecutor;
+
     private FlowManager(TemplateConfigProperties.JobGlobal globalConfig) {
         this.globalConfig = globalConfig;
         int globalSemaphoreMaxLimit = globalConfig.getGlobalSemaphoreMaxLimit();
@@ -53,7 +60,9 @@ public class FlowManager {
     }
     
     private FlowManager init() {
-        this.flowCacheManager = new FlowCacheManager(globalExecutor);
+        int capacity = globalConfig.getGlobalSemaphoreMaxLimit();
+        this.storageEgressExecutor = initStorageEgressExecutor(capacity);
+        this.flowCacheManager = new FlowCacheManager(storageEgressExecutor);
         this.flowProgressDisplay = new FlowProgressDisplay(this);
         this.finalizer = new FlowFinalizer<>(this);
         int second = globalConfig.getProgressDisplaySecond();
@@ -63,7 +72,16 @@ public class FlowManager {
         return this;
     }
     
-    public static FlowManager create(TemplateConfigProperties.JobGlobal globalConfig) {
+    private ThreadPoolExecutor initStorageEgressExecutor(int capacity) {
+        LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(capacity);
+        return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, queue, r -> {
+            Thread t = new Thread(r, "flow-storage-egress");
+            t.setDaemon(true);
+            return t;
+        }, new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+    
+    private static FlowManager create(TemplateConfigProperties.JobGlobal globalConfig) {
         return new FlowManager(globalConfig).init();
     }
     
@@ -93,12 +111,8 @@ public class FlowManager {
         return launcher;
     }
     
-    public boolean isRunning(String jobId) {
-        return activeLaunchers.containsKey(jobId);
-    }
-    
-    public void stop(String jobId) {
-        activeLaunchers.remove(jobId);
+    public boolean isStopped(String jobId) {
+        return !activeLaunchers.containsKey(jobId);
     }
     
     /**
@@ -165,6 +179,9 @@ public class FlowManager {
         log.info("系统关闭：正在注销所有任务并关闭全局虚拟线程池...");
         stopAll(true); // 强制清理资源
         flowCacheManager.invalidateAll();
+        if (storageEgressExecutor != null) {
+            storageEgressExecutor.shutdown();
+        }
         globalExecutor.shutdown();
     }
 }

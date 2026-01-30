@@ -21,13 +21,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowCacheManager {
     private final Map<String, FlowStorage<?>> storageRegistry = new ConcurrentHashMap<>();
-    private final Executor removalExecutor;
+    private final Executor storageEgressExecutor;
 
     /**
-     * @param removalExecutor Caffeine removalListener 专用 executor，避免与 ForkJoinPool.commonPool() 争用，提升出缓存并发
+     * @param storageEgressExecutor 所有 store 实现中「从存储取出数据」的专用单物理线程，由 FlowManager 提供
      */
-    public FlowCacheManager(Executor removalExecutor) {
-        this.removalExecutor = removalExecutor;
+    public FlowCacheManager(Executor storageEgressExecutor) {
+        this.storageEgressExecutor = storageEgressExecutor;
     }
 
     @SuppressWarnings("unchecked")
@@ -37,40 +37,33 @@ public class FlowCacheManager {
                                                  FlowFinalizer<T> finalizer,
                                                  ProgressTracker progressTracker) {
         FlowStorageType type = joiner.getStorageType();
-        String uniqueKey = jobId + ":" + type.name();
+        String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
             int maxCacheSize = config.getMaxCacheSize();
             if (type == FlowStorageType.QUEUE) {
                 return new QueueFlowStorage<>(maxCacheSize);
             }
-            long ttlSeconds = config.getTtlSeconds();
-            return new CaffeineFlowStorage<>(maxCacheSize, ttlSeconds, joiner, finalizer, progressTracker, removalExecutor);
+            long ttlMill = config.getTtlMill();
+            return new CaffeineFlowStorage<>(maxCacheSize,
+                                             ttlMill,
+                                             joiner,
+                                             finalizer,
+                                             progressTracker,
+                                             storageEgressExecutor
+            );
         });
     }
 
     /**
      * 按 jobId + 存储类型使对应缓存失效并 shutdown，与 getOrCreateStorage 的 key 约定一致（用于 Job 强制停止）
      */
-    public void invalidateByJobId(String jobId, FlowStorageType type) {
-        String uniqueKey = jobId + ":" + type.name();
+    public void invalidateByJobId(String jobId, FlowStorageType type, String className) {
+        String uniqueKey = jobId + ":" + type.name() + ":" + className;
         FlowStorage<?> storage = storageRegistry.remove(uniqueKey);
         if (storage != null) {
             storage.shutdown();
             log.debug("FlowStorage invalidated for jobId={}, type={}", jobId, type);
-        }
-    }
-
-    /**
-     * 强行使某个 Job 的缓存失效（按 cacheName:dataType 查找）
-     * @deprecated 与 getOrCreateStorage 的 key 约定不一致，对 flow 模块请使用 {@link #invalidateByJobId(String, FlowStorageType)}
-     */
-    @Deprecated
-    public void invalidate(String cacheName, Class<?> dataType) {
-        String uniqueKey = cacheName + ":" + dataType.getName();
-        FlowStorage<?> storage = storageRegistry.remove(uniqueKey);
-        if (storage != null) {
-            storage.shutdown();
         }
     }
     

@@ -4,7 +4,10 @@ import com.lrenyi.template.core.flow.context.FlowEntry;
 
 /**
  * 任务存储抽象接口
- * 职责：负责 FlowEntry 的暂存、检索及生命周期维护
+ * 职责：负责 FlowEntry 的暂存、检索及生命周期维护。
+ * <p>
+ * 若实现类需要「从存储取出数据」时在单物理线程中 acquire 再交给虚拟线程处理（防 OOM），
+ * 应使用 FlowManager.getStorageEgressExecutor() 作为该离场路径的 executor。
  */
 public interface FlowStorage<T> {
     

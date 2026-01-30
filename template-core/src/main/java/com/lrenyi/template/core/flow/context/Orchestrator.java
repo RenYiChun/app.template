@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.flow.context;
 
-import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import java.util.concurrent.Semaphore;
@@ -57,7 +56,7 @@ public class Orchestrator<T> {
      * 获取许可：支持初次 launch 和后续 reacquire
      */
     public void acquire() throws InterruptedException {
-        if (!manager.isRunning(jobId)) {
+        if (manager.isStopped(jobId)) {
             throw new InterruptedException("Job " + jobId + " is not running.");
         }
         // 【核心埋点】：消费准入信号
@@ -94,18 +93,11 @@ public class Orchestrator<T> {
                 manager.getFairLock().unlock();
             }
             
-            if (!manager.isRunning(jobId)) {
+            if (manager.isStopped(jobId)) {
                 throw new InterruptedException("Job stopped during acquire");
             }
         }
         semaphore.acquire();
         registration.increment();
-    }
-    
-    /**
-     * 开启受控任务上下文
-     */
-    public FlowEntry<T> open(T data, FlowJoiner<T> flowJoiner) {
-        return new FlowEntry<>(data, jobId, flowJoiner.joinKey(data));
     }
 }

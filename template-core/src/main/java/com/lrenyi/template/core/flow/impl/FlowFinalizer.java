@@ -1,7 +1,5 @@
 package com.lrenyi.template.core.flow.impl;
 
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.manager.FlowManager;
@@ -9,41 +7,33 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public record FlowFinalizer<T>(FlowManager flowManager) {
-    public void submit(FlowEntry<T> entry) {
-        String jobId = entry.getJobId();
-        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(jobId);
-        if (launcher == null) {
-            log.warn("No active launcher found for jobId: {}", jobId);
-            return;
-        }
+    
+    /**
+     * 仅执行 finalizer 的 body + release，不 acquire。
+     * 用于 removal 路径：物理线程已先 acquire()，此处将 try(entry)、onConsume/onPassiveEgress、release() 提交到虚拟线程执行。
+     *
+     * @param entry    被驱逐的 entry
+     * @param launcher 当前 job 的 launcher（用于 release 与 signalRelease）
+     */
+    public void submitBodyOnly(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         Orchestrator<Object> taskOrchestrator = launcher.getTaskOrchestrator();
-        ProgressTracker tracker = taskOrchestrator.getTracker();
-        try {
-            taskOrchestrator.acquire();
-        } catch (InterruptedException e) {
-            FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-            flowJoiner.onFailed(entry.getData(), jobId);
-            tracker.onPassiveEgress();
-            Thread.currentThread().interrupt();
-            return;
-        }
-        try (entry) { // 利用 try-with-resources 自动管理引用计数
-            if (entry.claimLogic()) {
-                // 信号：主动出口（业务成功匹配或正常消费）
-                flowManager.getProgressTracker(jobId).onActiveEgress();
-                launcher.getFlowJoiner().onConsume(entry.getData(), jobId);
-            } else {
-                // 如果 claimLogic 返回 false，说明是过期或被驱逐
-                // 信号：被动出口（策略损耗）
-                flowManager.getProgressTracker(jobId).onPassiveEgress();
+        String jobId = entry.getJobId();
+        flowManager.getGlobalExecutor().submit(() -> {
+            try (entry) {
+                if (entry.claimLogic()) {
+                    flowManager.getProgressTracker(jobId).onActiveEgress();
+                    launcher.getFlowJoiner().onConsume(entry.getData(), jobId);
+                } else {
+                    flowManager.getProgressTracker(jobId).onPassiveEgress();
+                }
+            } catch (Throwable t) {
+                log.error("Finalizer body failed for job: {}", jobId, t);
+            } finally {
+                taskOrchestrator.release();
+                if (launcher.getBackpressureController() != null) {
+                    launcher.getBackpressureController().signalRelease();
+                }
             }
-        } catch (Throwable t) {
-            log.error("Finalizer process failed for job: {}", jobId, t);
-        } finally {
-            taskOrchestrator.release();
-            if (launcher.getBackpressureController() != null) {
-                launcher.getBackpressureController().signalRelease();
-            }
-        }
+        });
     }
 }

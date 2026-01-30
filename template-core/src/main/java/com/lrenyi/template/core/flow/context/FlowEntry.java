@@ -7,7 +7,6 @@ import lombok.Getter;
 public class FlowEntry<T> implements AutoCloseable {
     private final T data;
     private final String jobId;
-    private final String key;
     
     private volatile int refCnt = 1;
     private volatile int status = 0;
@@ -28,10 +27,9 @@ public class FlowEntry<T> implements AutoCloseable {
         }
     }
     
-    protected FlowEntry(T data, String jobId, String key) {
+    public FlowEntry(T data, String jobId) {
         this.data = data;
         this.jobId = jobId;
-        this.key = key;
     }
     
     public void retain() {REF_UPDATER.incrementAndGet(this);}

@@ -4,19 +4,20 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.impl.DefaultProgressTracker;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Stream;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 通用流聚合引擎
  */
 @Slf4j
-@RequiredArgsConstructor
 public class FlowJoinerEngine {
     private final FlowManager flowManager;
+    
+    public FlowJoinerEngine(TemplateConfigProperties.JobGlobal jobGlobal) {
+        this.flowManager = FlowManager.getInstance(jobGlobal);
+    }
     
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.JobConfig jobConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);

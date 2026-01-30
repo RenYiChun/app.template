@@ -32,25 +32,25 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final long maxCacheSize;
     
     /**
-     * @param maxSize      最大存储容量（背压控制）
-     * @param ttlSeconds   存活时间（超时触发 onFailed）
-     * @param joiner       业务回调接口
-     * @param removalExecutor removalListener 专用 executor，避免与 ForkJoinPool.commonPool() 争用，提升出缓存并发
+     * @param maxSize               最大存储容量（背压控制）
+     * @param ttlMill            存活时间（超时触发 onFailed）
+     * @param joiner                业务回调接口
+     * @param storageEgressExecutor 所有 store 共用的「从存储取数」单物理线程，由 FlowManager.getStorageEgressExecutor() 提供
      */
     public CaffeineFlowStorage(long maxSize,
-                               long ttlSeconds,
+                               long ttlMill,
                                FlowJoiner<T> joiner,
                                FlowFinalizer<T> finalizer,
                                ProgressTracker progressTracker,
-                               Executor removalExecutor) {
+                               Executor storageEgressExecutor) {
         this.joiner = joiner;
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
         this.maxCacheSize = maxSize;
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
-                             .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
-                             .executor(removalExecutor)
+                             .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
+                             .executor(storageEgressExecutor)
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
                                  if (entry == null) {
                                      return;
@@ -107,23 +107,23 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             Orchestrator<Object> taskOrchestrator = launcher.getTaskOrchestrator();
             boolean entryAcquire = false;
             boolean parentAcquire = false;
-            try {
-                //这里要增加两个信号量，entry用1个，partner用1个
-                taskOrchestrator.acquire();
-                entryAcquire = true;
-                taskOrchestrator.acquire();
-                parentAcquire = true;
-            } catch (InterruptedException e) {
-                FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-                flowJoiner.onFailed(entry.getData(), entry.getJobId());
-                taskOrchestrator.getTracker().onPassiveEgress();
-                Thread.currentThread().interrupt();
-            }
             try (partner) {
+                try {
+                    //这里要增加两个信号量，entry用1个，partner用1个
+                    taskOrchestrator.acquire();
+                    entryAcquire = true;
+                    taskOrchestrator.acquire();
+                    parentAcquire = true;
+                } catch (InterruptedException e) {
+                    FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
+                    taskOrchestrator.getTracker().onPassiveEgress();
+                    flowJoiner.onFailed(entry.getData(), entry.getJobId());
+                    Thread.currentThread().interrupt();
+                }
                 if (joiner.isMatched(partner.getData(), entry.getData())) {
+                    progressTracker.onActiveEgress();
+                    progressTracker.onActiveEgress();
                     joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
-                    progressTracker.onActiveEgress();
-                    progressTracker.onActiveEgress();
                 } else {
                     joiner.onFailed(partner.getData(), partner.getJobId());
                     progressTracker.onPassiveEgress();
@@ -157,19 +157,21 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
         // 情况 A：自然失效（超时驱逐或容量驱逐）
-        if (cause.wasEvicted()) {
-            finalizer.submit(entry);
-        } else {
-            // 对于 EXPLICIT（手动移除）或 REPLACED（覆盖）
-            // 存储层只需简单释放自己持有的这一个引用计数即可
-            try {
-                entry.close();
-            } finally {
-                FlowManager flowManager = finalizer.flowManager();
-                FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
-                if (launcher != null && launcher.getBackpressureController() != null) {
-                    launcher.getBackpressureController().signalRelease();
-                }
+        // 在物理线程中先 acquire 全局信号量（拿不到则阻塞，最多持 1 条 entry），再交给虚拟线程跑 body + release
+        FlowManager flowManager = finalizer.flowManager();
+        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+        try (entry) {
+            if (!cause.wasEvicted() || launcher == null) {
+                return;
+            }
+            launcher.getTaskOrchestrator().acquire();
+            finalizer.submitBodyOnly(entry, launcher);
+        } catch (InterruptedException ie) {
+            progressTracker.onPassiveEgress();
+            Thread.currentThread().interrupt();
+        } finally {
+            if (launcher != null && launcher.getBackpressureController() != null) {
+                launcher.getBackpressureController().signalRelease();
             }
         }
     }

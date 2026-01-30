@@ -70,18 +70,17 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class JobGlobal {
-        private int globalSemaphoreMaxLimit = 200000;
+        private int globalSemaphoreMaxLimit = 8000;
         private int progressDisplaySecond = 5;
     }
     
     @Setter
     @Getter
     public static class JobConfig {
-        private int jobProducerLimit = 4;
-        private long ttlSeconds = 10;
-        private int maxCacheSize = 1000000;
+        private int jobProducerLimit = 40;
+        private long ttlMill = 10000;
+        private int maxCacheSize = 80000;
         private boolean cacheEnabled = true;
-        private String cacheName;
     }
     
     @Setter

@@ -77,11 +77,11 @@ public class FlowLauncher<T> {
             return;
         }
         flowManager.getGlobalExecutor().submit(() -> {
-            try (FlowEntry<T> ctx = taskOrchestrator.open(data, flowJoiner)) {
+            try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     log.warn("the job is stop for jobId: {}", jobId);
-                    flowJoiner.onFailed(data, jobId);
                     tracker.onPassiveEgress();
+                    flowJoiner.onFailed(data, jobId);
                     return;
                 }
                 storage.deposit(ctx);
@@ -131,7 +131,7 @@ public class FlowLauncher<T> {
         if (force) {
             try {
                 FlowStorageType type = flowJoiner.getStorageType();
-                flowCacheManager.invalidateByJobId(jobId, type);
+                flowCacheManager.invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
             } catch (Exception e) {
                 log.error("Job [{}] 强制停止清理失败", jobId, e);
             }
