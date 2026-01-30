@@ -34,6 +34,9 @@ public class TemplateConfigProperties implements InitializingBean {
     @NestedConfigurationProperty
     private AuthorizeConfig authorize = new AuthorizeConfig();
     
+    @NestedConfigurationProperty
+    private Job job = new Job();
+    
     /**
      * 安全配置
      */
@@ -55,6 +58,29 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class AuthorizeConfig {
         private boolean enabled = true;
+    }
+    
+    @Setter
+    @Getter
+    public static class Job {
+        private JobGlobal global = new JobGlobal();
+        private JobConfig defaultConfig = new JobConfig();
+    }
+    
+    @Setter
+    @Getter
+    public static class JobGlobal {
+        private int globalSemaphoreMaxLimit = 8000;
+        private int progressDisplaySecond = 5;
+    }
+    
+    @Setter
+    @Getter
+    public static class JobConfig {
+        private int jobProducerLimit = 40;
+        private long ttlMill = 10000;
+        private int maxCacheSize = 80000;
+        private boolean cacheEnabled = true;
     }
     
     @Setter
