@@ -1,0 +1,39 @@
+package com.lrenyi.template.core.flow.impl;
+
+import com.lrenyi.template.core.flow.FlowInlet;
+import com.lrenyi.template.core.flow.ProgressTracker;
+import java.util.concurrent.CompletableFuture;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * 推送模式入口实现：委托给 FlowLauncher 与 ProgressTracker。
+ */
+@RequiredArgsConstructor
+public class FlowInletImpl<T> implements FlowInlet<T> {
+    private final FlowLauncher<T> launcher;
+
+    @Override
+    public void push(T item) {
+        launcher.launch(item);
+    }
+
+    @Override
+    public void markSourceFinished() {
+        launcher.getTaskOrchestrator().getTracker().markSourceFinished(launcher.getJobId());
+    }
+
+    @Override
+    public ProgressTracker getProgressTracker() {
+        return launcher.getTaskOrchestrator().getTracker();
+    }
+
+    @Override
+    public CompletableFuture<Void> getCompletionFuture() {
+        return getProgressTracker().getCompletionFuture();
+    }
+
+    @Override
+    public void stop(boolean force) {
+        launcher.stop(force);
+    }
+}
