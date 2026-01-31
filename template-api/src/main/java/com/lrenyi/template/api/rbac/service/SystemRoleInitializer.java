@@ -5,7 +5,6 @@ import com.lrenyi.template.api.rbac.model.SystemPermission;
 import com.lrenyi.template.api.rbac.model.SystemRole;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +21,6 @@ public class SystemRoleInitializer implements CommandLineRunner {
     
     private final IRbacAdminService rbacAdminService;
     
-    @Autowired
     public SystemRoleInitializer(ObjectProvider<IRbacAdminService> rbacAdminServiceObjectProvider) {
         this.rbacAdminService = rbacAdminServiceObjectProvider.getIfAvailable();
     }

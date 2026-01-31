@@ -37,10 +37,6 @@
     </scm>
 
     <properties>
-        <checkstyle.related.dir/>
-        <checkstyle.file.dir>${project.basedir}/${checkstyle.related.dir}/checker/
-        </checkstyle.file.dir>
-
         <spotbugs-maven-plugin.version>4.8.1.0</spotbugs-maven-plugin.version>
         <maven-checkstyle-plugin.version>3.3.1</maven-checkstyle-plugin.version>
         <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
@@ -95,9 +91,9 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <includeFilterFile>${checkstyle.file.dir}/spotbugs-security-include.xml
+                    <includeFilterFile>${session.executionRootDirectory}/checker/spotbugs-security-include.xml
                     </includeFilterFile>
-                    <excludeFilterFile>${checkstyle.file.dir}/spotbugs-security-exclude.xml
+                    <excludeFilterFile>${session.executionRootDirectory}/checker/spotbugs-security-exclude.xml
                     </excludeFilterFile>
                     <plugins>
                         <plugin>
@@ -113,7 +109,7 @@
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${maven-checkstyle-plugin.version}</version>
                 <configuration>
-                    <configLocation>${checkstyle.file.dir}/checkStyle.xml</configLocation>
+                    <configLocation>${session.executionRootDirectory}/checker/checkStyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <includeTestSourceDirectory>false</includeTestSourceDirectory>
                     <failOnViolation>true</failOnViolation>

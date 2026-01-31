@@ -12,7 +12,6 @@
     <name>Template Core</name>
 
     <properties>
-        <checkstyle.related.dir>..</checkstyle.related.dir>
         <nimbus-jose-jwt.version>9.39.3</nimbus-jose-jwt.version>
     </properties>
 

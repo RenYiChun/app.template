@@ -7,7 +7,6 @@
         <groupId>com.lrenyi</groupId>
         <artifactId>template-flow-sources</artifactId>
         <version>2.4.2-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>template-flow-sources-paged</artifactId>
     <name>Template Flow Sources Paged</name>
@@ -15,7 +14,6 @@
 
     <properties>
         <checkstyle.skip>false</checkstyle.skip>
-        <checkstyle.related.dir>../..</checkstyle.related.dir>
     </properties>
 
     <dependencies>

@@ -15,7 +15,6 @@
 
     <properties>
         <checkstyle.skip>true</checkstyle.skip>
-        <checkstyle.related.dir>..</checkstyle.related.dir>
     </properties>
 
     <modules>

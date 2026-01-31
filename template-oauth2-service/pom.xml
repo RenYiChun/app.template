@@ -11,10 +11,6 @@
     <artifactId>template-oauth2-service</artifactId>
     <name>Template Oauth2 Service</name>
 
-    <properties>
-        <checkstyle.related.dir>..</checkstyle.related.dir>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
