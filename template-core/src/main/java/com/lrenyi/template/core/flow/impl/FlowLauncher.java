@@ -3,11 +3,11 @@ package com.lrenyi.template.core.flow.impl;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.config.FlowStorageType;
 import com.lrenyi.template.core.flow.context.FlowEntry;
+import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.manager.FlowCacheManager;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import java.util.concurrent.Semaphore;
@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowLauncher<T> {
     private final AtomicInteger counter = new AtomicInteger(0);
     private final String jobId;
-    private final Orchestrator<T> taskOrchestrator;
+    private final Orchestrator taskOrchestrator;
     private final FlowStorage<T> storage;
     private final FlowManager flowManager;
     private final FlowJoiner<T> flowJoiner;
@@ -34,36 +34,35 @@ public class FlowLauncher<T> {
     private final Semaphore jobProducerSemaphore;
     private final TemplateConfigProperties.JobConfig jobConfig;
     private final BackpressureController backpressureController;
+    private final FlowResourceContext resourceContext;
     
     private FlowLauncher(String jobId,
                          FlowManager flowManager,
                          FlowJoiner<T> flowJoiner,
-                         ProgressTracker tracker,
-                         Registration registration) {
+                         ProgressTracker tracker, Registration registration, FlowResourceContext resourceContext) {
         this.jobId = jobId;
         this.flowManager = flowManager;
         this.flowJoiner = flowJoiner;
+        this.resourceContext = resourceContext;
         this.jobConfig = registration.getJobConfig();
-        this.jobProducerSemaphore = new Semaphore(registration.getJobConfig().getJobProducerLimit());
-        this.taskOrchestrator = new Orchestrator<>(jobId, tracker, registration, flowManager);
-        
-        FlowCacheManager cacheManager = flowManager.getFlowCacheManager();
-        FlowFinalizer<T> finalizer = new FlowFinalizer<>(flowManager);
-        this.storage = cacheManager.getOrCreateStorage(jobId, flowJoiner, jobConfig, finalizer, tracker);
-        this.backpressureController = new BackpressureController(this.storage);
+        this.jobProducerSemaphore = resourceContext.getJobProducerSemaphore();
+        this.storage = (FlowStorage<T>) resourceContext.getStorage();
+        this.backpressureController = resourceContext.getBackpressureController();
+        this.taskOrchestrator = new Orchestrator(jobId, tracker, registration, resourceContext);
     }
     
     public static <T> FlowLauncher<T> create(String jobId,
                                              FlowJoiner<T> flowJoiner,
                                              FlowManager flowManager,
                                              ProgressTracker tracker,
-                                             Registration registration) {
+                                             Registration registration,
+                                             FlowResourceContext resourceContext) {
         
-        return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration);
+        return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
     
     public void launch(T data) {
-        ProgressTracker tracker = taskOrchestrator.getTracker();
+        ProgressTracker tracker = taskOrchestrator.tracker();
         tracker.onProductionAcquired();
         if (stopped) {
             log.warn("the job is stop for jobId: {}", jobId);
@@ -76,7 +75,7 @@ public class FlowLauncher<T> {
             tracker.onProductionReleased();
             return;
         }
-        flowManager.getGlobalExecutor().submit(() -> {
+        resourceContext.getGlobalExecutor().submit(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     log.warn("the job is stop for jobId: {}", jobId);
@@ -125,13 +124,13 @@ public class FlowLauncher<T> {
         this.stopped = true; // 开启拦截闸门
         // 告诉 Tracker：生产端已关闭。
         // 这样当 activeConsumers 归零时，getCompletionFuture() 就会完成。
-        taskOrchestrator.getTracker().markSourceFinished(jobId);
-        FlowCacheManager flowCacheManager = flowManager.getFlowCacheManager();
+        taskOrchestrator.tracker().markSourceFinished(jobId);
         // 强制模式：按 jobId+storageType 失效并 shutdown，与 getOrCreateStorage 的 key 一致
         if (force) {
             try {
                 FlowStorageType type = flowJoiner.getStorageType();
-                flowCacheManager.invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
+                resourceContext.getCacheManager()
+                               .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
             } catch (Exception e) {
                 log.error("Job [{}] 强制停止清理失败", jobId, e);
             }

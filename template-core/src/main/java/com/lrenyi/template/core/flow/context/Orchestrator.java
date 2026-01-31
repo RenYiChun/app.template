@@ -4,30 +4,27 @@ import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Getter
-public class Orchestrator<T> {
-    private final String jobId;
-    private final ProgressTracker tracker;
-    private final Registration registration;
-    private final FlowManager manager;
-    
-    public Orchestrator(String jobId, ProgressTracker tracker, Registration registration, FlowManager flowManager) {
-        this.jobId = jobId;
-        this.tracker = tracker;
-        this.registration = registration;
-        this.manager = flowManager;
+public record Orchestrator(String jobId, ProgressTracker tracker, Registration registration,
+                           FlowResourceContext resourceContext) {
+    /**
+     * 获取 FlowManager（用于Job状态查询等）
+     */
+    private FlowManager getManager() {
+        return resourceContext.getFlowManager();
     }
     
     /**
      * 还票：归还全局消费席位（显式调用）
      */
     public void release() {
-        Semaphore semaphore = manager.getGlobalSemaphore();
-        int maxLimit = manager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
+        Semaphore semaphore = resourceContext.getGlobalSemaphore();
+        int maxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
         try {
             if (semaphore.availablePermits() < maxLimit) {
                 semaphore.release();
@@ -43,11 +40,12 @@ public class Orchestrator<T> {
             // 这会使 ProgressTracker 中的 activeConsumers 递减，并检查任务是否可以彻底结束
             tracker.onGlobalTerminated(jobId);
             // 唤醒公平锁等待者
-            manager.getFairLock().lock();
+            Lock fairLock = resourceContext.getFairLock();
+            fairLock.lock();
             try {
-                manager.getPermitReleased().signalAll();
+                resourceContext.getPermitReleased().signalAll();
             } finally {
-                manager.getFairLock().unlock();
+                fairLock.unlock();
             }
         }
     }
@@ -56,21 +54,22 @@ public class Orchestrator<T> {
      * 获取许可：支持初次 launch 和后续 reacquire
      */
     public void acquire() throws InterruptedException {
-        if (manager.isStopped(jobId)) {
+        if (getManager().isStopped(jobId)) {
             throw new InterruptedException("Job " + jobId + " is not running.");
         }
         // 【核心埋点】：消费准入信号
         // 代表此数据正式占用了一个全局消费名额，进入系统生命周期
         tracker.onConsumerBegin();
         
-        int globalSemaphoreMaxLimit = manager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
-        Semaphore semaphore = manager.getGlobalSemaphore();
+        int globalSemaphoreMaxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
+        Semaphore semaphore = resourceContext.getGlobalSemaphore();
         
         // 软性公平退让逻辑（保持现状）
-        int activeJobs = manager.getActiveJobCount();
+        int activeJobs = getManager().getActiveJobCount();
         int fairShare = Math.max(1, globalSemaphoreMaxLimit / activeJobs);
         while (registration.getActiveCount().get() >= fairShare && semaphore.availablePermits() == 0) {
-            manager.getFairLock().lock();
+            Lock fairLock = resourceContext.getFairLock();
+            fairLock.lock();
             try {
                 // 再次检查状态，防止在获取锁的过程中条件已经改变（Double Check）
                 if (registration.getActiveCount().get() < fairShare || semaphore.availablePermits() > 0) {
@@ -78,7 +77,7 @@ public class Orchestrator<T> {
                 }
                 // 挂起线程，等待信号。这比 sleep 精准得多
                 // 设置 50ms 超时作为兜底，防止极端情况下的丢失信号
-                boolean signalled = manager.getPermitReleased().await(50, TimeUnit.MILLISECONDS);
+                boolean signalled = resourceContext.getPermitReleased().await(50, TimeUnit.MILLISECONDS);
                 if (!signalled) {
                     // 情况 A: 超时到了。
                     // 此时可能没有任务结束，但我们需要醒来重新计算 fairShare，
@@ -90,10 +89,10 @@ public class Orchestrator<T> {
                     log.debug("Received permit release signal, re-evaluating for Job: {}", jobId);
                 }
             } finally {
-                manager.getFairLock().unlock();
+                fairLock.unlock();
             }
             
-            if (manager.isStopped(jobId)) {
+            if (getManager().isStopped(jobId)) {
                 throw new InterruptedException("Job stopped during acquire");
             }
         }

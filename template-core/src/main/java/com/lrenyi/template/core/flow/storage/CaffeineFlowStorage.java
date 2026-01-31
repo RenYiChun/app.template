@@ -104,7 +104,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                 partner.close();
                 return;
             }
-            Orchestrator<Object> taskOrchestrator = launcher.getTaskOrchestrator();
+            Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
             boolean entryAcquire = false;
             boolean parentAcquire = false;
             try (partner) {
@@ -116,7 +116,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                     parentAcquire = true;
                 } catch (InterruptedException e) {
                     FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-                    taskOrchestrator.getTracker().onPassiveEgress();
+                    taskOrchestrator.tracker().onPassiveEgress();
                     flowJoiner.onFailed(entry.getData(), entry.getJobId());
                     Thread.currentThread().interrupt();
                 }

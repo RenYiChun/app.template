@@ -158,7 +158,7 @@ public class FlowJoinerEngine {
     }
     
     public ProgressTracker getProgressTracker(String jobId) {
-        return flowManager.getActiveLauncher(jobId).getTaskOrchestrator().getTracker();
+        return flowManager.getActiveLauncher(jobId).getTaskOrchestrator().tracker();
     }
     
     public void printProgressDisplay() {

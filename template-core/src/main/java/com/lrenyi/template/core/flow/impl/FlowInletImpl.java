@@ -19,12 +19,12 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
 
     @Override
     public void markSourceFinished() {
-        launcher.getTaskOrchestrator().getTracker().markSourceFinished(launcher.getJobId());
+        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
     }
 
     @Override
     public ProgressTracker getProgressTracker() {
-        return launcher.getTaskOrchestrator().getTracker();
+        return launcher.getTaskOrchestrator().tracker();
     }
 
     @Override

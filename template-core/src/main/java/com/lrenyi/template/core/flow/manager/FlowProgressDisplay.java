@@ -143,7 +143,7 @@ public class FlowProgressDisplay {
     }
     
     private void renderRow(StringBuilder sb, String id, FlowLauncher<?> launcher) {
-        FlowProgressSnapshot s = launcher.getTaskOrchestrator().getTracker().getSnapshot();
+        FlowProgressSnapshot s = launcher.getTaskOrchestrator().tracker().getSnapshot();
         String status = s.endTimeMillis() > 0 ? "DONE" : "RUN";
         String cacheInfo = s.inStorage() + "/" + launcher.getCacheCapacity();
         long durationMs =

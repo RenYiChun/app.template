@@ -3,29 +3,32 @@ package com.lrenyi.template.core.flow.manager;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.impl.BackpressureController;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import jakarta.annotation.PreDestroy;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 全局流量管理器 (动态配置版)
- * 职责：管控全局并发红线，维护全局虚拟线程池，托管所有 Launcher 实例并支持生命周期控制
+ * Job生命周期管理器
+ * 职责：专注于Job生命周期管理，不再直接管理资源
+ * 管理的Job生命周期：
+ * - Job注册与注销
+ * - Launcher实例管理
+ * - Job停止与清理
+ * 资源管理已委托给 FlowResourceRegistry
  */
 @Slf4j
 @Getter
@@ -33,41 +36,25 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowManager {
     private static volatile FlowManager instance;
     private final TemplateConfigProperties.JobGlobal globalConfig;
-    private FlowCacheManager flowCacheManager;
-    private final Semaphore globalSemaphore;
-    private final ExecutorService globalExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final FlowResourceRegistry resourceRegistry;
+    
     // 维护 Job 注册信息，用于公平限流算法
     private final Map<String, Registration> registry = new ConcurrentHashMap<>();
     // 维护所有活跃的 Launcher 实例，用于监控和批量控制
     private final Map<String, FlowLauncher<?>> activeLaunchers = new ConcurrentHashMap<>();
-    private final Lock fairLock = new ReentrantLock();
-    private final Condition permitReleased = fairLock.newCondition();
+    
     private FlowProgressDisplay flowProgressDisplay;
     private boolean printProgressDisplay = true;
-    private FlowFinalizer<?> finalizer;
-    /**
-     * 所有 store 实现中「从存储取出数据」的专用单物理线程。
-     * 同时作为 Executor（execute：Caffeine removal、Queue drainLoop）与 ScheduledExecutorService（scheduleAtFixedRate：Queue 按
-     * TTL 定时排空），共用一个线程。
-     */
-    private ScheduledExecutorService storageEgressExecutor;
 
     private FlowManager(TemplateConfigProperties.JobGlobal globalConfig) {
         this.globalConfig = globalConfig;
-        int globalSemaphoreMaxLimit = globalConfig.getGlobalSemaphoreMaxLimit();
-        this.globalSemaphore = new Semaphore(globalSemaphoreMaxLimit, true);
-        log.info("FlowManager 启动：初始物理并发池大小为 {}", globalSemaphoreMaxLimit);
+        // 获取或创建全局资源注册表
+        this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig);
+        log.info("FlowManager 启动");
     }
     
     private FlowManager init() {
-        this.storageEgressExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "flow-storage-egress");
-            t.setDaemon(true);
-            return t;
-        });
-        this.flowCacheManager = new FlowCacheManager(storageEgressExecutor);
         this.flowProgressDisplay = new FlowProgressDisplay(this);
-        this.finalizer = new FlowFinalizer<>(this);
         int second = globalConfig.getProgressDisplaySecond();
         if (second > 0) {
             this.flowProgressDisplay.start(1L, second, TimeUnit.SECONDS);
@@ -98,8 +85,32 @@ public class FlowManager {
         Registration registration = new Registration(jobId, jobConfig);
         registry.put(jobId, registration);
         
-        // 这里的构造函数也需要同步修改
-        FlowLauncher<T> launcher = FlowLauncher.create(jobId, flowJoiner, this, tracker, registration);
+        // 创建Job级资源
+        Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
+        
+        // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
+        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
+        com.lrenyi.template.core.flow.manager.FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
+        com.lrenyi.template.core.flow.storage.FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId,
+                                                                                                       flowJoiner,
+                                                                                                       jobConfig,
+                                                                                                       finalizer,
+                                                                                                       tracker
+        );
+        
+        BackpressureController backpressureController = new BackpressureController(storage);
+        
+        // 创建资源上下文
+        FlowResourceContext resourceContext = FlowResourceContext.builder()
+                                                                 .resourceRegistry(resourceRegistry)
+                                                                 .flowManager(this)
+                                                                 .jobProducerSemaphore(jobProducerSemaphore)
+                                                                 .storage(storage)
+                                                                 .backpressureController(backpressureController)
+                                                                 .build();
+        
+        // 创建Launcher，传递resourceContext
+        FlowLauncher<T> launcher = FlowLauncher.create(jobId, flowJoiner, this, tracker, registration, resourceContext);
         
         activeLaunchers.put(jobId, launcher);
         return launcher;
@@ -160,29 +171,56 @@ public class FlowManager {
     
     public ProgressTracker getProgressTracker(String jobId) {
         FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
-        Orchestrator<Object> taskOrchestrator = activeLauncher.getTaskOrchestrator();
-        return taskOrchestrator.getTracker();
+        Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
+        return taskOrchestrator.tracker();
     }
     
     public int getActiveJobCount() {
         return Math.max(1, registry.size());
     }
     
+    
+    // ========== 向后兼容的getter方法 ==========
+    
     /**
-     * 离场线程池，同时用于 scheduleAtFixedRate（Queue 定时排空），与 getStorageEgressExecutor() 为同一实例。
+     * 获取全局并发信号量（向后兼容）
      */
-    public ScheduledExecutorService getQueueDrainScheduler() {
-        return storageEgressExecutor;
+    public Semaphore getGlobalSemaphore() {
+        return resourceRegistry.getGlobalSemaphore();
+    }
+    
+    /**
+     * 获取全局虚拟线程池（向后兼容）
+     */
+    public ExecutorService getGlobalExecutor() {
+        return resourceRegistry.getGlobalExecutor();
+    }
+    
+    /**
+     * 获取公平锁（向后兼容）
+     */
+    public java.util.concurrent.locks.Lock getFairLock() {
+        return resourceRegistry.getFairLock();
+    }
+    
+    /**
+     * 获取许可释放条件变量（向后兼容）
+     */
+    public java.util.concurrent.locks.Condition getPermitReleased() {
+        return resourceRegistry.getPermitReleased();
+    }
+    
+    /**
+     * 获取缓存管理器（向后兼容）
+     */
+    public FlowCacheManager getFlowCacheManager() {
+        return resourceRegistry.getCacheManager();
     }
 
     @PreDestroy
     public void shutdownAll() {
-        log.info("系统关闭：正在注销所有任务并关闭全局虚拟线程池...");
+        log.info("系统关闭：正在注销所有任务...");
         stopAll(true); // 强制清理资源
-        flowCacheManager.invalidateAll();
-        if (storageEgressExecutor != null) {
-            storageEgressExecutor.shutdown();
-        }
-        globalExecutor.shutdown();
+        // 资源关闭由 FlowResourceRegistry 统一管理
     }
 }

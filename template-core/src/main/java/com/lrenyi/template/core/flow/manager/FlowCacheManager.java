@@ -5,13 +5,13 @@ import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.config.FlowStorageType;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.storage.CaffeineFlowStorage;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import com.lrenyi.template.core.flow.storage.QueueFlowStorage;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,13 +21,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowCacheManager {
     private final Map<String, FlowStorage<?>> storageRegistry = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService storageEgressExecutor;
+    private final FlowResourceRegistry resourceRegistry;
 
     /**
-     * @param storageEgressExecutor 所有 store 实现中「从存储取出数据」的专用单物理线程，由 FlowManager 提供
+     * @param resourceRegistry 全局资源注册表，用于获取存储出口执行器
      */
-    public FlowCacheManager(ScheduledExecutorService storageEgressExecutor) {
-        this.storageEgressExecutor = storageEgressExecutor;
+    public FlowCacheManager(FlowResourceRegistry resourceRegistry) {
+        this.resourceRegistry = resourceRegistry;
     }
 
     @SuppressWarnings("unchecked")
@@ -47,7 +47,7 @@ public class FlowCacheManager {
                                               progressTracker,
                                               finalizer,
                                               jobId,
-                                              storageEgressExecutor,
+                                              resourceRegistry.getStorageEgressExecutor(),
                                               drainIntervalMs
                 );
             }
@@ -57,7 +57,7 @@ public class FlowCacheManager {
                                              joiner,
                                              finalizer,
                                              progressTracker,
-                                             storageEgressExecutor
+                                             resourceRegistry.getStorageEgressExecutor()
             );
         });
     }
