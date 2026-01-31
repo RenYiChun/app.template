@@ -49,6 +49,7 @@
     <modules>
         <module>template-api</module>
         <module>template-core</module>
+        <module>template-flow-sources</module>
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
     </modules>

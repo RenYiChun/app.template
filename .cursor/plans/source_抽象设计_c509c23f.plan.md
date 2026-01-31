@@ -88,7 +88,7 @@ public interface FlowSourceProvider<T> extends AutoCloseable {
 ```
 
 - 引擎逻辑：`while (provider.hasNextSubSource()) { acquire(); startVirtualThread(() -> { try (FlowSource<T> sub = provider.nextSubSource()) { while (sub.hasNext()) launcher.launch(sub.next()); } finally { release(); } }); }`，最后 `provider.close()`。
-- **为何不用 `Iterator<FlowSource<T>>`**：同样需要 `close()` 与可中断的 `hasNext`；Provider 可能持有连接池、客户端等资源，统一用 AutoCloseable 更清晰。
+- **为何不用 `Iterator<FlowSource<T>>**`：同样需要 `close()` 与可中断的 `hasNext`；Provider 可能持有连接池、客户端等资源，统一用 AutoCloseable 更清晰。
 
 ---
 
@@ -168,10 +168,10 @@ flow/
 
 ## 九、实现清单（待你确认后落地）
 
-1. 新增 `flow.source.FlowSource<T>`（hasNext/next/close）。  
-2. 新增 `flow.source.FlowSourceProvider<T>`（hasNextSubSource/nextSubSource/close）。  
-3. 新增 `FlowSourceAdapters.fromStreams(Stream<Stream<T>>)`，返回 Provider；内部实现 `StreamFlowSource`、`StreamFlowSourceProvider`（或私有内部类）。  
-4. `FlowJoiner` 增加 `default FlowSourceProvider<T> sourceProvider()`，默认 `FlowSourceAdapters.fromStreams(sources())`。  
+1. 新增 `flow.source.FlowSource<T>`（hasNext/next/close）。
+2. 新增 `flow.source.FlowSourceProvider<T>`（hasNextSubSource/nextSubSource/close）。
+3. 新增 `FlowSourceAdapters.fromStreams(Stream<Stream<T>>)`，返回 Provider；内部实现 `StreamFlowSource`、`StreamFlowSourceProvider`（或私有内部类）。
+4. `FlowJoiner` 增加 `default FlowSourceProvider<T> sourceProvider()`，默认 `FlowSourceAdapters.fromStreams(sources())`。
 5. `FlowJoinerEngine.run` 改为使用 `joiner.sourceProvider()`，按上述 while + 虚拟线程 + semaphore 逻辑驱动，并正确处理 InterruptedException 与 close。
 
 若你希望「业务可只实现 sourceProvider 而不再实现 sources()」，可再增加：将 `sources()` 改为 default 并实现为 `throw new UnsupportedOperationException();`，这样新业务只需实现 `sourceProvider()`。

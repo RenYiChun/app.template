@@ -6,6 +6,7 @@ import com.lrenyi.template.core.flow.impl.FlowInletImpl;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
 import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
@@ -36,6 +37,40 @@ public class FlowJoinerEngine {
         Semaphore streamConcurrencySemaphore = launcher.getJobProducerSemaphore();
         
         try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
+            runUntilNoMoreSubSources(provider, streamConcurrencySemaphore, jobId, launcher);
+        }
+    }
+    
+    /**
+     * 单流 run：业务只有一条流时直接传入 FlowSource，引擎内部包装为「仅含一个子流」的 Provider 并复用拉取逻辑。
+     * 不调用 joiner.sourceProvider()。
+     *
+     * @param total 预期总条数，用于进度；若未知可传 -1
+     */
+    public <T> void run(String jobId,
+                        FlowJoiner<T> joiner,
+                        FlowSource<T> singleSource,
+                        long total,
+                        TemplateConfigProperties.JobConfig jobConfig) {
+        DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
+        tracker.setTotalExpected(jobId, total);
+        run(jobId, joiner, singleSource, tracker, jobConfig);
+    }
+    
+    /**
+     * 单流 run（指定 ProgressTracker）：单条 FlowSource + 已有 tracker，引擎内部包装为一次性 Provider 并复用拉取逻辑。
+     */
+    public <T> void run(String jobId,
+                        FlowJoiner<T> joiner,
+                        FlowSource<T> singleSource,
+                        ProgressTracker tracker,
+                        TemplateConfigProperties.JobConfig jc) {
+        log.info("驱动流聚合任务开始（单流）: {}", jobId);
+        
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
+        Semaphore streamConcurrencySemaphore = launcher.getJobProducerSemaphore();
+        
+        try (FlowSourceProvider<T> provider = FlowSourceAdapters.singleSourceProvider(singleSource)) {
             runUntilNoMoreSubSources(provider, streamConcurrencySemaphore, jobId, launcher);
         }
     }

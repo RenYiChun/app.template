@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/xsd/maven-4.0.0.xsd http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>app.template</artifactId>
+        <version>2.4.2-SNAPSHOT</version>
+    </parent>
+    <artifactId>template-flow-sources</artifactId>
+    <packaging>pom</packaging>
+    <name>Template Flow Sources</name>
+    <description>FlowSource implementations aggregator: Kafka, paged API, etc.</description>
+
+    <properties>
+        <checkstyle.related.dir>..</checkstyle.related.dir>
+    </properties>
+
+    <modules>
+        <module>template-flow-sources-kafka</module>
+        <module>template-flow-sources-nats</module>
+        <module>template-flow-sources-paged</module>
+    </modules>
+</project>

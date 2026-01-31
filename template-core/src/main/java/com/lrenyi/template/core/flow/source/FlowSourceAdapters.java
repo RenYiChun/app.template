@@ -1,6 +1,7 @@
 package com.lrenyi.template.core.flow.source;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
@@ -33,11 +34,114 @@ public final class FlowSourceAdapters {
     }
     
     /**
+     * 将单个 FlowSource 包装为「仅含一个子流」的 Provider，供引擎单流 run 重载使用。
+     * hasNextSubSource() 仅第一次为 true，nextSubSource() 返回该 singleSource；
+     * 子流生命周期由引擎 try-with-resources 关闭，本 Provider 的 close() 为 no-op。
+     *
+     * @param singleSource 单条数据流，非 null
+     */
+    public static <T> FlowSourceProvider<T> singleSourceProvider(FlowSource<T> singleSource) {
+        return new SingleFlowSourceProvider<>(singleSource);
+    }
+
+    /**
      * 返回无子流的空 Provider。推送专用 Joiner 的 sourceProvider() 可返回此结果，
      * 避免被误用于 run() 拉取模式。
      */
     public static <T> FlowSourceProvider<T> emptyProvider() {
         return new EmptyFlowSourceProvider<>();
+    }
+    
+    /**
+     * 由一组已构造的 {@link FlowSource} 组成 Provider，按顺序提供子流。
+     * 适用于 Kafka/NATS 等多子流场景：先为每个 consumer/subscription 建一个 FlowSource，
+     * 再传入本方法得到 Provider；close() 时会关闭列表中所有 FlowSource（已交给引擎的会重复 close，通常为 no-op）。
+     *
+     * @param sources 子流列表，非 null 非空
+     */
+    public static <T> FlowSourceProvider<T> fromFlowSources(List<FlowSource<T>> sources) {
+        return new ListFlowSourceProvider<>(sources);
+    }
+    
+    private static final class ListFlowSourceProvider<T> implements FlowSourceProvider<T> {
+        private final List<FlowSource<T>> sources;
+        private int index;
+        private boolean closed;
+        
+        ListFlowSourceProvider(List<FlowSource<T>> sources) {
+            if (sources == null || sources.isEmpty()) {
+                throw new IllegalArgumentException("sources 非空");
+            }
+            this.sources = List.copyOf(sources);
+        }
+        
+        @Override
+        public boolean hasNextSubSource() throws InterruptedException {
+            if (closed) {
+                return false;
+            }
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+            return index < sources.size();
+        }
+        
+        @Override
+        public FlowSource<T> nextSubSource() {
+            if (closed) {
+                throw new NoSuchElementException();
+            }
+            if (index >= sources.size()) {
+                throw new NoSuchElementException();
+            }
+            return sources.get(index++);
+        }
+        
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            for (FlowSource<T> s : sources) {
+                try {
+                    s.close();
+                } catch (Exception ignored) {
+                    // 尽量释放
+                }
+            }
+        }
+    }
+    
+    private static final class SingleFlowSourceProvider<T> implements FlowSourceProvider<T> {
+        private final FlowSource<T> singleSource;
+        private boolean consumed;
+        
+        SingleFlowSourceProvider(FlowSource<T> singleSource) {
+            this.singleSource = singleSource;
+        }
+        
+        @Override
+        public boolean hasNextSubSource() throws InterruptedException {
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+            return !consumed;
+        }
+        
+        @Override
+        public FlowSource<T> nextSubSource() {
+            if (consumed) {
+                throw new NoSuchElementException();
+            }
+            consumed = true;
+            return singleSource;
+        }
+        
+        @Override
+        public void close() {
+            // 子流由引擎 try(sub) 关闭，此处不关闭避免重复 close
+        }
     }
     
     private static final class EmptyFlowSourceProvider<T> implements FlowSourceProvider<T> {
