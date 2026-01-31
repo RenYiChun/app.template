@@ -13,9 +13,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -47,10 +46,11 @@ public class FlowManager {
     private boolean printProgressDisplay = true;
     private FlowFinalizer<?> finalizer;
     /**
-     * 所有 store 实现中「从存储取出数据」的专用单物理线程（有界队列）。
-     * 用于 Caffeine removal、或其它需要在此线程中 acquire 后交给虚拟线程处理的离场路径，防止无限积压导致 OOM。
+     * 所有 store 实现中「从存储取出数据」的专用单物理线程。
+     * 同时作为 Executor（execute：Caffeine removal、Queue drainLoop）与 ScheduledExecutorService（scheduleAtFixedRate：Queue 按
+     * TTL 定时排空），共用一个线程。
      */
-    private ExecutorService storageEgressExecutor;
+    private ScheduledExecutorService storageEgressExecutor;
 
     private FlowManager(TemplateConfigProperties.JobGlobal globalConfig) {
         this.globalConfig = globalConfig;
@@ -60,8 +60,11 @@ public class FlowManager {
     }
     
     private FlowManager init() {
-        int capacity = globalConfig.getGlobalSemaphoreMaxLimit();
-        this.storageEgressExecutor = initStorageEgressExecutor(capacity);
+        this.storageEgressExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "flow-storage-egress");
+            t.setDaemon(true);
+            return t;
+        });
         this.flowCacheManager = new FlowCacheManager(storageEgressExecutor);
         this.flowProgressDisplay = new FlowProgressDisplay(this);
         this.finalizer = new FlowFinalizer<>(this);
@@ -70,15 +73,6 @@ public class FlowManager {
             this.flowProgressDisplay.start(1L, second, TimeUnit.SECONDS);
         }
         return this;
-    }
-    
-    private ThreadPoolExecutor initStorageEgressExecutor(int capacity) {
-        LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(capacity);
-        return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, queue, r -> {
-            Thread t = new Thread(r, "flow-storage-egress");
-            t.setDaemon(true);
-            return t;
-        }, new ThreadPoolExecutor.CallerRunsPolicy());
     }
     
     private static FlowManager create(TemplateConfigProperties.JobGlobal globalConfig) {
@@ -174,6 +168,13 @@ public class FlowManager {
         return Math.max(1, registry.size());
     }
     
+    /**
+     * 离场线程池，同时用于 scheduleAtFixedRate（Queue 定时排空），与 getStorageEgressExecutor() 为同一实例。
+     */
+    public ScheduledExecutorService getQueueDrainScheduler() {
+        return storageEgressExecutor;
+    }
+
     @PreDestroy
     public void shutdownAll() {
         log.info("系统关闭：正在注销所有任务并关闭全局虚拟线程池...");

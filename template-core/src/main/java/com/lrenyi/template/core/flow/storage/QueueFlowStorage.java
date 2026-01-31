@@ -1,57 +1,113 @@
 package com.lrenyi.template.core.flow.storage;
 
+import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
+import com.lrenyi.template.core.flow.impl.FlowFinalizer;
+import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.manager.FlowManager;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 基于阻塞队列的任务存储实现
- * 适用于：顺序消费、削峰填谷场景
+ * 基于阻塞队列的流式存储实现。
+ * 与 Caffeine 不同，队列没有超时驱逐线程，消费由框架统一的
+ * {@link com.lrenyi.template.core.flow.manager.FlowCacheManager} 中的 {@code storageEgressExecutor}（单物理线程）完成：
+ * 在构造函数中按配置的 TTL 周期向该 executor 提交排空任务，从队列取数 → acquire → {@link FlowFinalizer#submitBodyOnly}，
+ * 与 Caffeine 驱逐路径共用同一离场线程，离场语义一致。
+ * <p>
+ * 适用于：顺序消费、削峰填谷。不支持按 Key 检索，{@link #remove(String)} 使用接口默认实现。
+ * <p>
+ * 若由框架通过 {@link com.lrenyi.template.core.flow.manager.FlowCacheManager#getOrCreateStorage} 创建并传入 finalizer、jobId
+ * 、storageEgressExecutor、drainIntervalMs、drainScheduler，
+ * 则在构造函数中向 FlowManager 的 queueDrainScheduler 注册定时任务（按 drainIntervalMs 周期向 storageEgressExecutor 提交 drainLoop），与
+ * Caffeine 共用离场线程；
  */
 @Slf4j
 public class QueueFlowStorage<T> implements FlowStorage<T> {
     private final BlockingQueue<FlowEntry<T>> queue;
-    private final long maxCaseSize;
+    private final long maxCacheSize;
+    private final ProgressTracker progressTracker;
+    private final FlowFinalizer<T> finalizer;
+    private final AtomicBoolean stopped = new AtomicBoolean(false);
+    private ScheduledFuture<?> scheduledFuture;
     
     /**
-     * @param capacity 队列容量，决定了背压触发的阈值
+     * 框架创建时使用：传入 finalizer、jobId、storageEgressExecutor、drainIntervalMs、drainScheduler 时，
+     * 使用定时调度（scheduleAtFixedRate）按 drainIntervalMs 周期向 storageEgressExecutor 提交 drainLoop，与 Caffeine 共用离场线程。
+     *
+     * @param capacity              队列容量，决定背压触发的阈值
+     * @param progressTracker       可为 null；shutdown 排空时对每条调用 onPassiveEgress()
+     * @param finalizer             非 null 时消费通过 submitBodyOnly 执行 onConsume + release
+     * @param jobId                 getActiveLauncher(jobId) 使用
+     * @param storageEgressExecutor 与 Caffeine 共用的离场 executor，由 FlowManager 提供
+     * @param drainIntervalMs       排空周期（毫秒），与 JobConfig.ttlMill 对齐；&lt;=0 则不注册
      */
-    public QueueFlowStorage(int capacity) {
+    public QueueFlowStorage(int capacity,
+                            ProgressTracker progressTracker,
+                            FlowFinalizer<T> finalizer,
+                            String jobId,
+                            ScheduledExecutorService storageEgressExecutor,
+                            long drainIntervalMs) {
         this.queue = new LinkedBlockingQueue<>(capacity);
-        this.maxCaseSize = capacity;
+        this.maxCacheSize = capacity;
+        this.progressTracker = progressTracker;
+        this.finalizer = finalizer;
+        if (finalizer != null && jobId != null && storageEgressExecutor != null && drainIntervalMs > 0) {
+            this.scheduledFuture = storageEgressExecutor.scheduleWithFixedDelay(this::drainLoop,
+                                                                                drainIntervalMs,
+                                                                                drainIntervalMs,
+                                                                                TimeUnit.MILLISECONDS
+            );
+        }
     }
     
+    /**
+     * 在 storageEgressExecutor 单线程上执行：非阻塞取队直到空，每条 acquire → submitBodyOnly。
+     */
+    private void drainLoop() {
+        FlowManager flowManager = finalizer.flowManager();
+        FlowEntry<T> entry;
+        while (!stopped.get() && (entry = queue.poll()) != null) {
+            FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+            if (launcher == null) {
+                if (progressTracker != null) {
+                    progressTracker.onPassiveEgress();
+                }
+                entry.close();
+                continue;
+            }
+            try {
+                launcher.getTaskOrchestrator().acquire();
+                finalizer.submitBodyOnly(entry, launcher);
+            } catch (InterruptedException e) {
+                if (progressTracker != null) {
+                    progressTracker.onPassiveEgress();
+                }
+                entry.close();
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
     @Override
     public boolean doDeposit(FlowEntry<T> ctx) {
-        // 2. 尝试非阻塞入队
         boolean success = queue.offer(ctx);
         if (success) {
             if (log.isDebugEnabled()) {
                 log.debug("Data deposited into queue: jobId={}, queueSize={}", ctx.getJobId(), queue.size());
             }
-            // 入队成功，Launcher 线程退出 try-with-resources 调用 close() 时，
-            // refCnt 由 2 变为 1，任务在队列中存活
             return true;
         }
         if (log.isWarnEnabled()) {
             log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
         }
         return false;
-    }
-    
-    /**
-     * 暴露给消费者的获取接口
-     */
-    public FlowEntry<T> poll() {
-        return queue.poll();
-    }
-    
-    /**
-     * 阻塞获取接口
-     */
-    public FlowEntry<T> take() throws InterruptedException {
-        return queue.take();
     }
     
     @Override
@@ -61,15 +117,24 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     
     @Override
     public long maxCacheSize() {
-        return maxCaseSize;
+        return maxCacheSize;
     }
-    
+
     @Override
     public void shutdown() {
-        // 清理队列中的剩余任务，防止内存泄露
+        stopped.set(true);
+        if (scheduledFuture != null) {
+            scheduledFuture.cancel(false);
+        }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
+            if (progressTracker != null) {
+                progressTracker.onPassiveEgress();
+            }
             remaining.close();
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("QueueFlowStorage shut down, drain task cancelled, queue drained.");
         }
     }
 }

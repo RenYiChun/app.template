@@ -11,7 +11,7 @@ import com.lrenyi.template.core.flow.storage.QueueFlowStorage;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,12 +21,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowCacheManager {
     private final Map<String, FlowStorage<?>> storageRegistry = new ConcurrentHashMap<>();
-    private final Executor storageEgressExecutor;
+    private final ScheduledExecutorService storageEgressExecutor;
 
     /**
      * @param storageEgressExecutor 所有 store 实现中「从存储取出数据」的专用单物理线程，由 FlowManager 提供
      */
-    public FlowCacheManager(Executor storageEgressExecutor) {
+    public FlowCacheManager(ScheduledExecutorService storageEgressExecutor) {
         this.storageEgressExecutor = storageEgressExecutor;
     }
 
@@ -42,7 +42,14 @@ public class FlowCacheManager {
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
             int maxCacheSize = config.getMaxCacheSize();
             if (type == FlowStorageType.QUEUE) {
-                return new QueueFlowStorage<>(maxCacheSize);
+                long drainIntervalMs = config.getTtlMill();
+                return new QueueFlowStorage<>(maxCacheSize,
+                                              progressTracker,
+                                              finalizer,
+                                              jobId,
+                                              storageEgressExecutor,
+                                              drainIntervalMs
+                );
             }
             long ttlMill = config.getTtlMill();
             return new CaffeineFlowStorage<>(maxCacheSize,

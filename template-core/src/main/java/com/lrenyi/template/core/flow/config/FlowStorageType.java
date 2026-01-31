@@ -6,17 +6,7 @@ public enum FlowStorageType {
      */
     CAFFEINE,
     
-    /**
-     * 分布式缓存 (基于 Redis)
-     */
-    REDIS,
-    
-    QUEUE,
-    
-    /**
-     * 无状态存储 (直接丢弃或仅透传)
-     */
-    NONE;
+    QUEUE;
     
     public static FlowStorageType from(String value) {
         for (FlowStorageType type : values()) {

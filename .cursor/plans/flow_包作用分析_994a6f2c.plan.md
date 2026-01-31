@@ -47,7 +47,9 @@ flowchart LR
     Finalizer --> Tracker
 ```
 
-- **业务接口**：[`FlowJoiner<T>`](template-core/src/main/java/com/lrenyi/template/core/flow/FlowJoiner.java)  
+
+
+- **业务接口**：`[FlowJoiner<T>](template-core/src/main/java/com/lrenyi/template/core/flow/FlowJoiner.java)`  
   - `sources()`：`Stream<Stream<T>>`，外层控制「并发单元」（如多个子流），内层是单流数据。  
   - `joinKey(T)`：聚合键。  
   - `onSuccess(existing, incoming, jobId)`：同 Key 配对成功时调用。  
@@ -55,21 +57,16 @@ flowchart LR
   - `onFailed(item, jobId)`：超时、驱逐、冲突、不匹配、拒绝、关闭时未处理数据的统一出口。  
   - `needMatched()` / `isMatched()`：是否双流配对及配对条件。  
   - `getStorageType()`：CAFFEINE（Key-Value，配对/覆盖）或 QUEUE（FIFO）。
-
-- **入口**：[`FlowJoinerEngine`](template-core/src/main/java/com/lrenyi/template/core/flow/FlowJoinerEngine.java)  
+- **入口**：`[FlowJoinerEngine](template-core/src/main/java/com/lrenyi/template/core/flow/FlowJoinerEngine.java)`  
   - `run(jobId, joiner, tracker, jobConfig)`：用虚拟线程驱动 `joiner.sources()` 的每个子流，每条数据交给 `FlowLauncher.launch(data)`。
-
 - **发射与存储**：  
-  - [`FlowLauncher`](template-core/src/main/java/com/lrenyi/template/core/flow/impl/FlowLauncher.java)：对每条数据先 `awaitBackpressure()`，再提交到全局虚拟线程池，构造 `FlowEntry` 并 `storage.deposit(entry)`。  
-  - [`FlowStorage`](template-core/src/main/java/com/lrenyi/template/core/flow/storage/FlowStorage.java)：  
+  - `[FlowLauncher](template-core/src/main/java/com/lrenyi/template/core/flow/impl/FlowLauncher.java)`：对每条数据先 `awaitBackpressure()`，再提交到全局虚拟线程池，构造 `FlowEntry` 并 `storage.deposit(entry)`。  
+  - `[FlowStorage](template-core/src/main/java/com/lrenyi/template/core/flow/storage/FlowStorage.java)`：  
     - [CaffeineFlowStorage](template-core/src/main/java/com/lrenyi/template/core/flow/storage/CaffeineFlowStorage.java)：Key-Value，支持 TTL、maxSize；`needMatched()==true` 时同 Key 配对并异步执行 `onSuccess`，否则 put 覆盖并对旧值 `onFailed`；驱逐/过期走 `FlowFinalizer.submit(entry)`。  
     - [QueueFlowStorage](template-core/src/main/java/com/lrenyi/template/core/flow/storage/QueueFlowStorage.java)：FIFO，适合顺序消费/削峰。
-
-- **消费与终结**：[`FlowFinalizer`](template-core/src/main/java/com/lrenyi/template/core/flow/impl/FlowFinalizer.java) 在数据被移除（驱逐、过期或配对后）时，提交任务：`Orchestrator.acquire()` → `onConsume`/`onFailed` → `Orchestrator.release()`，并 `BackpressureController.signalRelease()`。
-
-- **并发与公平**：[`FlowManager`](template-core/src/main/java/com/lrenyi/template/core/flow/manager/FlowManager.java) 持有一个全局信号量和虚拟线程池；[`Orchestrator`](template-core/src/main/java/com/lrenyi/template/core/flow/context/Orchestrator.java) 按 Job 的公平份额（`globalSemaphoreMaxLimit / activeJobs`）申请/释放许可，避免单 Job 占满。
-
-- **观测**：[`ProgressTracker`](template-core/src/main/java/com/lrenyi/template/core/flow/ProgressTracker.java) 和 [`FlowProgressSnapshot`](template-core/src/main/java/com/lrenyi/template/core/flow/context/FlowProgressSnapshot.java) 基于物理水位提供完成率、成功率、Stuck（已出缓存未终结）、TPS 等。
+- **消费与终结**：`[FlowFinalizer](template-core/src/main/java/com/lrenyi/template/core/flow/impl/FlowFinalizer.java)` 在数据被移除（驱逐、过期或配对后）时，提交任务：`Orchestrator.acquire()` → `onConsume`/`onFailed` → `Orchestrator.release()`，并 `BackpressureController.signalRelease()`。
+- **并发与公平**：`[FlowManager](template-core/src/main/java/com/lrenyi/template/core/flow/manager/FlowManager.java)` 持有一个全局信号量和虚拟线程池；`[Orchestrator](template-core/src/main/java/com/lrenyi/template/core/flow/context/Orchestrator.java)` 按 Job 的公平份额（`globalSemaphoreMaxLimit / activeJobs`）申请/释放许可，避免单 Job 占满。
+- **观测**：`[ProgressTracker](template-core/src/main/java/com/lrenyi/template/core/flow/ProgressTracker.java)` 和 `[FlowProgressSnapshot](template-core/src/main/java/com/lrenyi/template/core/flow/context/FlowProgressSnapshot.java)` 基于物理水位提供完成率、成功率、Stuck（已出缓存未终结）、TPS 等。
 
 ---
 
@@ -94,7 +91,7 @@ flowchart LR
 - **做什么**：在多源、流式的 `Stream<Stream<T>>` 上，按 `joinKey` 做**配对**（双流对齐）或**覆盖**（去重），并在**受控并发与背压**下，对「配对成功」与「未配对/失败」的数据做明确回调。  
 - **为什么需要 flow 包**：  
   - 配对/覆盖逻辑与 TTL、容量驱逐、多 Job 公平共享、背压、进度完成/成功率/Stuck/TPS 强绑定，自己写容易漏边界；  
-  - 用虚拟线程 + 信号量 + Caffeine/Queue 抽象，把「存储层谁先到、谁被驱逐、谁触发 finalize」和「业务层只关心 onSuccess/onConsume/onFailed」清晰分离。  
+  - 用虚拟线程 + 信号量 + Caffeine/Queue 抽象，把「存储层谁先到、谁被驱逐、谁触发 finalize」和「业务层只关心 onSuccess/onConsume/onFailed」清晰分离。
 
 如果你有具体业务类（例如某种日志或请求-响应 Joiner），可以贴出类名或接口用法，我可以按「是否完全符合你预期用途」再帮你对一下细节或边界情况。
 
@@ -142,7 +139,7 @@ flowchart LR
 
 | **复合 Key / 多 Key 单条** | `joinKey(T)` 仅返回一个 String，无法表达 (orderId, userId) 或「一条参与多个 join 组」。 | 增加 `joinKeys(T)` 返回 `Collection<String>` 或复合 Key 类型；存储层按多 Key 索引或拆成多条逻辑。 |
 
-| **REDIS 存储** | `FlowStorageType` 有 REDIS，[`FlowCacheManager`](template-core/src/main/java/com/lrenyi/template/core/flow/manager/FlowCacheManager.java) 未实现，仅 CAFFEINE / QUEUE。 | 实现 `RedisFlowStorage`（TTL + 容量或队列语义），多实例/重启后可复用缓存。 |
+| **REDIS 存储** | `FlowStorageType` 有 REDIS，`[FlowCacheManager](template-core/src/main/java/com/lrenyi/template/core/flow/manager/FlowCacheManager.java)` 未实现，仅 CAFFEINE / QUEUE。 | 实现 `RedisFlowStorage`（TTL + 容量或队列语义），多实例/重启后可复用缓存。 |
 
 | **NONE 存储** | 枚举有 NONE，未在 `FlowCacheManager` 分支中使用。 | 实现「直接透传」：deposit 即触发 onConsume/onFailed，不暂存；适合纯穿透、不缓存的场景。 |
 
@@ -212,12 +209,10 @@ flowchart LR
   - **REDIS 存储**：多实例、持久化、跨进程。  
   - **Queue 的自动消费闭环**：QUEUE 类型与 Finalizer 打通，业务无需手写 take 循环。  
   - **批量消费（时间/计数窗口）**：很多日志、指标场景需要攒批。  
-  - **失败原因细分 + 可选 DLQ**：排障和重试必备。  
-
+  - **失败原因细分 + 可选 DLQ**：排障和重试必备。
 - **中优先级**  
-  - 延迟/定时消费（含重试退避）、NONE 透传、复合 Key / 多 Key。  
-
+  - 延迟/定时消费（含重试退避）、NONE 透传、复合 Key / 多 Key。
 - **按需**  
-  - N 路 Join、按 Key 有序、幂等键、响应式 request(n)、延迟分位。  
+  - N 路 Join、按 Key 有序、幂等键、响应式 request(n)、延迟分位。
 
 这样可以在「业务只关心业务」的前提下，逐步把更多「需要缓存、异步消费」的场景收进同一套抽象里。
