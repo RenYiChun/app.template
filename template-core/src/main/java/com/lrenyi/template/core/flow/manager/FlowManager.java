@@ -6,16 +6,25 @@ import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
+import com.lrenyi.template.core.flow.health.FlowHealth;
+import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
+import com.lrenyi.template.core.flow.health.HealthStatus;
 import com.lrenyi.template.core.flow.impl.BackpressureController;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.core.flow.storage.FlowStorage;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +70,11 @@ public class FlowManager {
         if (second > 0) {
             this.flowProgressDisplay.start(1L, second, TimeUnit.SECONDS);
         }
+        
+        // 注册健康检查指示器
+        FlowResourceHealthIndicator healthIndicator = new FlowResourceHealthIndicator(resourceRegistry, this);
+        FlowHealth.registerIndicator(healthIndicator);
+        
         return this;
     }
     
@@ -141,39 +155,50 @@ public class FlowManager {
                                               FlowJoiner<T> flowJoiner,
                                               ProgressTracker tracker,
                                               TemplateConfigProperties.JobConfig jobConfig) {
-        
-        Registration registration = new Registration(jobId, jobConfig);
-        registry.put(jobId, registration);
-        
-        // 创建Job级资源
-        Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
-        
-        // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
-        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
-        com.lrenyi.template.core.flow.manager.FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
-        com.lrenyi.template.core.flow.storage.FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId,
-                                                                                                       flowJoiner,
-                                                                                                       jobConfig,
-                                                                                                       finalizer,
-                                                                                                       tracker
-        );
-        
-        BackpressureController backpressureController = new BackpressureController(storage);
-        
-        // 创建资源上下文
-        FlowResourceContext resourceContext = FlowResourceContext.builder()
-                                                                 .resourceRegistry(resourceRegistry)
-                                                                 .flowManager(this)
-                                                                 .jobProducerSemaphore(jobProducerSemaphore)
-                                                                 .storage(storage)
-                                                                 .backpressureController(backpressureController)
-                                                                 .build();
-        
-        // 创建Launcher，传递resourceContext
-        FlowLauncher<T> launcher = FlowLauncher.create(jobId, flowJoiner, this, tracker, registration, resourceContext);
-        
-        activeLaunchers.put(jobId, launcher);
-        return launcher;
+        try {
+            Registration registration = new Registration(jobId, jobConfig);
+            registry.put(jobId, registration);
+            
+            // 创建Job级资源
+            Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
+            
+            // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
+            FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
+            FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
+            FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId, flowJoiner, jobConfig, finalizer, tracker);
+            
+            BackpressureController backpressureController = new BackpressureController(storage);
+            
+            // 创建资源上下文
+            FlowResourceContext resourceContext = FlowResourceContext.builder()
+                                                                     .resourceRegistry(resourceRegistry)
+                                                                     .flowManager(this)
+                                                                     .jobProducerSemaphore(jobProducerSemaphore)
+                                                                     .storage(storage)
+                                                                     .backpressureController(backpressureController)
+                                                                     .build();
+            
+            // 创建Launcher，传递resourceContext
+            FlowLauncher<T> launcher = FlowLauncher.create(jobId,
+                                                           flowJoiner,
+                                                           this,
+                                                           tracker,
+                                                           registration,
+                                                           resourceContext
+            );
+            
+            activeLaunchers.put(jobId, launcher);
+            
+            // 记录指标
+            FlowMetrics.incrementCounter("launcher_created");
+            FlowMetrics.recordResourceUsage("active_launchers", activeLaunchers.size());
+            
+            return launcher;
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+            FlowMetrics.recordError("create_launcher_failed", jobId);
+            throw e;
+        }
     }
     
     public boolean isStopped(String jobId) {
@@ -198,13 +223,17 @@ public class FlowManager {
         log.info("正在停止所有运行中的任务，force={}", force);
         activeLaunchers.forEach((key, launcher) -> stopJob(force, key, launcher));
         flowProgressDisplay.stop();
+        FlowMetrics.incrementCounter("jobs_stopped_all");
     }
     
     private void stopJob(boolean force, String key, FlowLauncher<?> launcher) {
         try {
             launcher.stop(force);
             unregister(key);
+            FlowMetrics.incrementCounter("job_stopped");
         } catch (Exception e) {
+            FlowExceptionHelper.handleException(launcher.getJobId(), null, e, FlowPhase.FINALIZATION);
+            FlowMetrics.recordError("stop_job_failed", launcher.getJobId());
             log.error("停止 Job [{}] 时发生异常", launcher.getJobId(), e);
         }
     }
@@ -239,6 +268,81 @@ public class FlowManager {
         return Math.max(1, registry.size());
     }
     
+    /**
+     * 获取框架健康状态
+     * 
+     * @return 健康状态详情
+     */
+    public Map<String, Object> getHealthStatus() {
+        return FlowHealth.getHealthDetails();
+    }
+    
+    /**
+     * 检查框架健康状态
+     * 
+     * @return 健康状态枚举
+     */
+    public HealthStatus checkHealth() {
+        return FlowHealth.checkHealth();
+    }
+    
+    /**
+     * 输出健康检查报告到日志
+     * 包含所有健康指标的详细信息
+     */
+    public void logHealthReport() {
+        HealthStatus status = FlowHealth.checkHealth();
+        Map<String, Object> healthDetails = FlowHealth.getHealthDetails();
+        
+        StringBuilder report = new StringBuilder("\n");
+        report.append("=".repeat(80)).append("\n");
+        report.append("Flow Framework Health Report\n");
+        report.append("=".repeat(80)).append("\n");
+        report.append(String.format("Overall Status: %s%n", status.name()));
+        report.append("-".repeat(80)).append("\n");
+        
+        @SuppressWarnings("unchecked")
+        java.util.List<Map<String, Object>> indicators = 
+            (java.util.List<Map<String, Object>>) healthDetails.get("indicators");
+        
+        if (indicators != null && !indicators.isEmpty()) {
+            for (Map<String, Object> indicator : indicators) {
+                String name = (String) indicator.get("name");
+                String indicatorStatus = (String) indicator.get("status");
+                report.append(String.format("\n[%s] Status: %s%n", name, indicatorStatus));
+                
+                @SuppressWarnings("unchecked")
+                Map<String, Object> details = (Map<String, Object>) indicator.get("details");
+                if (details != null) {
+                    details.forEach((key, value) -> {
+                        if (value != null) {
+                            report.append(String.format("  - %s: %s%n", key, value));
+                        }
+                    });
+                }
+            }
+        }
+        
+        report.append("=".repeat(80)).append("\n");
+        
+        if (status == HealthStatus.UNHEALTHY) {
+            log.error(report.toString());
+        } else if (status == HealthStatus.DEGRADED) {
+            log.warn(report.toString());
+        } else {
+            log.info(report.toString());
+        }
+    }
+    
+    /**
+     * 获取框架指标
+     *
+     * @return 指标映射
+     */
+    public Map<String, Object> getMetrics() {
+        return FlowMetrics.getMetrics();
+    }
+    
     
     // ========== 向后兼容的getter方法 ==========
     
@@ -259,14 +363,14 @@ public class FlowManager {
     /**
      * 获取公平锁（向后兼容）
      */
-    public java.util.concurrent.locks.Lock getFairLock() {
+    public Lock getFairLock() {
         return resourceRegistry.getFairLock();
     }
     
     /**
      * 获取许可释放条件变量（向后兼容）
      */
-    public java.util.concurrent.locks.Condition getPermitReleased() {
+    public Condition getPermitReleased() {
         return resourceRegistry.getPermitReleased();
     }
     

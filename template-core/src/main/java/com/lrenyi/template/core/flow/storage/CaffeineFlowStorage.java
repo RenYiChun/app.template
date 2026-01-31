@@ -8,9 +8,12 @@ import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.Orchestrator;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -124,12 +127,15 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     /**
      * 处理被替换的旧条目
-     *
+     * 
      * @param oldEntry 被替换的旧条目
      */
     private void handleReplacedEntry(FlowEntry<T> oldEntry) {
         try (oldEntry) {
             joiner.onFailed(oldEntry.getData(), oldEntry.getJobId());
+            FlowMetrics.recordError("entry_replaced", oldEntry.getJobId());
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE);
         } finally {
             progressTracker.onPassiveEgress();
         }
@@ -186,12 +192,23 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         FlowManager flowManager = resourceRegistry.getFlowManager();
         if (flowManager == null) {
             log.warn("FlowManager not available for job {}", entry.getJobId());
+            FlowMetrics.recordError("flow_manager_unavailable", entry.getJobId());
             partner.close();
             return;
         }
         
         ExecutorService globalExecutor = resourceRegistry.getGlobalExecutor();
-        globalExecutor.submit(() -> executeMatchedPairLogic(partner, entry, flowManager));
+        long matchStartTime = System.currentTimeMillis();
+        globalExecutor.submit(() -> {
+            try {
+                executeMatchedPairLogic(partner, entry, flowManager);
+                long matchLatency = System.currentTimeMillis() - matchStartTime;
+                FlowMetrics.recordLatency("match_process", matchLatency);
+            } catch (Exception e) {
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+                FlowMetrics.recordError("match_process_failed", entry.getJobId());
+            }
+        });
     }
     
     /**
@@ -259,16 +276,27 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private void handleMatchedSuccess(FlowEntry<T> partner, FlowEntry<T> entry) {
         progressTracker.onActiveEgress(); // partner 成功
         progressTracker.onActiveEgress(); // entry 成功
-        joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
+        try {
+            joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
+            FlowMetrics.incrementCounter("match_success");
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+            FlowMetrics.recordError("onSuccess_failed", entry.getJobId());
+        }
     }
     
     /**
      * 处理配对失败的情况（不匹配）
      */
     private void handleMatchedFailure(FlowEntry<T> partner, FlowEntry<T> entry) {
-        joiner.onFailed(partner.getData(), partner.getJobId());
+        try {
+            joiner.onFailed(partner.getData(), partner.getJobId());
+            joiner.onFailed(entry.getData(), entry.getJobId());
+            FlowMetrics.recordError("match_failed_not_matched", entry.getJobId());
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+        }
         progressTracker.onPassiveEgress();
-        joiner.onFailed(entry.getData(), entry.getJobId());
         progressTracker.onPassiveEgress();
     }
     
@@ -306,13 +334,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     /**
      * 处理条目被移除的情况（由 Caffeine 的 removalListener 触发）
-     *
+     * 
      * <p>处理流程：</p>
      * <ol>
      *   <li>在物理线程中先 acquire 全局信号量（拿不到则阻塞，最多持 1 条 entry）</li>
      *   <li>交给虚拟线程执行 body + release</li>
      * </ol>
-     *
+     * 
      * @param entry 被移除的条目
      * @param cause 移除原因（超时、容量驱逐等）
      */
@@ -320,6 +348,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         FlowManager flowManager = resourceRegistry.getFlowManager();
         if (flowManager == null) {
             log.warn("FlowManager not available for entry removal, jobId={}", entry.getJobId());
+            FlowMetrics.recordError("flow_manager_unavailable_removal", entry.getJobId());
             return;
         }
         
@@ -329,11 +358,17 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             if (!cause.wasEvicted() || launcher == null) {
                 return;
             }
+            
+            // 记录驱逐原因
+            String evictionReason = cause.name().toLowerCase();
+            FlowMetrics.recordError("entry_evicted_" + evictionReason, entry.getJobId());
+            
             // 在物理线程中获取信号量，然后交给虚拟线程处理
             launcher.getTaskOrchestrator().acquire();
             finalizer.submitBodyOnly(entry, launcher);
         } catch (InterruptedException ie) {
             progressTracker.onPassiveEgress();
+            FlowExceptionHelper.handleException(entry.getJobId(), null, ie, FlowPhase.FINALIZATION);
             Thread.currentThread().interrupt();
         } finally {
             // 无论成功与否，都要通知背压控制器
@@ -345,7 +380,11 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     @Override
     public long size() {
-        return cache.estimatedSize();
+        long currentSize = cache.estimatedSize();
+        // 记录缓存使用情况
+        FlowMetrics.recordResourceUsage("caffeine_cache_size", currentSize);
+        FlowMetrics.recordResourceUsage("caffeine_cache_max_size", maxCacheSize);
+        return currentSize;
     }
     
     @Override

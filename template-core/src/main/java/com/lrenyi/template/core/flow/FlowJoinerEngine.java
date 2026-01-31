@@ -1,13 +1,17 @@
 package com.lrenyi.template.core.flow;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.impl.DefaultProgressTracker;
 import com.lrenyi.template.core.flow.impl.FlowInletImpl;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.source.FlowSource;
 import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
 import com.lrenyi.template.core.flow.source.FlowSourceProvider;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
@@ -32,12 +36,24 @@ public class FlowJoinerEngine {
                         ProgressTracker tracker,
                         TemplateConfigProperties.JobConfig jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
+        long jobStartTime = System.currentTimeMillis();
+        FlowMetrics.incrementCounter("job_started");
         
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
-        Semaphore streamConcurrencySemaphore = launcher.getJobProducerSemaphore();
-        
-        try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
-            runUntilNoMoreSubSources(provider, streamConcurrencySemaphore, jobId, launcher);
+        try {
+            FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
+            Semaphore streamConcurrencySemaphore = launcher.getJobProducerSemaphore();
+            
+            try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
+                runUntilNoMoreSubSources(provider, streamConcurrencySemaphore, jobId, launcher);
+            }
+            
+            long jobDuration = System.currentTimeMillis() - jobStartTime;
+            FlowMetrics.recordLatency("job_total_duration", jobDuration);
+            FlowMetrics.incrementCounter("job_completed");
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+            FlowMetrics.recordError("job_failed", jobId);
+            throw e;
         }
     }
     
@@ -115,19 +131,26 @@ public class FlowJoinerEngine {
                                                  Semaphore semaphore,
                                                  String jobId) {
         try (sub) {
-            drainSubSource(sub, launcher);
+            drainSubSource(sub, launcher, jobId);
         } catch (Exception e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+            FlowMetrics.recordError("subsource_failed", jobId);
             log.error("子流消费异常 jobId={}", jobId, e);
         } finally {
             semaphore.release();
         }
     }
     
-    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher) {
+    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher, String jobId) {
+        int itemCount = 0;
         Optional<T> item = pollNext(sub);
         while (item.isPresent()) {
             launcher.launch(item.get());
+            itemCount++;
             item = pollNext(sub);
+        }
+        if (itemCount > 0) {
+            FlowMetrics.incrementCounter("subsource_items_processed", itemCount);
         }
     }
     
@@ -162,5 +185,31 @@ public class FlowJoinerEngine {
     
     public void printProgressDisplay() {
         flowManager.getFlowProgressDisplay().displayStatus(null);
+    }
+    
+    /**
+     * 获取框架健康状态
+     *
+     * @return 健康状态详情
+     */
+    public Map<String, Object> getHealthStatus() {
+        return flowManager.getHealthStatus();
+    }
+    
+    /**
+     * 获取框架指标
+     * 
+     * @return 指标映射
+     */
+    public Map<String, Object> getMetrics() {
+        return flowManager.getMetrics();
+    }
+    
+    /**
+     * 输出健康检查报告到日志
+     * 包含所有健康指标的详细信息
+     */
+    public void logHealthReport() {
+        flowManager.logHealthReport();
     }
 }

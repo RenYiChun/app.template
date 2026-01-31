@@ -3,6 +3,7 @@ package com.lrenyi.template.core.flow.resource;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,6 +74,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int globalSemaphoreMaxLimit = globalConfig.getGlobalSemaphoreMaxLimit();
         this.globalSemaphore = new Semaphore(globalSemaphoreMaxLimit, true);
         log.info("FlowResourceRegistry 启动：初始物理并发池大小为 {}", globalSemaphoreMaxLimit);
+        
+        // 记录资源使用情况
+        FlowMetrics.recordResourceUsage("semaphore_max_limit", globalSemaphoreMaxLimit);
+        FlowMetrics.recordResourceUsage("semaphore_available", globalSemaphoreMaxLimit);
         
         // 初始化全局虚拟线程池
         this.globalExecutor = Executors.newVirtualThreadPerTaskExecutor();

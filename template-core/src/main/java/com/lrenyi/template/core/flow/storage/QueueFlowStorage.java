@@ -2,9 +2,12 @@ package com.lrenyi.template.core.flow.storage;
 
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -76,15 +79,19 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         FlowManager flowManager = resourceRegistry.getFlowManager();
         if (flowManager == null) {
             log.warn("FlowManager not available for drainLoop");
+            FlowMetrics.recordError("flow_manager_unavailable_drain", null);
             return;
         }
         FlowEntry<T> entry;
+        int drainedCount = 0;
         while (!stopped.get() && (entry = queue.poll()) != null) {
+            drainedCount++;
             FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress();
                 }
+                FlowMetrics.recordError("launcher_not_found_drain", entry.getJobId());
                 entry.close();
                 continue;
             }
@@ -95,10 +102,14 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress();
                 }
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
                 entry.close();
                 Thread.currentThread().interrupt();
                 break;
             }
+        }
+        if (drainedCount > 0) {
+            FlowMetrics.incrementCounter("queue_drain_count", drainedCount);
         }
     }
 
@@ -109,17 +120,23 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
             if (log.isDebugEnabled()) {
                 log.debug("Data deposited into queue: jobId={}, queueSize={}", ctx.getJobId(), queue.size());
             }
+            FlowMetrics.recordResourceUsage("queue_size", queue.size());
             return true;
         }
         if (log.isWarnEnabled()) {
             log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
         }
+        FlowMetrics.recordError("queue_full_rejected", ctx.getJobId());
         return false;
     }
     
     @Override
     public long size() {
-        return queue.size();
+        long currentSize = queue.size();
+        // 记录队列使用情况
+        FlowMetrics.recordResourceUsage("queue_size", currentSize);
+        FlowMetrics.recordResourceUsage("queue_max_size", maxCacheSize);
+        return currentSize;
     }
     
     @Override

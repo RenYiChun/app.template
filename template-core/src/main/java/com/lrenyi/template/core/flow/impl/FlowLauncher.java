@@ -8,7 +8,10 @@ import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,32 +65,48 @@ public class FlowLauncher<T> {
     }
     
     public void launch(T data) {
+        long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
         tracker.onProductionAcquired();
+        
         if (stopped) {
             log.warn("the job is stop for jobId: {}", jobId);
             tracker.onProductionReleased();
+            FlowMetrics.recordError("job_stopped", jobId);
             return;
         }
+        
         try {
             awaitBackpressure();
         } catch (InterruptedException e) {
             tracker.onProductionReleased();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+            FlowMetrics.recordError("backpressure_interrupted", jobId);
             return;
         }
+        
         resourceContext.getGlobalExecutor().submit(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     log.warn("the job is stop for jobId: {}", jobId);
                     tracker.onPassiveEgress();
                     flowJoiner.onFailed(data, jobId);
+                    FlowMetrics.recordError("job_stopped_during_execution", jobId);
                     return;
                 }
-                storage.deposit(ctx);
+                
+                long depositStartTime = System.currentTimeMillis();
+                getStorage().deposit(ctx);
+                long depositLatency = System.currentTimeMillis() - depositStartTime;
+                FlowMetrics.recordLatency("deposit", depositLatency);
+                
             } catch (Throwable e) {
-                log.error("Job [{}] 运行时异常: {}", jobId, e.getMessage(), e);
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
+                FlowMetrics.recordError("deposit_failed", jobId);
             } finally {
                 tracker.onProductionReleased();
+                long totalLatency = System.currentTimeMillis() - startTime;
+                FlowMetrics.recordLatency("launch_total", totalLatency);
             }
         });
     }

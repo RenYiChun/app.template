@@ -2,7 +2,10 @@ package com.lrenyi.template.core.flow.context;
 
 import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
+import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -34,6 +37,13 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                     registration.decrement();
                 }
             }
+            
+            // 记录信号量使用情况
+            int available = semaphore.availablePermits();
+            int used = maxLimit - available;
+            FlowMetrics.recordResourceUsage("semaphore_used", used);
+            FlowMetrics.recordResourceUsage("semaphore_available", available);
+            
         } finally {
             // 无论物理释放是否溢出，只要这一单结束了，就必须触发终结信号
             // 这会使 ProgressTracker 中的 activeConsumers 递减，并检查任务是否可以彻底结束
@@ -53,9 +63,15 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
      * 获取许可：支持初次 launch 和后续 reacquire
      */
     public void acquire() throws InterruptedException {
+        long acquireStartTime = System.currentTimeMillis();
+        
         if (getManager().isStopped(jobId)) {
-            throw new InterruptedException("Job " + jobId + " is not running.");
+            InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
+            FlowMetrics.recordError("acquire_job_stopped", jobId);
+            throw e;
         }
+        
         // 【核心埋点】：消费准入信号
         // 代表此数据正式占用了一个全局消费名额，进入系统生命周期
         tracker.onConsumerBegin();
@@ -63,9 +79,17 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         int globalSemaphoreMaxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
         Semaphore semaphore = resourceContext.getGlobalSemaphore();
         
+        // 记录信号量使用情况
+        int available = semaphore.availablePermits();
+        int used = globalSemaphoreMaxLimit - available;
+        FlowMetrics.recordResourceUsage("semaphore_used", used);
+        FlowMetrics.recordResourceUsage("semaphore_available", available);
+        
         // 软性公平退让逻辑（保持现状）
         int activeJobs = getManager().getActiveJobCount();
         int fairShare = Math.max(1, globalSemaphoreMaxLimit / activeJobs);
+        int waitCount = 0;
+        
         while (registration.getActiveCount().get() >= fairShare && semaphore.availablePermits() == 0) {
             Lock fairLock = resourceContext.getFairLock();
             fairLock.lock();
@@ -80,6 +104,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                                                    .await(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS,
                                                           TimeUnit.MILLISECONDS
                                                    );
+                waitCount++;
                 if (!signalled) {
                     // 情况 A: 超时到了。
                     // 此时可能没有任务结束，但我们需要醒来重新计算 fairShare，
@@ -95,10 +120,20 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             }
             
             if (getManager().isStopped(jobId)) {
-                throw new InterruptedException("Job stopped during acquire");
+                InterruptedException e = new InterruptedException("Job stopped during acquire");
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
+                throw e;
             }
         }
+        
         semaphore.acquire();
         registration.increment();
+        
+        // 记录获取许可的延迟
+        long acquireLatency = System.currentTimeMillis() - acquireStartTime;
+        FlowMetrics.recordLatency("acquire_permit", acquireLatency);
+        if (waitCount > 0) {
+            FlowMetrics.incrementCounter("acquire_wait_count", waitCount);
+        }
     }
 }
