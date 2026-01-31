@@ -105,8 +105,7 @@ public class FlowJoinerEngine {
             return false;
         }
         FlowSource<T> sub = provider.nextSubSource();
-        Thread.ofVirtual()
-              .name("prod-" + jobId)
+        Thread.ofVirtual().name(FlowConstants.THREAD_NAME_PREFIX_PRODUCER + jobId)
               .start(() -> runSubSourceInVirtualThread(sub, launcher, semaphore, jobId));
         return true;
     }

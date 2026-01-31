@@ -5,6 +5,7 @@ import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -35,6 +36,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     private final FlowFinalizer<T> finalizer;
     private final AtomicBoolean stopped = new AtomicBoolean(false);
     private ScheduledFuture<?> scheduledFuture;
+    private final FlowResourceRegistry resourceRegistry;
     
     /**
      * 框架创建时使用：传入 finalizer、jobId、storageEgressExecutor、drainIntervalMs、drainScheduler 时，
@@ -57,7 +59,8 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         this.maxCacheSize = capacity;
         this.progressTracker = progressTracker;
         this.finalizer = finalizer;
-        if (finalizer != null && jobId != null && storageEgressExecutor != null && drainIntervalMs > 0) {
+        this.resourceRegistry = finalizer.resourceRegistry();
+        if (jobId != null && storageEgressExecutor != null && drainIntervalMs > 0) {
             this.scheduledFuture = storageEgressExecutor.scheduleWithFixedDelay(this::drainLoop,
                                                                                 drainIntervalMs,
                                                                                 drainIntervalMs,
@@ -70,7 +73,11 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
      * 在 storageEgressExecutor 单线程上执行：非阻塞取队直到空，每条 acquire → submitBodyOnly。
      */
     private void drainLoop() {
-        FlowManager flowManager = finalizer.flowManager();
+        FlowManager flowManager = resourceRegistry.getFlowManager();
+        if (flowManager == null) {
+            log.warn("FlowManager not available for drainLoop");
+            return;
+        }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
             FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());

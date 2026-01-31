@@ -6,9 +6,9 @@ import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.config.FlowStorageType;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.core.flow.storage.CaffeineFlowStorage;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
-import com.lrenyi.template.core.flow.storage.QueueFlowStorage;
+import com.lrenyi.template.core.flow.storage.FlowStorageFactory;
+import com.lrenyi.template.core.flow.storage.FlowStorageFactoryLoader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,24 +40,19 @@ public class FlowCacheManager {
         String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
-            int maxCacheSize = config.getMaxCacheSize();
-            if (type == FlowStorageType.QUEUE) {
-                long drainIntervalMs = config.getTtlMill();
-                return new QueueFlowStorage<>(maxCacheSize,
-                                              progressTracker,
-                                              finalizer,
-                                              jobId,
-                                              resourceRegistry.getStorageEgressExecutor(),
-                                              drainIntervalMs
-                );
+            // 使用工厂模式创建存储实例
+            FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
+            if (factory == null) {
+                throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
             }
-            long ttlMill = config.getTtlMill();
-            return new CaffeineFlowStorage<>(maxCacheSize,
-                                             ttlMill,
-                                             joiner,
-                                             finalizer,
-                                             progressTracker,
-                                             resourceRegistry.getStorageEgressExecutor()
+            
+            return factory.createStorage(
+                jobId,
+                joiner,
+                config,
+                finalizer,
+                progressTracker,
+                resourceRegistry.getStorageEgressExecutor()
             );
         });
     }

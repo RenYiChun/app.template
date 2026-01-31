@@ -11,6 +11,7 @@ import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,7 +21,23 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 基于 Caffeine 实现的 Key-Value 流式存储
- * 适用于：双流对齐、去重、以及需要根据 Key 检索的匹配场景
+ *
+ * <p>适用于以下场景：</p>
+ * <ul>
+ *   <li>双流对齐：按 Key 匹配两个数据流中的对应项</li>
+ *   <li>去重：相同 Key 只保留最新数据</li>
+ *   <li>Key 检索：需要根据 Key 快速查找数据</li>
+ * </ul>
+ *
+ * <p>特性：</p>
+ * <ul>
+ *   <li>支持 TTL（Time To Live）自动过期</li>
+ *   <li>支持最大容量限制，超出时触发驱逐</li>
+ *   <li>支持配对模式和覆盖模式</li>
+ *   <li>使用单物理线程处理移除回调，避免 OOM</li>
+ * </ul>
+ *
+ * @param <T> 存储的数据类型
  */
 @Slf4j
 public class CaffeineFlowStorage<T> implements FlowStorage<T> {
@@ -30,12 +47,17 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final FlowJoiner<T> joiner;
     private final ProgressTracker progressTracker;
     private final long maxCacheSize;
+    private final FlowResourceRegistry resourceRegistry;
     
     /**
-     * @param maxSize               最大存储容量（背压控制）
-     * @param ttlMill            存活时间（超时触发 onFailed）
-     * @param joiner                业务回调接口
-     * @param storageEgressExecutor 所有 store 共用的「从存储取数」单物理线程，由 FlowManager.getStorageEgressExecutor() 提供
+     * 构造函数
+     *
+     * @param maxSize               最大存储容量（背压控制），超出时触发容量驱逐
+     * @param ttlMill               存活时间（毫秒），超时后触发过期驱逐并调用 onFailed
+     * @param joiner                业务回调接口，用于 joinKey、onSuccess、onFailed 等
+     * @param finalizer             终结器，包含 FlowResourceRegistry 引用，用于获取全局资源
+     * @param progressTracker       进度跟踪器，用于记录数据流转进度
+     * @param storageEgressExecutor 所有 store 共用的「从存储取数」单物理线程，由 FlowResourceRegistry 提供
      */
     public CaffeineFlowStorage(long maxSize,
                                long ttlMill,
@@ -47,6 +69,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
         this.maxCacheSize = maxSize;
+        this.resourceRegistry = finalizer.resourceRegistry();
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
@@ -61,115 +84,259 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                              .build();
     }
     
+    /**
+     * 将任务上下文存入存储区
+     *
+     * @param entry 任务上下文
+     *
+     * @return true 代表存入成功，需要释放生产许可；false 代表已配对处理，不需要释放生产许可
+     */
     @Override
     public boolean doDeposit(FlowEntry<T> entry) {
         String key = joiner.joinKey(entry.getData());
-        // --- 场景 A：不配对 (覆盖模式) ---
+        
+        // 场景 A：不配对（覆盖模式）
         if (!joiner.needMatched()) {
-            // 使用 put 覆盖并拿回旧值
-            FlowEntry<T> oldEntry = cache.asMap().put(key, entry);
-            if (oldEntry != null) {
-                // 旧数据被顶替了，必须物理终结它（归还信号量、减进度）
-                try (oldEntry) {
-                    joiner.onFailed(oldEntry.getData(), oldEntry.getJobId());
-                } finally {
-                    progressTracker.onPassiveEgress();
-                }
-            }
-            // 返回 true：告知外层 entry 已经成功入库，请释放当前线程持有的信号量许可（归还门票）
+            return handleOverwriteMode(key, entry);
+        }
+        
+        // 场景 B：需要配对
+        return handleMatchingMode(key, entry);
+    }
+    
+    /**
+     * 处理覆盖模式：新数据覆盖旧数据
+     *
+     * @param key   聚合键
+     * @param entry 新数据条目
+     *
+     * @return true（需要释放生产许可）
+     */
+    private boolean handleOverwriteMode(String key, FlowEntry<T> entry) {
+        FlowEntry<T> oldEntry = cache.asMap().put(key, entry);
+        if (oldEntry != null) {
+            // 旧数据被顶替，必须物理终结它（归还信号量、减进度）
+            handleReplacedEntry(oldEntry);
+        }
+        // 返回 true：告知外层 entry 已经成功入库，请释放当前线程持有的信号量许可
+        return true;
+    }
+    
+    /**
+     * 处理被替换的旧条目
+     *
+     * @param oldEntry 被替换的旧条目
+     */
+    private void handleReplacedEntry(FlowEntry<T> oldEntry) {
+        try (oldEntry) {
+            joiner.onFailed(oldEntry.getData(), oldEntry.getJobId());
+        } finally {
+            progressTracker.onPassiveEgress();
+        }
+    }
+    
+    /**
+     * 处理配对模式：查找匹配的条目并处理
+     *
+     * @param key   聚合键
+     * @param entry 新数据条目
+     *
+     * @return true 如果没有匹配项（已存入），false 如果配对成功（已处理）
+     */
+    private boolean handleMatchingMode(String key, FlowEntry<T> entry) {
+        FlowEntry<T> partner = findAndRemovePartner(key, entry);
+        if (partner == null) {
+            // 没有匹配项，已存入，返回 true 释放生产许可
             return true;
         }
-        // --- 场景 B：需要配对 ---
+        
+        // 配对成功，异步处理配对逻辑
+        processMatchedPair(partner, entry);
+        // 返回 false：entry 已在配对处理中被终结，不需要释放生产许可
+        return false;
+    }
+    
+    /**
+     * 查找并移除匹配的条目
+     *
+     * @param key   聚合键
+     * @param entry 新数据条目
+     *
+     * @return 匹配的旧条目，如果没有匹配则返回 null
+     */
+    private FlowEntry<T> findAndRemovePartner(String key, FlowEntry<T> entry) {
         final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
         cache.asMap().compute(key, (k, existing) -> {
             if (existing != null) {
                 matchFound.set(existing);
                 return null; // 移除旧的进行配对
             }
-            return entry; // 存入自己
+            return entry; // 存入新条目
         });
-        FlowEntry<T> partner = matchFound.get();
-        if (partner == null) {
-            return true;
-        }
-        // 配对成功：当前线程同时拿到了 partner 和 entry。
-        // 我们在当前线程彻底完成它们的使命。
-        FlowManager flowManager = finalizer.flowManager();
-        ExecutorService globalExecutor = flowManager.getGlobalExecutor();
-        
-        globalExecutor.submit(() -> {
-            FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
-            if (launcher == null) {
-                log.warn("No active launcher found for job id {}", entry.getJobId());
-                partner.close();
-                return;
-            }
-            Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-            boolean entryAcquire = false;
-            boolean parentAcquire = false;
-            try (partner) {
-                try {
-                    //这里要增加两个信号量，entry用1个，partner用1个
-                    taskOrchestrator.acquire();
-                    entryAcquire = true;
-                    taskOrchestrator.acquire();
-                    parentAcquire = true;
-                } catch (InterruptedException e) {
-                    FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-                    taskOrchestrator.tracker().onPassiveEgress();
-                    flowJoiner.onFailed(entry.getData(), entry.getJobId());
-                    Thread.currentThread().interrupt();
-                }
-                if (joiner.isMatched(partner.getData(), entry.getData())) {
-                    progressTracker.onActiveEgress();
-                    progressTracker.onActiveEgress();
-                    joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
-                } else {
-                    joiner.onFailed(partner.getData(), partner.getJobId());
-                    progressTracker.onPassiveEgress();
-                    joiner.onFailed(entry.getData(), entry.getJobId());
-                    progressTracker.onPassiveEgress();
-                }
-            } finally {
-                if (entryAcquire) {
-                    taskOrchestrator.release();
-                }
-                if (parentAcquire) {
-                    taskOrchestrator.release();
-                }
-                if (launcher.getBackpressureController() != null) {
-                    launcher.getBackpressureController().signalRelease();
-                }
-            }
-        });
-        // 重要：返回 false！
-        // 因为 entry 已经在上面的 try-with-resources 里被标记为彻底终结（refCnt 归零）。
-        // 此时不需要外层再调用 releasePermitOnly。
-        return false;
+        return matchFound.get();
     }
     
+    /**
+     * 处理配对成功的两个条目
+     *
+     * @param partner 先到达的条目
+     * @param entry   后到达的条目
+     */
+    private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
+        FlowManager flowManager = resourceRegistry.getFlowManager();
+        if (flowManager == null) {
+            log.warn("FlowManager not available for job {}", entry.getJobId());
+            partner.close();
+            return;
+        }
+        
+        ExecutorService globalExecutor = resourceRegistry.getGlobalExecutor();
+        globalExecutor.submit(() -> executeMatchedPairLogic(partner, entry, flowManager));
+    }
+    
+    /**
+     * 执行配对逻辑：获取信号量、检查匹配条件、调用回调
+     *
+     * @param partner     先到达的条目
+     * @param entry       后到达的条目
+     * @param flowManager FlowManager 实例
+     */
+    private void executeMatchedPairLogic(FlowEntry<T> partner, FlowEntry<T> entry, FlowManager flowManager) {
+        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+        if (launcher == null) {
+            log.warn("No active launcher found for job id {}", entry.getJobId());
+            partner.close();
+            return;
+        }
+        
+        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
+        boolean entryAcquire = false;
+        boolean partnerAcquire = false;
+        
+        try (partner) {
+            // 获取两个信号量：entry 用 1 个，partner 用 1 个
+            if (!acquirePermitsForPair(taskOrchestrator, entry, launcher)) {
+                return; // 获取失败，已在方法内处理
+            }
+            entryAcquire = true;
+            partnerAcquire = true;
+            
+            // 检查匹配条件并执行回调
+            if (joiner.isMatched(partner.getData(), entry.getData())) {
+                handleMatchedSuccess(partner, entry);
+            } else {
+                handleMatchedFailure(partner, entry);
+            }
+        } finally {
+            releasePermitsAndSignal(taskOrchestrator, entryAcquire, partnerAcquire, launcher);
+        }
+    }
+    
+    /**
+     * 为配对的两个条目获取信号量
+     *
+     * @return true 如果成功获取，false 如果失败
+     */
+    private boolean acquirePermitsForPair(Orchestrator taskOrchestrator,
+                                          FlowEntry<T> entry,
+                                          FlowLauncher<Object> launcher) {
+        try {
+            taskOrchestrator.acquire(); // entry 的信号量
+            taskOrchestrator.acquire(); // partner 的信号量
+            return true;
+        } catch (InterruptedException e) {
+            FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
+            taskOrchestrator.tracker().onPassiveEgress();
+            flowJoiner.onFailed(entry.getData(), entry.getJobId());
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+    
+    /**
+     * 处理配对成功的情况
+     */
+    private void handleMatchedSuccess(FlowEntry<T> partner, FlowEntry<T> entry) {
+        progressTracker.onActiveEgress(); // partner 成功
+        progressTracker.onActiveEgress(); // entry 成功
+        joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
+    }
+    
+    /**
+     * 处理配对失败的情况（不匹配）
+     */
+    private void handleMatchedFailure(FlowEntry<T> partner, FlowEntry<T> entry) {
+        joiner.onFailed(partner.getData(), partner.getJobId());
+        progressTracker.onPassiveEgress();
+        joiner.onFailed(entry.getData(), entry.getJobId());
+        progressTracker.onPassiveEgress();
+    }
+    
+    /**
+     * 释放信号量并通知背压控制器
+     */
+    private void releasePermitsAndSignal(Orchestrator taskOrchestrator,
+                                         boolean entryAcquire,
+                                         boolean partnerAcquire,
+                                         FlowLauncher<Object> launcher) {
+        if (entryAcquire) {
+            taskOrchestrator.release();
+        }
+        if (partnerAcquire) {
+            taskOrchestrator.release();
+        }
+        if (launcher.getBackpressureController() != null) {
+            launcher.getBackpressureController().signalRelease();
+        }
+    }
+    
+    /**
+     * 显式移除指定 Key 的条目
+     *
+     * <p>通常用于匹配成功后主动移除条目。
+     * 这会触发 removalListener，cause 为 EXPLICIT，不会执行 onEntryRemoved 的处理逻辑。</p>
+     *
+     * @param key 聚合键
+     * @return 被移除的条目，如果不存在则返回 null
+     */
     @Override
     public FlowEntry<T> remove(String key) {
-        // 显式移除（通常是匹配成功时调用）
-        // 这会触发 removalListener，cause 为 EXPLICIT
         return cache.asMap().remove(key);
     }
     
+    /**
+     * 处理条目被移除的情况（由 Caffeine 的 removalListener 触发）
+     *
+     * <p>处理流程：</p>
+     * <ol>
+     *   <li>在物理线程中先 acquire 全局信号量（拿不到则阻塞，最多持 1 条 entry）</li>
+     *   <li>交给虚拟线程执行 body + release</li>
+     * </ol>
+     *
+     * @param entry 被移除的条目
+     * @param cause 移除原因（超时、容量驱逐等）
+     */
     private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
-        // 情况 A：自然失效（超时驱逐或容量驱逐）
-        // 在物理线程中先 acquire 全局信号量（拿不到则阻塞，最多持 1 条 entry），再交给虚拟线程跑 body + release
-        FlowManager flowManager = finalizer.flowManager();
+        FlowManager flowManager = resourceRegistry.getFlowManager();
+        if (flowManager == null) {
+            log.warn("FlowManager not available for entry removal, jobId={}", entry.getJobId());
+            return;
+        }
+        
         FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
         try (entry) {
+            // 只处理被驱逐的情况（超时或容量），其他情况（如 EXPLICIT）不需要处理
             if (!cause.wasEvicted() || launcher == null) {
                 return;
             }
+            // 在物理线程中获取信号量，然后交给虚拟线程处理
             launcher.getTaskOrchestrator().acquire();
             finalizer.submitBodyOnly(entry, launcher);
         } catch (InterruptedException ie) {
             progressTracker.onPassiveEgress();
             Thread.currentThread().interrupt();
         } finally {
+            // 无论成功与否，都要通知背压控制器
             if (launcher != null && launcher.getBackpressureController() != null) {
                 launcher.getBackpressureController().signalRelease();
             }
@@ -186,9 +353,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         return maxCacheSize;
     }
     
+    /**
+     * 关闭存储，清理所有资源
+     *
+     * <p>会触发所有 Entry 的驱逐回调（通过 removalListener），确保资源正确释放。</p>
+     */
     @Override
     public void shutdown() {
-        // 触发所有 Entry 的驱逐回调，确保资源释放
         cache.invalidateAll();
         cache.cleanUp();
         log.info("CaffeineFlowStorage shut down, all entries invalidated.");

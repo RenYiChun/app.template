@@ -1,15 +1,14 @@
 package com.lrenyi.template.core.flow.context;
 
+import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Getter
 public record Orchestrator(String jobId, ProgressTracker tracker, Registration registration,
                            FlowResourceContext resourceContext) {
     /**
@@ -76,8 +75,11 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                     break;
                 }
                 // 挂起线程，等待信号。这比 sleep 精准得多
-                // 设置 50ms 超时作为兜底，防止极端情况下的丢失信号
-                boolean signalled = resourceContext.getPermitReleased().await(50, TimeUnit.MILLISECONDS);
+                // 设置超时作为兜底，防止极端情况下的丢失信号
+                boolean signalled = resourceContext.getPermitReleased()
+                                                   .await(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS,
+                                                          TimeUnit.MILLISECONDS
+                                                   );
                 if (!signalled) {
                     // 情况 A: 超时到了。
                     // 此时可能没有任务结束，但我们需要醒来重新计算 fairShare，

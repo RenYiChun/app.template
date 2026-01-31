@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.manager;
 
+import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class FlowProgressDisplay {
     public FlowProgressDisplay(FlowManager flowManager) {
         this.flowManager = flowManager;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "flow-progress-display");
+            Thread t = new Thread(r, FlowConstants.THREAD_NAME_PROGRESS_DISPLAY);
             t.setDaemon(true);
             return t;
         });
