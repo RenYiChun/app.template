@@ -2,22 +2,23 @@ package com.lrenyi.template.core.flow;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.impl.DefaultProgressTracker;
+import com.lrenyi.template.core.flow.impl.FlowInletImpl;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.source.FlowSourceProvider;
+import java.util.Optional;
 import java.util.concurrent.Semaphore;
-import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 通用流聚合引擎
  */
 @Slf4j
+@RequiredArgsConstructor
 public class FlowJoinerEngine {
     private final FlowManager flowManager;
-    
-    public FlowJoinerEngine(TemplateConfigProperties.JobGlobal jobGlobal) {
-        this.flowManager = FlowManager.getInstance(jobGlobal);
-    }
     
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.JobConfig jobConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
@@ -31,32 +32,94 @@ public class FlowJoinerEngine {
                         TemplateConfigProperties.JobConfig jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
         
-        // 2. 创建发射器
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
-        // 这个 semaphore 只控制同时起多少个 dealSingleData 任务
         Semaphore streamConcurrencySemaphore = launcher.getJobProducerSemaphore();
         
-        try (Stream<Stream<T>> parentStream = joiner.sources()) {
-            parentStream.forEach(subStream -> {
-                // 阻塞主线程，直到有子流配额
-                try {
-                    streamConcurrencySemaphore.acquire();
-                } catch (InterruptedException e) {
-                    log.warn("获取生产者端票据过程中被中断", e);
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                // 启动一个虚拟线程处理这一个子流
-                Thread.ofVirtual().name("prod-" + jobId).start(() -> {
-                    try (subStream) {
-                        // 每一个子流内部的生产速度，由 launcher 内部的“反压机制”控制
-                        subStream.forEach(launcher::launch);
-                    } finally {
-                        streamConcurrencySemaphore.release();
-                    }
-                });
-            });
+        try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
+            runUntilNoMoreSubSources(provider, streamConcurrencySemaphore, jobId, launcher);
         }
+    }
+    
+    private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider,
+                                              Semaphore semaphore,
+                                              String jobId,
+                                              FlowLauncher<T> launcher) {
+        while (tryRunNextSubSource(provider, semaphore, jobId, launcher)) {
+            Thread.onSpinWait();
+        }
+    }
+    
+    private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
+                                            Semaphore semaphore,
+                                            String jobId,
+                                            FlowLauncher<T> launcher) {
+        try {
+            if (!provider.hasNextSubSource()) {
+                return false;
+            }
+        } catch (InterruptedException e) {
+            log.warn("获取子流过程中被中断", e);
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        try {
+            semaphore.acquire();
+        } catch (InterruptedException e) {
+            log.warn("获取生产者端票据过程中被中断", e);
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        FlowSource<T> sub = provider.nextSubSource();
+        Thread.ofVirtual()
+              .name("prod-" + jobId)
+              .start(() -> runSubSourceInVirtualThread(sub, launcher, semaphore, jobId));
+        return true;
+    }
+    
+    private <T> void runSubSourceInVirtualThread(FlowSource<T> sub,
+                                                 FlowLauncher<T> launcher,
+                                                 Semaphore semaphore,
+                                                 String jobId) {
+        try (sub) {
+            drainSubSource(sub, launcher);
+        } catch (Exception e) {
+            log.error("子流消费异常 jobId={}", jobId, e);
+        } finally {
+            semaphore.release();
+        }
+    }
+    
+    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher) {
+        Optional<T> item = pollNext(sub);
+        while (item.isPresent()) {
+            launcher.launch(item.get());
+            item = pollNext(sub);
+        }
+    }
+    
+    private <T> Optional<T> pollNext(FlowSource<T> sub) {
+        try {
+            if (!sub.hasNext()) {
+                return Optional.empty();
+            }
+            return Optional.of(sub.next());
+        } catch (InterruptedException e) {
+            log.warn("子流拉取过程中被中断", e);
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
+    }
+    
+    /**
+     * 推送模式：注册任务并返回 FlowInlet，业务通过 inlet.push(item) 注入数据，
+     * 通过 inlet.markSourceFinished() 声明输入结束。不调用 joiner.sourceProvider()。
+     */
+    public <T> FlowInlet<T> startPush(String jobId,
+                                      FlowJoiner<T> joiner,
+                                      TemplateConfigProperties.JobConfig jobConfig) {
+        DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jobConfig);
+        return new FlowInletImpl<>(launcher);
     }
     
     public ProgressTracker getProgressTracker(String jobId) {

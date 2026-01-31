@@ -99,13 +99,24 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void markSourceFinished(String jobId) {
         this.sourceFinished = true;
+        checkCompletion();
     }
     
     /**
-     * 核心判定逻辑：只有当 Source 停止且系统内无存量活跃数据时，锁定任务状态
+     * 核心判定逻辑：Source 已停止，且缓存已空、无消费积压（Stuck 归零）、活跃消费归零时才算完成。
+     * - 积压/Stuck：与 {@link com.lrenyi.template.core.flow.context.FlowProgressSnapshot#getStuckCount()} 同义，
+     * activeConsumers - inStorage（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0，即 Stuck==0。
+     * - 完成条件：sourceFinished && drained。不依赖 totalExpected，避免「预期 N 条但实际少于 N 条就结束」时永远不完成。
      */
     private void checkCompletion() {
-        if (sourceFinished && totalExpected != -1 && terminated.sum() >= totalExpected) {
+        long inStorage = 0L;
+        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        if (activeLauncher != null) {
+            inStorage = activeLauncher.getStorage().size();
+        }
+        long active = activeConsumers.sum();
+        boolean drained = inStorage == 0L && active == 0L;  // 缓存空且无积压（Stuck=0）
+        if (sourceFinished && drained) {
             finishLock.lock();
             try {
                 if (endTimeMillis.get() == 0L) {

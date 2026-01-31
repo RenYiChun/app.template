@@ -1,13 +1,13 @@
 package com.lrenyi.template.core.flow;
 
 import com.lrenyi.template.core.flow.config.FlowStorageType;
-import java.util.stream.Stream;
+import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 
 /**
  * T: 数据项类型 (Terminal/Task item)
  */
 public interface FlowJoiner<T> {
-    
+
     /**
      * 定义该业务逻辑使用的缓存/存储类型。
      * 实现类需显式返回，例如：return FlowStorageType.CAFFEINE;
@@ -15,20 +15,19 @@ public interface FlowJoiner<T> {
     default FlowStorageType getStorageType() {
         return FlowStorageType.CAFFEINE; // 默认使用高频的本地缓存
     }
-    
+
     /**
      * 返回数据的具体类型。
      * 业务实现类需要显式返回，例如：return LogItem.class;
      */
     Class<T> getDataType();
-    
+
     /**
-     * 生产者之源：
-     * 外层 Stream 控制“并发单元”的产生（如：扫描目录，产生子流）。
-     * 内层 Stream 代表具体的业务数据处理。
+     * 数据源提供者：产出多个子流（FlowSource），每个子流对应一个并发单元。
+     * 可由 FlowSourceAdapters.fromStreams(Stream&lt;Stream&lt;T&gt;&gt;) 等适配得到。
      */
-    Stream<Stream<T>> sources();
-    
+    FlowSourceProvider<T> sourceProvider();
+
     /**
      * 关联键：定义数据聚合的唯一标识
      */
