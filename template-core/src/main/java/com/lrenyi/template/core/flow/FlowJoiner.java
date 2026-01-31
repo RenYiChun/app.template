@@ -65,17 +65,29 @@ public interface FlowJoiner<T> {
     default boolean isMatched(T existing, T incoming) {return true;}
     
     /**
-     * 孤立数据/失败数据处理出口。
-     * * 此方法是数据生命周期的【保底归宿】，以下情形会触发：
-     * 1. 【超时】：needMatched=true 时，数据在缓存中等待配对超时。
-     * 2. 【容量驱逐】：缓存达到 maxSize 或队列达到 capacity，导致旧数据被踢出。
-     * 3. 【冲突丢弃】：非配对模式下，Key 冲突导致旧数据被 Replace。
-     * 4. 【逻辑不匹配】：isMatched 返回 false，两个 Entry 均会被视为孤立项处理。
-     * 5. 【系统过载】：任务拒绝准入（Rejected）时。
-     * 6. 【系统关闭】：Shutdown 时，存储内残留的未处理数据。
-     * * @param item  未完成流程的数据项。
+     * 孤立数据/失败数据处理出口（带失败原因）。
+     * 以下情形会触发：
+     * 1. 【超时】TIMEOUT：needMatched=true 时，数据在缓存中等待配对超时。
+     * 2. 【容量驱逐】EVICTION：缓存达到 maxSize 或队列满，导致数据被踢出。
+     * 3. 【冲突替换】REPLACE：非配对模式下，Key 冲突导致旧数据被替换。
+     * 4. 【逻辑不匹配】MISMATCH：isMatched 返回 false，两条均走失败出口。
+     * 5. 【拒绝准入】REJECT：背压/过载等拒绝准入。
+     * 6. 【系统关闭】SHUTDOWN：Shutdown 时存储内残留的未处理数据。
      *
-     * @param jobId 所属任务ID。
+     * @param item   未完成流程的数据项
+     * @param jobId  所属任务ID
+     * @param reason 失败原因，用于排障与按原因统计
+     */
+    default void onFailed(T item, String jobId, FailureReason reason) {
+        onFailed(item, jobId);
+    }
+    
+    /**
+     * 孤立数据/失败数据处理出口（无原因，兼容旧实现）。
+     * 框架内部会调用 {@link #onFailed(Object, String, FailureReason)}，未覆写带原因版本时由此兜底。
+     *
+     * @param item  未完成流程的数据项
+     * @param jobId 所属任务ID
      */
     void onFailed(T item, String jobId);
 }

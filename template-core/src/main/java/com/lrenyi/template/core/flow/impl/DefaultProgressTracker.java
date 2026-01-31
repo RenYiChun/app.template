@@ -1,9 +1,12 @@
 package com.lrenyi.template.core.flow.impl;
 
+import com.lrenyi.template.core.flow.FailureReason;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -41,7 +44,15 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     // [被动出口计数]：通过过期(TTL)、淘汰(Evicted)等非业务路径终结的数量
     private final LongAdder passiveEgress = new LongAdder();
-    
+    // [按原因统计的被动出口]：用于 Snapshot/指标按原因统计
+    private final Map<FailureReason, LongAdder> passiveEgressByReason = new EnumMap<>(FailureReason.class);
+
+    {
+        for (FailureReason r : FailureReason.values()) {
+            passiveEgressByReason.put(r, new LongAdder());
+        }
+    }
+
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
     
@@ -86,6 +97,13 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onPassiveEgress() {
         passiveEgress.increment();
+        passiveEgressByReason.get(FailureReason.UNKNOWN).increment();
+    }
+
+    @Override
+    public void onPassiveEgress(FailureReason reason) {
+        passiveEgress.increment();
+        passiveEgressByReason.get(reason != null ? reason : FailureReason.UNKNOWN).increment();
     }
     
     @Override
@@ -137,6 +155,13 @@ public class DefaultProgressTracker implements ProgressTracker {
             FlowStorage<Object> storage = activeLauncher.getStorage();
             inStorage = storage.size();
         }
+        Map<String, Long> reasonMap = new java.util.HashMap<>();
+        passiveEgressByReason.forEach((r, adder) -> {
+            long v = adder.sum();
+            if (v > 0) {
+                reasonMap.put(r.name(), v);
+            }
+        });
         return new FlowProgressSnapshot(jobId,
                                         totalExpected,
                                         productionAcquired.sum(),
@@ -147,7 +172,8 @@ public class DefaultProgressTracker implements ProgressTracker {
                                         passiveEgress.sum(),
                                         terminated.sum(),
                                         startTimeMillis,
-                                        endTimeMillis.get()
+                                        endTimeMillis.get(),
+                                        reasonMap
         );
     }
     

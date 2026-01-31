@@ -1,6 +1,7 @@
 package com.lrenyi.template.core.flow.impl;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.flow.FailureReason;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.config.FlowStorageType;
@@ -89,9 +90,10 @@ public class FlowLauncher<T> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     log.warn("the job is stop for jobId: {}", jobId);
-                    tracker.onPassiveEgress();
-                    flowJoiner.onFailed(data, jobId);
+                    tracker.onPassiveEgress(FailureReason.SHUTDOWN);
+                    flowJoiner.onFailed(data, jobId, FailureReason.SHUTDOWN);
                     FlowMetrics.recordError("job_stopped_during_execution", jobId);
+                    FlowMetrics.recordFailureReason(FailureReason.SHUTDOWN, jobId);
                     return;
                 }
                 

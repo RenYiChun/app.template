@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.storage;
 
+import com.lrenyi.template.core.flow.FailureReason;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
@@ -89,9 +90,10 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
             FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
-                    progressTracker.onPassiveEgress();
+                    progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
                 }
                 FlowMetrics.recordError("launcher_not_found_drain", entry.getJobId());
+                FlowMetrics.recordFailureReason(FailureReason.SHUTDOWN, entry.getJobId());
                 entry.close();
                 continue;
             }
@@ -100,8 +102,9 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
                 finalizer.submitBodyOnly(entry, launcher);
             } catch (InterruptedException e) {
                 if (progressTracker != null) {
-                    progressTracker.onPassiveEgress();
+                    progressTracker.onPassiveEgress(FailureReason.REJECT);
                 }
+                FlowMetrics.recordFailureReason(FailureReason.REJECT, entry.getJobId());
                 FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
                 entry.close();
                 Thread.currentThread().interrupt();
@@ -153,7 +156,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
             if (progressTracker != null) {
-                progressTracker.onPassiveEgress();
+                progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
             }
             remaining.close();
         }

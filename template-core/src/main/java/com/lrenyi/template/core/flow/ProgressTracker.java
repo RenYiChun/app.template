@@ -44,9 +44,19 @@ public interface ProgressTracker {
     void onActiveEgress();
     
     /**
-     * 信号：被动出口触发 (Passive Egress)
-     * 含义：数据通过框架策略（如 TTL过期、LUR驱逐）离库
-     * 框架通过此信号自动计算“系统损耗率”
+     * 信号：被动出口触发 (Passive Egress)，带失败原因
+     * 含义：数据通过框架策略（如 TTL 过期、驱逐、替换、不匹配等）离库
+     * 框架通过此信号计算损耗率并按原因统计
+     *
+     * @param reason 失败原因，用于 Snapshot/指标按原因统计
+     */
+    default void onPassiveEgress(FailureReason reason) {
+        onPassiveEgress();
+    }
+    
+    /**
+     * 信号：被动出口触发 (Passive Egress)，无原因（兼容）
+     * 框架内部会调用 {@link #onPassiveEgress(FailureReason)}，未覆写带原因版本时由此兜底。
      */
     void onPassiveEgress();
     

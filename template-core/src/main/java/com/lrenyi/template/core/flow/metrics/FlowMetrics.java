@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.metrics;
 
+import com.lrenyi.template.core.flow.FailureReason;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -40,6 +41,13 @@ public class FlowMetrics {
      */
     public static void recordError(String errorType, String jobId) {
         getCollector().recordError(errorType, jobId);
+    }
+
+    /**
+     * 按失败原因记录，用于 Snapshot/指标按原因统计
+     */
+    public static void recordFailureReason(FailureReason reason, String jobId) {
+        getCollector().recordFailureReason(reason, jobId);
     }
     
     /**

@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.metrics;
 
+import com.lrenyi.template.core.flow.FailureReason;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +22,8 @@ public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
     private final Map<String, List<Long>> latencies = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> resourceUsage = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> errorCounts = new ConcurrentHashMap<>();
-    
+    private final Map<String, AtomicLong> failureReasonCounts = new ConcurrentHashMap<>();
+
     // 限制延迟记录的数量，避免内存泄漏
     private static final int MAX_LATENCY_RECORDS = 1000;
     
@@ -34,6 +36,16 @@ public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
     public void recordError(String errorType, String jobId) {
         String key = errorType + ":" + (jobId != null ? jobId : "unknown");
         errorCounts.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
+    }
+
+    @Override
+    public void recordFailureReason(FailureReason reason, String jobId) {
+        if (reason == null) {
+            return;
+        }
+        String key = "onFailed_" + reason.name();
+        errorCounts.computeIfAbsent(key + ":" + (jobId != null ? jobId : "unknown"), k -> new AtomicLong(0)).incrementAndGet();
+        failureReasonCounts.computeIfAbsent(reason.name(), k -> new AtomicLong(0)).incrementAndGet();
     }
     
     @Override
@@ -106,6 +118,11 @@ public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
         Map<String, Long> errorMetrics = new HashMap<>();
         errorCounts.forEach((key, value) -> errorMetrics.put(key, value.get()));
         metrics.put("errors", errorMetrics);
+
+        // 按失败原因统计
+        Map<String, Long> failureReasonMetrics = new HashMap<>();
+        failureReasonCounts.forEach((key, value) -> failureReasonMetrics.put(key, value.get()));
+        metrics.put("failureReasons", failureReasonMetrics);
         
         return Collections.unmodifiableMap(metrics);
     }
@@ -116,6 +133,7 @@ public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
         latencies.clear();
         resourceUsage.clear();
         errorCounts.clear();
+        failureReasonCounts.clear();
         log.debug("指标收集器已重置");
     }
 }

@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.Scheduler;
+import com.lrenyi.template.core.flow.FailureReason;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
@@ -132,12 +133,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      */
     private void handleReplacedEntry(FlowEntry<T> oldEntry) {
         try (oldEntry) {
-            joiner.onFailed(oldEntry.getData(), oldEntry.getJobId());
+            joiner.onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
             FlowMetrics.recordError("entry_replaced", oldEntry.getJobId());
+            FlowMetrics.recordFailureReason(FailureReason.REPLACE, oldEntry.getJobId());
         } catch (Exception e) {
             FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE);
         } finally {
-            progressTracker.onPassiveEgress();
+            progressTracker.onPassiveEgress(FailureReason.REPLACE);
         }
     }
     
@@ -263,8 +265,9 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             return true;
         } catch (InterruptedException e) {
             FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-            taskOrchestrator.tracker().onPassiveEgress();
-            flowJoiner.onFailed(entry.getData(), entry.getJobId());
+            taskOrchestrator.tracker().onPassiveEgress(FailureReason.REJECT);
+            flowJoiner.onFailed(entry.getData(), entry.getJobId(), FailureReason.REJECT);
+            FlowMetrics.recordFailureReason(FailureReason.REJECT, entry.getJobId());
             Thread.currentThread().interrupt();
             return false;
         }
@@ -290,14 +293,16 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      */
     private void handleMatchedFailure(FlowEntry<T> partner, FlowEntry<T> entry) {
         try {
-            joiner.onFailed(partner.getData(), partner.getJobId());
-            joiner.onFailed(entry.getData(), entry.getJobId());
+            joiner.onFailed(partner.getData(), partner.getJobId(), FailureReason.MISMATCH);
+            joiner.onFailed(entry.getData(), entry.getJobId(), FailureReason.MISMATCH);
             FlowMetrics.recordError("match_failed_not_matched", entry.getJobId());
+            FlowMetrics.recordFailureReason(FailureReason.MISMATCH, partner.getJobId());
+            FlowMetrics.recordFailureReason(FailureReason.MISMATCH, entry.getJobId());
         } catch (Exception e) {
             FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
         }
-        progressTracker.onPassiveEgress();
-        progressTracker.onPassiveEgress();
+        progressTracker.onPassiveEgress(FailureReason.MISMATCH);
+        progressTracker.onPassiveEgress(FailureReason.MISMATCH);
     }
     
     /**
@@ -367,7 +372,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             launcher.getTaskOrchestrator().acquire();
             finalizer.submitBodyOnly(entry, launcher);
         } catch (InterruptedException ie) {
-            progressTracker.onPassiveEgress();
+            progressTracker.onPassiveEgress(FailureReason.UNKNOWN);
             FlowExceptionHelper.handleException(entry.getJobId(), null, ie, FlowPhase.FINALIZATION);
             Thread.currentThread().interrupt();
         } finally {

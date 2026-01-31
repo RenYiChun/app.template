@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.metrics;
 
+import com.lrenyi.template.core.flow.FailureReason;
 import java.util.Map;
 
 /**
@@ -23,6 +24,14 @@ public interface FlowMetricsCollector {
      * @param jobId     Job ID
      */
     void recordError(String errorType, String jobId);
+
+    /**
+     * 按失败原因记录被动出口，用于指标按原因统计
+     *
+     * @param reason 失败原因
+     * @param jobId  Job ID
+     */
+    void recordFailureReason(FailureReason reason, String jobId);
     
     /**
      * 记录延迟
