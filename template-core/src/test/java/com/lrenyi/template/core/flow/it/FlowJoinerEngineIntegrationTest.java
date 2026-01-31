@@ -27,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,8 +127,8 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(pairCount, joiner.getOnSuccessCount());
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(pairCount * 2, snapshot.terminated());
-        assertTrue(joiner.getOnFailedCount(FailureReason.MISMATCH) == 0);
-        assertTrue(joiner.getOnFailedCount(FailureReason.EVICTION) == 0);
+        assertEquals(0, joiner.getOnFailedCount(FailureReason.MISMATCH));
+        assertEquals(0, joiner.getOnFailedCount(FailureReason.EVICTION));
     }
 
     @Test
@@ -170,6 +171,12 @@ class FlowJoinerEngineIntegrationTest {
         }
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        for (int i = 0; i < 100; i++) {
+            if (joiner.getOnConsumeCount() >= count && inlet.getProgressTracker().getSnapshot().terminated() >= count) {
+                break;
+            }
+            Thread.sleep(100);
+        }
 
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
         assertEquals(0, snapshot.activeConsumers());
@@ -316,7 +323,7 @@ class FlowJoinerEngineIntegrationTest {
 
         java.util.Map<String, Object> metrics = manager.getMetrics();
         assertNotNull(metrics);
-        assertTrue(metrics.containsKey("counters") || metrics.containsKey("errors") || metrics.size() > 0);
+        assertTrue(metrics.containsKey("counters") || metrics.containsKey("errors") || !metrics.isEmpty());
 
         java.util.Map<String, Object> healthStatus = manager.getHealthStatus();
         assertNotNull(healthStatus);
@@ -353,7 +360,7 @@ class FlowJoinerEngineIntegrationTest {
 
         assertEquals(1, joiner1.getOnConsumeCount());
         assertEquals(1, joiner2.getOnConsumeCount());
-        assertTrue(manager.getActiveLaunchers().size() >= 1, "运行期间或完成后 launcher 仍可存在");
+        assertFalse(manager.getActiveLaunchers().isEmpty(), "运行期间或完成后 launcher 仍可存在");
     }
 
     @Test

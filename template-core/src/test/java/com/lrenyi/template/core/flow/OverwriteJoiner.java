@@ -29,7 +29,7 @@ public class OverwriteJoiner implements FlowJoiner<PairItem> {
 
     @Override
     public FlowStorageType getStorageType() {
-        return FlowStorageType.CAFFEINE;
+        return FlowJoiner.super.getStorageType();
     }
 
     @Override
