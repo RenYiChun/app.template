@@ -6,5 +6,6 @@ public class TemplateConstant {
     public static final String AUTHORIZATION_DATA_KEY = "authorization-data";
     public static final int SHOT_TOKEN_LENGTH = 32;
     
-    private TemplateConstant() {}
+    private TemplateConstant() {
+    }
 }

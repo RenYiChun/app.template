@@ -51,7 +51,9 @@ public interface FlowJoiner<T> {
     /**
      * 只有双流对齐任务才需要覆写此方法为 true。
      */
-    default boolean needMatched() {return false;}
+    default boolean needMatched() {
+        return false;
+    }
     
     /**
      * 匹配校验：仅在 needMatched 为 true 时有效。
@@ -62,7 +64,9 @@ public interface FlowJoiner<T> {
      *
      * @return 如果满足配对条件返回 true，否则返回 false
      */
-    default boolean isMatched(T existing, T incoming) {return true;}
+    default boolean isMatched(T existing, T incoming) {
+        return true;
+    }
     
     /**
      * 孤立数据/失败数据处理出口（带失败原因）。
