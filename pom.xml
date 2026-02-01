@@ -91,10 +91,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <includeFilterFile>${session.executionRootDirectory}/checker/spotbugs-security-include.xml
-                    </includeFilterFile>
-                    <excludeFilterFile>${session.executionRootDirectory}/checker/spotbugs-security-exclude.xml
-                    </excludeFilterFile>
+                    <excludeFilterFile>${session.executionRootDirectory}/checker/spotbugs-exclude.xml</excludeFilterFile>
                     <plugins>
                         <plugin>
                             <groupId>com.h3xstream.findsecbugs</groupId>
