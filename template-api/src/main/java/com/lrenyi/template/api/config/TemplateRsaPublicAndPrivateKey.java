@@ -1,8 +1,8 @@
 package com.lrenyi.template.api.config;
 
-import com.lrenyi.template.core.util.RsaUtils;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import com.lrenyi.template.core.util.RsaUtils;
 
 public class TemplateRsaPublicAndPrivateKey extends RsaPublicAndPrivateKey {
     

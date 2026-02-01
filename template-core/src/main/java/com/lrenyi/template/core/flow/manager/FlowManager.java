@@ -1,5 +1,13 @@
 package com.lrenyi.template.core.flow.manager;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
@@ -17,14 +25,6 @@ import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -122,7 +122,8 @@ public class FlowManager {
         if (config1 == null || config2 == null) {
             return false;
         }
-        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit() && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
+        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit()
+                && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
     }
     
     /**

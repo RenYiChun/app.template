@@ -1,5 +1,8 @@
 package com.lrenyi.template.core.flow.manager;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
@@ -9,9 +12,6 @@ import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import com.lrenyi.template.core.flow.storage.FlowStorageFactory;
 import com.lrenyi.template.core.flow.storage.FlowStorageFactoryLoader;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 
 /**

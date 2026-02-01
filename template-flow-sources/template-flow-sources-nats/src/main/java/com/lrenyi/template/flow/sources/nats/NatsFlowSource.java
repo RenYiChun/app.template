@@ -1,10 +1,10 @@
 package com.lrenyi.template.flow.sources.nats;
 
+import java.time.Duration;
+import java.util.NoSuchElementException;
 import com.lrenyi.template.core.flow.source.FlowSource;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
-import java.time.Duration;
-import java.util.NoSuchElementException;
 
 /**
  * 单子流 NATS 数据源：包装一个 {@link Subscription}，按顺序产出 T。

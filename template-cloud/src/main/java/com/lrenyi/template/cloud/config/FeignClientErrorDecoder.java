@@ -1,8 +1,8 @@
 package com.lrenyi.template.cloud.config;
 
+import java.nio.charset.StandardCharsets;
 import feign.Response;
 import feign.codec.ErrorDecoder;
-import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

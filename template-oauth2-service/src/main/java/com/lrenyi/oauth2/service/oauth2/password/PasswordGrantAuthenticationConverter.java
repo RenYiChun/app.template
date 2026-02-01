@@ -1,9 +1,9 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
-import com.lrenyi.template.core.util.OAuth2Constant;
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
+import com.lrenyi.template.core.util.OAuth2Constant;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

@@ -1,11 +1,11 @@
 package com.lrenyi.template.core.flow;
 
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
-import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import com.lrenyi.template.core.flow.config.FlowStorageType;
+import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
+import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 
 /**
  * 测试用 Joiner：双流配对（needMatched=true），Caffeine 存储。

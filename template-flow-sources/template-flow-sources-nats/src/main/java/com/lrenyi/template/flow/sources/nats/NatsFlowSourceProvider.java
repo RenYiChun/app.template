@@ -1,11 +1,11 @@
 package com.lrenyi.template.flow.sources.nats;
 
+import java.time.Duration;
+import java.util.List;
 import com.lrenyi.template.core.flow.source.FlowSource;
 import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
-import java.time.Duration;
-import java.util.List;
 
 /**
  * 多子流 NATS 提供者：为每个 {@link Subscription} 提供一个 {@link FlowSource}，

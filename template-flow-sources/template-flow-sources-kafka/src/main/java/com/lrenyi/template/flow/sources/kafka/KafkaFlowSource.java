@@ -1,9 +1,9 @@
 package com.lrenyi.template.flow.sources.kafka;
 
-import com.lrenyi.template.core.flow.source.FlowSource;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import com.lrenyi.template.core.flow.source.FlowSource;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;

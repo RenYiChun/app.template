@@ -1,13 +1,15 @@
 package com.lrenyi.template.core.flow.context;
 
-import com.lrenyi.template.core.flow.impl.BackpressureController;
-import com.lrenyi.template.core.flow.manager.FlowManager;
-import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.core.flow.storage.FlowStorage;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import com.lrenyi.template.core.flow.impl.BackpressureController;
+import com.lrenyi.template.core.flow.manager.FlowCacheManager;
+import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -73,7 +75,7 @@ public class FlowResourceContext {
     /**
      * 获取存储出口执行器
      */
-    public java.util.concurrent.ScheduledExecutorService getStorageEgressExecutor() {
+    public ScheduledExecutorService getStorageEgressExecutor() {
         return resourceRegistry.getStorageEgressExecutor();
     }
     
@@ -94,7 +96,7 @@ public class FlowResourceContext {
     /**
      * 获取缓存管理器
      */
-    public com.lrenyi.template.core.flow.manager.FlowCacheManager getCacheManager() {
+    public FlowCacheManager getCacheManager() {
         return resourceRegistry.getCacheManager();
     }
 }

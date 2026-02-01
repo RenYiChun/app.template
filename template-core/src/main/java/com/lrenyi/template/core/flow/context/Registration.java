@@ -1,7 +1,7 @@
 package com.lrenyi.template.core.flow.context;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.Getter;
 
 /**

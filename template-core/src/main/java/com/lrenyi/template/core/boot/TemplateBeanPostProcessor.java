@@ -1,10 +1,7 @@
 package com.lrenyi.template.core.boot;
 
-import static com.lrenyi.template.core.util.ThreadConstant.SCHEDULED_EXECUTOR_SERVICE;
-import static com.lrenyi.template.core.util.ThreadConstant.VIRTUAL_THREAD_EXECUTOR;
-
-import com.lrenyi.template.core.util.ThreadConstant;
 import java.lang.reflect.Method;
+import com.lrenyi.template.core.util.ThreadConstant;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
@@ -12,6 +9,9 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import static com.lrenyi.template.core.util.ThreadConstant.SCHEDULED_EXECUTOR_SERVICE;
+import static com.lrenyi.template.core.util.ThreadConstant.VIRTUAL_THREAD_EXECUTOR;
 
 @Slf4j
 @Component

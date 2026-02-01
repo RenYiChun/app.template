@@ -1,8 +1,8 @@
 package com.lrenyi.template.core.flow.impl;
 
+import java.util.concurrent.CompletableFuture;
 import com.lrenyi.template.core.flow.FlowInlet;
 import com.lrenyi.template.core.flow.ProgressTracker;
-import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 
 /**

@@ -1,14 +1,14 @@
 package com.lrenyi.template.core.flow;
 
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
-import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import com.lrenyi.template.core.flow.config.FlowStorageType;
+import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
+import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 
 /**
  * 测试用 Joiner：Queue 存储，FIFO 消费。

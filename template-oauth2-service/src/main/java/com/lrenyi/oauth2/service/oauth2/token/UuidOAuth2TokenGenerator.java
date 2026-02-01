@@ -1,13 +1,13 @@
 package com.lrenyi.oauth2.service.oauth2.token;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.SpringContextUtil;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.util.SpringContextUtil;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 import org.springframework.security.oauth2.core.ClaimAccessor;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;

@@ -1,8 +1,8 @@
 package com.lrenyi.template.core.boot;
 
-import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import java.util.HashMap;
 import java.util.Map;
+import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;

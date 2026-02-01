@@ -1,9 +1,9 @@
 package com.lrenyi.oauth2.service.config;
 
+import java.util.List;
 import com.lrenyi.template.api.audit.service.AuditLogService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;

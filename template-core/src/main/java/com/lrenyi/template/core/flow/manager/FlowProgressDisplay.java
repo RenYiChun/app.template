@@ -1,13 +1,13 @@
 package com.lrenyi.template.core.flow.manager;
 
-import com.lrenyi.template.core.flow.FlowConstants;
-import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.core.flow.health.FlowHealth;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.lrenyi.template.core.flow.FlowConstants;
+import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
+import com.lrenyi.template.core.flow.health.FlowHealth;
+import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -49,13 +49,19 @@ public class FlowProgressDisplay {
         // 启动时输出字段解析，帮助理解物理位移模型
         log.info("Starting Flow Progress Monitor...\n{}", getMetadataDescription());
         scheduler.scheduleAtFixedRate(() -> {
-            try {displayStatus(null);} catch (Exception e) {log.error("Display error", e);}
+            try {
+                displayStatus(null);
+            } catch (Exception e) {
+                log.error("Display error", e);
+            }
         }, initialDelay, period, unit);
     }
     
     public void displayStatus(String targetJobId) {
         Map<String, FlowLauncher<?>> launchers = flowManager.getActiveLaunchers();
-        if (launchers.isEmpty()) {return;}
+        if (launchers.isEmpty()) {
+            return;
+        }
         
         StringBuilder sb = new StringBuilder("\n");
         sb.append(centerText()).append("\n");
@@ -325,7 +331,9 @@ public class FlowProgressDisplay {
     }
     
     public void stop() {
-        if (scheduler != null) {scheduler.shutdown();}
+        if (scheduler != null) {
+            scheduler.shutdown();
+        }
     }
     
     private String getMetadataDescription() {

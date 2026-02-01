@@ -1,12 +1,12 @@
 package com.lrenyi.oauth2.service.config;
 
+import java.util.Set;
 import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
+import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
-import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.RbacUserDetailsService;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;

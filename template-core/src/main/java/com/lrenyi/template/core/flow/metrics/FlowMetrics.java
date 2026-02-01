@@ -1,8 +1,8 @@
 package com.lrenyi.template.core.flow.metrics;
 
-import com.lrenyi.template.core.flow.FailureReason;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import com.lrenyi.template.core.flow.FailureReason;
 
 /**
  * Flow 指标工具类

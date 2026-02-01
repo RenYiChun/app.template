@@ -1,10 +1,10 @@
 package com.lrenyi.template.flow.sources.kafka;
 
+import java.time.Duration;
+import java.util.List;
 import com.lrenyi.template.core.flow.source.FlowSource;
 import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
 import com.lrenyi.template.core.flow.source.FlowSourceProvider;
-import java.time.Duration;
-import java.util.List;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 

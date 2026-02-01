@@ -1,13 +1,13 @@
 package com.lrenyi.oauth2.service.oauth2;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.TokenBean;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;

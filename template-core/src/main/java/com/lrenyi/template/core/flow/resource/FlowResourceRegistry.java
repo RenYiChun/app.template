@@ -1,9 +1,5 @@
 package com.lrenyi.template.core.flow.resource;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FlowConstants;
-import com.lrenyi.template.core.flow.manager.FlowCacheManager;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -12,6 +8,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.flow.FlowConstants;
+import com.lrenyi.template.core.flow.manager.FlowCacheManager;
+import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -166,7 +166,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         if (config1 == null || config2 == null) {
             return false;
         }
-        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit() && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
+        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit()
+                && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
     }
     
     /**

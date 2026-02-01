@@ -1,9 +1,9 @@
 package com.lrenyi.oauth2.service.oauth2;
 
+import java.io.IOException;
 import com.lrenyi.template.api.audit.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -28,8 +28,8 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
     }
     
     @Autowired
-    public void setoAuth2AuthorizationService(OAuth2AuthorizationService oAuth2AuthorizationService) {
-        this.oAuth2AuthorizationService = oAuth2AuthorizationService;
+    public void setoAuth2AuthorizationService(OAuth2AuthorizationService oauth2AuthorizationService) {
+        this.oAuth2AuthorizationService = oauth2AuthorizationService;
     }
     
     @Override

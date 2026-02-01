@@ -1,7 +1,7 @@
 package com.lrenyi.template.core.flow;
 
-import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import java.util.concurrent.CompletableFuture;
+import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 
 /**
  * 进度追踪器：基于物理位移的流控观测模型

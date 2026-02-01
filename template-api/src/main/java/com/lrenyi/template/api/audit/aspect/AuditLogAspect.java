@@ -27,7 +27,9 @@ public class AuditLogAspect {
     
     //@formatter:off
     @Pointcut("""
-        execution(public * *(..)) && (@within(org.springframework.stereotype.Controller) || @within(org.springframework.web.bind.annotation.RestController))
+        execution(public * *(..))
+        && (@within(org.springframework.stereotype.Controller)
+        || @within(org.springframework.web.bind.annotation.RestController))
           && (@annotation(org.springframework.web.bind.annotation.RequestMapping)
            || @annotation(org.springframework.web.bind.annotation.GetMapping)
             || @annotation(org.springframework.web.bind.annotation.PostMapping)
