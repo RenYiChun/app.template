@@ -8,6 +8,7 @@ import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -65,8 +66,8 @@ public class FlowProgressDisplay {
         
         StringBuilder sb = new StringBuilder("\n");
         sb.append(centerText()).append("\n");
-        
-        int available = flowManager.getGlobalSemaphore().availablePermits();
+        FlowResourceRegistry resourceRegistry = flowManager.getResourceRegistry();
+        int available = resourceRegistry.getGlobalSemaphore().availablePermits();
         int limit = flowManager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
         
         // 显示健康状态和详细信息
