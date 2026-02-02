@@ -26,10 +26,10 @@ public interface FlowStorage<T> {
     
     /**
      * 将任务上下文存入存储区
-     * * @param ctx 任务上下文
      *
+     * @param ctx 任务上下文
      * @return true 代表存入成功；
-     * false 代表存储已满或拒绝准入，此时框架应触发 onRejected 回调
+     *     false 代表存储已满或拒绝准入，此时框架应触发 onRejected 回调
      */
     boolean doDeposit(FlowEntry<T> ctx);
     

@@ -1,10 +1,10 @@
 package com.lrenyi.template.core.coder;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +41,9 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
                         }
                     });
                 }
-            } catch (NoSuchFieldException | IllegalAccessException ignore) {}
+            } catch (NoSuchFieldException | IllegalAccessException ignore) {
+                // 忽略反射访问异常，使用默认编码器
+            }
         }
     }
     

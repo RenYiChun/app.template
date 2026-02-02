@@ -189,6 +189,26 @@
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-flow-sources-kafka</artifactId>
+                <version>${app.template.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-flow-sources-paged</artifactId>
+                <version>${app.template.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-flow-sources-nats</artifactId>
+                <version>${app.template.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.nats</groupId>
+                <artifactId>jnats</artifactId>
+                <version>${jnats.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>

@@ -1,13 +1,13 @@
 package com.lrenyi.template.core.flow;
 
 import com.lrenyi.template.core.flow.config.FlowStorageType;
-import java.util.stream.Stream;
+import com.lrenyi.template.core.flow.source.FlowSourceProvider;
 
 /**
  * T: 数据项类型 (Terminal/Task item)
  */
 public interface FlowJoiner<T> {
-    
+
     /**
      * 定义该业务逻辑使用的缓存/存储类型。
      * 实现类需显式返回，例如：return FlowStorageType.CAFFEINE;
@@ -15,20 +15,19 @@ public interface FlowJoiner<T> {
     default FlowStorageType getStorageType() {
         return FlowStorageType.CAFFEINE; // 默认使用高频的本地缓存
     }
-    
+
     /**
      * 返回数据的具体类型。
      * 业务实现类需要显式返回，例如：return LogItem.class;
      */
     Class<T> getDataType();
-    
+
     /**
-     * 生产者之源：
-     * 外层 Stream 控制“并发单元”的产生（如：扫描目录，产生子流）。
-     * 内层 Stream 代表具体的业务数据处理。
+     * 数据源提供者：产出多个子流（FlowSource），每个子流对应一个并发单元。
+     * 可由 FlowSourceAdapters.fromStreams(Stream&lt;Stream&lt;T&gt;&gt;) 等适配得到。
      */
-    Stream<Stream<T>> sources();
-    
+    FlowSourceProvider<T> sourceProvider();
+
     /**
      * 关联键：定义数据聚合的唯一标识
      */
@@ -52,7 +51,9 @@ public interface FlowJoiner<T> {
     /**
      * 只有双流对齐任务才需要覆写此方法为 true。
      */
-    default boolean needMatched() {return false;}
+    default boolean needMatched() {
+        return false;
+    }
     
     /**
      * 匹配校验：仅在 needMatched 为 true 时有效。
@@ -63,20 +64,34 @@ public interface FlowJoiner<T> {
      *
      * @return 如果满足配对条件返回 true，否则返回 false
      */
-    default boolean isMatched(T existing, T incoming) {return true;}
+    default boolean isMatched(T existing, T incoming) {
+        return true;
+    }
     
     /**
-     * 孤立数据/失败数据处理出口。
-     * * 此方法是数据生命周期的【保底归宿】，以下情形会触发：
-     * 1. 【超时】：needMatched=true 时，数据在缓存中等待配对超时。
-     * 2. 【容量驱逐】：缓存达到 maxSize 或队列达到 capacity，导致旧数据被踢出。
-     * 3. 【冲突丢弃】：非配对模式下，Key 冲突导致旧数据被 Replace。
-     * 4. 【逻辑不匹配】：isMatched 返回 false，两个 Entry 均会被视为孤立项处理。
-     * 5. 【系统过载】：任务拒绝准入（Rejected）时。
-     * 6. 【系统关闭】：Shutdown 时，存储内残留的未处理数据。
-     * * @param item  未完成流程的数据项。
+     * 孤立数据/失败数据处理出口（带失败原因）。
+     * 以下情形会触发：
+     * 1. 【超时】TIMEOUT：needMatched=true 时，数据在缓存中等待配对超时。
+     * 2. 【容量驱逐】EVICTION：缓存达到 maxSize 或队列满，导致数据被踢出。
+     * 3. 【冲突替换】REPLACE：非配对模式下，Key 冲突导致旧数据被替换。
+     * 4. 【逻辑不匹配】MISMATCH：isMatched 返回 false，两条均走失败出口。
+     * 5. 【拒绝准入】REJECT：背压/过载等拒绝准入。
+     * 6. 【系统关闭】SHUTDOWN：Shutdown 时存储内残留的未处理数据。
      *
-     * @param jobId 所属任务ID。
+     * @param item   未完成流程的数据项
+     * @param jobId  所属任务ID
+     * @param reason 失败原因，用于排障与按原因统计
+     */
+    default void onFailed(T item, String jobId, FailureReason reason) {
+        onFailed(item, jobId);
+    }
+    
+    /**
+     * 孤立数据/失败数据处理出口（无原因，兼容旧实现）。
+     * 框架内部会调用 {@link #onFailed(Object, String, FailureReason)}，未覆写带原因版本时由此兜底。
+     *
+     * @param item  未完成流程的数据项
+     * @param jobId 所属任务ID
      */
     void onFailed(T item, String jobId);
 }

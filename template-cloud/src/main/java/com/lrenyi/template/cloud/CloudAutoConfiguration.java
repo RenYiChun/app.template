@@ -1,11 +1,11 @@
 package com.lrenyi.template.cloud;
 
+import java.net.URI;
 import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import feign.codec.ErrorDecoder;
-import java.net.URI;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -42,8 +42,8 @@ public class CloudAutoConfiguration {
             name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
     )
     public SpringOpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
-                                                                 @LoadBalanced RestTemplate restTemplate,
-                                                                 ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
+            @LoadBalanced RestTemplate restTemplate,
+            ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
         
         TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();

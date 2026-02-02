@@ -1,8 +1,8 @@
 package com.lrenyi.oauth2.service.config;
 
+import java.util.List;
 import com.lrenyi.oauth2.service.oauth2.redis.RedisOAuth2AuthorizationService;
 import com.lrenyi.oauth2.service.oauth2.redis.RedisRegisteredClientRepository;
-import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;

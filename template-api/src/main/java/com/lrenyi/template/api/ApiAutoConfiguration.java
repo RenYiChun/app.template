@@ -1,5 +1,8 @@
 package com.lrenyi.template.api;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import com.lrenyi.template.api.audit.aspect.AuditLogAspect;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.api.audit.service.AuditLogService;
@@ -8,9 +11,6 @@ import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;

@@ -1,13 +1,13 @@
 package com.lrenyi.template.cloud.config;
 
+import java.util.Enumeration;
+import java.util.List;
 import com.lrenyi.template.cloud.service.OauthUtilService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.TemplateConstant;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Enumeration;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -26,7 +26,6 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
     @Override
     public void apply(RequestTemplate template) {
         TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
-        List<String> headers = feign.getHeaders();
         template.header(TemplateConstant.HEADER_NAME, "true");
         if (feign.isNotOauth()) {
             return;
@@ -37,6 +36,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
             makeClientOauth(template);
             return;
         }
+        List<String> headers = feign.getHeaders();
         if (headers == null || headers.isEmpty()) {
             return;
         }

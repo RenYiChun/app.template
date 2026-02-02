@@ -1,13 +1,16 @@
 package com.lrenyi.template.core.flow.impl;
 
-import com.lrenyi.template.core.flow.ProgressTracker;
-import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.core.flow.manager.FlowManager;
-import com.lrenyi.template.core.flow.storage.FlowStorage;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantLock;
+import com.lrenyi.template.core.flow.FailureReason;
+import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
+import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.storage.FlowStorage;
 
 public class DefaultProgressTracker implements ProgressTracker {
     private final FlowManager flowManager;
@@ -41,7 +44,15 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     // [被动出口计数]：通过过期(TTL)、淘汰(Evicted)等非业务路径终结的数量
     private final LongAdder passiveEgress = new LongAdder();
-    
+    // [按原因统计的被动出口]：用于 Snapshot/指标按原因统计
+    private final Map<FailureReason, LongAdder> passiveEgressByReason = new EnumMap<>(FailureReason.class);
+
+    {
+        for (FailureReason r : FailureReason.values()) {
+            passiveEgressByReason.put(r, new LongAdder());
+        }
+    }
+
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
     
@@ -86,6 +97,13 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onPassiveEgress() {
         passiveEgress.increment();
+        passiveEgressByReason.get(FailureReason.UNKNOWN).increment();
+    }
+
+    @Override
+    public void onPassiveEgress(FailureReason reason) {
+        passiveEgress.increment();
+        passiveEgressByReason.get(reason != null ? reason : FailureReason.UNKNOWN).increment();
     }
     
     @Override
@@ -99,13 +117,24 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void markSourceFinished(String jobId) {
         this.sourceFinished = true;
+        checkCompletion();
     }
     
     /**
-     * 核心判定逻辑：只有当 Source 停止且系统内无存量活跃数据时，锁定任务状态
+     * 核心判定逻辑：Source 已停止，且缓存已空、无消费积压（Stuck 归零）、活跃消费归零时才算完成。
+     * - 积压/Stuck：与 {@link com.lrenyi.template.core.flow.context.FlowProgressSnapshot#getStuckCount()} 同义，
+     * activeConsumers - inStorage（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0，即 Stuck==0。
+     * - 完成条件：sourceFinished && drained。不依赖 totalExpected，避免「预期 N 条但实际少于 N 条就结束」时永远不完成。
      */
     private void checkCompletion() {
-        if (sourceFinished && totalExpected != -1 && terminated.sum() >= totalExpected) {
+        long inStorage = 0L;
+        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        if (activeLauncher != null) {
+            inStorage = activeLauncher.getStorage().size();
+        }
+        long active = activeConsumers.sum();
+        boolean drained = inStorage == 0L && active == 0L;  // 缓存空且无积压（Stuck=0）
+        if (sourceFinished && drained) {
             finishLock.lock();
             try {
                 if (endTimeMillis.get() == 0L) {
@@ -126,6 +155,13 @@ public class DefaultProgressTracker implements ProgressTracker {
             FlowStorage<Object> storage = activeLauncher.getStorage();
             inStorage = storage.size();
         }
+        Map<String, Long> reasonMap = new java.util.HashMap<>();
+        passiveEgressByReason.forEach((r, adder) -> {
+            long v = adder.sum();
+            if (v > 0) {
+                reasonMap.put(r.name(), v);
+            }
+        });
         return new FlowProgressSnapshot(jobId,
                                         totalExpected,
                                         productionAcquired.sum(),
@@ -136,7 +172,8 @@ public class DefaultProgressTracker implements ProgressTracker {
                                         passiveEgress.sum(),
                                         terminated.sum(),
                                         startTimeMillis,
-                                        endTimeMillis.get()
+                                        endTimeMillis.get(),
+                                        reasonMap
         );
     }
     

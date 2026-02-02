@@ -1,7 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
-import io.netty.buffer.ByteBufUtil;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;

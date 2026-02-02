@@ -1,11 +1,13 @@
 package com.lrenyi.template.core.flow.manager;
 
-import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.lrenyi.template.core.flow.FlowConstants;
+import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
+import com.lrenyi.template.core.flow.health.FlowHealth;
+import com.lrenyi.template.core.flow.impl.FlowLauncher;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -34,7 +36,7 @@ public class FlowProgressDisplay {
     public FlowProgressDisplay(FlowManager flowManager) {
         this.flowManager = flowManager;
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "flow-progress-display");
+            Thread t = new Thread(r, FlowConstants.THREAD_NAME_PROGRESS_DISPLAY);
             t.setDaemon(true);
             return t;
         });
@@ -47,19 +49,34 @@ public class FlowProgressDisplay {
         // 启动时输出字段解析，帮助理解物理位移模型
         log.info("Starting Flow Progress Monitor...\n{}", getMetadataDescription());
         scheduler.scheduleAtFixedRate(() -> {
-            try {displayStatus(null);} catch (Exception e) {log.error("Display error", e);}
+            try {
+                displayStatus(null);
+            } catch (Exception e) {
+                log.error("Display error", e);
+            }
         }, initialDelay, period, unit);
     }
     
     public void displayStatus(String targetJobId) {
         Map<String, FlowLauncher<?>> launchers = flowManager.getActiveLaunchers();
-        if (launchers.isEmpty()) {return;}
+        if (launchers.isEmpty()) {
+            return;
+        }
         
         StringBuilder sb = new StringBuilder("\n");
         sb.append(centerText()).append("\n");
         
         int available = flowManager.getGlobalSemaphore().availablePermits();
         int limit = flowManager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
+        
+        // 显示健康状态和详细信息
+        com.lrenyi.template.core.flow.health.HealthStatus healthStatus = FlowHealth.checkHealth();
+        Map<String, Object> healthDetails = FlowHealth.getHealthDetails();
+        sb.append(String.format("[Health Status] %s%n", healthStatus.name()));
+        
+        // 输出详细健康指标
+        renderHealthDetails(sb, healthDetails);
+        
         sb.append(String.format("[JobGlobal Resource] Limit: %-5d | Available: %-5d | Active Jobs: %d%n",
                                 limit,
                                 available,
@@ -78,6 +95,110 @@ public class FlowProgressDisplay {
         
         sb.append("\n").append(LINE);
         log.info(sb.toString());
+        
+        // 如果健康状态不是 HEALTHY，输出警告日志
+        if (healthStatus != com.lrenyi.template.core.flow.health.HealthStatus.HEALTHY) {
+            logHealthWarning(healthStatus, healthDetails);
+        }
+    }
+    
+    /**
+     * 渲染健康检查详细信息
+     */
+    private void renderHealthDetails(StringBuilder sb, Map<String, Object> healthDetails) {
+        @SuppressWarnings(
+                "unchecked"
+        ) java.util.List<Map<String, Object>> indicators = (java.util.List<Map<String, Object>>) healthDetails.get(
+                "indicators");
+        
+        if (indicators != null && !indicators.isEmpty()) {
+            for (Map<String, Object> indicator : indicators) {
+                String name = (String) indicator.get("name");
+                String status = (String) indicator.get("status");
+                @SuppressWarnings("unchecked") Map<String, Object> details = (Map<String, Object>) indicator.get(
+                        "details");
+                
+                sb.append(String.format("[Health Indicator: %s] Status: %s%n", name, status));
+                
+                if (details != null) {
+                    // 输出关键指标
+                    if (details.containsKey("semaphoreUsage")) {
+                        Double usage = (Double) details.get("semaphoreUsage");
+                        Integer used = (Integer) details.get("semaphoreUsed");
+                        Integer maxLimit = (Integer) details.get("semaphoreMaxLimit");
+                        sb.append(String.format("  - Semaphore Usage: %.2f%% (%d/%d)%n", usage * 100, used, maxLimit));
+                    }
+                    
+                    if (details.containsKey("activeJobs")) {
+                        Integer activeJobs = (Integer) details.get("activeJobs");
+                        Integer activeLaunchers = (Integer) details.get("activeLaunchers");
+                        sb.append(String.format("  - Active Jobs: %d, Active Launchers: %d%n",
+                                                activeJobs,
+                                                activeLaunchers
+                        ));
+                    }
+                    
+                    if (details.containsKey("resourceLeakDetected")) {
+                        Boolean leakDetected = (Boolean) details.get("resourceLeakDetected");
+                        if (Boolean.TRUE.equals(leakDetected)) {
+                            sb.append("  - ⚠️  Resource Leak Detected!%n");
+                        }
+                    }
+                    
+                    if (details.containsKey("resourceRegistryInitialized")) {
+                        Boolean initialized = (Boolean) details.get("resourceRegistryInitialized");
+                        Boolean shutdown = (Boolean) details.get("resourceRegistryShutdown");
+                        sb.append(String.format("  - Registry: Initialized=%s, Shutdown=%s%n", initialized, shutdown));
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 输出健康警告日志
+     */
+    private void logHealthWarning(com.lrenyi.template.core.flow.health.HealthStatus status,
+                                  Map<String, Object> healthDetails) {
+        StringBuilder warning = new StringBuilder("⚠️  Flow Framework Health Warning: ");
+        warning.append(status.name()).append("\n");
+        
+        @SuppressWarnings(
+                "unchecked"
+        ) java.util.List<Map<String, Object>> indicators = (java.util.List<Map<String, Object>>) healthDetails.get(
+                "indicators");
+        
+        if (indicators != null) {
+            for (Map<String, Object> indicator : indicators) {
+                String indicatorStatus = (String) indicator.get("status");
+                if (!"HEALTHY".equals(indicatorStatus)) {
+                    warning.append("  - ")
+                           .append(indicator.get("name"))
+                           .append(": ")
+                           .append(indicatorStatus)
+                           .append("\n");
+                    @SuppressWarnings("unchecked") Map<String, Object> details = (Map<String, Object>) indicator.get(
+                            "details");
+                    if (details != null) {
+                        if (details.containsKey("semaphoreUsage")) {
+                            Double usage = (Double) details.get("semaphoreUsage");
+                            warning.append("    Semaphore Usage: ")
+                                   .append(String.format("%.2f%%", usage * 100))
+                                   .append("\n");
+                        }
+                        if (Boolean.TRUE.equals(details.get("resourceLeakDetected"))) {
+                            warning.append("    ⚠️  Resource Leak Detected!\n");
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (status == com.lrenyi.template.core.flow.health.HealthStatus.UNHEALTHY) {
+            log.error(warning.toString());
+        } else {
+            log.warn(warning.toString());
+        }
     }
     
     private void renderHeader(StringBuilder sb) {
@@ -143,7 +264,7 @@ public class FlowProgressDisplay {
     }
     
     private void renderRow(StringBuilder sb, String id, FlowLauncher<?> launcher) {
-        FlowProgressSnapshot s = launcher.getTaskOrchestrator().getTracker().getSnapshot();
+        FlowProgressSnapshot s = launcher.getTaskOrchestrator().tracker().getSnapshot();
         String status = s.endTimeMillis() > 0 ? "DONE" : "RUN";
         String cacheInfo = s.inStorage() + "/" + launcher.getCacheCapacity();
         long durationMs =
@@ -210,7 +331,9 @@ public class FlowProgressDisplay {
     }
     
     public void stop() {
-        if (scheduler != null) {scheduler.shutdown();}
+        if (scheduler != null) {
+            scheduler.shutdown();
+        }
     }
     
     private String getMetadataDescription() {

@@ -1,17 +1,17 @@
 package com.lrenyi.template.core.flow.manager;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
 import com.lrenyi.template.core.flow.config.FlowStorageType;
 import com.lrenyi.template.core.flow.impl.FlowFinalizer;
-import com.lrenyi.template.core.flow.storage.CaffeineFlowStorage;
+import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
-import com.lrenyi.template.core.flow.storage.QueueFlowStorage;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import com.lrenyi.template.core.flow.storage.FlowStorageFactory;
+import com.lrenyi.template.core.flow.storage.FlowStorageFactoryLoader;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,13 +21,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowCacheManager {
     private final Map<String, FlowStorage<?>> storageRegistry = new ConcurrentHashMap<>();
-    private final Executor storageEgressExecutor;
+    private final FlowResourceRegistry resourceRegistry;
 
     /**
-     * @param storageEgressExecutor 所有 store 实现中「从存储取出数据」的专用单物理线程，由 FlowManager 提供
+     * @param resourceRegistry 全局资源注册表，用于获取存储出口执行器
      */
-    public FlowCacheManager(Executor storageEgressExecutor) {
-        this.storageEgressExecutor = storageEgressExecutor;
+    public FlowCacheManager(FlowResourceRegistry resourceRegistry) {
+        this.resourceRegistry = resourceRegistry;
     }
 
     @SuppressWarnings("unchecked")
@@ -40,17 +40,19 @@ public class FlowCacheManager {
         String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
-            int maxCacheSize = config.getMaxCacheSize();
-            if (type == FlowStorageType.QUEUE) {
-                return new QueueFlowStorage<>(maxCacheSize);
+            // 使用工厂模式创建存储实例
+            FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
+            if (factory == null) {
+                throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
             }
-            long ttlMill = config.getTtlMill();
-            return new CaffeineFlowStorage<>(maxCacheSize,
-                                             ttlMill,
-                                             joiner,
-                                             finalizer,
-                                             progressTracker,
-                                             storageEgressExecutor
+            
+            return factory.createStorage(
+                jobId,
+                joiner,
+                config,
+                finalizer,
+                progressTracker,
+                resourceRegistry.getStorageEgressExecutor()
             );
         });
     }

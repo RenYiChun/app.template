@@ -1,7 +1,5 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
-import com.lrenyi.oauth2.service.config.IdentifierType;
-import com.lrenyi.template.core.util.OAuth2Constant;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.Collection;
@@ -11,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import com.lrenyi.oauth2.service.config.IdentifierType;
+import com.lrenyi.template.core.util.OAuth2Constant;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -92,7 +92,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         if (client == null || !client.getAuthorizationGrantTypes().contains(grantType)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
         }
-        UserDetails userDetails = userDetailsService.loadUserByUsername(type + ":" +username);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(type + ":" + username);
         String password = (String) parameters.get(OAuth2ParameterNames.PASSWORD);
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             OAuth2Error error = new OAuth2Error(OAuth2Constant.LOGIN_FAIL_OF_PASSWORD, "password is incorrect", "");

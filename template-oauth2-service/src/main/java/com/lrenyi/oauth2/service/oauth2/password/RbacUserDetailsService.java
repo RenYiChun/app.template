@@ -1,9 +1,9 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
+import java.util.List;
 import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.api.rbac.model.AppUser;
 import com.lrenyi.template.api.rbac.model.Role;
-import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;

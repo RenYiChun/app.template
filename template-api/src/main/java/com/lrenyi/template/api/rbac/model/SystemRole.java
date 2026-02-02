@@ -6,7 +6,18 @@ import java.util.HashSet;
 import java.util.Set;
 import lombok.Getter;
 
-import static com.lrenyi.template.api.rbac.model.SystemPermission.*;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.AUDIT_READ;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.PERMISSION_READ;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.ROLE_ASSIGN;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.ROLE_CREATE;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.ROLE_DELETE;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.ROLE_READ;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.ROLE_UPDATE;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.USER_CREATE;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.USER_DELETE;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.USER_LIST;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.USER_READ;
+import static com.lrenyi.template.api.rbac.model.SystemPermission.USER_UPDATE;
 
 public enum SystemRole {
     //-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-

@@ -32,9 +32,13 @@ public class FlowEntry<T> implements AutoCloseable {
         this.jobId = jobId;
     }
     
-    public void retain() {REF_UPDATER.incrementAndGet(this);}
-    
-    public void release() {REF_UPDATER.decrementAndGet(this);}
+    public void retain() {
+        REF_UPDATER.incrementAndGet(this);
+    }
+
+    public void release() {
+        REF_UPDATER.decrementAndGet(this);
+    }
     
     /**
      * 抢占执行权：确保配对和驱逐只有一个能成功，
@@ -43,7 +47,9 @@ public class FlowEntry<T> implements AutoCloseable {
     public boolean claimLogic() {
         while (true) {
             int current = status;
-            if ((current & BIT_LOGIC_CLAIMED) != 0) {return false;}
+            if ((current & BIT_LOGIC_CLAIMED) != 0) {
+                return false;
+            }
             if (STATUS_UPDATER.compareAndSet(this, current, current | BIT_LOGIC_CLAIMED)) {
                 return true;
             }

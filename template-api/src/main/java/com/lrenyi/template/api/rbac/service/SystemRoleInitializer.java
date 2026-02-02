@@ -1,17 +1,15 @@
 package com.lrenyi.template.api.rbac.service;
 
+import java.util.HashSet;
+import java.util.Set;
 import com.lrenyi.template.api.rbac.model.Permission;
 import com.lrenyi.template.api.rbac.model.SystemPermission;
 import com.lrenyi.template.api.rbac.model.SystemRole;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * 系统角色初始化服务，在应用启动时自动创建预定义的系统角色和权限。
@@ -22,7 +20,6 @@ public class SystemRoleInitializer implements CommandLineRunner {
     
     private final IRbacAdminService rbacAdminService;
     
-    @Autowired
     public SystemRoleInitializer(ObjectProvider<IRbacAdminService> rbacAdminServiceObjectProvider) {
         this.rbacAdminService = rbacAdminServiceObjectProvider.getIfAvailable();
     }

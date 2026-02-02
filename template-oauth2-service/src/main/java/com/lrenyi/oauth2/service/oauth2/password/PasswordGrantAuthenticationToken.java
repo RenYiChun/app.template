@@ -1,7 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
-import com.lrenyi.template.core.util.OAuth2Constant;
 import java.util.Map;
+import com.lrenyi.template.core.util.OAuth2Constant;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;

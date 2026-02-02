@@ -10,10 +10,6 @@
     <name>Template Cloud</name>
     <packaging>jar</packaging>
 
-    <properties>
-        <checkstyle.related.dir>..</checkstyle.related.dir>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>

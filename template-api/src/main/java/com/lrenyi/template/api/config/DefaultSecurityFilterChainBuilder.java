@@ -1,5 +1,11 @@
 package com.lrenyi.template.api.config;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.interfaces.RSAPublicKey;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import com.lrenyi.template.api.feign.InternalRequestMatcher;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
@@ -7,12 +13,6 @@ import com.lrenyi.template.core.util.Result;
 import com.nimbusds.common.contenttype.ContentType;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.interfaces.RSAPublicKey;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,8 +66,8 @@ public class DefaultSecurityFilterChainBuilder {
             }
             registry.anyRequest().authenticated();
         });
-        TemplateConfigProperties.OAuth2Config oAuth2Config = templateConfigProperties.getOauth2();
-        TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oAuth2Config.getOpaqueToken();
+        TemplateConfigProperties.OAuth2Config oauth2Config = templateConfigProperties.getOauth2();
+        TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2Config.getOpaqueToken();
         // 检查是否启用了不透明token（Opaque Token）认证模式
         if (opaqueToken.isEnabled()) {
             // @formatter:off
@@ -81,7 +81,7 @@ public class DefaultSecurityFilterChainBuilder {
                 JwtDecoder jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
                 // 配置资源服务器
                 http.oauth2ResourceServer(
-                        oauth2ResourceServer -> oauth2ResourceServer.jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter))
+                    ors -> ors.jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter))
                 );
             } else {
                 http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {

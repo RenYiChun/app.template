@@ -1,13 +1,12 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
+import java.io.IOException;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.OAuth2Constant;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;

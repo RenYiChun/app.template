@@ -37,18 +37,17 @@
     </scm>
 
     <properties>
-        <checkstyle.related.dir/>
-        <checkstyle.file.dir>${project.basedir}/${checkstyle.related.dir}/checker/
-        </checkstyle.file.dir>
-
         <spotbugs-maven-plugin.version>4.8.1.0</spotbugs-maven-plugin.version>
         <maven-checkstyle-plugin.version>3.3.1</maven-checkstyle-plugin.version>
         <maven-site-plugin.version>3.12.1</maven-site-plugin.version>
+        <jacoco.version>0.8.11</jacoco.version>
+        <jacoco.check.skip>false</jacoco.check.skip>
     </properties>
 
     <modules>
         <module>template-api</module>
         <module>template-core</module>
+        <module>template-flow-sources</module>
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
     </modules>
@@ -62,6 +61,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <propertiesEncoding>UTF-8</propertiesEncoding>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
@@ -94,10 +101,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <includeFilterFile>${checkstyle.file.dir}/spotbugs-security-include.xml
-                    </includeFilterFile>
-                    <excludeFilterFile>${checkstyle.file.dir}/spotbugs-security-exclude.xml
-                    </excludeFilterFile>
+                    <excludeFilterFile>${session.executionRootDirectory}/checker/spotbugs-exclude.xml</excludeFilterFile>
                     <plugins>
                         <plugin>
                             <groupId>com.h3xstream.findsecbugs</groupId>
@@ -112,14 +116,10 @@
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${maven-checkstyle-plugin.version}</version>
                 <configuration>
-                    <configLocation>${checkstyle.file.dir}/checkStyle.xml</configLocation>
+                    <configLocation>${session.executionRootDirectory}/checker/checkStyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <includeTestSourceDirectory>false</includeTestSourceDirectory>
                     <failOnViolation>true</failOnViolation>
-                    <sourceDirectories>
-                        <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
-                        <sourceDirectory>${project.build.testSourceDirectory}</sourceDirectory>
-                    </sourceDirectories>
                 </configuration>
                 <executions>
                     <execution>
@@ -133,6 +133,83 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <argLine>@{argLine}</argLine>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco.version}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                                <phase>initialize</phase>
+                                <configuration>
+                                    <destFile>${project.build.directory}/jacoco.exec</destFile>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <excludes>
+                                        <exclude>**/*AutoConfiguration*.class</exclude>
+                                        <exclude>**/*Configuration.class</exclude>
+                                        <exclude>**/package-info.class</exclude>
+                                        <exclude>**/*Application*.class</exclude>
+                                    </excludes>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>check</id>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                                <phase>verify</phase>
+                                <configuration>
+                                    <skip>${jacoco.check.skip}</skip>
+                                    <excludes>
+                                        <exclude>**/*AutoConfiguration*.class</exclude>
+                                        <exclude>**/*Configuration.class</exclude>
+                                        <exclude>**/package-info.class</exclude>
+                                        <exclude>**/*Application*.class</exclude>
+                                    </excludes>
+                                    <rules>
+                                        <rule>
+                                            <element>BUNDLE</element>
+                                            <limits>
+                                                <limit>
+                                                    <counter>BRANCH</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>1.0</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <reporting>
         <plugins>
