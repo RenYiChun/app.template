@@ -66,9 +66,6 @@ public class FlowProgressDisplay {
         
         StringBuilder sb = new StringBuilder("\n");
         sb.append(centerText()).append("\n");
-        FlowResourceRegistry resourceRegistry = flowManager.getResourceRegistry();
-        int available = resourceRegistry.getGlobalSemaphore().availablePermits();
-        int limit = flowManager.getGlobalConfig().getGlobalSemaphoreMaxLimit();
         
         // 显示健康状态和详细信息
         com.lrenyi.template.core.flow.health.HealthStatus healthStatus = FlowHealth.checkHealth();
@@ -77,13 +74,6 @@ public class FlowProgressDisplay {
         
         // 输出详细健康指标
         renderHealthDetails(sb, healthDetails);
-        
-        sb.append(String.format("[JobGlobal Resource] Limit: %-5d | Available: %-5d | Active Jobs: %d%n",
-                                limit,
-                                available,
-                                launchers.size()
-        ));
-        
         sb.append(LINE).append("\n");
         renderHeader(sb);
         sb.append(LINE);

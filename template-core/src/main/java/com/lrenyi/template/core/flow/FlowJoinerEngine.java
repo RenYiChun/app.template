@@ -98,6 +98,7 @@ public class FlowJoinerEngine {
         while (tryRunNextSubSource(provider, semaphore, jobId, launcher)) {
             Thread.onSpinWait();
         }
+        launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
     }
     
     private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,

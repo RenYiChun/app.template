@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.lrenyi</groupId>
         <artifactId>template-flow-sources</artifactId>
-        <version>2.4.2-SNAPSHOT</version>
+        <version>2.4.2.1-SNAPSHOT</version>
     </parent>
     <artifactId>template-flow-sources-kafka</artifactId>
     <name>Template Flow Sources Kafka</name>
