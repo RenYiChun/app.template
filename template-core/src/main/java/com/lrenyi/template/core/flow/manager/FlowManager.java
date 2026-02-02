@@ -3,11 +3,8 @@ package com.lrenyi.template.core.flow.manager;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
@@ -342,44 +339,6 @@ public class FlowManager {
      */
     public Map<String, Object> getMetrics() {
         return FlowMetrics.getMetrics();
-    }
-    
-    
-    // ========== 向后兼容的getter方法 ==========
-    
-    /**
-     * 获取全局并发信号量（向后兼容）
-     */
-    public Semaphore getGlobalSemaphore() {
-        return resourceRegistry.getGlobalSemaphore();
-    }
-    
-    /**
-     * 获取全局虚拟线程池（向后兼容）
-     */
-    public ExecutorService getGlobalExecutor() {
-        return resourceRegistry.getGlobalExecutor();
-    }
-    
-    /**
-     * 获取公平锁（向后兼容）
-     */
-    public Lock getFairLock() {
-        return resourceRegistry.getFairLock();
-    }
-    
-    /**
-     * 获取许可释放条件变量（向后兼容）
-     */
-    public Condition getPermitReleased() {
-        return resourceRegistry.getPermitReleased();
-    }
-    
-    /**
-     * 获取缓存管理器（向后兼容）
-     */
-    public FlowCacheManager getFlowCacheManager() {
-        return resourceRegistry.getCacheManager();
     }
     
     /**
