@@ -22,8 +22,9 @@
             <artifactId>template-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.nats</groupId>
-            <artifactId>jnats</artifactId>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>nats-spring</artifactId>
+            <version>1.5.7</version>
         </dependency>
     </dependencies>
 </project>

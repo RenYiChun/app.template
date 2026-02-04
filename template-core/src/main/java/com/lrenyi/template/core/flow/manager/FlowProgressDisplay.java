@@ -8,7 +8,6 @@ import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.impl.FlowLauncher;
-import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -86,11 +85,6 @@ public class FlowProgressDisplay {
         
         sb.append("\n").append(LINE);
         log.info(sb.toString());
-        
-        // 如果健康状态不是 HEALTHY，输出警告日志
-        if (healthStatus != com.lrenyi.template.core.flow.health.HealthStatus.HEALTHY) {
-            logHealthWarning(healthStatus, healthDetails);
-        }
     }
     
     /**
@@ -146,52 +140,6 @@ public class FlowProgressDisplay {
         }
     }
     
-    /**
-     * 输出健康警告日志
-     */
-    private void logHealthWarning(com.lrenyi.template.core.flow.health.HealthStatus status,
-                                  Map<String, Object> healthDetails) {
-        StringBuilder warning = new StringBuilder("⚠️  Flow Framework Health Warning: ");
-        warning.append(status.name()).append("\n");
-        
-        @SuppressWarnings(
-                "unchecked"
-        ) java.util.List<Map<String, Object>> indicators = (java.util.List<Map<String, Object>>) healthDetails.get(
-                "indicators");
-        
-        if (indicators != null) {
-            for (Map<String, Object> indicator : indicators) {
-                String indicatorStatus = (String) indicator.get("status");
-                if (!"HEALTHY".equals(indicatorStatus)) {
-                    warning.append("  - ")
-                           .append(indicator.get("name"))
-                           .append(": ")
-                           .append(indicatorStatus)
-                           .append("\n");
-                    @SuppressWarnings("unchecked") Map<String, Object> details = (Map<String, Object>) indicator.get(
-                            "details");
-                    if (details != null) {
-                        if (details.containsKey("semaphoreUsage")) {
-                            Double usage = (Double) details.get("semaphoreUsage");
-                            warning.append("    Semaphore Usage: ")
-                                   .append(String.format("%.2f%%", usage * 100))
-                                   .append("\n");
-                        }
-                        if (Boolean.TRUE.equals(details.get("resourceLeakDetected"))) {
-                            warning.append("    ⚠️  Resource Leak Detected!\n");
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (status == com.lrenyi.template.core.flow.health.HealthStatus.UNHEALTHY) {
-            log.error(warning.toString());
-        } else {
-            log.warn(warning.toString());
-        }
-    }
-    
     private void renderHeader(StringBuilder sb) {
         sb.append("| ")
           .append(fix("JobId", W_JOB_ID))
@@ -203,8 +151,6 @@ public class FlowProgressDisplay {
           .append(fix("Wait(Q)", W_WAIT_Q))
           .append(" | ")
           .append(fix("Active(C)", W_ACTIVE_C))
-          .append(" | ")
-          .append(fix("Stuck(S)", W_STUCK))
           .append(" | ")
           .append(fix("Succ", W_SUCC))
           .append(" | ")
@@ -234,8 +180,6 @@ public class FlowProgressDisplay {
           .append(fix("-", W_WAIT_Q))
           .append(" + ")
           .append(fix("-", W_ACTIVE_C))
-          .append(" + ")
-          .append(fix("-", W_STUCK))
           .append(" + ")
           .append(fix("-", W_SUCC))
           .append(" + ")
@@ -271,8 +215,6 @@ public class FlowProgressDisplay {
           .append(fix(String.valueOf(s.getInProductionCount()), W_WAIT_Q))
           .append(" | ")
           .append(fix(String.valueOf(s.activeConsumers()), W_ACTIVE_C))
-          .append(" | ")
-          .append(fix(String.valueOf(s.getStuckCount()), W_STUCK))
           .append(" | ")
           .append(fix(String.valueOf(s.activeEgress()), W_SUCC))
           .append(" | ")
@@ -338,7 +280,6 @@ public class FlowProgressDisplay {
                                  (数字大，通常意味着 JobConfig 中的 jobProducerLimit 配小了，导致生产过快被挂起)
                 2. 处理阶段:
                    - Active(C) : 当前正在处理中的活跃数据（占用物理许可）。
-                   - Stuck(S)  : 滞留数。已离开缓存但尚未释放许可的数据（反映回调或清理压力）。
                    - Cache     : 缓存利用率 (当前存储数 / 最大容量)。
                 3. 离场阶段:
                    - Succ      : 主动离场(Active Egress)。业务正常匹配完成的数量。

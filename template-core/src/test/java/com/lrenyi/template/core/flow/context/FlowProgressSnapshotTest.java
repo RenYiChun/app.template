@@ -49,15 +49,6 @@ class FlowProgressSnapshotTest {
     }
 
     @Test
-    void getStuckCount() {
-        // getStuckCount = max(0, activeConsumers)
-        FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 5, 3, 2, 1, 0, 0, 0, 0, 0, null);
-        assertEquals(2, s.getStuckCount());
-        FlowProgressSnapshot s2 = new FlowProgressSnapshot("j1", 10, 5, 5, 0, 0, 0, 0, 0, 0, 0, null);
-        assertEquals(0, s2.getStuckCount());
-    }
-
-    @Test
     void getInProductionCount() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 5, 3, 0, 0, 0, 0, 0, 0, 0, null);
         assertEquals(2, s.getInProductionCount());
