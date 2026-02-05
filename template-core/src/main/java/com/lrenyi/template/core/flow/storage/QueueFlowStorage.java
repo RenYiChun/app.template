@@ -50,22 +50,21 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
      * @param progressTracker       可为 null；shutdown 排空时对每条调用 onPassiveEgress()
      * @param finalizer             非 null 时消费通过 submitBodyOnly 执行 onConsume + release
      * @param jobId                 getActiveLauncher(jobId) 使用
-     * @param storageEgressExecutor 与 Caffeine 共用的离场 executor，由 FlowManager 提供
      * @param drainIntervalMs       排空周期（毫秒），与 JobConfig.ttlMill 对齐；&lt;=0 则不注册
      */
     public QueueFlowStorage(int capacity,
                             ProgressTracker progressTracker,
                             FlowFinalizer<T> finalizer,
                             String jobId,
-                            ScheduledExecutorService storageEgressExecutor,
                             long drainIntervalMs) {
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
         this.progressTracker = progressTracker;
         this.finalizer = finalizer;
         this.resourceRegistry = finalizer.resourceRegistry();
-        if (jobId != null && storageEgressExecutor != null && drainIntervalMs > 0) {
-            this.scheduledFuture = storageEgressExecutor.scheduleWithFixedDelay(this::drainLoop,
+        ScheduledExecutorService egressExecutor = resourceRegistry.getStorageEgressExecutor();
+        if (jobId != null && egressExecutor != null && drainIntervalMs > 0) {
+            this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
                                                                                 drainIntervalMs,
                                                                                 drainIntervalMs,
                                                                                 TimeUnit.MILLISECONDS

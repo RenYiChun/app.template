@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.flow.storage;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -71,14 +70,12 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      * @param joiner                业务回调接口，用于 joinKey、onSuccess、onFailed 等
      * @param finalizer             终结器，包含 FlowResourceRegistry 引用，用于获取全局资源
      * @param progressTracker       进度跟踪器，用于记录数据流转进度
-     * @param storageEgressExecutor 所有 store 共用的「从存储取数」单物理线程，由 FlowResourceRegistry 提供
      */
     public CaffeineFlowStorage(long maxSize,
                                long ttlMill,
-                               FlowJoiner<T> joiner,
-                               FlowFinalizer<T> finalizer,
-                               ProgressTracker progressTracker,
-                               Executor storageEgressExecutor) {
+            FlowJoiner<T> joiner,
+            FlowFinalizer<T> finalizer,
+            ProgressTracker progressTracker) {
         this.joiner = joiner;
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
@@ -87,7 +84,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
-                             .executor(storageEgressExecutor)
+                             .executor(resourceRegistry.getStorageEgressExecutor())
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
                                  if (entry == null) {
                                      return;

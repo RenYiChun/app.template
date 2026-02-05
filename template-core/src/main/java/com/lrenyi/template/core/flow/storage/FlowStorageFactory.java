@@ -39,7 +39,6 @@ public interface FlowStorageFactory {
      * @param config                Job 配置
      * @param finalizer             FlowFinalizer 实例
      * @param progressTracker       ProgressTracker 实例
-     * @param storageEgressExecutor 存储出口执行器
      * @param <T>                   数据类型
      *
      * @return FlowStorage 实例
@@ -48,8 +47,7 @@ public interface FlowStorageFactory {
                                      FlowJoiner<T> joiner,
                                      TemplateConfigProperties.JobConfig config,
                                      FlowFinalizer<T> finalizer,
-                                     ProgressTracker progressTracker,
-                                     ScheduledExecutorService storageEgressExecutor);
+                                     ProgressTracker progressTracker);
     
     /**
      * 获取工厂优先级

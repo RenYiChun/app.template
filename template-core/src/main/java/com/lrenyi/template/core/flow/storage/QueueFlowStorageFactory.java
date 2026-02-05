@@ -26,13 +26,11 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
                                             FlowJoiner<T> joiner,
                                             TemplateConfigProperties.JobConfig config,
                                             FlowFinalizer<T> finalizer,
-                                            ProgressTracker progressTracker,
-                                            java.util.concurrent.ScheduledExecutorService storageEgressExecutor) {
+                                            ProgressTracker progressTracker) {
         return new QueueFlowStorage<>(config.getMaxCacheSize(),
                                       progressTracker,
                                       finalizer,
                                       jobId,
-                                      storageEgressExecutor,
                                       config.getTtlMill()
         );
     }
