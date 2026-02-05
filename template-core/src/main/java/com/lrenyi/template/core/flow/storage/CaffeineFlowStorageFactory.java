@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.flow.storage;
 
-import java.util.concurrent.ScheduledExecutorService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowJoiner;
 import com.lrenyi.template.core.flow.ProgressTracker;
@@ -26,15 +25,11 @@ public class CaffeineFlowStorageFactory implements FlowStorageFactory {
     public <T> FlowStorage<T> createStorage(String jobId,
                                             FlowJoiner<T> joiner,
                                             TemplateConfigProperties.JobConfig config,
-                                            FlowFinalizer<T> finalizer,
-                                            ProgressTracker progressTracker,
-                                            ScheduledExecutorService storageEgressExecutor) {
+                                            FlowFinalizer<T> finalizer, ProgressTracker progressTracker) {
         return new CaffeineFlowStorage<>(config.getMaxCacheSize(),
                                          config.getTtlMill(),
                                          joiner,
-                                         finalizer,
-                                         progressTracker,
-                                         storageEgressExecutor
+                                         finalizer, progressTracker
         );
     }
     

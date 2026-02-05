@@ -1,9 +1,10 @@
 package com.lrenyi.template.core.flow.storage;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -52,7 +53,15 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final ProgressTracker progressTracker;
     private final long maxCacheSize;
     private final FlowResourceRegistry resourceRegistry;
-    
+    /** 按 key 分片的锁，保证同一 key 的配对/放入原子性，同时减少对 Caffeine 驱逐锁的并发争用 */
+    private static final int STRIPE_COUNT = 256;
+    private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
+    static {
+        for (int i = 0; i < STRIPE_COUNT; i++) {
+            KEY_STRIPES[i] = new ReentrantLock();
+        }
+    }
+
     /**
      * 构造函数
      *
@@ -61,14 +70,12 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      * @param joiner                业务回调接口，用于 joinKey、onSuccess、onFailed 等
      * @param finalizer             终结器，包含 FlowResourceRegistry 引用，用于获取全局资源
      * @param progressTracker       进度跟踪器，用于记录数据流转进度
-     * @param storageEgressExecutor 所有 store 共用的「从存储取数」单物理线程，由 FlowResourceRegistry 提供
      */
     public CaffeineFlowStorage(long maxSize,
                                long ttlMill,
-                               FlowJoiner<T> joiner,
-                               FlowFinalizer<T> finalizer,
-                               ProgressTracker progressTracker,
-                               Executor storageEgressExecutor) {
+            FlowJoiner<T> joiner,
+            FlowFinalizer<T> finalizer,
+            ProgressTracker progressTracker) {
         this.joiner = joiner;
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
@@ -77,7 +84,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
-                             .executor(storageEgressExecutor)
+                             .executor(resourceRegistry.getStorageEgressExecutor())
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
                                  if (entry == null) {
                                      return;
@@ -165,7 +172,10 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
     
     /**
-     * 查找并移除匹配的条目
+     * 查找并移除匹配的条目（原子：有则移除并返回旧条目，无则放入当前 entry）
+     *
+     * <p>使用按 key 分片锁，保证同一 key 上的操作串行化，避免大量虚拟线程同时争用
+     * Caffeine 的全局驱逐锁导致 TimeoutException；语义仍为单 key 下的原子 compute。</p>
      *
      * @param key   聚合键
      * @param entry 新数据条目
@@ -173,15 +183,21 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      * @return 匹配的旧条目，如果没有匹配则返回 null
      */
     private FlowEntry<T> findAndRemovePartner(String key, FlowEntry<T> entry) {
-        final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
-        cache.asMap().compute(key, (k, existing) -> {
-            if (existing != null) {
-                matchFound.set(existing);
-                return null; // 移除旧的进行配对
-            }
-            return entry; // 存入新条目
-        });
-        return matchFound.get();
+        Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
+        stripe.lock();
+        try {
+            final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
+            cache.asMap().compute(key, (k, existing) -> {
+                if (existing != null) {
+                    matchFound.set(existing);
+                    return null; // 移除旧的进行配对
+                }
+                return entry; // 存入新条目
+            });
+            return matchFound.get();
+        } finally {
+            stripe.unlock();
+        }
     }
     
     /**

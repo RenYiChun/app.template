@@ -83,12 +83,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         this.globalExecutor = Executors.newVirtualThreadPerTaskExecutor();
         
         // 初始化存储出口执行器（单物理线程）
-        this.storageEgressExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, FlowConstants.THREAD_NAME_STORAGE_EGRESS);
-            t.setDaemon(true);
-            return t;
-        });
-        
+        this.storageEgressExecutor = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory());
+
         // 初始化公平锁机制
         this.fairLock = new ReentrantLock();
         this.permitReleased = fairLock.newCondition();

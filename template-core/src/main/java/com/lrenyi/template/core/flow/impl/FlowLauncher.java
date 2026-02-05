@@ -69,9 +69,7 @@ public class FlowLauncher<T> {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
         tracker.onProductionAcquired();
-        
         if (stopped) {
-            log.warn("the job is stop for jobId: {}", jobId);
             tracker.onProductionReleased();
             FlowMetrics.recordError("job_stopped", jobId);
             return;
@@ -89,7 +87,6 @@ public class FlowLauncher<T> {
         resourceContext.getGlobalExecutor().submit(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
-                    log.warn("the job is stop for jobId: {}", jobId);
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
                     flowJoiner.onFailed(data, jobId, FailureReason.SHUTDOWN);
                     FlowMetrics.recordError("job_stopped_during_execution", jobId);

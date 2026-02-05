@@ -98,6 +98,7 @@ public class FlowJoinerEngine {
         while (tryRunNextSubSource(provider, semaphore, jobId, launcher)) {
             Thread.onSpinWait();
         }
+        launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
     }
     
     private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
@@ -120,16 +121,16 @@ public class FlowJoinerEngine {
             Thread.currentThread().interrupt();
             return false;
         }
-        FlowSource<T> sub = provider.nextSubSource();
         Thread.ofVirtual().name(FlowConstants.THREAD_NAME_PREFIX_PRODUCER + jobId)
-              .start(() -> runSubSourceInVirtualThread(sub, launcher, semaphore, jobId));
+              .start(() -> runSubSourceInVirtualThread(provider, launcher, semaphore, jobId));
         return true;
     }
     
-    private <T> void runSubSourceInVirtualThread(FlowSource<T> sub,
+    private <T> void runSubSourceInVirtualThread(FlowSourceProvider<T> provider,
                                                  FlowLauncher<T> launcher,
                                                  Semaphore semaphore,
                                                  String jobId) {
+        FlowSource<T> sub = provider.nextSubSource();
         try (sub) {
             drainSubSource(sub, launcher, jobId);
         } catch (Exception e) {
@@ -145,6 +146,11 @@ public class FlowJoinerEngine {
         int itemCount = 0;
         Optional<T> item = pollNext(sub);
         while (item.isPresent()) {
+            if (launcher.isStopped()) {
+                launcher.getTaskOrchestrator().tracker().onProductionReleased();
+                FlowMetrics.recordError("job_stopped", jobId);
+                return;
+            }
             launcher.launch(item.get());
             itemCount++;
             item = pollNext(sub);
@@ -174,7 +180,15 @@ public class FlowJoinerEngine {
     public <T> FlowInlet<T> startPush(String jobId,
                                       FlowJoiner<T> joiner,
                                       TemplateConfigProperties.JobConfig jobConfig) {
+        return startPush(jobId, joiner, -1, jobConfig);
+    }
+    
+    public <T> FlowInlet<T> startPush(String jobId,
+            FlowJoiner<T> joiner,
+            long total,
+            TemplateConfigProperties.JobConfig jobConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
+        tracker.setTotalExpected(jobId, total);
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jobConfig);
         return new FlowInletImpl<>(launcher);
     }

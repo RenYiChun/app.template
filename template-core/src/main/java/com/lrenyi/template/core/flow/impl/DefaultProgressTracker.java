@@ -121,9 +121,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     /**
-     * 核心判定逻辑：Source 已停止，且缓存已空、无消费积压（Stuck 归零）、活跃消费归零时才算完成。
-     * - 积压/Stuck：与 {@link com.lrenyi.template.core.flow.context.FlowProgressSnapshot#getStuckCount()} 同义，
-     * activeConsumers - inStorage（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0，即 Stuck==0。
+     * 核心判定逻辑：Source 已停止，且缓存已空、活跃消费归零时才算完成。
+     * activeConsumers（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0。
      * - 完成条件：sourceFinished && drained。不依赖 totalExpected，避免「预期 N 条但实际少于 N 条就结束」时永远不完成。
      */
     private void checkCompletion() {
