@@ -84,7 +84,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
-                             .executor(resourceRegistry.getStorageEgressExecutor())
+                             .executor(resourceRegistry.getCacheRemovalExecutor())
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
                                  if (entry == null) {
                                      return;

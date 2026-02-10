@@ -40,12 +40,10 @@ public class FlowCacheManager {
         String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
-            // 使用工厂模式创建存储实例
             FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
             if (factory == null) {
                 throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
             }
-            
             return factory.createStorage(jobId, joiner, config, finalizer, progressTracker);
         });
     }
