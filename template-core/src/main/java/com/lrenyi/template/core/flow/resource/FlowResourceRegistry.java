@@ -11,6 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
+import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,7 +23,8 @@ import lombok.extern.slf4j.Slf4j;
  * 管理的全局资源包括：
  * - 全局并发信号量（globalSemaphore）
  * - 全局虚拟线程池（globalExecutor）
- * - 存储出口执行器（storageEgressExecutor）
+ * - 存储出口执行器（storageEgressExecutor）：仅用于 QueueFlowStorage 的定时 drain 等调度任务
+ * - 缓存移除执行器（cacheRemovalExecutor）：专供 Caffeine 驱逐回调，避免高驱逐率时任务堆积导致 OOM
  * - 公平锁机制（fairLock、permitReleased）
  * - 缓存管理器（flowCacheManager）
  */
@@ -36,17 +38,14 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Semaphore globalSemaphore;
     private final ExecutorService globalExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
+    /** 专供 Caffeine removal 回调，虚拟线程 per task，不共享调度队列，避免 DelayedWorkQueue 堆积 */
+    private final ExecutorService cacheRemovalExecutor;
     private final Lock fairLock;
     private final Condition permitReleased;
     private final FlowCacheManager flowCacheManager;
-    /**
-     * -- SETTER --
-     * 设置 FlowManager 引用（由 FlowManager 在初始化时调用）
-     * 用于解决存储层需要访问 FlowManager 的循环依赖问题
-     */
     // FlowManager 引用（由 FlowManager 在初始化时设置，避免循环依赖）
     @Setter
-    private volatile com.lrenyi.template.core.flow.manager.FlowManager flowManager;
+    private volatile FlowManager flowManager;
     
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
@@ -82,8 +81,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         // 初始化全局虚拟线程池
         this.globalExecutor = Executors.newVirtualThreadPerTaskExecutor();
         
-        // 初始化存储出口执行器（单物理线程）
+        // 初始化存储出口执行器（仅用于 Queue 的 scheduleWithFixedDelay 等调度任务）
         this.storageEgressExecutor = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory());
+        // Caffeine 驱逐回调专用：虚拟线程 per task，不向 ScheduledThreadPool 队列堆积
+        this.cacheRemovalExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
         // 初始化公平锁机制
         this.fairLock = new ReentrantLock();
@@ -207,6 +208,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
      * <p>关闭顺序：</p>
      * <ol>
      *   <li>缓存管理器（依赖执行器）</li>
+     *   <li>缓存移除执行器（Caffeine 回调用）</li>
      *   <li>存储出口执行器</li>
      *   <li>全局虚拟线程池（最后关闭）</li>
      * </ol>
@@ -235,7 +237,17 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             }
         }
         
-        // 2. 关闭存储出口执行器
+        // 2. 关闭缓存移除执行器（Caffeine 回调用）
+        if (cacheRemovalExecutor != null && !cacheRemovalExecutor.isShutdown()) {
+            try {
+                shutdownExecutor("缓存移除执行器", cacheRemovalExecutor);
+            } catch (Exception e) {
+                errors.add(e);
+                log.error("关闭缓存移除执行器失败", e);
+            }
+        }
+        
+        // 3. 关闭存储出口执行器
         if (storageEgressExecutor != null && !storageEgressExecutor.isShutdown()) {
             try {
                 shutdownExecutor("存储出口执行器", storageEgressExecutor);
@@ -245,7 +257,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             }
         }
         
-        // 3. 关闭全局虚拟线程池（最后关闭）
+        // 4. 关闭全局虚拟线程池（最后关闭）
         if (globalExecutor != null && !globalExecutor.isShutdown()) {
             try {
                 shutdownExecutor("全局虚拟线程池", globalExecutor);

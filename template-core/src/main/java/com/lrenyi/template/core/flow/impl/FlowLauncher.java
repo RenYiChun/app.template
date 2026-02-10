@@ -141,17 +141,15 @@ public class FlowLauncher<T> {
         log.info("停止 Job [{}], force={}", jobId, force);
         this.stopped = true; // 开启拦截闸门
         // 告诉 Tracker：生产端已关闭。
-        // 这样当 activeConsumers 归零时，getCompletionFuture() 就会完成。
         taskOrchestrator.tracker().markSourceFinished(jobId);
-        // 强制模式：按 jobId+storageType 失效并 shutdown，与 getOrCreateStorage 的 key 一致
-        if (force) {
-            try {
-                FlowStorageType type = flowJoiner.getStorageType();
-                resourceContext.getCacheManager()
-                               .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
-            } catch (Exception e) {
-                log.error("Job [{}] 强制停止清理失败", jobId, e);
-            }
+        // Job 停止时始终按 jobId+storageType 失效并 shutdown 对应 Storage，避免 FlowCacheManager 与
+        // storageEgressExecutor 的调度任务无限累积导致 OOM（与 getOrCreateStorage 的 key 一致）
+        try {
+            FlowStorageType type = flowJoiner.getStorageType();
+            resourceContext.getCacheManager()
+                           .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
+        } catch (Exception e) {
+            log.error("Job [{}] 停止时清理 Storage 失败", jobId, e);
         }
         flowManager.unregister(jobId);
     }
