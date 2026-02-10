@@ -72,10 +72,6 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             throw e;
         }
         
-        // 【核心埋点】：消费准入信号
-        // 代表此数据正式占用了一个全局消费名额，进入系统生命周期
-        tracker.onConsumerBegin();
-        
         int globalSemaphoreMaxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
         Semaphore semaphore = resourceContext.getGlobalSemaphore();
         
@@ -128,6 +124,8 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         
         semaphore.acquire();
         registration.increment();
+        //仅在成功持有物理许可后计入活跃消费，使 Active(C) 与信号量持证数一致（≤ globalSemaphoreMaxLimit）
+        tracker.onConsumerBegin();
         
         // 记录获取许可的延迟
         long acquireLatency = System.currentTimeMillis() - acquireStartTime;
