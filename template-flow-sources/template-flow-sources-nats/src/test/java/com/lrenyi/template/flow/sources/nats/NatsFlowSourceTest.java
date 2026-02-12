@@ -54,7 +54,7 @@ class NatsFlowSourceTest {
 
     @Test
     void hasNext_next_returnsMappedValues() throws Exception {
-        when(message.getData()).thenReturn("v1".getBytes());
+        when(message.getData()).thenReturn("v1".getBytes(StandardCharsets.UTF_8));
         when(subscription.nextMessage(any(Duration.class)))
                 .thenReturn(message)
                 .thenReturn(null);

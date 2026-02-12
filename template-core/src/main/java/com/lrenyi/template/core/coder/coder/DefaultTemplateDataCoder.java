@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.coder.coder;
 
+import java.nio.charset.StandardCharsets;
 import com.lrenyi.template.core.coder.TemplateEncryptService;
 import lombok.extern.slf4j.Slf4j;
 import com.lrenyi.template.core.util.Digests;
@@ -26,7 +27,7 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
     public String encode(CharSequence rawPassword) {
         String plain = StringEscapeUtils.unescapeHtml4(rawPassword.toString());
         byte[] salt = Digests.generateSalt(8);
-        byte[] hashPassword = Digests.sha1(plain.getBytes(), salt, 1024);
+        byte[] hashPassword = Digests.sha1(plain.getBytes(StandardCharsets.UTF_8), salt, 1024);
         // Hex 仅含 0-9a-f，new String(char[]) 平台编码与 ASCII 兼容
         return new String(Hex.encodeHex(salt)) + new String(Hex.encodeHex(hashPassword));
     }
@@ -40,7 +41,7 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
             
             try {
                 byte[] salt = Hex.decodeHex(encodedPassword.substring(0, 16).toCharArray());
-                byte[] hashPassword = Digests.sha1(plain.getBytes(), salt, 1024);
+                byte[] hashPassword = Digests.sha1(plain.getBytes(StandardCharsets.UTF_8), salt, 1024);
                 String espwd =
                         new String(Hex.encodeHex(salt)) + new String(Hex.encodeHex(hashPassword));
                 return encodedPassword.equals(espwd);
