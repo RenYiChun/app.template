@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.flow.source;
+package com.lrenyi.template.core.flow.api;
 
 /**
  * 单子流数据源：按顺序产出 T，由引擎拉取并交给 Launcher。

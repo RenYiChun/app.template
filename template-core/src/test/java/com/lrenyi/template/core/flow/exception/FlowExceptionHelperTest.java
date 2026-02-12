@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.exception;
 
+import com.lrenyi.template.core.flow.api.FlowExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

@@ -98,7 +98,7 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         details.put("resourceLeakDetected", resourceLeakDetected);
         
         // 执行器状态
-        details.put("globalExecutorShutdown", resourceRegistry.getGlobalExecutor().isShutdown());
+        details.put("flowConsumerExecutorShutdown", resourceRegistry.getFlowConsumerExecutor().isShutdown());
         details.put("storageEgressExecutorShutdown", 
             resourceRegistry.getStorageEgressExecutor().isShutdown());
         

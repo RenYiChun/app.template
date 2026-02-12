@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.flow;
+package com.lrenyi.template.core.flow.api;
 
 import java.util.concurrent.CompletableFuture;
 

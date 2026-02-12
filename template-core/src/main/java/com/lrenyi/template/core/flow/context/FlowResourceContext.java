@@ -5,7 +5,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
-import com.lrenyi.template.core.flow.impl.BackpressureController;
+import com.lrenyi.template.core.flow.internal.BackpressureController;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
@@ -19,7 +19,7 @@ import lombok.Getter;
  * 包含的资源：
  * - 全局资源（通过 FlowResourceRegistry 访问）：
  * - 全局并发信号量
- * - 全局虚拟线程池
+ * - 流消费执行器
  * - 存储出口执行器
  * - 公平锁机制
  * - 缓存管理器
@@ -55,7 +55,12 @@ public class FlowResourceContext {
      * Job级资源：背压控制器
      */
     private final BackpressureController backpressureController;
-    
+
+    /**
+     * Job级资源：生产者执行器（信号量受控）
+     */
+    private final ExecutorService producerExecutor;
+
     // ========== 全局资源访问便捷方法 ==========
     
     /**
@@ -66,10 +71,10 @@ public class FlowResourceContext {
     }
     
     /**
-     * 获取全局虚拟线程池
+     * 获取流消费执行器
      */
-    public ExecutorService getGlobalExecutor() {
-        return resourceRegistry.getGlobalExecutor();
+    public ExecutorService getFlowConsumerExecutor() {
+        return resourceRegistry.getFlowConsumerExecutor();
     }
     
     /**

@@ -1,18 +1,20 @@
-package com.lrenyi.template.core.flow.exception;
+package com.lrenyi.template.core.flow.api;
+
+import com.lrenyi.template.core.flow.exception.FlowExceptionContext;
 
 /**
  * Flow 异常处理器接口
  * 用于统一处理框架中的异常
  */
 public interface FlowExceptionHandler {
-    
+
     /**
      * 处理异常
      *
      * @param context 异常上下文
      */
     void handleException(FlowExceptionContext context);
-    
+
     /**
      * 检查是否应该处理该异常
      *

@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.flow.source;
+package com.lrenyi.template.core.flow.api;
 
 /**
  * 多子流提供者：产出多个 FlowSource&lt;T&gt;，每个对应一个并发单元。

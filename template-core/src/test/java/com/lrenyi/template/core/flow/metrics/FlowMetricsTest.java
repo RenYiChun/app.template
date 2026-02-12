@@ -1,7 +1,7 @@
 package com.lrenyi.template.core.flow.metrics;
 
 import java.util.Map;
-import com.lrenyi.template.core.flow.FailureReason;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

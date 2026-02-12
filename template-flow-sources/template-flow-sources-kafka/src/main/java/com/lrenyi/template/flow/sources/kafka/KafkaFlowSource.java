@@ -3,7 +3,7 @@ package com.lrenyi.template.flow.sources.kafka;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.api.FlowSource;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -12,7 +12,7 @@ import org.apache.kafka.common.errors.WakeupException;
 /**
  * 单子流 Kafka 数据源：包装一个 {@link KafkaConsumer}，按顺序产出 T。
  * 由引擎在虚拟线程中拉取（hasNext/next），适用于单 partition 或单 consumer 场景；
- * 多 partition 时可构造多个 KafkaFlowSource 或使用 {@link com.lrenyi.template.core.flow.source.FlowSourceProvider}。
+ * 多 partition 时可构造多个 KafkaFlowSource 或使用 {@link com.lrenyi.template.core.flow.api.FlowSourceProvider}。
  * <p>
  * 阻塞与中断：{@link #hasNext()} 内无数据时调用 {@code consumer.poll(Duration)}；
  * 若当前线程被中断则抛 {@link InterruptedException}；若 poll 抛 {@link WakeupException} 且线程已中断则转为 InterruptedException。

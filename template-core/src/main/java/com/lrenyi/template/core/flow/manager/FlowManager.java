@@ -3,11 +3,12 @@ package com.lrenyi.template.core.flow.manager;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
@@ -16,9 +17,9 @@ import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.core.flow.health.HealthStatus;
-import com.lrenyi.template.core.flow.impl.BackpressureController;
-import com.lrenyi.template.core.flow.impl.FlowFinalizer;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.internal.BackpressureController;
+import com.lrenyi.template.core.flow.internal.FlowFinalizer;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
@@ -159,22 +160,25 @@ public class FlowManager {
             
             // 创建Job级资源
             Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
-            
+            ExecutorService producerExecutor = resourceRegistry.getExecutorProvider()
+                    .createProducerExecutor(jobProducerSemaphore);
+
             // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
             FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
             FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
             FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId, flowJoiner, jobConfig, finalizer, tracker);
-            
+
             BackpressureController backpressureController = new BackpressureController(storage);
-            
+
             // 创建资源上下文
             FlowResourceContext resourceContext = FlowResourceContext.builder()
-                                                                     .resourceRegistry(resourceRegistry)
-                                                                     .flowManager(this)
-                                                                     .jobProducerSemaphore(jobProducerSemaphore)
-                                                                     .storage(storage)
-                                                                     .backpressureController(backpressureController)
-                                                                     .build();
+                    .resourceRegistry(resourceRegistry)
+                    .flowManager(this)
+                    .jobProducerSemaphore(jobProducerSemaphore)
+                    .storage(storage)
+                    .backpressureController(backpressureController)
+                    .producerExecutor(producerExecutor)
+                    .build();
             
             // 创建Launcher，传递resourceContext
             FlowLauncher<T> launcher = FlowLauncher.create(jobId,
@@ -207,8 +211,14 @@ public class FlowManager {
      * 注销 Job
      */
     public void unregister(String jobId) {
+        FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
+        if (launcher != null) {
+            ExecutorService producerExecutor = launcher.getProducerExecutor();
+            if (producerExecutor != null && !producerExecutor.isShutdown()) {
+                producerExecutor.shutdown();
+            }
+        }
         registry.remove(jobId);
-        activeLaunchers.remove(jobId);
         log.info("Job [{}] 已从管理器中注销", jobId);
     }
     

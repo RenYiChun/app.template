@@ -3,8 +3,8 @@ package com.lrenyi.template.core.flow.context;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import com.lrenyi.template.core.flow.FlowConstants;
-import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
+import com.lrenyi.template.core.flow.model.FlowConstants;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
@@ -32,30 +32,45 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                 semaphore.release();
                 registration.decrement();
             } else {
-                // 兜底：即便不释放信号量，也要减掉注册计数，保持内存状态一致
                 if (registration.getActiveCount().get() > 0) {
                     registration.decrement();
                 }
             }
-            
-            // 记录信号量使用情况
-            int available = semaphore.availablePermits();
-            int used = maxLimit - available;
-            FlowMetrics.recordResourceUsage("semaphore_used", used);
-            FlowMetrics.recordResourceUsage("semaphore_available", available);
-            
+            recordSemaphoreMetrics(semaphore, maxLimit);
         } finally {
-            // 无论物理释放是否溢出，只要这一单结束了，就必须触发终结信号
-            // 这会使 ProgressTracker 中的 activeConsumers 递减，并检查任务是否可以彻底结束
-            tracker.onGlobalTerminated(jobId);
-            // 唤醒公平锁等待者
-            Lock fairLock = resourceContext.getFairLock();
-            fairLock.lock();
-            try {
-                resourceContext.getPermitReleased().signalAll();
-            } finally {
-                fairLock.unlock();
+            runReleaseHooks();
+        }
+    }
+
+    /**
+     * 消费任务完成时调用：仅执行 release 的 hook（registration、tracker、signal），不释放信号量。
+     * 信号量由 FlowGlobalExecutor 在任务结束时统一释放。
+     */
+    public void releaseWithoutSemaphore() {
+        try {
+            if (registration.getActiveCount().get() > 0) {
+                registration.decrement();
             }
+        } finally {
+            runReleaseHooks();
+        }
+    }
+
+    private void recordSemaphoreMetrics(Semaphore semaphore, int maxLimit) {
+        int available = semaphore.availablePermits();
+        int used = maxLimit - available;
+        FlowMetrics.recordResourceUsage("semaphore_used", used);
+        FlowMetrics.recordResourceUsage("semaphore_available", available);
+    }
+
+    private void runReleaseHooks() {
+        tracker.onGlobalTerminated(jobId);
+        Lock fairLock = resourceContext.getFairLock();
+        fairLock.lock();
+        try {
+            resourceContext.getPermitReleased().signalAll();
+        } finally {
+            fairLock.unlock();
         }
     }
     

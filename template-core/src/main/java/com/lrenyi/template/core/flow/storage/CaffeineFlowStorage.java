@@ -9,15 +9,15 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.Scheduler;
-import com.lrenyi.template.core.flow.FailureReason;
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
-import com.lrenyi.template.core.flow.impl.FlowFinalizer;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.internal.FlowFinalizer;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
@@ -214,78 +214,40 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             partner.close();
             return;
         }
-        
-        ExecutorService globalExecutor = resourceRegistry.getGlobalExecutor();
-        long matchStartTime = System.currentTimeMillis();
-        globalExecutor.submit(() -> {
-            try {
-                executeMatchedPairLogic(partner, entry, flowManager);
-                long matchLatency = System.currentTimeMillis() - matchStartTime;
-                FlowMetrics.recordLatency("match_process", matchLatency);
-            } catch (Exception e) {
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
-                FlowMetrics.recordError("match_process_failed", entry.getJobId());
-            }
-        });
-    }
-    
-    /**
-     * 执行配对逻辑：获取信号量、检查匹配条件、调用回调
-     *
-     * @param partner     先到达的条目
-     * @param entry       后到达的条目
-     * @param flowManager FlowManager 实例
-     */
-    private void executeMatchedPairLogic(FlowEntry<T> partner, FlowEntry<T> entry, FlowManager flowManager) {
         FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             log.warn("No active launcher found for job id {}", entry.getJobId());
             partner.close();
             return;
         }
-        
-        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-        boolean entryAcquire = false;
-        boolean partnerAcquire = false;
-        
-        try (partner) {
-            // 获取两个信号量：entry 用 1 个，partner 用 1 个
-            if (!acquirePermitsForPair(taskOrchestrator, entry, launcher)) {
-                return; // 获取失败，已在方法内处理
+        long matchStartTime = System.currentTimeMillis();
+        resourceRegistry.submitConsumerToGlobal(launcher.getTaskOrchestrator(), 2, () -> {
+            try {
+                executeMatchedPairLogicBody(partner, entry, launcher);
+                long matchLatency = System.currentTimeMillis() - matchStartTime;
+                FlowMetrics.recordLatency("match_process", matchLatency);
+            } catch (Exception e) {
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+                FlowMetrics.recordError("match_process_failed", entry.getJobId());
+            } finally {
+                if (launcher.getBackpressureController() != null) {
+                    launcher.getBackpressureController().signalRelease();
+                }
             }
-            entryAcquire = true;
-            partnerAcquire = true;
-            
-            // 检查匹配条件并执行回调
+        });
+    }
+    
+    /**
+     * 执行配对逻辑（acquire/release 由 submitConsumerToGlobal 处理）
+     */
+    private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry,
+            FlowLauncher<Object> launcher) {
+        try (partner) {
             if (joiner.isMatched(partner.getData(), entry.getData())) {
                 handleMatchedSuccess(partner, entry);
             } else {
                 handleMatchedFailure(partner, entry);
             }
-        } finally {
-            releasePermitsAndSignal(taskOrchestrator, entryAcquire, partnerAcquire, launcher);
-        }
-    }
-    
-    /**
-     * 为配对的两个条目获取信号量
-     *
-     * @return true 如果成功获取，false 如果失败
-     */
-    private boolean acquirePermitsForPair(Orchestrator taskOrchestrator,
-                                          FlowEntry<T> entry,
-                                          FlowLauncher<Object> launcher) {
-        try {
-            taskOrchestrator.acquire(); // entry 的信号量
-            taskOrchestrator.acquire(); // partner 的信号量
-            return true;
-        } catch (InterruptedException e) {
-            FlowJoiner<Object> flowJoiner = launcher.getFlowJoiner();
-            taskOrchestrator.tracker().onPassiveEgress(FailureReason.REJECT);
-            flowJoiner.onFailed(entry.getData(), entry.getJobId(), FailureReason.REJECT);
-            FlowMetrics.recordFailureReason(FailureReason.REJECT, entry.getJobId());
-            Thread.currentThread().interrupt();
-            return false;
         }
     }
     
@@ -322,24 +284,6 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
     
     /**
-     * 释放信号量并通知背压控制器
-     */
-    private void releasePermitsAndSignal(Orchestrator taskOrchestrator,
-                                         boolean entryAcquire,
-                                         boolean partnerAcquire,
-                                         FlowLauncher<Object> launcher) {
-        if (entryAcquire) {
-            taskOrchestrator.release();
-        }
-        if (partnerAcquire) {
-            taskOrchestrator.release();
-        }
-        if (launcher.getBackpressureController() != null) {
-            launcher.getBackpressureController().signalRelease();
-        }
-    }
-    
-    /**
      * 显式移除指定 Key 的条目
      *
      * <p>通常用于匹配成功后主动移除条目。
@@ -355,13 +299,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     /**
      * 处理条目被移除的情况（由 Caffeine 的 removalListener 触发）
-     * 
-     * <p>处理流程：</p>
-     * <ol>
-     *   <li>在物理线程中先 acquire 全局信号量（拿不到则阻塞，最多持 1 条 entry）</li>
-     *   <li>交给虚拟线程执行 body + release</li>
-     * </ol>
-     * 
+     * <p>acquire + body + release 由 FlowGlobalExecutor.submitConsumer 统一处理。</p>
+     *
      * @param entry 被移除的条目
      * @param cause 移除原因（超时、容量驱逐等）
      */
@@ -375,24 +314,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         
         FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
         try (entry) {
-            // 只处理被驱逐的情况（超时或容量），其他情况（如 EXPLICIT）不需要处理
             if (!cause.wasEvicted() || launcher == null) {
                 return;
             }
-            
-            // 记录驱逐原因
             String evictionReason = cause.name().toLowerCase();
             FlowMetrics.recordError("entry_evicted_" + evictionReason, entry.getJobId());
-            
-            // 在物理线程中获取信号量，然后交给虚拟线程处理
-            launcher.getTaskOrchestrator().acquire();
             finalizer.submitBodyOnly(entry, launcher);
-        } catch (InterruptedException ie) {
-            progressTracker.onPassiveEgress(FailureReason.UNKNOWN);
-            FlowExceptionHelper.handleException(entry.getJobId(), null, ie, FlowPhase.FINALIZATION);
-            Thread.currentThread().interrupt();
         } finally {
-            // 无论成功与否，都要通知背压控制器
             if (launcher != null && launcher.getBackpressureController() != null) {
                 launcher.getBackpressureController().signalRelease();
             }

@@ -1,4 +1,4 @@
-package com.lrenyi.template.core.flow.config;
+package com.lrenyi.template.core.flow.model;
 
 public enum FlowStorageType {
     /**

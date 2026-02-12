@@ -1,12 +1,12 @@
-package com.lrenyi.template.core.flow.impl;
+package com.lrenyi.template.core.flow.internal;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FailureReason;
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
@@ -15,6 +15,7 @@ import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 流量发射器 - 动态配置版
- * 职责：使用全局虚拟线程池，通过逻辑开关控制 Job 生命周期，实现精准限流与缓存托管
+ * 职责：使用流消费执行器，通过逻辑开关控制 Job 生命周期，实现精准限流与缓存托管
  */
 @Slf4j
 @Getter
@@ -39,7 +40,7 @@ public class FlowLauncher<T> {
     private final TemplateConfigProperties.JobConfig jobConfig;
     private final BackpressureController backpressureController;
     private final FlowResourceContext resourceContext;
-    
+
     private FlowLauncher(String jobId,
                          FlowManager flowManager,
                          FlowJoiner<T> flowJoiner,
@@ -54,17 +55,17 @@ public class FlowLauncher<T> {
         this.backpressureController = resourceContext.getBackpressureController();
         this.taskOrchestrator = new Orchestrator(jobId, tracker, registration, resourceContext);
     }
-    
+
     public static <T> FlowLauncher<T> create(String jobId,
                                              FlowJoiner<T> flowJoiner,
                                              FlowManager flowManager,
                                              ProgressTracker tracker,
                                              Registration registration,
                                              FlowResourceContext resourceContext) {
-        
+
         return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
-    
+
     public void launch(T data) {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
@@ -74,7 +75,7 @@ public class FlowLauncher<T> {
             FlowMetrics.recordError("job_stopped", jobId);
             return;
         }
-        
+
         try {
             awaitBackpressure();
         } catch (InterruptedException e) {
@@ -83,8 +84,8 @@ public class FlowLauncher<T> {
             FlowMetrics.recordError("backpressure_interrupted", jobId);
             return;
         }
-        
-        resourceContext.getGlobalExecutor().submit(() -> {
+
+        resourceContext.getFlowConsumerExecutor().submit(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
@@ -93,12 +94,12 @@ public class FlowLauncher<T> {
                     FlowMetrics.recordFailureReason(FailureReason.SHUTDOWN, jobId);
                     return;
                 }
-                
+
                 long depositStartTime = System.currentTimeMillis();
                 getStorage().deposit(ctx);
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
                 FlowMetrics.recordLatency("deposit", depositLatency);
-                
+
             } catch (Throwable e) {
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
                 FlowMetrics.recordError("deposit_failed", jobId);
@@ -109,7 +110,7 @@ public class FlowLauncher<T> {
             }
         });
     }
-    
+
     private void awaitBackpressure() throws InterruptedException {
         // 1. 快速失败：如果任务已经停止，直接抛出异常或返回
         if (stopped) {
@@ -124,11 +125,18 @@ public class FlowLauncher<T> {
             throw e;
         }
     }
-    
+
     public long getCacheCapacity() {
         return jobConfig.getMaxCacheSize();
     }
-    
+
+    /**
+     * 获取 Job 级生产者执行器（信号量受控）
+     */
+    public ExecutorService getProducerExecutor() {
+        return resourceContext.getProducerExecutor();
+    }
+
     /**
      * 停止当前 Job
      *
@@ -147,7 +155,7 @@ public class FlowLauncher<T> {
         try {
             FlowStorageType type = flowJoiner.getStorageType();
             resourceContext.getCacheManager()
-                           .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
+                    .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
         } catch (Exception e) {
             log.error("Job [{}] 停止时清理 Storage 失败", jobId, e);
         }

@@ -1,7 +1,6 @@
 package com.lrenyi.template.core.flow.resource;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -9,10 +8,14 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FlowConstants;
+import com.lrenyi.template.core.flow.context.Orchestrator;
+import com.lrenyi.template.core.flow.executor.BoundedVirtualExecutor;
+import com.lrenyi.template.core.flow.executor.DefaultFlowExecutorProvider;
+import com.lrenyi.template.core.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.model.FlowConstants;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
  * 职责：统一管理所有全局资源，提供资源获取接口
  * 管理的全局资源包括：
  * - 全局并发信号量（globalSemaphore）
- * - 全局虚拟线程池（globalExecutor）
+ * - 流消费执行器（flowConsumerExecutor）
  * - 存储出口执行器（storageEgressExecutor）：仅用于 QueueFlowStorage 的定时 drain 等调度任务
  * - 缓存移除执行器（cacheRemovalExecutor）：专供 Caffeine 驱逐回调，避免高驱逐率时任务堆积导致 OOM
  * - 公平锁机制（fairLock、permitReleased）
@@ -36,7 +39,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     private final TemplateConfigProperties.JobGlobal globalConfig;
     private final Semaphore globalSemaphore;
-    private final ExecutorService globalExecutor;
+    private final FlowExecutorProvider executorProvider;
+    private final BoundedVirtualExecutor flowConsumerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     /** 专供 Caffeine removal 回调，虚拟线程 per task，不共享调度队列，避免 DelayedWorkQueue 堆积 */
     private final ExecutorService cacheRemovalExecutor;
@@ -78,13 +82,11 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         FlowMetrics.recordResourceUsage("semaphore_max_limit", globalSemaphoreMaxLimit);
         FlowMetrics.recordResourceUsage("semaphore_available", globalSemaphoreMaxLimit);
         
-        // 初始化全局虚拟线程池
-        this.globalExecutor = Executors.newVirtualThreadPerTaskExecutor();
-        
-        // 初始化存储出口执行器（仅用于 Queue 的 scheduleWithFixedDelay 等调度任务）
-        this.storageEgressExecutor = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory());
-        // Caffeine 驱逐回调专用：虚拟线程 per task，不向 ScheduledThreadPool 队列堆积
-        this.cacheRemovalExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        // 委托 Provider 创建执行器（flowConsumerExecutor 使用 BoundedVirtualExecutor，与 globalSemaphore 合并）
+        this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore);
+        this.flowConsumerExecutor = (BoundedVirtualExecutor) executorProvider.getFlowConsumerExecutor();
+        this.storageEgressExecutor = executorProvider.getStorageEgressExecutor();
+        this.cacheRemovalExecutor = executorProvider.getCacheRemovalExecutor();
 
         // 初始化公平锁机制
         this.fairLock = new ReentrantLock();
@@ -132,9 +134,9 @@ public class FlowResourceRegistry implements ResourceLifecycle {
      * @return FlowResourceRegistry 实例
      */
     public static FlowResourceRegistry getInstance(TemplateConfigProperties.JobGlobal globalConfig) {
-        if (instance == null || !configEquals(lastConfig, globalConfig)) {
+        if (instance == null || configChanged(lastConfig, globalConfig)) {
             synchronized (FlowResourceRegistry.class) {
-                if (instance == null || !configEquals(lastConfig, globalConfig)) {
+                if (instance == null || configChanged(lastConfig, globalConfig)) {
                     if (instance != null) {
                         log.info("检测到配置变更，关闭旧实例并创建新实例");
                         try {
@@ -152,19 +154,18 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     }
     
     /**
-     * 比较两个配置是否相等
-     * 用于检测配置变更
+     * 检测两个配置是否发生变更
      */
-    private static boolean configEquals(TemplateConfigProperties.JobGlobal config1,
+    private static boolean configChanged(TemplateConfigProperties.JobGlobal config1,
                                         TemplateConfigProperties.JobGlobal config2) {
         if (config1 == config2) {
-            return true;
-        }
-        if (config1 == null || config2 == null) {
             return false;
         }
-        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit()
-                && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
+        if (config1 == null || config2 == null) {
+            return true;
+        }
+        return config1.getGlobalSemaphoreMaxLimit() != config2.getGlobalSemaphoreMaxLimit()
+                || config1.getProgressDisplaySecond() != config2.getProgressDisplaySecond();
     }
     
     /**
@@ -201,6 +202,36 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     }
     
     /**
+     * 提交消费任务（带公平 acquire）
+     */
+    public void submitConsumerToGlobal(Orchestrator orchestrator, Runnable task) {
+        submitConsumerToGlobal(orchestrator, 1, task);
+    }
+    
+    /**
+     * 提交消费任务（多 permit，如配对场景）
+     */
+    public void submitConsumerToGlobal(Orchestrator orchestrator, int permits, Runnable task) {
+        BoundedVirtualExecutor.PermitStrategy strategy = new BoundedVirtualExecutor.PermitStrategy() {
+            @Override
+            public void acquire() throws InterruptedException {
+                for (int i = 0; i < permits; i++) {
+                    orchestrator.acquire();
+                }
+            }
+            
+            @Override
+            public void release() {
+                for (int i = 0; i < permits; i++) {
+                    orchestrator.releaseWithoutSemaphore();
+                }
+                globalSemaphore.release(permits);
+            }
+        };
+        flowConsumerExecutor.submitWithStrategy(strategy, task);
+    }
+    
+    /**
      * 统一关闭所有全局资源
      *
      * <p>按照依赖顺序关闭：先关闭依赖其他资源的资源，最后关闭基础资源。</p>
@@ -210,7 +241,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
      *   <li>缓存管理器（依赖执行器）</li>
      *   <li>缓存移除执行器（Caffeine 回调用）</li>
      *   <li>存储出口执行器</li>
-     *   <li>全局虚拟线程池（最后关闭）</li>
+     *   <li>流消费执行器（最后关闭）</li>
      * </ol>
      *
      * <p>如果关闭过程中出现异常，会记录错误但继续关闭其他资源，最后抛出 ResourceShutdownException。</p>
@@ -257,13 +288,13 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             }
         }
         
-        // 4. 关闭全局虚拟线程池（最后关闭）
-        if (globalExecutor != null && !globalExecutor.isShutdown()) {
+        // 4. 关闭流消费执行器（最后关闭）
+        if (flowConsumerExecutor != null && !flowConsumerExecutor.isShutdown()) {
             try {
-                shutdownExecutor("全局虚拟线程池", globalExecutor);
+                shutdownExecutor("流消费执行器", flowConsumerExecutor);
             } catch (Exception e) {
                 errors.add(e);
-                log.error("关闭全局虚拟线程池失败", e);
+                log.error("关闭流消费执行器失败", e);
             }
         }
         

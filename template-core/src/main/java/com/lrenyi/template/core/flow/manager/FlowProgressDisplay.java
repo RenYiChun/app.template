@@ -4,10 +4,10 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import com.lrenyi.template.core.flow.FlowConstants;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.health.FlowHealth;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
+import com.lrenyi.template.core.flow.model.FlowConstants;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -21,7 +21,6 @@ public class FlowProgressDisplay {
     private static final int W_IN_TOTAL = 12;
     private static final int W_WAIT_Q = 10;
     private static final int W_ACTIVE_C = 10;
-    private static final int W_STUCK = 10;
     private static final int W_SUCC = 12;
     private static final int W_LOSS = 12;
     private static final int W_CACHE = 24;

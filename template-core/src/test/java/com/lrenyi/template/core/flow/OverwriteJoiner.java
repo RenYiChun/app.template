@@ -3,9 +3,11 @@ package com.lrenyi.template.core.flow;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
-import com.lrenyi.template.core.flow.source.FlowSourceProvider;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.core.flow.api.FlowSourceProvider;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
+import com.lrenyi.template.core.flow.model.FailureReason;
 
 /**
  * 测试用 Joiner：单 Key 覆盖（needMatched=false），Caffeine 存储。
@@ -29,7 +31,7 @@ public class OverwriteJoiner implements FlowJoiner<PairItem> {
 
     @Override
     public FlowStorageType getStorageType() {
-        return FlowJoiner.super.getStorageType();
+        return FlowStorageType.CAFFEINE;
     }
 
     @Override

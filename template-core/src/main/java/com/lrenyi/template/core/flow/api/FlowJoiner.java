@@ -1,7 +1,7 @@
-package com.lrenyi.template.core.flow;
+package com.lrenyi.template.core.flow.api;
 
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.source.FlowSourceProvider;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
+import com.lrenyi.template.core.flow.model.FailureReason;
 
 /**
  * T: 数据项类型 (Terminal/Task item)
@@ -32,7 +32,7 @@ public interface FlowJoiner<T> {
      * 关联键：定义数据聚合的唯一标识
      */
     String joinKey(T item);
-    
+
     /**
      * 聚合成功：当两个具有相同 key 的数据相遇时触发
      *
@@ -40,21 +40,21 @@ public interface FlowJoiner<T> {
      * @param incoming 后到达的数据（触发聚合的当前项）
      */
     void onSuccess(T existing, T incoming, String jobId);
-    
+
     /**
      * 简单消费钩子：仅在非配对场景下被 onSuccess 默认调用
      */
     default void onConsume(T item, String jobId) {
         // 默认空实现或抛错，由子类选择性覆写
     }
-    
+
     /**
      * 只有双流对齐任务才需要覆写此方法为 true。
      */
     default boolean needMatched() {
         return false;
     }
-    
+
     /**
      * 匹配校验：仅在 needMatched 为 true 时有效。
      * 评估两个数据项是否满足配对业务条件
@@ -67,7 +67,7 @@ public interface FlowJoiner<T> {
     default boolean isMatched(T existing, T incoming) {
         return true;
     }
-    
+
     /**
      * 孤立数据/失败数据处理出口（带失败原因）。
      * 以下情形会触发：
@@ -85,7 +85,7 @@ public interface FlowJoiner<T> {
     default void onFailed(T item, String jobId, FailureReason reason) {
         onFailed(item, jobId);
     }
-    
+
     /**
      * 孤立数据/失败数据处理出口（无原因，兼容旧实现）。
      * 框架内部会调用 {@link #onFailed(Object, String, FailureReason)}，未覆写带原因版本时由此兜底。

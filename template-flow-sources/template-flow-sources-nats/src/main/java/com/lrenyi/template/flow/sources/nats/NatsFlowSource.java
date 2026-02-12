@@ -2,7 +2,7 @@ package com.lrenyi.template.flow.sources.nats;
 
 import java.time.Duration;
 import java.util.NoSuchElementException;
-import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.api.FlowSource;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
 

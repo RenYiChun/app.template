@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import lombok.extern.slf4j.Slf4j;
 
 /**

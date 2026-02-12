@@ -1,8 +1,8 @@
-package com.lrenyi.template.core.flow;
+package com.lrenyi.template.core.flow.model;
 
 /**
  * 被动出口/失败原因枚举。
- * 用于 {@link FlowJoiner#onFailed} 和进度/指标按原因统计。
+ * 用于 {@link com.lrenyi.template.core.flow.api.FlowJoiner#onFailed} 和进度/指标按原因统计。
  */
 public enum FailureReason {
     /**
