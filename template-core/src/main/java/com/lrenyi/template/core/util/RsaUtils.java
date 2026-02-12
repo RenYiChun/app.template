@@ -60,33 +60,42 @@ public class RsaUtils {
         return publicKey;
     }
 
+    /** RSA 使用 OAEP padding，避免 PKCS#1 v1.5 的 Bleichenbacher 攻击 */
+    private static final String RSA_OAEP = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+    /** 旧格式兼容（PKCS#1 v1.5），仅用于解密已有数据 */
+    private static final String RSA_LEGACY = "RSA";
+    private static final String OAEP_PREFIX = "OAEP:";
+
     public static String encryption(String data) {
         ensureKeysLoaded();
         if (publicKey == null) {
             return data;
         }
         try {
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance(RSA_OAEP);
             cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-            byte[] decryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return Base64.encodeBase64String(decryptedBytes);
+            byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return OAEP_PREFIX + Base64.encodeBase64String(encrypted);
         } catch (Throwable cause) {
             logger.error("RSA encryption failed", cause);
             throw new IllegalStateException("RSA encryption failed", cause);
         }
     }
-    
+
     public static String decrypt(String data) {
         ensureKeysLoaded();
         if (privateKey == null) {
             return data;
         }
-        byte[] decoded = Base64.decodeBase64(data);
+        boolean useOaep = data.startsWith(OAEP_PREFIX);
+        String base64 = useOaep ? data.substring(OAEP_PREFIX.length()) : data;
+        byte[] decoded = Base64.decodeBase64(base64);
+        String transformation = useOaep ? RSA_OAEP : RSA_LEGACY;
         try {
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance(transformation);
             cipher.init(Cipher.DECRYPT_MODE, privateKey);
-            byte[] decryptedBytes = cipher.doFinal(decoded);
-            return new String(decryptedBytes, StandardCharsets.UTF_8);
+            byte[] decrypted = cipher.doFinal(decoded);
+            return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
             logger.error("RSA decryption failed", cause);
             throw new IllegalStateException("RSA decryption failed", cause);
