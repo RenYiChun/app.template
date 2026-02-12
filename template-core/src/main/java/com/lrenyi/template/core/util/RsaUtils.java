@@ -1,9 +1,10 @@
 package com.lrenyi.template.core.util;
 
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -102,7 +103,7 @@ public class RsaUtils {
                 throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            return new String(keyBytes);
+            return new String(keyBytes, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
             logger.error("Failed to load public key from file: {}", publicKeyFileName, cause);
             throw new IllegalStateException("Failed to load public key from file: " + publicKeyFileName, cause);
@@ -138,7 +139,7 @@ public class RsaUtils {
         String publicKeyPem = "-----BEGIN PUBLIC KEY-----\n";
         publicKeyPem += Base64.encodeBase64String(encodedPublicKey).replaceAll("(.{64})", "$1\n");
         publicKeyPem += "\n-----END PUBLIC KEY-----";
-        try (FileWriter writer = new FileWriter(pemFilename)) {
+        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
             writer.write(publicKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -151,7 +152,7 @@ public class RsaUtils {
         privateKeyPem += Base64.encodeBase64String(encodedPrivateKey).replaceAll("(.{64})", "$1\n");
         privateKeyPem += "\n-----END PRIVATE KEY-----";
         
-        try (FileWriter writer = new FileWriter(pemFilename)) {
+        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
             writer.write(privateKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -167,7 +168,7 @@ public class RsaUtils {
                 throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            String publicKeyContent = new String(keyBytes);
+            String publicKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
             publicKeyContent = publicKeyContent.replaceAll("\\n", "")
                                                .replace("-----BEGIN PUBLIC KEY-----", "")
                                                .replace("-----END PUBLIC KEY-----", "");
@@ -192,7 +193,7 @@ public class RsaUtils {
                 throw new NullPointerException("loader file：" + privateKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            String privateKeyContent = new String(keyBytes);
+            String privateKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
             privateKeyContent = privateKeyContent.replaceAll("\\n", "")
                                                  .replace("-----BEGIN PRIVATE KEY-----", "")
                                                  .replace("-----END PRIVATE KEY-----", "");

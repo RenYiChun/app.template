@@ -4,27 +4,21 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
-import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
-import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
-import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.core.flow.health.HealthStatus;
-import com.lrenyi.template.core.flow.internal.BackpressureController;
-import com.lrenyi.template.core.flow.internal.FlowFinalizer;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -159,44 +153,13 @@ public class FlowManager {
         try {
             Registration registration = new Registration(jobId, jobConfig);
             registry.put(jobId, registration);
-            
-            // 创建Job级资源
-            Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
-            ExecutorService producerExecutor = resourceRegistry.getExecutorProvider()
-                    .createProducerExecutor(jobProducerSemaphore);
 
-            // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
-            FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
-            FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
-            FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId, flowJoiner, jobConfig, finalizer, tracker);
+            FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
 
-            BackpressureController backpressureController = new BackpressureController(storage);
-
-            // 创建资源上下文
-            FlowResourceContext resourceContext = FlowResourceContext.builder()
-                    .resourceRegistry(resourceRegistry)
-                    .flowManager(this)
-                    .jobProducerSemaphore(jobProducerSemaphore)
-                    .storage(storage)
-                    .backpressureController(backpressureController)
-                    .producerExecutor(producerExecutor)
-                    .build();
-            
-            // 创建Launcher，传递resourceContext
-            FlowLauncher<T> launcher = FlowLauncher.create(jobId,
-                                                           flowJoiner,
-                                                           this,
-                                                           tracker,
-                                                           registration,
-                                                           resourceContext
-            );
-            
             activeLaunchers.put(jobId, launcher);
-            
-            // 记录指标
             FlowMetrics.incrementCounter("launcher_created");
             FlowMetrics.recordResourceUsage("active_launchers", activeLaunchers.size());
-            
+
             return launcher;
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);

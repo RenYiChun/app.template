@@ -23,6 +23,7 @@ import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.api.FlowSource;
 import com.lrenyi.template.core.flow.api.FlowSourceAdapters;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Flow 框架集成测试：拉取/推送、存储与失败原因、进度与指标、资源与生命周期。
  */
+@Slf4j
 class FlowJoinerEngineIntegrationTest {
 
     private static final int TIMEOUT_SEC = 30;
@@ -60,8 +62,8 @@ class FlowJoinerEngineIntegrationTest {
     void tearDown() {
         try {
             manager.stopAll(true);
-        } catch (Exception ignored) {
-            // ignore
+        } catch (Exception e) {
+            log.debug("tearDown stopAll completed with exception (may be expected)", e);
         }
         FlowManager.reset();
         FlowResourceRegistry.reset();

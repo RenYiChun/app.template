@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.sources.nats;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.NoSuchElementException;
 import io.nats.client.Message;
@@ -36,7 +37,7 @@ class NatsFlowSourceTest {
 
     @BeforeEach
     void setUp() {
-        mapper = msg -> new String(msg.getData());
+        mapper = msg -> new String(msg.getData(), StandardCharsets.UTF_8);
     }
 
     @Test
