@@ -18,6 +18,7 @@ import com.lrenyi.template.core.flow.QueueJoiner;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.internal.DefaultProgressTracker;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.core.flow.api.FlowSource;
@@ -159,6 +160,19 @@ class FlowJoinerEngineIntegrationTest {
     }
 
     // ---------- 3.2 推送模式 ----------
+
+    @Test
+    void IT_FlowLauncher_getters() {
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        var inlet = engine.startPush("job-launcher-test", joiner, jobConfig);
+        FlowLauncher<?> launcher = manager.getActiveLauncher("job-launcher-test");
+        assertNotNull(launcher);
+        assertEquals("job-launcher-test", launcher.getJobId());
+        assertEquals(jobConfig.getMaxCacheSize(), launcher.getCacheCapacity());
+        assertFalse(launcher.isStopped());
+        inlet.markSourceFinished();
+        manager.stopAll(true);
+    }
 
     @Test
     void IT_PUSH_COMPLETION() throws Exception {

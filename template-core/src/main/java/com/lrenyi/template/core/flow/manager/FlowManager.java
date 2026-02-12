@@ -14,6 +14,8 @@ import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
+import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
+import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.core.flow.health.HealthStatus;
@@ -301,45 +303,7 @@ public class FlowManager {
     public void logHealthReport() {
         HealthStatus status = FlowHealth.checkHealth();
         Map<String, Object> healthDetails = FlowHealth.getHealthDetails();
-        
-        StringBuilder report = new StringBuilder("\n");
-        report.append("=".repeat(80)).append("\n");
-        report.append("Flow Framework Health Report\n");
-        report.append("=".repeat(80)).append("\n");
-        report.append(String.format("Overall Status: %s%n", status.name()));
-        report.append("-".repeat(80)).append("\n");
-        
-        @SuppressWarnings("unchecked")
-        java.util.List<Map<String, Object>> indicators = 
-            (java.util.List<Map<String, Object>>) healthDetails.get("indicators");
-        
-        if (indicators != null && !indicators.isEmpty()) {
-            for (Map<String, Object> indicator : indicators) {
-                String name = (String) indicator.get("name");
-                String indicatorStatus = (String) indicator.get("status");
-                report.append(String.format("\n[%s] Status: %s%n", name, indicatorStatus));
-                
-                @SuppressWarnings("unchecked")
-                Map<String, Object> details = (Map<String, Object>) indicator.get("details");
-                if (details != null) {
-                    details.forEach((key, value) -> {
-                        if (value != null) {
-                            report.append(String.format("  - %s: %s%n", key, value));
-                        }
-                    });
-                }
-            }
-        }
-        
-        report.append("=".repeat(80)).append("\n");
-        
-        if (status == HealthStatus.UNHEALTHY) {
-            log.error(report.toString());
-        } else if (status == HealthStatus.DEGRADED) {
-            log.warn(report.toString());
-        } else {
-            log.info(report.toString());
-        }
+        FlowHealthReportRenderer.renderAndLog(status, healthDetails);
     }
     
     /**

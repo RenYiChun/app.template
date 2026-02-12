@@ -90,4 +90,28 @@ class FlowSourceAdaptersTest {
         p.close();
     }
 
+    @Test
+    void fromFlowSources_closeWhenOneSourceThrows_doesNotPropagate() {
+        FlowSource<String> ok = FlowSourceAdapters.fromIterator(List.of("a").iterator(), null);
+        FlowSource<String> throwOnClose = new ThrowingOnCloseFlowSource<>();
+        FlowSourceProvider<String> p = FlowSourceAdapters.fromFlowSources(List.of(ok, throwOnClose));
+        assertDoesNotThrow(p::close);
+    }
+
+    private static class ThrowingOnCloseFlowSource<T> implements FlowSource<T> {
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public T next() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public void close() {
+            throw new RuntimeException("close failed");
+        }
+    }
 }
