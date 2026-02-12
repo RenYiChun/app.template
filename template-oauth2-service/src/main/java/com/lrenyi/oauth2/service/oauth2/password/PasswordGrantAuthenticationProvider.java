@@ -43,12 +43,12 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 public class PasswordGrantAuthenticationProvider implements AuthenticationProvider {
-    
+
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsService userDetailsService;
-    
+
     public PasswordGrantAuthenticationProvider(OAuth2AuthorizationService authorizationService,
                                                OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
                                                PasswordEncoder passwordEncoder,
@@ -60,34 +60,24 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         this.passwordEncoder = passwordEncoder;
         this.userDetailsService = userDetailsService;
     }
-    
+
     // @formatter:off
     @Override
     public Authentication authenticate(Authentication authentication)
             throws AuthenticationException {
         PasswordGrantAuthenticationToken grantToken =
                 (PasswordGrantAuthenticationToken) authentication;
-        
+
         Map<String, Object> parameters = grantToken.getAdditionalParameters();
         AuthorizationGrantType grantType = grantToken.getGrantType();
         String username = (String) parameters.get(OAuth2ParameterNames.USERNAME);
-        String type = (String) parameters.get(OAuth2Constant.LOGIN_USER_NAME_TYPE_KEY);
-        if (!StringUtils.hasLength(type)) {
-            type = IdentifierType.USERNAME.name();
-        }
-        //请求参数权限范围
-        String requestScopesStr = (String) parameters.get(OAuth2ParameterNames.SCOPE);
-        Set<String> requestScopeSet = new HashSet<>();
-        
-        if (StringUtils.hasLength(requestScopesStr)) {
-            requestScopeSet = Stream.of(requestScopesStr.split(" "))
-                                    .collect(Collectors.toSet());
-        }
-        
+        String type = parseIdentifierType(parameters);
+        Set<String> requestScopeSet = parseRequestScopes(parameters);
+
         // Ensure the client is authenticated
         OAuth2ClientAuthenticationToken principal = getClient(grantToken);
         RegisteredClient client = principal.getRegisteredClient();
-        
+
         // Ensure the client is configured to use this check grant type
         if (client == null || !client.getAuthorizationGrantTypes().contains(grantType)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
@@ -110,13 +100,13 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             .authorizationGrant(grantToken)
             .build();
         // @formatter:on
-        
+
         OAuth2Token generatedAccessToken = this.tokenGenerator.generate(tokenContext);
         if (generatedAccessToken == null) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_TOKEN);
         }
         OAuth2AccessToken accessToken = getAuth2AccessToken(generatedAccessToken, collect);
-        
+
         // @formatter:off
         DefaultOAuth2TokenContext.Builder tokenContextBuilder = DefaultOAuth2TokenContext.builder()
              .registeredClient(client)
@@ -126,11 +116,11 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
              .authorizedScopes(requestScopeSet)
              .authorizationGrant(grantToken);
         // @formatter:on
-        
+
         OAuth2Authorization.Builder builder = OAuth2Authorization.withRegisteredClient(client);
         builder.principalName(principal.getName());
         OAuth2Authorization.Builder authorizationBuilder = builder.authorizationGrantType(grantType);
-        
+
         if (generatedAccessToken instanceof ClaimAccessor) {
             authorizationBuilder.token(accessToken, (metadata) -> {
                 Map<String, Object> claims = ((ClaimAccessor) generatedAccessToken).getClaims();
@@ -149,11 +139,11 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         authorizationBuilder.attribute(Principal.class.getName(), principal);
         authorizationBuilder.authorizedScopes(accessToken.getScopes());
         OAuth2Authorization authorization = authorizationBuilder.build();
-        
+
         OAuth2RefreshToken refreshToken = null;
         boolean refresh = client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN);
         boolean eqNone = !principal.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE);
-        
+
         if (refresh && eqNone) {
             tokenContext = tokenContextBuilder.tokenType(OAuth2TokenType.REFRESH_TOKEN).build();
             OAuth2Token generatedRefreshToken = this.tokenGenerator.generate(tokenContext);
@@ -166,7 +156,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             refreshToken = (OAuth2RefreshToken) generatedRefreshToken;
             authorizationBuilder.refreshToken(refreshToken);
         }
-        
+
         // Save the OAuth2Authorization
         this.authorizationService.save(authorization);
         HashMap<String, Object> parameter = new HashMap<>();
@@ -174,12 +164,26 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         parameter.put(OAuth2TokenIntrospectionClaimNames.USERNAME, username);
         return new OAuth2AccessTokenAuthenticationToken(client, principal, accessToken, refreshToken, parameter);
     }
-    
+    // @formatter:on
+
+    private static String parseIdentifierType(Map<String, Object> parameters) {
+        String type = (String) parameters.get(OAuth2Constant.LOGIN_USER_NAME_TYPE_KEY);
+        return StringUtils.hasLength(type) ? type : IdentifierType.USERNAME.name();
+    }
+
+    private static Set<String> parseRequestScopes(Map<String, Object> parameters) {
+        String requestScopesStr = (String) parameters.get(OAuth2ParameterNames.SCOPE);
+        if (!StringUtils.hasLength(requestScopesStr)) {
+            return new HashSet<>();
+        }
+        return Stream.of(requestScopesStr.split(" ")).collect(Collectors.toSet());
+    }
+
     @Override
     public boolean supports(Class<?> authentication) {
         return PasswordGrantAuthenticationToken.class.isAssignableFrom(authentication);
     }
-    
+
     private static OAuth2ClientAuthenticationToken getClient(Authentication authentication) {
         OAuth2ClientAuthenticationToken clientPrincipal = null;
         if (OAuth2ClientAuthenticationToken.class.isAssignableFrom(authentication.getPrincipal().getClass())) {
@@ -190,13 +194,13 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         }
         throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
     }
-    
+
     private static OAuth2AccessToken getAuth2AccessToken(OAuth2Token generatedAccessToken, Set<String> collect) {
         OAuth2AccessToken.TokenType bearer = OAuth2AccessToken.TokenType.BEARER;
         String value = generatedAccessToken.getTokenValue();
         Instant issuedAt = generatedAccessToken.getIssuedAt();
         Instant expiresAt = generatedAccessToken.getExpiresAt();
-        
+
         return new OAuth2AccessToken(bearer, value, issuedAt, expiresAt, collect);
     }
 }
