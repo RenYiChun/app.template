@@ -13,7 +13,6 @@ import com.lrenyi.template.core.flow.executor.BoundedVirtualExecutor;
 import com.lrenyi.template.core.flow.executor.DefaultFlowExecutorProvider;
 import com.lrenyi.template.core.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.core.flow.manager.FlowCacheManager;
-import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.model.FlowConstants;
 import lombok.Getter;
@@ -47,9 +46,9 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Lock fairLock;
     private final Condition permitReleased;
     private final FlowCacheManager flowCacheManager;
-    // FlowManager 引用（由 FlowManager 在初始化时设置，避免循环依赖）
+    /** 由 FlowManager 在初始化时注入，供 Storage 按 jobId 查找 Launcher，避免 Registry 依赖 FlowManager 类 */
     @Setter
-    private volatile FlowManager flowManager;
+    private volatile ActiveLauncherLookup launcherLookup;
     
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);

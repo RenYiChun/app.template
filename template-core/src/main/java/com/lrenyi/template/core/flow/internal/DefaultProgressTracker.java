@@ -127,7 +127,8 @@ public class DefaultProgressTracker implements ProgressTracker {
      */
     private void checkCompletion() {
         long inStorage = 0L;
-        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        @SuppressWarnings("unchecked")
+        FlowLauncher<Object> activeLauncher = (FlowLauncher<Object>) flowManager.getActiveLauncher(jobId);
         if (activeLauncher != null) {
             inStorage = activeLauncher.getStorage().size();
         }
@@ -149,7 +150,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public FlowProgressSnapshot getSnapshot() {
         long inStorage = 0;
-        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        @SuppressWarnings("unchecked")
+        FlowLauncher<Object> activeLauncher = (FlowLauncher<Object>) flowManager.getActiveLauncher(jobId);
         if (activeLauncher != null) {
             FlowStorage<Object> storage = activeLauncher.getStorage();
             inStorage = storage.size();

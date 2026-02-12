@@ -27,6 +27,7 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
         String plain = StringEscapeUtils.unescapeHtml4(rawPassword.toString());
         byte[] salt = Digests.generateSalt(8);
         byte[] hashPassword = Digests.sha1(plain.getBytes(), salt, 1024);
+        // Hex 仅含 0-9a-f，new String(char[]) 平台编码与 ASCII 兼容
         return new String(Hex.encodeHex(salt)) + new String(Hex.encodeHex(hashPassword));
     }
     

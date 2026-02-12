@@ -11,8 +11,8 @@ import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.internal.FlowFinalizer;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.model.FailureReason;
-import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,9 +74,9 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
      * 在 storageEgressExecutor 单线程上执行：非阻塞取队直到空，每条 submitBodyOnly（acquire 由 FlowGlobalExecutor 处理）。
      */
     private void drainLoop() {
-        FlowManager flowManager = resourceRegistry.getFlowManager();
-        if (flowManager == null) {
-            log.warn("FlowManager not available for drainLoop");
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        if (launcherLookup == null) {
+            log.warn("LauncherLookup not available for drainLoop");
             FlowMetrics.recordError("flow_manager_unavailable_drain", null);
             return;
         }
@@ -84,7 +84,8 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         int drainedCount = 0;
         while (!stopped.get() && (entry = queue.poll()) != null) {
             drainedCount++;
-            FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+            @SuppressWarnings("unchecked")
+            FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);

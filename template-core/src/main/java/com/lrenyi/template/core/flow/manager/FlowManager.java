@@ -18,6 +18,7 @@ import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.core.flow.health.HealthStatus;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.Getter;
 import lombok.Setter;
@@ -35,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 @Setter
-public class FlowManager {
+public class FlowManager implements ActiveLauncherLookup {
     private static volatile FlowManager instance;
     private static volatile TemplateConfigProperties.JobGlobal lastConfig;
     private final TemplateConfigProperties.JobGlobal globalConfig;
@@ -53,8 +54,8 @@ public class FlowManager {
         this.globalConfig = globalConfig;
         // 获取或创建全局资源注册表
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig);
-        // 设置 FlowManager 引用到 ResourceRegistry，用于解决循环依赖
-        this.resourceRegistry.setFlowManager(this);
+        // 注入 Launcher 查找能力，避免 Registry 依赖 FlowManager 类（打破循环依赖）
+        this.resourceRegistry.setLauncherLookup(this);
         log.info("FlowManager 启动");
     }
     
@@ -85,9 +86,9 @@ public class FlowManager {
      * @return FlowManager 实例
      */
     public static FlowManager getInstance(TemplateConfigProperties.JobGlobal globalConfig) {
-        if (instance == null || !configEquals(lastConfig, globalConfig)) {
+        if (instance == null || configChanged(lastConfig, globalConfig)) {
             synchronized (FlowManager.class) {
-                if (instance == null || !configEquals(lastConfig, globalConfig)) {
+                if (instance == null || configChanged(lastConfig, globalConfig)) {
                     if (instance != null) {
                         log.info("检测到配置变更，关闭旧实例并创建新实例");
                         try {
@@ -105,19 +106,18 @@ public class FlowManager {
     }
     
     /**
-     * 比较两个配置是否相等
-     * 用于检测配置变更
+     * 检测两个配置是否发生变更
      */
-    private static boolean configEquals(TemplateConfigProperties.JobGlobal config1,
+    private static boolean configChanged(TemplateConfigProperties.JobGlobal config1,
                                         TemplateConfigProperties.JobGlobal config2) {
         if (config1 == config2) {
-            return true;
-        }
-        if (config1 == null || config2 == null) {
             return false;
         }
-        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit()
-                && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
+        if (config1 == null || config2 == null) {
+            return true;
+        }
+        return config1.getGlobalSemaphoreMaxLimit() != config2.getGlobalSemaphoreMaxLimit()
+                || config1.getProgressDisplaySecond() != config2.getProgressDisplaySecond();
     }
     
     /**
@@ -226,13 +226,14 @@ public class FlowManager {
         return Collections.unmodifiableMap(activeLaunchers);
     }
     
-    @SuppressWarnings("unchecked")
-    public <T> FlowLauncher<T> getActiveLauncher(String jobId) {
-        return (FlowLauncher<T>) activeLaunchers.get(jobId);
+    @Override
+    public FlowLauncher<?> getActiveLauncher(String jobId) {
+        return activeLaunchers.get(jobId);
     }
     
     public ProgressTracker getProgressTracker(String jobId) {
-        FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
+        @SuppressWarnings("unchecked") FlowLauncher<Object> activeLauncher =
+                (FlowLauncher<Object>) getActiveLauncher(jobId);
         Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
         return taskOrchestrator.tracker();
     }

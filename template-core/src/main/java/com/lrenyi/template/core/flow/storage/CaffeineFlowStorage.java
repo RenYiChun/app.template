@@ -16,8 +16,8 @@ import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.internal.FlowFinalizer;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.model.FailureReason;
-import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -208,14 +208,15 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      * @param entry   后到达的条目
      */
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
-        FlowManager flowManager = resourceRegistry.getFlowManager();
-        if (flowManager == null) {
-            log.warn("FlowManager not available for job {}", entry.getJobId());
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        if (launcherLookup == null) {
+            log.warn("LauncherLookup not available for job {}", entry.getJobId());
             FlowMetrics.recordError("flow_manager_unavailable", entry.getJobId());
             partner.close();
             return;
         }
-        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+        @SuppressWarnings("unchecked")
+        FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             log.warn("No active launcher found for job id {}", entry.getJobId());
             partner.close();
@@ -306,14 +307,14 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
      * @param cause 移除原因（超时、容量驱逐等）
      */
     private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
-        FlowManager flowManager = resourceRegistry.getFlowManager();
-        if (flowManager == null) {
-            log.warn("FlowManager not available for entry removal, jobId={}", entry.getJobId());
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        if (launcherLookup == null) {
+            log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
             FlowMetrics.recordError("flow_manager_unavailable_removal", entry.getJobId());
             return;
         }
-        
-        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+        @SuppressWarnings("unchecked")
+        FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
         try (entry) {
             if (!cause.wasEvicted() || launcher == null) {
                 return;
