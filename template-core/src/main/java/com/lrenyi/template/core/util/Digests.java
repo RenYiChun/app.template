@@ -52,9 +52,9 @@ public class Digests {
             }
             return result;
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
     }
     
     private static byte[] digest(InputStream input, String algorithm) throws IOException {
@@ -71,9 +71,9 @@ public class Digests {
             
             return messageDigest.digest();
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for input stream, algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
     }
     
     /**

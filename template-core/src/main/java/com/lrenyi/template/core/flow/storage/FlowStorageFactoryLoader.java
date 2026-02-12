@@ -40,6 +40,7 @@ public class FlowStorageFactoryLoader {
             log.info("共加载 {} 个存储工厂", list.size());
         } catch (Exception e) {
             log.error("加载存储工厂失败", e);
+            throw new IllegalStateException("Failed to load FlowStorageFactory", e);
         }
         return Collections.unmodifiableList(list);
     }

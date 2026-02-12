@@ -1,12 +1,14 @@
 package com.lrenyi.template.core.coder.coder;
 
 import com.lrenyi.template.core.coder.TemplateEncryptService;
+import lombok.extern.slf4j.Slf4j;
 import com.lrenyi.template.core.util.Digests;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.text.StringEscapeUtils;
 import org.kohsuke.MetaInfServices;
 import org.springframework.util.StringUtils;
 
+@Slf4j
 @MetaInfServices
 public class DefaultTemplateDataCoder implements TemplateEncryptService {
     
@@ -41,7 +43,8 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
                 String espwd =
                         new String(Hex.encodeHex(salt)) + new String(Hex.encodeHex(hashPassword));
                 return encodedPassword.equals(espwd);
-            } catch (Exception var6) {
+            } catch (Exception e) {
+                log.debug("Password format validation failed", e);
                 return false;
             }
         }
