@@ -268,35 +268,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             }
         }
         
-        // 2. 关闭缓存移除执行器（Caffeine 回调用）
-        if (cacheRemovalExecutor != null && !cacheRemovalExecutor.isShutdown()) {
-            try {
-                shutdownExecutor("缓存移除执行器", cacheRemovalExecutor);
-            } catch (Exception e) {
-                errors.add(e);
-                log.error("关闭缓存移除执行器失败", e);
-            }
-        }
-        
-        // 3. 关闭存储出口执行器
-        if (storageEgressExecutor != null && !storageEgressExecutor.isShutdown()) {
-            try {
-                shutdownExecutor("存储出口执行器", storageEgressExecutor);
-            } catch (Exception e) {
-                errors.add(e);
-                log.error("关闭存储出口执行器失败", e);
-            }
-        }
-        
-        // 4. 关闭流消费执行器（最后关闭）
-        if (flowConsumerExecutor != null && !flowConsumerExecutor.isShutdown()) {
-            try {
-                shutdownExecutor("流消费执行器", flowConsumerExecutor);
-            } catch (Exception e) {
-                errors.add(e);
-                log.error("关闭流消费执行器失败", e);
-            }
-        }
+        // 2-4. 关闭各执行器
+        shutdownExecutorSafely("缓存移除执行器", cacheRemovalExecutor, errors);
+        shutdownExecutorSafely("存储出口执行器", storageEgressExecutor, errors);
+        shutdownExecutorSafely("流消费执行器", flowConsumerExecutor, errors);
         
         shutdown.set(true);
         
@@ -309,6 +284,20 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         log.info("FlowResourceRegistry 关闭完成");
     }
     
+    /**
+     * 安全关闭执行器：若执行器未关闭则调用 shutdownExecutor，异常收集到 errors
+     */
+    private void shutdownExecutorSafely(String name, ExecutorService executor, java.util.List<Exception> errors) {
+        if (executor != null && !executor.isShutdown()) {
+            try {
+                shutdownExecutor(name, executor);
+            } catch (Exception e) {
+                errors.add(e);
+                log.error("关闭{}失败", name, e);
+            }
+        }
+    }
+
     /**
      * 关闭执行器，带超时保护
      *

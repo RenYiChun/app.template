@@ -53,7 +53,10 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final ProgressTracker progressTracker;
     private final long maxCacheSize;
     private final FlowResourceRegistry resourceRegistry;
-    /** 按 key 分片的锁，保证同一 key 的配对/放入原子性，同时减少对 Caffeine 驱逐锁的并发争用 */
+    /**
+     * 按 key 分片的锁数量，保证同一 key 的配对/放入原子性，同时减少对 Caffeine 驱逐锁的并发争用。
+     * 256 为经验值，在锁粒度和内存占用之间取得平衡。
+     */
     private static final int STRIPE_COUNT = 256;
     private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
     static {
