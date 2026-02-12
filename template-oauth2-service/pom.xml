@@ -11,6 +11,10 @@
     <artifactId>template-oauth2-service</artifactId>
     <name>Template Oauth2 Service</name>
 
+    <properties>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>

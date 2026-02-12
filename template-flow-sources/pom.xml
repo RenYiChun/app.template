@@ -15,6 +15,7 @@
 
     <properties>
         <checkstyle.skip>true</checkstyle.skip>
+        <checker.root.dir>${project.parent.parent.basedir}</checker.root.dir>
     </properties>
 
     <modules>

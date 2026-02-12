@@ -10,6 +10,10 @@
     <name>Template Cloud</name>
     <packaging>jar</packaging>
 
+    <properties>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>

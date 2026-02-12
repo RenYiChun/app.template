@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-fastgen-parent</artifactId>
+        <version>2.4.2.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>template-fastgen-example</artifactId>
+    <name>Template Fastgen Example</name>
+    <description>template-fastgen 使用示例：@Domain / @Page 注解驱动编译期元数据与代码生成</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-fastgen</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-fastgen-maven-plugin</artifactId>
+                <version>2.4.2.1-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <id>generate</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

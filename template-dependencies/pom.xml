@@ -237,6 +237,11 @@
                 <artifactId>nats-spring</artifactId>
                 <version>${nats-spring.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.lrenyi</groupId>
+                <artifactId>template-fastgen</artifactId>
+                <version>${app.template.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

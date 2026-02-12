@@ -11,6 +11,10 @@
     <artifactId>template-api</artifactId>
     <name>Template Aip</name>
 
+    <properties>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
