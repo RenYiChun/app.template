@@ -8,6 +8,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.errors.WakeupException;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 单子流 Kafka 数据源：包装一个 {@link KafkaConsumer}，按顺序产出 T。
@@ -19,6 +20,7 @@ import org.apache.kafka.common.errors.WakeupException;
  *
  * @param <T> 业务产出类型，由 mapper 从 ConsumerRecord 转换得到
  */
+@Slf4j
 public final class KafkaFlowSource<T> implements FlowSource<T> {
     
     private final KafkaConsumer<?, ?> consumer;
@@ -90,8 +92,8 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         closed = true;
         try {
             consumer.close();
-        } catch (Exception ignored) {
-            // 尽量释放
+        } catch (Exception e) {
+            log.debug("Kafka consumer close failed, ignoring for best-effort release", e);
         }
     }
 }

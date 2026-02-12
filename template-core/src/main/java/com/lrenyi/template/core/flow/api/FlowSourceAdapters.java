@@ -2,6 +2,8 @@ package com.lrenyi.template.core.flow.api;
 
 import java.util.Iterator;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
@@ -9,6 +11,8 @@ import java.util.stream.Stream;
  * Source 适配器：将 JDK Stream / Iterator 转为 FlowSource 或 FlowSourceProvider。
  */
 public final class FlowSourceAdapters {
+
+    private static final Logger log = LoggerFactory.getLogger(FlowSourceAdapters.class);
 
     private FlowSourceAdapters() {
     }
@@ -106,8 +110,8 @@ public final class FlowSourceAdapters {
             for (FlowSource<T> s : sources) {
                 try {
                     s.close();
-                } catch (Exception ignored) {
-                    // 尽量释放
+                } catch (Exception e) {
+                    log.debug("FlowSource close failed, ignoring for best-effort release", e);
                 }
             }
         }
