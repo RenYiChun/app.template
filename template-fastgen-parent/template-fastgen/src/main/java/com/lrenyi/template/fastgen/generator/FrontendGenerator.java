@@ -64,7 +64,7 @@ public class FrontendGenerator {
             Map<String, Object> data = new HashMap<>();
             data.put("entities", snapshot.getEntities());
             data.put("pages", snapshot.getPages());
-            generateIfTemplateExists("frontend/router.ts.ftl", out.resolve("src/router/index.ts"), data);
+            generateIfTemplateExists("frontend/router.ts.ftl", out.resolve("src/router/generated.ts"), data);
         }
     }
 

@@ -13,6 +13,10 @@ public class PageMetadata {
     private String title;
     private String layout;
     private String path;
+    /** 后端 API 路径，非空时生成 PageController 与 Request DTO */
+    private String apiPath;
+    /** 提交成功后的前端跳转路径，非空时生成 router.push(successPath) */
+    private String successPath;
     private List<FieldMetadata> fields = new ArrayList<>();
 
     public String getSimpleName() {
@@ -53,6 +57,22 @@ public class PageMetadata {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public String getApiPath() {
+        return apiPath;
+    }
+
+    public void setApiPath(String apiPath) {
+        this.apiPath = apiPath;
+    }
+
+    public String getSuccessPath() {
+        return successPath;
+    }
+
+    public void setSuccessPath(String successPath) {
+        this.successPath = successPath;
     }
 
     public List<FieldMetadata> getFields() {

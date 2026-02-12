@@ -2,6 +2,7 @@ package com.lrenyi.template.fastgen.generator;
 
 import com.lrenyi.template.fastgen.model.EntityMetadata;
 import com.lrenyi.template.fastgen.model.MetadataSnapshot;
+import com.lrenyi.template.fastgen.model.PageMetadata;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
@@ -61,6 +62,28 @@ public class BackendGenerator {
             Map<String, Object> data = new HashMap<>();
             data.put("entities", snapshot.getEntities());
             generateIfTemplateExists("backend/schema.sql.ftl", resourcesDir.resolve("schema.sql"), data);
+        }
+
+        // @Page 后端：apiPath 非空时生成 PageController 与 PageRequest
+        String pkgPath = basePackage.replace('.', '/');
+        Path pageDir = out.resolve("src/main/java").resolve(pkgPath).resolve("page");
+        if (snapshot.getPages() != null) {
+            for (PageMetadata page : snapshot.getPages()) {
+                if (page.getApiPath() == null || page.getApiPath().isEmpty()) {
+                    continue;
+                }
+                try {
+                    Files.createDirectories(pageDir);
+                } catch (IOException e) {
+                    // 忽略已存在
+                }
+                Map<String, Object> data = new HashMap<>();
+                data.put("page", page);
+                data.put("basePackage", basePackage);
+                generateIfTemplateExists("backend/PageRequest.java.ftl", pageDir.resolve(page.getSimpleName() + "Request.java"), data);
+                generateIfTemplateExists("backend/PageHandler.java.ftl", pageDir.resolve(page.getSimpleName() + "Handler.java"), data);
+                generateIfTemplateExists("backend/PageController.java.ftl", pageDir.resolve(page.getSimpleName() + "Controller.java"), data);
+            }
         }
     }
 

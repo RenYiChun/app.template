@@ -105,6 +105,8 @@ public class DomainEntityProcessor extends AbstractProcessor {
         meta.setTitle(ann.title());
         meta.setLayout(ann.layout());
         meta.setPath(ann.path().isEmpty() ? "/" + simpleName : ann.path());
+        meta.setApiPath(ann.apiPath());
+        meta.setSuccessPath(ann.successPath());
 
         List<FieldMetadata> fields = new ArrayList<>();
         for (Element member : type.getEnclosedElements()) {

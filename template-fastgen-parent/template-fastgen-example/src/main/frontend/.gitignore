@@ -4,6 +4,7 @@ npm-debug.log*
 
 # Dependencies
 node_modules/
+package-lock.json
 dist/
 dist-ssr/
 
@@ -36,3 +37,6 @@ src/api/*
 # 生成的 TypeScript 类型
 src/types/*
 !src/types/.gitkeep
+
+# 生成的路由（保留 index.ts 为主入口）
+src/router/generated.ts

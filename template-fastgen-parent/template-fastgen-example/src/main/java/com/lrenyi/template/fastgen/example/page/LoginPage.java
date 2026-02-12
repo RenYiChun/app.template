@@ -6,7 +6,7 @@ import com.lrenyi.template.fastgen.annotation.Page;
 /**
  * 示例页面描述。编译后 APT 会将其纳入 META-INF/fastgen/snapshot.json 的 pages。
  */
-@Page(title = "登录页", layout = "centered", path = "/login")
+@Page(title = "登录页", layout = "centered", path = "/login", apiPath = "/api/auth/login", successPath = "/")
 public class LoginPage {
 
     @FormField(label = "账号", required = true)

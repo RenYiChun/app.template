@@ -33,3 +33,6 @@ build/
 ### VS Code ###
 .vscode/
 .flattened-pom.xml
+
+### 前端构建产物（复制到 Spring Boot 的 static，由 npm run build + copy-resources 生成）###
+**/src/main/resources/static/
