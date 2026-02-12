@@ -3,8 +3,8 @@ package com.lrenyi.template.cloud.service;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +23,8 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 @Component
 public class OauthUtilService {
-    public static final Map<String, String> tokenCacheMap = new HashMap<>();
-    private static final Map<String, LocalDateTime> expiresCacheMap = new HashMap<>();
+    public static final Map<String, String> tokenCacheMap = new ConcurrentHashMap<>();
+    private static final Map<String, LocalDateTime> expiresCacheMap = new ConcurrentHashMap<>();
     @Resource
     private TemplateConfigProperties templateConfigProperties;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -107,6 +107,7 @@ public class OauthUtilService {
         return Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
     }
     
+    @SuppressWarnings("null")
     public <T, R> R sendRequest(HttpHeaders headers,
                                 String url,
                                 HttpMethod method,
@@ -120,7 +121,11 @@ public class OauthUtilService {
         }
         ResponseEntity<R> response = restTemplate.exchange(url, method, entity, rt);
         if (response.getStatusCode().is2xxSuccessful()) {
-            return response.getBody();
+            R body = response.getBody();
+            if (body == null) {
+                log.warn("请求成功但响应体为空: url={}", url);
+            }
+            return body;
         } else {
             log.error("请求失败: url={}, status={}", url, response.getStatusCode());
             return null;

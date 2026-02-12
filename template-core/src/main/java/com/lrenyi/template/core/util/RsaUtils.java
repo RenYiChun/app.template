@@ -51,9 +51,9 @@ public class RsaUtils {
             byte[] decryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return Base64.encodeBase64String(decryptedBytes);
         } catch (Throwable cause) {
-            logger.error("", cause);
+            logger.error("RSA encryption failed", cause);
+            throw new IllegalStateException("RSA encryption failed", cause);
         }
-        return data;
     }
     
     public static String decrypt(String data) {
@@ -67,9 +67,9 @@ public class RsaUtils {
             byte[] decryptedBytes = cipher.doFinal(decoded);
             return new String(decryptedBytes, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
-            logger.error("", cause);
+            logger.error("RSA decryption failed", cause);
+            throw new IllegalStateException("RSA decryption failed", cause);
         }
-        return data;
     }
     
     public static String publicKeyString() {
@@ -84,8 +84,8 @@ public class RsaUtils {
             byte[] keyBytes = inputStream.readAllBytes();
             return new String(keyBytes);
         } catch (Throwable cause) {
-            logger.error("", cause);
-            return null;
+            logger.error("Failed to load public key from file: {}", publicKeyFileName, cause);
+            throw new IllegalStateException("Failed to load public key from file: " + publicKeyFileName, cause);
         }
     }
     

@@ -51,7 +51,7 @@ public class FlowProgressDisplay {
             try {
                 displayStatus(null);
             } catch (Exception e) {
-                log.error("Display error", e);
+                log.error("Flow progress display failed", e);
             }
         }, initialDelay, period, unit);
     }
