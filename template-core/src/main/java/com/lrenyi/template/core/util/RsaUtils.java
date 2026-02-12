@@ -19,29 +19,48 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
-import lombok.Getter;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RsaUtils {
     private static final Logger logger = LoggerFactory.getLogger(RsaUtils.class);
-    @Getter
-    private static PrivateKey privateKey;
-    @Getter
-    private static PublicKey publicKey;
-    
-    static {
-        try {
-            publicKey = loadPublicKeyFromFile("rsa_public.pem");
-            privateKey = loadPrivateKeyFromFile("rsa_private.pem");
-        } catch (Throwable cause) {
-            logger.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
-            System.exit(1);
+    private static volatile PrivateKey privateKey;
+    private static volatile PublicKey publicKey;
+    private static volatile boolean keysLoaded;
+    private static final Object loadLock = new Object();
+
+    private static void ensureKeysLoaded() {
+        if (keysLoaded) {
+            return;
+        }
+        synchronized (loadLock) {
+            if (keysLoaded) {
+                return;
+            }
+            try {
+                publicKey = loadPublicKeyFromFile("rsa_public.pem");
+                privateKey = loadPrivateKeyFromFile("rsa_private.pem");
+                keysLoaded = true;
+            } catch (Throwable cause) {
+                logger.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
+                throw new IllegalStateException("Failed to load RSA keys", cause);
+            }
         }
     }
-    
+
+    public static PrivateKey getPrivateKey() {
+        ensureKeysLoaded();
+        return privateKey;
+    }
+
+    public static PublicKey getPublicKey() {
+        ensureKeysLoaded();
+        return publicKey;
+    }
+
     public static String encryption(String data) {
+        ensureKeysLoaded();
         if (publicKey == null) {
             return data;
         }
@@ -57,6 +76,7 @@ public class RsaUtils {
     }
     
     public static String decrypt(String data) {
+        ensureKeysLoaded();
         if (privateKey == null) {
             return data;
         }
@@ -79,7 +99,7 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(publicKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + publicKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
             return new String(keyBytes);
@@ -144,7 +164,7 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(publicKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + publicKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
             String publicKeyContent = new String(keyBytes);
@@ -169,7 +189,7 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(privateKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + privateKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + privateKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
             String privateKeyContent = new String(keyBytes);
