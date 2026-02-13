@@ -70,7 +70,7 @@ public class BackendGenerator {
             generateIfTemplateExists("backend/schema.sql.ftl", resourcesDir.resolve("schema.sql"), data);
         }
 
-        // @Page 后端：apiPath 非空时生成 PageController、PageRequest(domain)、PageHandler(service)
+        // @Page 后端：apiPath 非空时生成 PageController、PageRequest(domain)、PageService，一域一 Controller 一 Service
         if (snapshot.getPages() != null) {
             for (PageMetadata page : snapshot.getPages()) {
                 if (page.getApiPath() == null || page.getApiPath().isEmpty()) {
@@ -87,7 +87,7 @@ public class BackendGenerator {
                 data.put("page", page);
                 data.put("basePackage", basePackage);
                 generateIfTemplateExists("backend/PageRequest.java.ftl", domainDir.resolve(page.getSimpleName() + "Request.java"), data);
-                generateIfTemplateExists("backend/PageHandler.java.ftl", serviceDir.resolve(page.getSimpleName() + "Handler.java"), data);
+                generateIfTemplateExists("backend/PageService.java.ftl", serviceDir.resolve(page.getSimpleName() + "Service.java"), data);
                 generateIfTemplateExists("backend/PageController.java.ftl", controllerDir.resolve(page.getSimpleName() + "Controller.java"), data);
             }
         }

@@ -57,7 +57,8 @@ public class FrontendGenerator {
             data.put("page", page);
             Path viewsDir = out.resolve("src/views");
             Files.createDirectories(viewsDir);
-            generateIfTemplateExists("frontend/Page.vue.ftl", viewsDir.resolve(page.getSimpleName() + ".vue"), data);
+            // 按页面名优先：Page_LoginPage.vue.ftl，否则回退 Page.vue.ftl
+            generatePageVue(viewsDir, page, data);
         }
 
         if (!snapshot.getEntities().isEmpty() || !snapshot.getPages().isEmpty()) {
@@ -68,7 +69,23 @@ public class FrontendGenerator {
         }
     }
 
-    private void generateIfTemplateExists(String templateName, Path outputPath, Map<String, Object> data)
+    /**
+     * 生成单页 Vue：优先使用 Page_{simpleName}.vue.ftl，不存在则使用 Page.vue.ftl。
+     */
+    private void generatePageVue(Path viewsDir, PageMetadata page, Map<String, Object> data)
+        throws IOException, TemplateException {
+        Path outputPath = viewsDir.resolve(page.getSimpleName() + ".vue");
+        String specificName = "frontend/Page_" + page.getSimpleName() + ".vue.ftl";
+        if (generateIfTemplateExists(specificName, outputPath, data)) {
+            return;
+        }
+        generateIfTemplateExists("frontend/Page.vue.ftl", outputPath, data);
+    }
+
+    /**
+     * @return true 表示模板存在且已写入，false 表示模板不存在
+     */
+    private boolean generateIfTemplateExists(String templateName, Path outputPath, Map<String, Object> data)
         throws IOException, TemplateException {
         try {
             Template tpl = cfg.getTemplate(templateName);
@@ -76,9 +93,10 @@ public class FrontendGenerator {
             try (var w = Files.newBufferedWriter(outputPath, StandardCharsets.UTF_8)) {
                 tpl.process(data, w);
             }
+            return true;
         } catch (IOException e) {
             if (e.getMessage() != null && e.getMessage().contains("not found")) {
-                return;
+                return false;
             }
             throw e;
         }

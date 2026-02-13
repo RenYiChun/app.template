@@ -18,6 +18,8 @@ public class PageMetadata {
     /** 提交成功后的前端跳转路径，非空时生成 router.push(successPath) */
     private String successPath;
     private List<FieldMetadata> fields = new ArrayList<>();
+    /** 本域 HTTP 端点列表（如 submit、captcha），数据驱动 Controller/Service 生成，模板无需 if */
+    private List<PageAction> actions = new ArrayList<>();
 
     public String getSimpleName() {
         return simpleName;
@@ -81,5 +83,13 @@ public class PageMetadata {
 
     public void setFields(List<FieldMetadata> fields) {
         this.fields = fields != null ? fields : new ArrayList<>();
+    }
+
+    public List<PageAction> getActions() {
+        return actions;
+    }
+
+    public void setActions(List<PageAction> actions) {
+        this.actions = actions != null ? actions : new ArrayList<>();
     }
 }

@@ -1,4 +1,4 @@
-<!-- Generated from @Page ${page.simpleName}. -->
+<!-- 通用单页模板：Generated from @Page ${page.simpleName}. 特殊页可单独建 Page_${page.simpleName}.vue.ftl -->
 <template>
   <div class="page-${page.simpleName?lower_case}" :class="{ 'centered-layout': layout === 'centered' }">
     <el-card>
@@ -15,6 +15,8 @@
           <el-checkbox v-model="formData.${field.name}">${field.label!field.name}</el-checkbox>
 <#elseif field.formType == "email">
           <el-input v-model="formData.${field.name}" type="email" placeholder="请输入${field.label!field.name}" />
+<#elseif field.formType == "hidden">
+          <!-- hidden 不展示 -->
 <#else>
           <el-input v-model="formData.${field.name}" placeholder="请输入${field.label!field.name}" />
 </#if>
@@ -46,7 +48,6 @@ const router = useRouter();
 const layout = '${page.layout!"default"}';
 const formRef = ref<FormInstance>();
 <#if page.apiPath?? && (page.apiPath!)?has_content>
-<#-- request 的 baseURL 为 /api，此处只写相对路径避免拼接成 /api/api/... -->
 <#assign apiPathValue = page.apiPath?replace("/api/", "")?replace("/api", "")>
 <#if apiPathValue?starts_with("/")><#assign apiPathValue = apiPathValue?substring(1)></#if>
 const apiPath = '${apiPathValue}';
@@ -70,7 +71,6 @@ const rules = reactive<FormRules>({
 
 const handleSubmit = async () => {
   if (!formRef.value) return;
-  
   try {
     await formRef.value.validate();
 <#if page.apiPath?? && (page.apiPath!)?has_content>
@@ -86,9 +86,11 @@ const handleSubmit = async () => {
     router.push('${page.successPath}');
     </#if>
 </#if>
-  } catch (error) {
+  } catch (error: unknown) {
     if (error !== false) {
-      ElMessage.error('提交失败');
+      const err = error as { response?: { data?: { message?: string } } };
+      const msg = err?.response?.data?.message ?? '提交失败';
+      ElMessage.error(msg);
     }
   }
 };

@@ -17,8 +17,7 @@
 
     <modules>
         <module>template-fastgen</module>
-        <module>template-fastgen-maven-plugin</module>
-        <module>template-fastgen-scaffold</module>
+        <module>template-fastgen-cli</module>
     </modules>
 
     <dependencyManagement>

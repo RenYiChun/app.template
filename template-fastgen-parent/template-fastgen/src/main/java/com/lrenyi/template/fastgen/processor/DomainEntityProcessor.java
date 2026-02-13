@@ -10,6 +10,7 @@ import com.lrenyi.template.fastgen.annotation.Page;
 import com.lrenyi.template.fastgen.model.EntityMetadata;
 import com.lrenyi.template.fastgen.model.FieldMetadata;
 import com.lrenyi.template.fastgen.model.MetadataSnapshot;
+import com.lrenyi.template.fastgen.model.PageAction;
 import com.lrenyi.template.fastgen.model.PageMetadata;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -37,7 +38,7 @@ import java.util.stream.Collectors;
     "com.lrenyi.template.fastgen.annotation.Domain",
     "com.lrenyi.template.fastgen.annotation.Page"
 })
-@SupportedSourceVersion(SourceVersion.RELEASE_17)
+@SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class DomainEntityProcessor extends AbstractProcessor {
 
     private final List<EntityMetadata> entities = new ArrayList<>();
@@ -115,7 +116,47 @@ public class DomainEntityProcessor extends AbstractProcessor {
             }
         }
         meta.setFields(fields);
+        meta.setActions(buildPageActions(meta));
         return meta;
+    }
+
+    /**
+     * 根据 apiPath 与 fields 构建本域端点列表，供模板按 actions 统一生成，无需 if。
+     */
+    private List<PageAction> buildPageActions(PageMetadata page) {
+        List<PageAction> actions = new ArrayList<>();
+        String apiPath = page.getApiPath();
+        if (apiPath == null || apiPath.isEmpty()) {
+            return actions;
+        }
+        PageAction submit = new PageAction();
+        submit.setHttpMethod("POST");
+        submit.setPath(apiPath);
+        submit.setHandlerMethod("handleSubmit");
+        submit.setRequestBody(true);
+        submit.setReturnType("Map<String, Object>");
+        submit.setParamSignature(page.getSimpleName() + "Request request");
+        submit.setServiceReturnType("ResponseEntity<Map<String, Object>>");
+        submit.setComment("处理 " + page.getTitle() + " 提交。");
+        actions.add(submit);
+
+        boolean hasCaptcha = page.getFields() != null && page.getFields().stream()
+            .anyMatch(f -> "captcha".equals(f.getFormType()));
+        if (hasCaptcha) {
+            int lastSlash = apiPath.lastIndexOf('/');
+            String captchaPath = lastSlash >= 0 ? apiPath.substring(0, lastSlash) + "/captcha" : "/captcha";
+            PageAction captcha = new PageAction();
+            captcha.setHttpMethod("GET");
+            captcha.setPath(captchaPath);
+            captcha.setHandlerMethod("getCaptcha");
+            captcha.setRequestBody(false);
+            captcha.setReturnType("Map<String, String>");
+            captcha.setParamSignature("HttpSession session");
+            captcha.setServiceReturnType("Map<String, String>");
+            captcha.setComment("获取验证码（与本页提交同域）。");
+            actions.add(captcha);
+        }
+        return actions;
     }
 
     private FieldMetadata buildFieldMetadata(VariableElement field, boolean isEntity) {
