@@ -1,5 +1,6 @@
-package ${basePackage}.${entity.simpleName?lower_case};
+package ${basePackage}.mapper;
 
+import ${basePackage}.domain.${entity.simpleName};
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;

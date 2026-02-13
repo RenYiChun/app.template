@@ -1,4 +1,4 @@
-package ${basePackage}.${entity.simpleName?lower_case};
+package ${basePackage}.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

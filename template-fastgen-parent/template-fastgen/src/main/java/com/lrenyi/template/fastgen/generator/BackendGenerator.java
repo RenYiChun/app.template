@@ -36,25 +36,31 @@ public class BackendGenerator {
         }
         String basePackage = config.getBasePackage();
 
+        String pkgPath = basePackage.replace('.', '/');
+        Path domainDir = out.resolve("src/main/java").resolve(pkgPath).resolve("domain");
+        Path controllerDir = out.resolve("src/main/java").resolve(pkgPath).resolve("controller");
+        Path serviceDir = out.resolve("src/main/java").resolve(pkgPath).resolve("service");
+        Path mapperDir = out.resolve("src/main/java").resolve(pkgPath).resolve("mapper");
+
         for (EntityMetadata entity : snapshot.getEntities()) {
             Map<String, Object> data = new HashMap<>();
             data.put("entity", entity);
             data.put("basePackage", basePackage);
 
-            String pkgPath = basePackage.replace('.', '/');
-            Path entityDir = out.resolve("src/main/java").resolve(pkgPath).resolve(entity.getSimpleName().toLowerCase());
-
             try {
-                Files.createDirectories(entityDir);
+                Files.createDirectories(domainDir);
+                Files.createDirectories(controllerDir);
+                Files.createDirectories(serviceDir);
+                Files.createDirectories(mapperDir);
             } catch (IOException e) {
                 // 忽略已存在
             }
 
-            generateIfTemplateExists("backend/Entity.java.ftl", entityDir.resolve(entity.getSimpleName() + ".java"), data);
-            generateIfTemplateExists("backend/Controller.java.ftl", entityDir.resolve(entity.getSimpleName() + "Controller.java"), data);
-            generateIfTemplateExists("backend/Service.java.ftl", entityDir.resolve(entity.getSimpleName() + "Service.java"), data);
-            generateIfTemplateExists("backend/ServiceImpl.java.ftl", entityDir.resolve(entity.getSimpleName() + "ServiceImpl.java"), data);
-            generateIfTemplateExists("backend/Mapper.java.ftl", entityDir.resolve(entity.getSimpleName() + "Mapper.java"), data);
+            generateIfTemplateExists("backend/Entity.java.ftl", domainDir.resolve(entity.getSimpleName() + ".java"), data);
+            generateIfTemplateExists("backend/Controller.java.ftl", controllerDir.resolve(entity.getSimpleName() + "Controller.java"), data);
+            generateIfTemplateExists("backend/Service.java.ftl", serviceDir.resolve(entity.getSimpleName() + "Service.java"), data);
+            generateIfTemplateExists("backend/ServiceImpl.java.ftl", serviceDir.resolve(entity.getSimpleName() + "ServiceImpl.java"), data);
+            generateIfTemplateExists("backend/Mapper.java.ftl", mapperDir.resolve(entity.getSimpleName() + "Mapper.java"), data);
         }
 
         Path resourcesDir = out.resolve("src/main/resources");
@@ -64,25 +70,25 @@ public class BackendGenerator {
             generateIfTemplateExists("backend/schema.sql.ftl", resourcesDir.resolve("schema.sql"), data);
         }
 
-        // @Page 后端：apiPath 非空时生成 PageController 与 PageRequest
-        String pkgPath = basePackage.replace('.', '/');
-        Path pageDir = out.resolve("src/main/java").resolve(pkgPath).resolve("page");
+        // @Page 后端：apiPath 非空时生成 PageController、PageRequest(domain)、PageHandler(service)
         if (snapshot.getPages() != null) {
             for (PageMetadata page : snapshot.getPages()) {
                 if (page.getApiPath() == null || page.getApiPath().isEmpty()) {
                     continue;
                 }
                 try {
-                    Files.createDirectories(pageDir);
+                    Files.createDirectories(domainDir);
+                    Files.createDirectories(controllerDir);
+                    Files.createDirectories(serviceDir);
                 } catch (IOException e) {
                     // 忽略已存在
                 }
                 Map<String, Object> data = new HashMap<>();
                 data.put("page", page);
                 data.put("basePackage", basePackage);
-                generateIfTemplateExists("backend/PageRequest.java.ftl", pageDir.resolve(page.getSimpleName() + "Request.java"), data);
-                generateIfTemplateExists("backend/PageHandler.java.ftl", pageDir.resolve(page.getSimpleName() + "Handler.java"), data);
-                generateIfTemplateExists("backend/PageController.java.ftl", pageDir.resolve(page.getSimpleName() + "Controller.java"), data);
+                generateIfTemplateExists("backend/PageRequest.java.ftl", domainDir.resolve(page.getSimpleName() + "Request.java"), data);
+                generateIfTemplateExists("backend/PageHandler.java.ftl", serviceDir.resolve(page.getSimpleName() + "Handler.java"), data);
+                generateIfTemplateExists("backend/PageController.java.ftl", controllerDir.resolve(page.getSimpleName() + "Controller.java"), data);
             }
         }
     }

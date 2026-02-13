@@ -15,6 +15,10 @@
     <name>Template Fastgen Maven Plugin</name>
     <description>Maven 插件：根据 META-INF/fastgen/snapshot.json 生成后端/前端代码</description>
 
+    <properties>
+        <checker.root.dir>${project.parent.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>

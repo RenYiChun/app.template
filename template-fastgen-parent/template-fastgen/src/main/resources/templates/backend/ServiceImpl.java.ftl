@@ -1,5 +1,7 @@
-package ${basePackage}.${entity.simpleName?lower_case};
+package ${basePackage}.service;
 
+import ${basePackage}.domain.${entity.simpleName};
+import ${basePackage}.mapper.${entity.simpleName}Mapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

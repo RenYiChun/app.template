@@ -1,5 +1,6 @@
-package ${basePackage}.page;
+package ${basePackage}.service;
 
+import ${basePackage}.domain.${page.simpleName}Request;
 import org.springframework.http.ResponseEntity;
 
 import java.util.Map;

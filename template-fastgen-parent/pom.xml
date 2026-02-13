@@ -15,14 +15,10 @@
     <name>Template Fastgen Parent</name>
     <description>声明即应用：fastgen 核心、示例与 Maven 插件的聚合父模块</description>
 
-    <properties>
-        <checker.root.dir>${project.parent.parent.basedir}</checker.root.dir>
-    </properties>
-
     <modules>
         <module>template-fastgen</module>
-        <module>template-fastgen-example</module>
         <module>template-fastgen-maven-plugin</module>
+        <module>template-fastgen-scaffold</module>
     </modules>
 
     <dependencyManagement>
@@ -34,16 +30,4 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <configuration>
-                    <skip>true</skip>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>

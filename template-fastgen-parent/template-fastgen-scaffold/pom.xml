@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-fastgen-parent</artifactId>
+        <version>2.4.2.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>template-fastgen-scaffold</artifactId>
+    <version>2.4.2.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <name>Template Fastgen Scaffold</name>
+    <description>脚手架 CLI：从示例模板生成新项目，所有变量通过命令参数设置</description>
+
+    <properties>
+        <checker.root.dir>${project.parent.parent.basedir}</checker.root.dir>
+    </properties>
+
+    <build>
+        <finalName>${artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.lrenyi.template.fastgen.scaffold.ScaffoldCli</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

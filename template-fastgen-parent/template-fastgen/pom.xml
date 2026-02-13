@@ -13,6 +13,10 @@
     <name>Template Fastgen</name>
     <description>声明即应用：基于注解的 Java 全栈 CRUD 代码生成（APT + 模板）</description>
 
+    <properties>
+        <checker.root.dir>${project.parent.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.freemarker</groupId>

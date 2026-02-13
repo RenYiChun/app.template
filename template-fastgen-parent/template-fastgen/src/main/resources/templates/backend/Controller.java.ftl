@@ -1,5 +1,7 @@
-package ${basePackage}.${entity.simpleName?lower_case};
+package ${basePackage}.controller;
 
+import ${basePackage}.domain.${entity.simpleName};
+import ${basePackage}.service.${entity.simpleName}Service;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

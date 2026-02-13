@@ -123,11 +123,6 @@ under the License.
           <coder>repopwd</coder>
         </server>
         -->
-        <server>
-            <id>central</id>
-            <username>${CENTRAL_USERNAME}</username>
-            <password>${CENTRAL_PASSWORD}</password>
-        </server>
 
         <!-- Another sample, using keys to authenticate.
         <server>

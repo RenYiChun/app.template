@@ -1,5 +1,7 @@
-package ${basePackage}.page;
+package ${basePackage}.controller;
 
+import ${basePackage}.domain.${page.simpleName}Request;
+import ${basePackage}.service.${page.simpleName}Handler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

@@ -1,4 +1,4 @@
-package ${basePackage}.page;
+package ${basePackage}.domain;
 
 import lombok.Getter;
 import lombok.Setter;

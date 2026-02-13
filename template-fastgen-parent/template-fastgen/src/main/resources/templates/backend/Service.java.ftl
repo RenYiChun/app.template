@@ -1,5 +1,6 @@
-package ${basePackage}.${entity.simpleName?lower_case};
+package ${basePackage}.service;
 
+import ${basePackage}.domain.${entity.simpleName};
 import java.util.List;
 
 /**
