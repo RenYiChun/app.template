@@ -17,6 +17,14 @@ public class EntityMeta {
     private String pathSegment;
     private String displayName;
     private boolean crudEnabled = true;
+    private boolean listEnabled = true;
+    private boolean getEnabled = true;
+    private boolean createEnabled = true;
+    private boolean updateEnabled = true;
+    private boolean updateBatchEnabled = true;
+    private boolean deleteEnabled = true;
+    private boolean deleteBatchEnabled = true;
+    private boolean exportEnabled = true;
     private Class<?> primaryKeyType = Long.class;
     private String permissionCreate = "";
     private String permissionRead = "";

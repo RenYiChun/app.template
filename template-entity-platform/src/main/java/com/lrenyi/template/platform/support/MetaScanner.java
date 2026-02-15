@@ -105,6 +105,14 @@ public class MetaScanner {
         meta.setPathSegment(StringUtils.hasText(ann.pathSegment()) ? ann.pathSegment() : toPluralLower(simpleName));
         meta.setDisplayName(StringUtils.hasText(ann.displayName()) ? ann.displayName() : simpleName);
         meta.setCrudEnabled(ann.crudEnabled());
+        meta.setListEnabled(ann.crudEnabled() && ann.enableList());
+        meta.setGetEnabled(ann.crudEnabled() && ann.enableGet());
+        meta.setCreateEnabled(ann.crudEnabled() && ann.enableCreate());
+        meta.setUpdateEnabled(ann.crudEnabled() && ann.enableUpdate());
+        meta.setUpdateBatchEnabled(ann.crudEnabled() && ann.enableUpdateBatch());
+        meta.setDeleteEnabled(ann.crudEnabled() && ann.enableDelete());
+        meta.setDeleteBatchEnabled(ann.crudEnabled() && ann.enableDeleteBatch());
+        meta.setExportEnabled(ann.crudEnabled() && ann.enableExport());
         meta.setPermissionCreate(ann.permissionCreate());
         meta.setPermissionRead(ann.permissionRead());
         meta.setPermissionUpdate(ann.permissionUpdate());

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
 import com.lrenyi.template.platform.controller.GenericEntityController;
 import com.lrenyi.template.platform.controller.OpenApiController;
+import com.lrenyi.template.platform.permission.DefaultPlatformPermissionChecker;
+import com.lrenyi.template.platform.permission.PlatformPermissionChecker;
 import com.lrenyi.template.platform.registry.ActionRegistry;
 import com.lrenyi.template.platform.support.EntityPlatformAspect;
 import com.lrenyi.template.platform.support.EntityPlatformExceptionHandler;
@@ -72,6 +74,12 @@ public class EntityPlatformAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(PlatformPermissionChecker.class)
+    public PlatformPermissionChecker platformPermissionChecker() {
+        return new DefaultPlatformPermissionChecker();
+    }
+
+    @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
                                                org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
         return new OpenApiController(entityRegistry, handlerMapping);
@@ -83,9 +91,11 @@ public class EntityPlatformAutoConfiguration {
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
             EntityPlatformProperties properties,
+            PlatformPermissionChecker platformPermissionChecker,
             ObjectMapper objectMapper) {
         return new GenericEntityController(
-                entityRegistry, actionRegistry, entityCrudService, properties, objectMapper);
+                entityRegistry, actionRegistry, entityCrudService, properties,
+                platformPermissionChecker, objectMapper);
     }
 
     @Bean

@@ -1,5 +1,6 @@
 package com.lrenyi.template.platform.controller;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -9,6 +10,7 @@ import com.lrenyi.template.platform.action.EntityActionExecutor;
 import com.lrenyi.template.platform.config.EntityPlatformProperties;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.permission.PlatformPermissionChecker;
 import com.lrenyi.template.platform.registry.ActionRegistry;
 import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
@@ -17,6 +19,7 @@ import com.lrenyi.template.platform.support.ExcelExportSupport;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,17 +41,20 @@ public class GenericEntityController {
     private final ActionRegistry actionRegistry;
     private final EntityCrudService crudService;
     private final EntityPlatformProperties properties;
+    private final PlatformPermissionChecker permissionChecker;
     private final ObjectMapper objectMapper;
-    
+
     public GenericEntityController(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService crudService,
             EntityPlatformProperties properties,
+            PlatformPermissionChecker permissionChecker,
             ObjectMapper objectMapper) {
         this.entityRegistry = entityRegistry;
         this.actionRegistry = actionRegistry;
         this.crudService = crudService;
         this.properties = properties;
+        this.permissionChecker = permissionChecker;
         this.objectMapper = objectMapper;
     }
     
@@ -57,8 +63,12 @@ public class GenericEntityController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isListEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "read"));
+        if (forbidden != null) {
+            return forbidden;
         }
         Pageable pageable = PageRequest.of(page, size);
         List<?> list = crudService.list(meta, pageable);
@@ -68,8 +78,12 @@ public class GenericEntityController {
     @GetMapping("/{entity}/{id}")
     public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isGetEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "read"));
+        if (forbidden != null) {
+            return forbidden;
         }
         Object one = crudService.get(meta, id);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
@@ -78,8 +92,12 @@ public class GenericEntityController {
     @PostMapping("/{entity}")
     public Result<?> create(@PathVariable("entity") String entity, @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isCreateEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "create"));
+        if (forbidden != null) {
+            return forbidden;
         }
         Object bodyEntity = bodyToEntity(meta, body, false);
         Object created = crudService.create(meta, bodyEntity);
@@ -91,8 +109,12 @@ public class GenericEntityController {
             @PathVariable("id") Long id,
             @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isUpdateEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "update"));
+        if (forbidden != null) {
+            return forbidden;
         }
         Object bodyEntity = bodyToEntity(meta, body, true);
         Object updated = crudService.update(meta, id, bodyEntity);
@@ -102,8 +124,12 @@ public class GenericEntityController {
     @DeleteMapping("/{entity}/{id}")
     public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isDeleteEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "delete"));
+        if (forbidden != null) {
+            return forbidden;
         }
         crudService.delete(meta, id);
         return Result.getSuccess(null);
@@ -115,8 +141,12 @@ public class GenericEntityController {
     @DeleteMapping("/{entity}/batch")
     public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<Long> ids) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isDeleteBatchEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "delete"));
+        if (forbidden != null) {
+            return forbidden;
         }
         if (ids == null || ids.isEmpty()) {
             return Result.getSuccess(null);
@@ -131,8 +161,12 @@ public class GenericEntityController {
     @PutMapping("/{entity}/batch")
     public Result<?> updateBatch(@PathVariable("entity") String entity, @RequestBody List<Map<String, Object>> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isUpdateBatchEnabled()) {
             return notFound();
+        }
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "update"));
+        if (forbidden != null) {
+            return forbidden;
         }
         if (body == null || body.isEmpty()) {
             return Result.getSuccess(List.of());
@@ -160,8 +194,12 @@ public class GenericEntityController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10000") int size) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
-        if (meta == null || !meta.isCrudEnabled()) {
+        if (meta == null || !meta.isExportEnabled()) {
             return ResponseEntity.notFound().build();
+        }
+        ResponseEntity<byte[]> forbiddenResp = requirePermissionForExport(getRequiredPermissionsForCrud(meta, "read"));
+        if (forbiddenResp != null) {
+            return forbiddenResp;
         }
         int safeSize = Math.min(Math.max(1, size), 50000);
         Pageable pageable = PageRequest.of(page, safeSize);
@@ -192,6 +230,12 @@ public class GenericEntityController {
         ActionMeta actionMeta = actionRegistry.getMeta(entity, actionName);
         if (executor == null || actionMeta == null) {
             return notFound();
+        }
+        List<String> actionPerms =
+                actionMeta.getPermissions() != null ? actionMeta.getPermissions() : Collections.emptyList();
+        Result<Object> forbidden = requirePermission(actionPerms);
+        if (forbidden != null) {
+            return forbidden;
         }
         Object requestObj = null;
         if (body != null && !body.isEmpty() && actionMeta.getRequestType() != null
@@ -255,5 +299,49 @@ public class GenericEntityController {
         Result<Object> r = Result.getError(null, "未找到");
         r.setCode(404);
         return r;
+    }
+    
+    /**
+     * 权限校验：不通过时返回 403 的 Result，通过时返回 null。
+     */
+    private Result<Object> requirePermission(List<String> requiredPermissions) {
+        if (!properties.isPermissionEnabled()) {
+            return null;
+        }
+        boolean empty = requiredPermissions == null || requiredPermissions.isEmpty();
+        if (empty) {
+            return properties.isDefaultAllowIfNoPermission() ? null : forbidden();
+        }
+        return permissionChecker.hasAnyPermission(requiredPermissions) ? null : forbidden();
+    }
+    
+    /**
+     * 权限校验（用于返回 ResponseEntity 的 export）：不通过时返回 403 响应，通过时返回 null。
+     */
+    private ResponseEntity<byte[]> requirePermissionForExport(List<String> requiredPermissions) {
+        if (requirePermission(requiredPermissions) == null) {
+            return null;
+        }
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+    
+    private static Result<Object> forbidden() {
+        Result<Object> r = Result.getError(null, "无权限");
+        r.setCode(403);
+        return r;
+    }
+    
+    private static List<String> getRequiredPermissionsForCrud(EntityMeta meta, String crudOp) {
+        String p = switch (crudOp) {
+            case "read" -> meta.getPermissionRead();
+            case "create" -> meta.getPermissionCreate();
+            case "update" -> meta.getPermissionUpdate();
+            case "delete" -> meta.getPermissionDelete();
+            default -> "";
+        };
+        if (p == null || p.isBlank()) {
+            return Collections.emptyList();
+        }
+        return List.of(p.trim());
     }
 }

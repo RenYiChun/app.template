@@ -30,9 +30,49 @@ public @interface PlatformEntity {
     String displayName() default "";
 
     /**
-     * 是否启用 CRUD。
+     * 是否启用 CRUD（总开关）。为 false 时该实体不提供任何 CRUD 与导出接口。
      */
     boolean crudEnabled() default true;
+
+    /**
+     * 是否启用列表查询（GET /{entity}）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableList() default true;
+
+    /**
+     * 是否启用单条查询（GET /{entity}/{id}）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableGet() default true;
+
+    /**
+     * 是否启用创建（POST /{entity}）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableCreate() default true;
+
+    /**
+     * 是否启用更新（PUT /{entity}/{id}）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableUpdate() default true;
+
+    /**
+     * 是否启用删除（DELETE /{entity}/{id}）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableDelete() default true;
+
+    /**
+     * 是否启用批量删除（DELETE /{entity}/batch）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableDeleteBatch() default true;
+
+    /**
+     * 是否启用批量更新（PUT /{entity}/batch）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableUpdateBatch() default true;
+
+    /**
+     * 是否启用导出 Excel（GET /{entity}/export）。仅当 crudEnabled=true 时生效。
+     */
+    boolean enableExport() default true;
 
     /**
      * 创建权限标识。

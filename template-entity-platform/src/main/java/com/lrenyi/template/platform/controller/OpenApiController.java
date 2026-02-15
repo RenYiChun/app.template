@@ -73,7 +73,7 @@ public class OpenApiController {
                         }
                     } else {
                         for (EntityMeta entity : entityRegistry.getAll()) {
-                            if (!entity.isCrudEnabled()) {
+                            if (!isOperationEnabled(entity, methodName)) {
                                 continue;
                             }
                             String path = patternStr.replace("{entity}", entity.getPathSegment());
@@ -112,6 +112,20 @@ public class OpenApiController {
             case "updateBatch" -> "批量更新";
             case "export" -> "导出 Excel";
             default -> methodName;
+        };
+    }
+
+    private static boolean isOperationEnabled(EntityMeta entity, String methodName) {
+        return switch (methodName) {
+            case "list" -> entity.isListEnabled();
+            case "get" -> entity.isGetEnabled();
+            case "create" -> entity.isCreateEnabled();
+            case "update" -> entity.isUpdateEnabled();
+            case "updateBatch" -> entity.isUpdateBatchEnabled();
+            case "delete" -> entity.isDeleteEnabled();
+            case "deleteBatch" -> entity.isDeleteBatchEnabled();
+            case "export" -> entity.isExportEnabled();
+            default -> false;
         };
     }
 
