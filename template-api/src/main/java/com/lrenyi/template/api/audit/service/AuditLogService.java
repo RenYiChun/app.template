@@ -8,7 +8,11 @@ import java.util.Map;
 import com.lrenyi.template.api.audit.annotation.AuditLog;
 import com.lrenyi.template.api.audit.model.AuditLogInfo;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
+import com.lrenyi.template.api.audit.resolver.AuditDescriptionResolver;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
@@ -26,12 +30,14 @@ public class AuditLogService {
     
     private final AuditLogProcessor auditLogProcessor;
     private final String serviceName;
-    
+    private final ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider;
     private final String serverIp;
-    
-    public AuditLogService(AuditLogProcessor auditLogProcessor, String serviceName) {
+
+    public AuditLogService(AuditLogProcessor auditLogProcessor, String serviceName,
+                           ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider) {
         this.auditLogProcessor = auditLogProcessor;
         this.serviceName = serviceName;
+        this.descriptionResolverProvider = descriptionResolverProvider;
         this.serverIp = getServerIp();
     }
     
@@ -61,15 +67,33 @@ public class AuditLogService {
         
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
-        AuditLog auditLogAnnotation = method.getAnnotation(AuditLog.class);
-        if (auditLogAnnotation != null) {
-            logInfo.setDescription(auditLogAnnotation.description());
-        } else {
-            // Provide a default description if the annotation is not present
-            String className = joinPoint.getTarget().getClass().getSimpleName();
-            String methodName = signature.getName();
-            logInfo.setDescription(className + "#" + methodName);
+        String description = null;
+        AuditDescriptionResolver resolver = descriptionResolverProvider.getIfAvailable();
+        if (resolver != null) {
+            HttpServletRequest request = null;
+            try {
+                var attrs = RequestContextHolder.getRequestAttributes();
+                if (attrs instanceof ServletRequestAttributes servletAttrs) {
+                    request = servletAttrs.getRequest();
+                }
+            } catch (Exception ignored) {
+                // ignore
+            }
+            if (request != null) {
+                description = resolver.resolve(joinPoint, request);
+            }
         }
+        if (description == null || description.isEmpty()) {
+            AuditLog auditLogAnnotation = method.getAnnotation(AuditLog.class);
+            if (auditLogAnnotation != null) {
+                description = auditLogAnnotation.description();
+            } else {
+                String className = joinPoint.getTarget().getClass().getSimpleName();
+                String methodName = signature.getName();
+                description = className + "#" + methodName;
+            }
+        }
+        logInfo.setDescription(description);
         logInfo.setRequestIp(ipAddress);
         logInfo.setRequestUri(uri);
         logInfo.setRequestMethod(httpMethod);

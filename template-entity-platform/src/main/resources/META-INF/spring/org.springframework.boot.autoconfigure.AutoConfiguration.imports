@@ -1,0 +1,3 @@
+com.lrenyi.template.entityplatform.config.JpaEntityCrudServiceAutoConfiguration
+com.lrenyi.template.entityplatform.config.EntityPlatformAutoConfiguration
+com.lrenyi.template.entityplatform.config.EntityPlatformAuditConfigurationBootstrap

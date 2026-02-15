@@ -54,6 +54,8 @@
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
         <module>template-fastgen-parent</module>
+        <module>template-entity-platform</module>
+        <module>template-entity-platform-sample</module>
     </modules>
 
     <dependencies>

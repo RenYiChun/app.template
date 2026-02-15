@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import com.lrenyi.template.api.audit.aspect.AuditLogAspect;
 import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
+import com.lrenyi.template.api.audit.resolver.AuditDescriptionResolver;
 import com.lrenyi.template.api.audit.service.AuditLogService;
 import com.lrenyi.template.api.config.DefaultSecurityFilterChainBuilder;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
@@ -12,6 +13,7 @@ import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -84,8 +86,9 @@ public class ApiAutoConfiguration {
         
         @Bean
         public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor,
-                                               @Value("${spring.application.name:unknown-service}") String serviceName) {
-            return new AuditLogService(auditLogProcessor, serviceName);
+                                               @Value("${spring.application.name:unknown-service}") String serviceName,
+                                               ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider) {
+            return new AuditLogService(auditLogProcessor, serviceName, descriptionResolverProvider);
         }
         
         @Bean
