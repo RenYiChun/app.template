@@ -1,11 +1,5 @@
 package com.lrenyi.template.platform.controller;
 
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
-import com.lrenyi.template.platform.meta.ActionMeta;
-import com.lrenyi.template.platform.meta.EntityMeta;
-import com.lrenyi.template.platform.meta.FieldMeta;
-import com.lrenyi.template.platform.registry.EntityRegistry;
-import com.lrenyi.template.platform.support.EntityDtoResolver;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -15,6 +9,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.meta.ActionMeta;
+import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.meta.FieldMeta;
+import com.lrenyi.template.platform.registry.EntityRegistry;
+import com.lrenyi.template.platform.support.EntityDtoResolver;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -82,7 +82,12 @@ public class OpenApiController {
                                 putOperation(pathsMap, path, httpMethod, action.getSummary(),
                                         entity.getPathSegment() + "_" + action.getActionName(),
                                         needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(), tag, entity,
-                                        null, false, false, null);
+                                             null,
+                                             false,
+                                             false,
+                                             null,
+                                             null
+                                );
                             }
                         }
                     } else {
@@ -101,7 +106,12 @@ public class OpenApiController {
                             String responseSchema = getResponseSchemaForMethod(methodName, entity);
                             putOperation(pathsMap, path, httpMethod, summary, operationId, hasRequestBody,
                                     permissions != null && !"".equals(permissions) ? permissions : null, tag, entity,
-                                    requestSchema, requestSchemaArray, requestSchemaArrayOfIds, responseSchema);
+                                         requestSchema,
+                                         requestSchemaArray,
+                                         requestSchemaArrayOfIds,
+                                         responseSchema,
+                                         methodName
+                            );
                         }
                     }
                 }
@@ -147,6 +157,19 @@ public class OpenApiController {
         properties.put("page", Map.of("type", "integer", "description", "页码，默认 0"));
         properties.put("size", Map.of("type", "integer", "description", "每页条数"));
         schema.put("properties", properties);
+        schema.put("example",
+                   Map.of("filters",
+                          List.of(Map.of("field", "username", "op", "like", "value", "john"),
+                                  Map.of("field", "status", "op", "in", "value", List.of(1, 2))
+                          ),
+                          "sort",
+                          List.of(Map.of("field", "createTime", "dir", "desc")),
+                          "page",
+                          0,
+                          "size",
+                          20
+                   )
+        );
         return schema;
     }
 
@@ -282,11 +305,14 @@ public class OpenApiController {
         return entity.getDisplayName() != null && !entity.getDisplayName().isBlank()
                 ? entity.getDisplayName() : entity.getPathSegment();
     }
-
-    private static void putOperation(Map<String, Map<String, Object>> pathsMap, String path, String method,
+    
+    private static void putOperation(Map<String, Map<String, Object>> pathsMap,
+            String path,
+            String httpMethod,
             String summary, String operationId, boolean requestBody, Object permissions, String tag, EntityMeta entity,
             String requestSchemaRef, boolean requestSchemaArray, boolean requestSchemaArrayOfIds,
-            String responseSchemaRef) {
+            String responseSchemaRef,
+            String methodName) {
         pathsMap.computeIfAbsent(path, k -> new HashMap<>());
         Map<String, Object> pathItem = pathsMap.get(path);
         Map<String, Object> op = new HashMap<>();
@@ -341,7 +367,45 @@ public class OpenApiController {
         if (permissions != null && !"".equals(permissions)) {
             op.put("x-permissions", permissions);
         }
-        pathItem.put(method, op);
+        if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
+            Map<String, Object> queryableFields = buildQueryableFields(entity);
+            if (!queryableFields.isEmpty()) {
+                op.put("x-queryable-fields", queryableFields);
+            }
+        }
+        pathItem.put(httpMethod, op);
+    }
+    
+    private static Map<String, Object> buildQueryableFields(EntityMeta entity) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (entity.getFields() == null) {
+            return result;
+        }
+        for (FieldMeta fm : entity.getFields()) {
+            if (fm == null || fm.getName() == null || fm.getName().isBlank()) {
+                continue;
+            }
+            String type = fm.getType() != null ? fm.getType() : "String";
+            List<String> operators = operatorsForType(type);
+            Map<String, Object> fieldInfo = new LinkedHashMap<>();
+            fieldInfo.put("type", type);
+            fieldInfo.put("operators", operators);
+            result.put(fm.getName(), fieldInfo);
+        }
+        return result;
+    }
+    
+    private static List<String> operatorsForType(String type) {
+        if (type == null || type.isBlank()) {
+            return List.of("eq", "ne");
+        }
+        return switch (type) {
+            case "String" -> List.of("eq", "ne", "like");
+            case "Integer", "int", "Long", "long" -> List.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
+            case "Boolean", "boolean" -> List.of("eq", "ne");
+            case "LocalDate", "LocalDateTime", "Date", "Instant" -> List.of("eq", "gt", "gte", "lt", "lte");
+            default -> List.of("eq", "ne", "in");
+        };
     }
 
     private String getRequestSchemaForMethod(String methodName, EntityMeta entity) {
@@ -403,10 +467,10 @@ public class OpenApiController {
     private static String summaryFromMethodName(String methodName) {
         return switch (methodName) {
             case "search" -> "分页搜索";
-            case "get" -> "get";
-            case "create" -> "create";
-            case "update" -> "update";
-            case "delete" -> "delete";
+            case "get" -> "查询详情";
+            case "create" -> "创建";
+            case "update" -> "更新";
+            case "delete" -> "删除";
             case "deleteBatch" -> "批量删除";
             case "updateBatch" -> "批量更新";
             case "export" -> "导出 Excel";
