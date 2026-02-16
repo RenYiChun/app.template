@@ -31,7 +31,17 @@ public class EntityPlatformProperties {
      * 扫描 @PlatformEntity 的包名，多个用逗号分隔。为空则不扫描实体。
      */
     private String scanPackages = "";
-    
+
+    /**
+     * RBAC 用户权限解析缓存 TTL（分钟）。&lt;=0 表示不缓存，每次请求查库；&gt;0 时使用本地缓存，过期后反映角色权限动态变更。
+     */
+    private int rbacCacheTtlMinutes = 5;
+
+    /**
+     * 是否在启动时根据已注册实体自动初始化 sys_permission 缺失的权限记录。需 JPA 且应用扫描 platform.domain 时生效。
+     */
+    private boolean rbacInitPermissions = true;
+
     public void setApiPrefix(String apiPrefix) {
         this.apiPrefix = apiPrefix == null ? "/api" : apiPrefix;
     }

@@ -35,6 +35,18 @@ app:
 
 若需自定义持久化逻辑，在应用中提供自己的 `EntityCrudService` Bean 即可覆盖。
 
+## RBAC 动态权限（可选）
+
+引入 JPA 后，平台可托管 RBAC 表并**按请求实时解析**当前用户权限，使角色/权限变更在下次请求（或缓存失效后）即生效，不依赖登录时 Token 快照。
+
+1. **实体扫描**：RBAC 实体（Permission、Role、RolePermission、UserRole）已与 OperationLog 同处 `com.lrenyi.template.platform.domain`，若应用已扫描该包（如 `@EntityScan("com.lrenyi.template.platform.domain")`）则无需额外配置。
+2. **表结构**：框架提供四张表：`sys_permission`（权限字符串，如 `users:create`）、`sys_role`、`sys_role_permission`、`sys_user_role`（userId 与认证用户标识一致，如 username）。需自行建表或通过 JPA 自动建表后初始化数据。
+3. **权限标识**：`@PlatformEntity` 未显式指定 `permissionCreate`/`permissionRead`/`permissionUpdate`/`permissionDelete` 时，按 `pathSegment` 自动生成（如 `pathSegment:create`、`pathSegment:read`），与 `sys_permission.permission` 一致即可用于角色分配。
+4. **权限自动初始化**：启用 JPA 且应用扫描了 platform.domain 时，启动后会根据已注册实体向 `sys_permission` 补齐缺失的权限记录（仅插入不存在的），便于直接为角色分配权限。可通过 `app.platform.rbac.init-permissions=false` 关闭。
+5. **配置**：`app.platform.rbac-cache-ttl-minutes` 控制用户权限缓存分钟数，&lt;=0 表示不缓存；&gt;0 时需引入 Caffeine 依赖以启用缓存。
+
+未使用平台托管 RBAC 时（未扫描 platform.domain 或不提供 `UserPermissionResolver`），仍使用基于 `Authentication.getAuthorities()` 的默认校验，行为不变。
+
 ## 覆盖增删改查（特殊业务逻辑）
 
 当部分实体需要特殊逻辑（如创建前校验、删除软删、查询过滤）时，有两种方式：

@@ -113,10 +113,11 @@ public class MetaScanner {
         meta.setDeleteEnabled(ann.crudEnabled() && ann.enableDelete());
         meta.setDeleteBatchEnabled(ann.crudEnabled() && ann.enableDeleteBatch());
         meta.setExportEnabled(ann.crudEnabled() && ann.enableExport());
-        meta.setPermissionCreate(ann.permissionCreate());
-        meta.setPermissionRead(ann.permissionRead());
-        meta.setPermissionUpdate(ann.permissionUpdate());
-        meta.setPermissionDelete(ann.permissionDelete());
+        String pathSeg = meta.getPathSegment();
+        meta.setPermissionCreate(defaultPermission(ann.permissionCreate(), pathSeg, ann.crudEnabled() && ann.enableCreate(), "create"));
+        meta.setPermissionRead(defaultPermission(ann.permissionRead(), pathSeg, (ann.crudEnabled() && ann.enableList()) || (ann.crudEnabled() && ann.enableGet()) || (ann.crudEnabled() && ann.enableExport()), "read"));
+        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg, ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
+        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg, ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
         meta.setFields(buildFieldMetas(clazz));
         return meta;
     }
@@ -155,6 +156,13 @@ public class MetaScanner {
         return meta;
     }
     
+    private static String defaultPermission(String fromAnnotation, String pathSegment, boolean operationEnabled, String action) {
+        if (StringUtils.hasText(fromAnnotation)) {
+            return fromAnnotation.trim();
+        }
+        return operationEnabled && StringUtils.hasText(pathSegment) ? pathSegment + ":" + action : "";
+    }
+
     private String pathSegmentFor(Class<?> entityClass) {
         PlatformEntity pe = entityClass.getAnnotation(PlatformEntity.class);
         if (pe != null && StringUtils.hasText(pe.pathSegment())) {
