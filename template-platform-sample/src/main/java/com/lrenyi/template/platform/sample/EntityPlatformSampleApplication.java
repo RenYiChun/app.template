@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 @SpringBootApplication
-@EntityScan(basePackages = {"com.lrenyi.template.platform.sample", "com.lrenyi.template.platform.domain"})
+@EntityScan(basePackages = "com.lrenyi.template.platform.sample")
 public class EntityPlatformSampleApplication {
 
     public static void main(String[] args) {

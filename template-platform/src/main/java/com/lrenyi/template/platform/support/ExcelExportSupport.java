@@ -30,7 +30,7 @@ public final class ExcelExportSupport {
         if (exportFields.isEmpty()) {
             Object wb = reflect.newWorkbook();
             try {
-                Object sheet = reflect.createSheet(wb, SHEET_NAME);
+                Object sheet = reflect.createSheet(wb);
                 Object headerRow = reflect.createRow(sheet, 0);
                 reflect.createCellSetValue(headerRow, 0, "(无导出字段)");
                 return reflect.writeToBytes(wb);
@@ -42,7 +42,7 @@ public final class ExcelExportSupport {
         Map<String, ExportValueConverter> converterCache = new HashMap<>();
         Object wb = reflect.newWorkbook();
         try {
-            Object sheet = reflect.createSheet(wb, SHEET_NAME);
+            Object sheet = reflect.createSheet(wb);
             int rowNum = 0;
             Object headerRow = reflect.createRow(sheet, rowNum++);
             for (int i = 0; i < columnNames.size(); i++) {
@@ -120,8 +120,8 @@ public final class ExcelExportSupport {
             return workbookClass.getDeclaredConstructor().newInstance();
         }
         
-        Object createSheet(Object workbook, String name) throws Exception {
-            return createSheet.invoke(workbook, name);
+        Object createSheet(Object workbook) throws Exception {
+            return createSheet.invoke(workbook, ExcelExportSupport.SHEET_NAME);
         }
         
         Object createRow(Object sheet, int rowNum) throws Exception {

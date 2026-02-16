@@ -1,17 +1,20 @@
 package com.lrenyi.template.platform.audit.service;
 
+import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Date;
+import java.util.Map;
 import com.lrenyi.template.platform.audit.annotation.AuditLog;
 import com.lrenyi.template.platform.audit.enricher.AuditLogEnricher;
 import com.lrenyi.template.platform.audit.model.AuditLogInfo;
 import com.lrenyi.template.platform.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.platform.audit.resolver.AuditDescriptionResolver;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -19,12 +22,8 @@ import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNam
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.util.StringUtils;
-
-import java.lang.reflect.Method;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Date;
-import java.util.Map;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 public class AuditLogService {
@@ -149,7 +148,7 @@ public class AuditLogService {
                     name = String.valueOf(bearerAuth.getTokenAttributes().get(username));
             case JwtAuthenticationToken jwtToken -> name = jwtToken.getToken().getClaimAsString(username);
             default -> {
-                String fromOAuth2AuthServer = extractUsernameFromOAuth2AccessToken(authentication, username);
+                String fromOAuth2AuthServer = extractUsernameFromOAuth2AccessToken(authentication);
                 if (fromOAuth2AuthServer != null) {
                     name = fromOAuth2AuthServer;
                 }
@@ -157,8 +156,8 @@ public class AuditLogService {
         }
         return name;
     }
-
-    private static String extractUsernameFromOAuth2AccessToken(Authentication authentication, String usernameClaim) {
+    
+    private static String extractUsernameFromOAuth2AccessToken(Authentication authentication) {
         try {
             Class<?> clazz = Class.forName("org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken");
             if (!clazz.isInstance(authentication)) {
@@ -166,7 +165,7 @@ public class AuditLogService {
             }
             Object params = clazz.getMethod("getAdditionalParameters").invoke(authentication);
             if (params instanceof Map<?, ?> map) {
-                Object v = map.get(usernameClaim);
+                Object v = map.get("username");
                 return v != null ? String.valueOf(v) : null;
             }
         } catch (Exception ignored) {

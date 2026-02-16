@@ -3,9 +3,6 @@ package com.lrenyi.template.platform.domain;
 import com.lrenyi.template.platform.annotation.PlatformEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,11 +20,7 @@ import lombok.Setter;
         table = "sys_permission",
         enableExport = false
 )
-public class Permission {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Permission extends BaseEntity<Long> {
 
     @Column(nullable = false, unique = true, length = 128)
     private String permission;

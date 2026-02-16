@@ -43,11 +43,12 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
 
     @Override
     public void run(ApplicationArguments args) {
+        int entityCount = entityRegistry.getAll().size();
+        log.info("RBAC 权限初始化开始，已注册实体数: {}（init-permissions={}）",
+                entityCount, properties.isRbacInitPermissions());
         if (!properties.isRbacInitPermissions()) {
             return;
         }
-        int entityCount = entityRegistry.getAll().size();
-        log.info("RBAC 权限初始化开始，已注册实体数: {}", entityCount);
         TransactionTemplate transactionTemplate = transactionTemplateProvider.getIfAvailable();
         if (transactionTemplate == null) {
             log.warn("RBAC 权限初始化跳过：TransactionTemplate 不可用（需 PlatformTransactionManager）");

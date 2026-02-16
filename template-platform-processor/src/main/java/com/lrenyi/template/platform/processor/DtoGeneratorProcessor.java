@@ -17,6 +17,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
@@ -95,6 +96,21 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     
     private List<FieldSpec> collectFields(TypeElement type) {
         List<FieldSpec> list = new ArrayList<>();
+        collectFieldsRecursive(type, list);
+        return list;
+    }
+
+    private void collectFieldsRecursive(TypeElement type, List<FieldSpec> list) {
+        TypeMirror superType = type.getSuperclass();
+        if (superType.getKind() == TypeKind.DECLARED) {
+            Element superEl = ((DeclaredType) superType).asElement();
+            if (superEl instanceof TypeElement superTe) {
+                String superName = superTe.getQualifiedName().toString();
+                if (!"java.lang.Object".equals(superName)) {
+                    collectFieldsRecursive(superTe, list);
+                }
+            }
+        }
         for (Element member : type.getEnclosedElements()) {
             if (member instanceof VariableElement field && member.getKind().isField()) {
                 if (field.getModifiers().contains(Modifier.STATIC) || field.getModifiers().contains(Modifier.FINAL)) {
@@ -112,7 +128,6 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 list.add(new FieldSpec(typeName, name, excludeFrom, notNull, maxSize));
             }
         }
-        return list;
     }
 
     private static boolean hasColumnNullableFalse(VariableElement field) {

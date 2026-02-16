@@ -9,13 +9,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.meta.FieldMeta;
 import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.support.EntityDtoResolver;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,14 +38,10 @@ public class OpenApiController {
 
     private final EntityRegistry entityRegistry;
     private final RequestMappingHandlerMapping handlerMapping;
-    private final EntityPlatformProperties properties;
-
-    public OpenApiController(EntityRegistry entityRegistry,
-            RequestMappingHandlerMapping handlerMapping,
-            EntityPlatformProperties properties) {
+    
+    public OpenApiController(EntityRegistry entityRegistry, RequestMappingHandlerMapping handlerMapping) {
         this.entityRegistry = entityRegistry;
         this.handlerMapping = handlerMapping;
-        this.properties = properties;
     }
 
     @GetMapping("/docs")
@@ -54,20 +50,39 @@ public class OpenApiController {
         Map<RequestMappingInfo, HandlerMethod> handlerMethods = handlerMapping.getHandlerMethods();
         for (Map.Entry<RequestMappingInfo, HandlerMethod> entry : handlerMethods.entrySet()) {
             HandlerMethod hm = entry.getValue();
-            if (!GenericEntityController.class.isAssignableFrom(hm.getBeanType())) {
+            Class<?> controllerClass = ClassUtils.getUserClass(hm.getBeanType());
+            if (!GenericEntityController.class.isAssignableFrom(controllerClass)) {
                 continue;
             }
             RequestMappingInfo info = entry.getKey();
             var pathCondition = info.getPathPatternsCondition();
-            if (pathCondition == null) {
+            Set<PathPattern> patterns = null;
+            Set<String> patternStrings = null;
+            if (pathCondition != null) {
+                patterns = pathCondition.getPatterns();
+            } else {
+                var legacy = info.getPatternsCondition();
+                if (legacy != null) {
+                    legacy.getPatterns();
+                    patternStrings = legacy.getPatterns();
+                }
+            }
+            if ((patterns == null || patterns.isEmpty()) && (patternStrings == null || patternStrings.isEmpty())) {
                 continue;
             }
-            Set<PathPattern> patterns = pathCondition.getPatterns();
             Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
             boolean hasRequestBody = hasRequestBody(hm.getMethod());
             String methodName = hm.getMethod().getName();
-            for (PathPattern pp : patterns) {
-                String patternStr = pp.getPatternString();
+            List<String> patternsToUse = new ArrayList<>();
+            if (patterns != null) {
+                for (PathPattern pp : patterns) {
+                    patternsToUse.add(pp.getPatternString());
+                }
+            }
+            if (patternStrings != null) {
+                patternsToUse.addAll(patternStrings);
+            }
+            for (String patternStr : patternsToUse) {
                 for (RequestMethod m : methods) {
                     String httpMethod = m.name().toLowerCase();
                     if (patternStr.contains("{actionName}")) {

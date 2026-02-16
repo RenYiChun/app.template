@@ -1,5 +1,9 @@
 package com.lrenyi.template.platform.config;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
 import com.lrenyi.template.platform.controller.DocsUiController;
@@ -8,27 +12,27 @@ import com.lrenyi.template.platform.controller.OpenApiController;
 import com.lrenyi.template.platform.permission.DefaultPlatformPermissionChecker;
 import com.lrenyi.template.platform.permission.PlatformPermissionChecker;
 import com.lrenyi.template.platform.registry.ActionRegistry;
-import com.lrenyi.template.platform.support.EntityPlatformAspect;
-import com.lrenyi.template.platform.support.EntityPlatformExceptionHandler;
 import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.service.EntityCrudServiceRouter;
 import com.lrenyi.template.platform.service.InMemoryEntityCrudService;
 import com.lrenyi.template.platform.service.PathSegmentAwareCrudService;
+import com.lrenyi.template.platform.support.EntityPlatformAspect;
+import com.lrenyi.template.platform.support.EntityPlatformExceptionHandler;
 import com.lrenyi.template.platform.support.MetaScanner;
-import jakarta.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import jakarta.persistence.EntityManagerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.Ordered;
 
 @AutoConfiguration
 @EnableConfigurationProperties(EntityPlatformProperties.class)
@@ -96,9 +100,8 @@ public class EntityPlatformAutoConfiguration {
 
     @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
-            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping,
-            EntityPlatformProperties properties) {
-        return new OpenApiController(entityRegistry, handlerMapping, properties);
+            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
+        return new OpenApiController(entityRegistry, handlerMapping);
     }
 
     @Bean
@@ -124,34 +127,63 @@ public class EntityPlatformAutoConfiguration {
     @Bean
     public EntityPlatformInitializer entityPlatformInitializer(
             MetaScanner metaScanner,
-            EntityPlatformProperties properties,
-            ApplicationContext applicationContext) {
-        return new EntityPlatformInitializer(metaScanner, properties, applicationContext);
+            EntityRegistry entityRegistry,
+            ApplicationContext applicationContext,
+            ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
+        return new EntityPlatformInitializer(metaScanner,
+                                             entityRegistry,
+                                             applicationContext,
+                                             entityManagerFactoryProvider
+        );
     }
 
     /**
-     * 启动时执行扫描注册。
+     * 在 ApplicationRunner 阶段执行实体扫描与 Action 注册（启动完成后执行，避免在 refresh 期间阻塞）。
      */
-    public static class EntityPlatformInitializer {
+    public static class EntityPlatformInitializer implements ApplicationRunner, Ordered {
+        
+        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EntityPlatformInitializer.class);
 
         private final MetaScanner metaScanner;
-        private final EntityPlatformProperties properties;
+        private final EntityRegistry entityRegistry;
         private final ApplicationContext applicationContext;
+        private final ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider;
 
         public EntityPlatformInitializer(
                 MetaScanner metaScanner,
-                EntityPlatformProperties properties,
-                ApplicationContext applicationContext) {
+                EntityRegistry entityRegistry,
+                ApplicationContext applicationContext,
+                ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
             this.metaScanner = metaScanner;
-            this.properties = properties;
+            this.entityRegistry = entityRegistry;
             this.applicationContext = applicationContext;
+            this.entityManagerFactoryProvider = entityManagerFactoryProvider;
         }
-
-        @PostConstruct
-        public void init() {
-            List<Object> executors = new ArrayList<>(
-                    applicationContext.getBeansOfType(EntityActionExecutor.class).values());
-            metaScanner.scanAndRegister(executors);
+        
+        @Override
+        public int getOrder() {
+            return Ordered.HIGHEST_PRECEDENCE;
+        }
+        
+        @Override
+        public void run(ApplicationArguments args) {
+            try {
+                EntityManagerFactory emf = entityManagerFactoryProvider.getIfAvailable();
+                metaScanner.setEntityManagerFactory(emf);
+                List<Object> executors =
+                        new ArrayList<>(applicationContext.getBeansOfType(EntityActionExecutor.class).values());
+                if (entityRegistry.getAll().isEmpty()) {
+                    log.info("平台实体扫描开始（ApplicationRunner）");
+                    metaScanner.scanAndRegister(executors);
+                    log.info("平台实体扫描完成，已注册实体数: {}", entityRegistry.getAll().size());
+                } else {
+                    metaScanner.registerActionExecutors(executors);
+                    log.debug("Action 执行器已注册");
+                }
+            } catch (Exception e) {
+                log.error("平台实体扫描失败", e);
+                throw e;
+            }
         }
     }
 }

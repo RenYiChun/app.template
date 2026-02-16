@@ -1,11 +1,5 @@
 package com.lrenyi.template.platform.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lrenyi.template.platform.meta.EntityMeta;
-import com.lrenyi.template.platform.support.FilterCondition;
-import com.lrenyi.template.platform.support.ListCriteria;
-import com.lrenyi.template.platform.support.Op;
-import com.lrenyi.template.platform.support.SortOrder;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,6 +8,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.support.FilterCondition;
+import com.lrenyi.template.platform.support.ListCriteria;
+import com.lrenyi.template.platform.support.Op;
+import com.lrenyi.template.platform.support.SortOrder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -67,7 +67,6 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
     private boolean matches(Op op, Object fieldVal, Object expected) {
         if (op == Op.IN) {
             if (!(expected instanceof List<?> inList)) {
@@ -88,7 +87,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             default -> false;
         };
     }
-
+    
     @SuppressWarnings({"unchecked", "rawtypes"})
     private int compareForOp(Object a, Object b) {
         if (a == null && b == null) {
@@ -111,12 +110,26 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             return null;
         }
         try {
-            Field f = entityClass.getDeclaredField(fieldName);
+            Field f = findField(entityClass, fieldName);
+            if (f == null) {
+                return null;
+            }
             f.setAccessible(true);
             return f.get(entity);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             return null;
         }
+    }
+    
+    private static Field findField(Class<?> clazz, String fieldName) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
     }
 
     private List<Object> sortList(List<Object> list, List<SortOrder> sortOrders, org.springframework.data.domain.Sort pageableSort) {
@@ -231,13 +244,30 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     }
 
     private Object getEntityId(Object entity) {
+        return getValueOfObject(entity, findIdField(entity.getClass()));
+    }
+    
+    static Object getValueOfObject(Object entity, Field idField2) {
         try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            return idField.get(entity);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+            if (idField2 == null) {
+                return null;
+            }
+            idField2.setAccessible(true);
+            return idField2.get(entity);
+        } catch (IllegalAccessException e) {
             return null;
         }
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField("id");
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
     }
 
     private Object nextId(String pathSegment, Class<?> primaryKeyType) {
@@ -254,14 +284,19 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     }
 
     private void setEntityId(Object entity, Object id) {
+        setValueOfObject(entity, id, findIdField(entity.getClass()));
+    }
+    
+    static void setValueOfObject(Object entity, Object id, Field idField2) {
         if (entity == null || id == null) {
             return;
         }
         try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            idField.set(entity, id);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+            if (idField2 != null) {
+                idField2.setAccessible(true);
+                idField2.set(entity, id);
+            }
+        } catch (IllegalAccessException e) {
             // ignore
         }
     }

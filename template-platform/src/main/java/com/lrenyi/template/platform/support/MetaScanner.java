@@ -1,22 +1,29 @@
 package com.lrenyi.template.platform.support;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.UUID;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
 import com.lrenyi.template.platform.annotation.EntityAction;
 import com.lrenyi.template.platform.annotation.ExportConverter;
 import com.lrenyi.template.platform.annotation.ExportExclude;
 import com.lrenyi.template.platform.annotation.PlatformEntity;
+import com.lrenyi.template.platform.domain.BaseEntity;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.meta.FieldMeta;
 import com.lrenyi.template.platform.registry.ActionRegistry;
 import com.lrenyi.template.platform.registry.EntityRegistry;
+import jakarta.persistence.EntityManagerFactory;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -27,15 +34,22 @@ import org.springframework.util.StringUtils;
 
 /**
  * 启动时扫描 @PlatformEntity 与 @EntityAction，构建 EntityMeta/ActionMeta 并注册。
+ * 当 JPA 可用时优先从 EntityManagerFactory 元模型获取实体（避免慢速 classpath 扫描）。
  */
 public class MetaScanner {
-    
+
     private static final Logger log = LoggerFactory.getLogger(MetaScanner.class);
-    
+
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final String basePackage;
-    
+    /**
+     * -- SETTER --
+     * 在 @PostConstruct 时注入，确保 JPA 已就绪后再扫描。
+     */
+    @Setter
+    private EntityManagerFactory entityManagerFactory;
+
     public MetaScanner(EntityRegistry entityRegistry, ActionRegistry actionRegistry, String basePackage) {
         this.entityRegistry = entityRegistry;
         this.actionRegistry = actionRegistry;
@@ -43,10 +57,89 @@ public class MetaScanner {
     }
     
     /**
-     * 扫描 classpath 中带 @PlatformEntity 的类并注册 EntityMeta；注册带 @EntityAction 的 Action 执行器。
-     * basePackage 可为逗号分隔的多个包。
+     * 仅扫描并注册 @PlatformEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
+     * 等阶段卡住）。当 JPA 可用时从 Metamodel 获取；否则回退到 classpath 扫描。
+     */
+    public void registerEntitiesOnly() {
+        if (entityManagerFactory != null) {
+            registerFromMetamodel();
+        } else {
+            registerFromClasspathScan();
+        }
+    }
+    
+    /**
+     * 仅注册 Action 执行器（实体需已通过 registerEntitiesOnly 注册）。
+     */
+    public void registerActionExecutors(List<Object> actionExecutorBeans) {
+        if (actionExecutorBeans == null) {
+            return;
+        }
+        for (Object bean : actionExecutorBeans) {
+            if (!(bean instanceof EntityActionExecutor executor)) {
+                continue;
+            }
+            Class<?> clazz = ClassUtils.getUserClass(bean.getClass());
+            EntityAction ann = clazz.getAnnotation(EntityAction.class);
+            if (ann == null) {
+                continue;
+            }
+            String entityPathSegment = pathSegmentFor(ann.entity());
+            ActionMeta actionMeta = buildActionMeta(ann);
+            actionRegistry.register(entityPathSegment, ann.actionName(), actionMeta, executor);
+            EntityMeta entityMeta = entityRegistry.getByEntityName(ann.entity().getSimpleName());
+            if (entityMeta != null) {
+                entityMeta.getActions().add(actionMeta);
+            }
+            log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
+        }
+    }
+    
+    /**
+     * 扫描 @PlatformEntity 实体并注册；注册带 @EntityAction 的 Action 执行器。
+     * 当 JPA 可用时从 Metamodel 获取实体（快速）；否则回退到 classpath 扫描。
      */
     public void scanAndRegister(List<Object> actionExecutorBeans) {
+        registerEntitiesOnly();
+        registerActionExecutors(actionExecutorBeans);
+    }
+    
+    /** 从 JPA Metamodel 获取实体，避免 classpath 扫描。 */
+    private void registerFromMetamodel() {
+        Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of() : Arrays.stream(basePackage.split(","))
+                                                                               .map(String::trim)
+                                                                               .filter(s -> !s.isEmpty())
+                                                                               .collect(Collectors.toSet());
+        for (var managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
+            Class<?> clazz = managedType.getJavaType();
+            if (clazz == null) {
+                continue;
+            }
+            if (!packagePrefixes.isEmpty()) {
+                String pkg = clazz.getPackageName();
+                boolean inScope = packagePrefixes.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."));
+                if (!inScope) {
+                    continue;
+                }
+            }
+            registerEntity(clazz);
+        }
+    }
+    
+    private void registerEntity(Class<?> clazz) {
+        PlatformEntity ann = clazz.getAnnotation(PlatformEntity.class);
+        if (ann == null) {
+            return;
+        }
+        validateExtendsBaseEntity(clazz);
+        EntityMeta meta = buildEntityMeta(clazz, ann);
+        meta.setEntityClass(clazz);
+        entityRegistry.register(meta);
+        log.debug("Registered entity: {}", meta.getPathSegment());
+    }
+    
+    /** 回退：通过 classpath 扫描（在长 classpath 下可能较慢）。 */
+    private void registerFromClasspathScan() {
         String[] packages = basePackage.isEmpty() ? new String[0] : basePackage.split(",");
         ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
         provider.addIncludeFilter(new AnnotationTypeFilter(PlatformEntity.class));
@@ -62,39 +155,17 @@ public class MetaScanner {
                 }
                 try {
                     Class<?> clazz = ClassUtils.forName(className, null);
-                    PlatformEntity ann = clazz.getAnnotation(PlatformEntity.class);
-                    if (ann == null) {
-                        continue;
-                    }
-                    EntityMeta meta = buildEntityMeta(clazz, ann);
-                    meta.setEntityClass(clazz);
-                    entityRegistry.register(meta);
-                    log.debug("Registered entity: {}", meta.getPathSegment());
+                    registerEntity(clazz);
                 } catch (ClassNotFoundException e) {
                     log.warn("Cannot load entity class: {}", className, e);
                 }
             }
         }
-        
-        if (actionExecutorBeans != null) {
-            for (Object bean : actionExecutorBeans) {
-                if (!(bean instanceof EntityActionExecutor executor)) {
-                    continue;
-                }
-                Class<?> clazz = ClassUtils.getUserClass(bean.getClass());
-                EntityAction ann = clazz.getAnnotation(EntityAction.class);
-                if (ann == null) {
-                    continue;
-                }
-                String entityPathSegment = pathSegmentFor(ann.entity());
-                ActionMeta actionMeta = buildActionMeta(ann, entityPathSegment);
-                actionRegistry.register(entityPathSegment, ann.actionName(), actionMeta, executor);
-                EntityMeta entityMeta = entityRegistry.getByEntityName(ann.entity().getSimpleName());
-                if (entityMeta != null) {
-                    entityMeta.getActions().add(actionMeta);
-                }
-                log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
-            }
+    }
+    
+    private static void validateExtendsBaseEntity(Class<?> clazz) {
+        if (!BaseEntity.class.isAssignableFrom(clazz)) {
+            throw new IllegalStateException("@PlatformEntity 实体 " + clazz.getName() + " 必须继承 BaseEntity<ID>");
         }
     }
     
@@ -124,44 +195,76 @@ public class MetaScanner {
         meta.setFields(buildFieldMetas(clazz));
         return meta;
     }
-
+    
+    /**
+     * 从 BaseEntity&lt;ID&gt; 泛型参数推断主键类型；若泛型擦除则回退到 id 字段类型。
+     */
     private static Class<?> inferPrimaryKeyType(Class<?> clazz) {
-        try {
-            Field idField = clazz.getDeclaredField("id");
-            Class<?> type = idField.getType();
-            if (type == Long.class || type == long.class || type == String.class || type == UUID.class
-                    || type == Integer.class || type == int.class) {
-                return type;
+        Class<?> c = clazz;
+        while (c != null && c != Object.class) {
+            Type genericSuperclass = c.getGenericSuperclass();
+            if (genericSuperclass instanceof ParameterizedType pt) {
+                Type rawType = pt.getRawType();
+                if (rawType == BaseEntity.class) {
+                    Type idType = pt.getActualTypeArguments()[0];
+                    if (idType instanceof Class<?> idClass) {
+                        return idClass;
+                    }
+                }
             }
-        } catch (NoSuchFieldException ignored) {
-            // fallback
+            c = c.getSuperclass();
+        }
+        return inferFromIdField(clazz);
+    }
+    
+    /** 泛型擦除时的回退：遍历类层级，从 id 字段或 @Id 注解字段推断类型。 */
+    private static Class<?> inferFromIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if ("id".equals(f.getName()) || f.getAnnotation(jakarta.persistence.Id.class) != null) {
+                    Class<?> type = f.getType();
+                    if (type == Long.class || type == long.class || type == String.class || type == UUID.class
+                            || type == Integer.class || type == int.class) {
+                        return type;
+                    }
+                    return Long.class;
+                }
+            }
         }
         return Long.class;
     }
     
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
         List<FieldMeta> list = new ArrayList<>();
-        for (Field f : clazz.getDeclaredFields()) {
-            FieldMeta fm = new FieldMeta();
-            fm.setName(f.getName());
-            fm.setType(f.getType().getSimpleName());
-            fm.setColumnName(toSnakeCase(f.getName()));
-            Class<?> fieldType = f.getType();
-            fm.setPrimaryKey("id".equalsIgnoreCase(f.getName())
-                    && (fieldType == Long.class || fieldType == long.class || fieldType == String.class
-                    || fieldType == UUID.class || fieldType == Integer.class || fieldType == int.class));
-            fm.setRequired(fm.isPrimaryKey());
-            fm.setExportExcluded(f.getAnnotation(ExportExclude.class) != null);
-            ExportConverter exportConverter = f.getAnnotation(ExportConverter.class);
-            if (exportConverter != null) {
-                fm.setExportConverterClassName(exportConverter.value().getName());
+        List<Class<?>> hierarchy = new ArrayList<>();
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            hierarchy.add(c);
+        }
+        Collections.reverse(hierarchy);
+        for (Class<?> c : hierarchy) {
+            for (Field f : c.getDeclaredFields()) {
+                FieldMeta fm = new FieldMeta();
+                fm.setName(f.getName());
+                fm.setType(f.getType().getSimpleName());
+                fm.setColumnName(toSnakeCase(f.getName()));
+                Class<?> fieldType = f.getType();
+                fm.setPrimaryKey(
+                        "id".equalsIgnoreCase(f.getName()) && (fieldType == Long.class || fieldType == long.class
+                                || fieldType == String.class || fieldType == UUID.class || fieldType == Integer.class
+                                || fieldType == int.class));
+                fm.setRequired(fm.isPrimaryKey());
+                fm.setExportExcluded(f.getAnnotation(ExportExclude.class) != null);
+                ExportConverter exportConverter = f.getAnnotation(ExportConverter.class);
+                if (exportConverter != null) {
+                    fm.setExportConverterClassName(exportConverter.value().getName());
+                }
+                list.add(fm);
             }
-            list.add(fm);
         }
         return list;
     }
     
-    private ActionMeta buildActionMeta(EntityAction ann, String entityPathSegment) {
+    private ActionMeta buildActionMeta(EntityAction ann) {
         ActionMeta meta = new ActionMeta();
         meta.setActionName(ann.actionName());
         meta.setEntityName(ann.entity().getSimpleName());

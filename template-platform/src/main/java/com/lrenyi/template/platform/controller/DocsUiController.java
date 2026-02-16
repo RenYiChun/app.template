@@ -2,8 +2,6 @@ package com.lrenyi.template.platform.controller;
 
 import com.lrenyi.template.platform.config.EntityPlatformProperties;
 import java.nio.charset.StandardCharsets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,8 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("${app.platform.docs-ui-path:/docs}")
 @ConditionalOnProperty(name = "app.platform.docs-ui-enabled", havingValue = "true", matchIfMissing = true)
 public class DocsUiController {
-
-    private static final Logger log = LoggerFactory.getLogger(DocsUiController.class);
+    
     private static final String SCALAR_CDN = "https://cdn.jsdelivr.net/npm/@scalar/api-reference";
 
     private final EntityPlatformProperties properties;

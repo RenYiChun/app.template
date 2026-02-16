@@ -4,8 +4,9 @@
 
 ## 约定
 
+- **实体基类**：所有 `@PlatformEntity` 实体**必须继承** `com.lrenyi.template.platform.domain.BaseEntity<ID>`。BaseEntity 提供统一主键及审计字段：`id`、`createTime`、`updateTime`、`createBy`、`updateBy`、`deleted`、`remark`。主键类型 `ID` 支持 `Long`、`Integer`、`UUID`、`String`。`createTime`/`updateTime` 由 `@PrePersist`/`@PreUpdate` 自动填充；`createBy`/`updateBy` 可由业务在创建/更新时赋值，或启用 JPA Auditing（`@EnableJpaAuditing` + `AuditorAware` Bean）后由 `AuditingEntityListener` 自动填充。
 - **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。导出使用 `POST /api/{entity}/export`。
-- **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由实体类的 `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。
+- **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由 BaseEntity 泛型 / `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。Long/Integer 使用序列 `platform_entity_seq` 生成；UUID 随机生成；String 需业务在持久化前赋值。
 - **元数据**：注解 `@PlatformEntity`、`@EntityAction`，启动时扫描注册。每个实体的默认 CRUD/导出接口可单独开关：`enableList`、`enableGet`、`enableCreate`、`enableUpdate`、`enableUpdateBatch`、`enableDelete`、`enableDeleteBatch`、`enableExport`（均默认 true），关闭某项则对应接口返回 404；OpenAPI 文档仅展示已启用的接口。
 - **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或分页结果，删除成功时 `data` 为 `null`。列表接口 `data` 为 **PagedResult** 结构（`content`、`totalElements`、`totalPages`、`number`、`size`）。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
 - **CRUD DTO 自动生成**：编译期根据 `@PlatformEntity` 在实体包下生成 `dto` 子包中的 **CreateDTO**（创建请求）、**UpdateDTO**（更新请求）、**ResponseDTO**（响应 data）。可通过 `@PlatformEntity(generateDtos = false)` 关闭。**字段由谁组成**：默认取实体全部非 static/final 字段；创建/更新 DTO 自动排除 `id`；在字段上使用 **`@DtoExcludeFrom(DtoType.CREATE)`** / **`DtoType.UPDATE`** / **`DtoType.RESPONSE`** 可指定该字段不参与哪些 DTO（例如密码字段加 `@DtoExcludeFrom(DtoType.RESPONSE)` 避免响应带出密码）。Action 的请求/响应 DTO 在自定义 Action 时手写并在 `@EntityAction` 的 `requestType`/`responseType` 中指定。
@@ -48,8 +49,8 @@ app:
 
 引入 JPA 后，平台可托管 RBAC 表并**按请求实时解析**当前用户权限，使角色/权限变更在下次请求（或缓存失效后）即生效，不依赖登录时 Token 快照。
 
-1. **实体扫描**：RBAC 实体（Permission、Role、RolePermission、UserRole）已与 OperationLog 同处 `com.lrenyi.template.platform.domain`，若应用已扫描该包（如 `@EntityScan("com.lrenyi.template.platform.domain")`）则无需额外配置。
-2. **表结构**：框架提供四张表：`sys_permission`（权限字符串，如 `users:create`）、`sys_role`、`sys_role_permission`、`sys_user_role`（userId 与认证用户标识一致，如 username）。需自行建表或通过 JPA 自动建表后初始化数据。
+1. **实体扫描**：RBAC 实体（Permission、Role、RolePermission、UserRole）已与 OperationLog 同处 `com.lrenyi.template.platform.domain`。引入 JPA 后，框架会**自动**将该包加入实体扫描，应用无需在 `@EntityScan` 中显式配置。
+2. **表结构**：框架提供四张表：`sys_permission`（权限字符串，如 `users:create`）、`sys_role`、`sys_role_permission`、`sys_user_role`（userId 与认证用户标识一致，如 username）。所有实体表均继承 BaseEntity 公共列：`id`、`create_time`、`update_time`、`create_by`、`update_by`、`deleted`、`remark`。主键由序列 `platform_entity_seq` 生成（MySQL 下为表模拟）。需自行建表或通过 JPA 自动建表后初始化数据。
 3. **权限标识**：`@PlatformEntity` 未显式指定 `permissionCreate`/`permissionRead`/`permissionUpdate`/`permissionDelete` 时，按 `pathSegment` 自动生成（如 `pathSegment:create`、`pathSegment:read`），与 `sys_permission.permission` 一致即可用于角色分配。
 4. **权限自动初始化**：启用 JPA 且应用扫描了 platform.domain 时，启动后会根据已注册实体向 `sys_permission` 补齐缺失的权限记录（仅插入不存在的），便于直接为角色分配权限。可通过 `app.platform.rbac.init-permissions=false` 关闭。
 5. **配置**：`app.platform.rbac-cache-ttl-minutes` 控制用户权限缓存分钟数，&lt;=0 表示不缓存；&gt;0 时需引入 Caffeine 依赖以启用缓存。
@@ -198,7 +199,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 
 ## 使用
 
-1. 在实体类上使用 `@PlatformEntity(pathSegment = "users", displayName = "用户")`；若用 JPA，实体类同时加 `@Entity`。
+1. 实体类**继承** `BaseEntity<Long>`（或 `BaseEntity<UUID>` 等），并标注 `@PlatformEntity(pathSegment = "users", displayName = "用户")`；若用 JPA，实体类同时加 `@Entity`。
 2. 实现 `EntityActionExecutor` 并在类上使用 `@EntityAction(entity = User.class, actionName = "resetPassword", ...)`，将该类注册为 Spring Bean（如 `@Component`）。
 3. 启动应用后即可访问：
    - `POST /api/users/search`（分页搜索）、`POST /api/users`（创建）、`GET/PUT/DELETE /api/users/{id}`（CRUD）

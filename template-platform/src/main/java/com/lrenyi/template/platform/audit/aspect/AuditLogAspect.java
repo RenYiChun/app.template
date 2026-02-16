@@ -48,7 +48,7 @@ public class AuditLogAspect {
         HttpServletRequest request = null;
         if (attributes != null) {
             request = attributes.getRequest();
-            if (request != null && "true".equalsIgnoreCase(request.getHeader(TemplateConstant.HEADER_NAME))) {
+            if ("true".equalsIgnoreCase(request.getHeader(TemplateConstant.HEADER_NAME))) {
                 return joinPoint.proceed();
             }
         }

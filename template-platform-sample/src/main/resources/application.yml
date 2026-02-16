@@ -18,13 +18,14 @@ spring:
     show-sql: true
 
 app:
+  platform:
+    enabled: true
+    api-prefix: /api
+    scan-packages: com.lrenyi.template.platform.sample,com.lrenyi.template.platform.domain
+    permission-enabled: false
   template:
     enabled: true
     security:
       enabled: false
     audit:
       enabled: true
-  platform:
-    api-prefix: /api
-    scan-packages: com.lrenyi.template.platform.sample,com.lrenyi.template.platform.domain
-    permission-enabled: false

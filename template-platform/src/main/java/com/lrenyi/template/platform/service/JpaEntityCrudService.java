@@ -1,21 +1,22 @@
 package com.lrenyi.template.platform.service;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.support.FilterCondition;
 import com.lrenyi.template.platform.support.ListCriteria;
-import com.lrenyi.template.platform.support.Op;
 import com.lrenyi.template.platform.support.SortOrder;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
+
+import static com.lrenyi.template.platform.service.InMemoryEntityCrudService.getValueOfObject;
 
 /**
  * 基于 JPA EntityManager 的通用 CRUD 实现。实体类需为 JPA @Entity，主键类型可为 Long、String、UUID 等。
@@ -232,25 +233,21 @@ public class JpaEntityCrudService implements EntityCrudService {
     }
 
     private Object getEntityId(Object entity) {
-        try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            return idField.get(entity);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            return null;
-        }
+        return getValueOfObject(entity, findIdField(entity.getClass()));
     }
 
     private void setEntityId(Object entity, Object id) {
-        if (entity == null || id == null) {
-            return;
+        InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField("id");
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
         }
-        try {
-            Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            idField.set(entity, id);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            // ignore
-        }
+        return null;
     }
 }

@@ -1,22 +1,24 @@
 package com.lrenyi.template.platform.support;
 
-import com.lrenyi.template.platform.meta.EntityMeta;
-import com.lrenyi.template.platform.meta.FieldMeta;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.meta.FieldMeta;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Service 层使用的查询条件，由 SearchRequest 校验转换而来。
  */
+@Getter
 public final class ListCriteria {
 
     private static final Logger log = LoggerFactory.getLogger(ListCriteria.class);
@@ -28,15 +30,7 @@ public final class ListCriteria {
         this.filters = filters != null ? List.copyOf(filters) : List.of();
         this.sortOrders = sortOrders != null ? List.copyOf(sortOrders) : List.of();
     }
-
-    public List<FilterCondition> getFilters() {
-        return filters;
-    }
-
-    public List<SortOrder> getSortOrders() {
-        return sortOrders;
-    }
-
+    
     public static ListCriteria empty() {
         return new ListCriteria(List.of(), List.of());
     }
@@ -119,9 +113,7 @@ public final class ListCriteria {
         try {
             if (op == Op.IN) {
                 if (raw instanceof List<?> list) {
-                    return list.stream()
-                            .map(v -> convertSingle(v, type))
-                            .filter(v -> v != null)
+                    return list.stream().map(v -> convertSingle(v, type)).filter(Objects::nonNull)
                             .toList();
                 }
                 return List.of(convertSingle(raw, type));
