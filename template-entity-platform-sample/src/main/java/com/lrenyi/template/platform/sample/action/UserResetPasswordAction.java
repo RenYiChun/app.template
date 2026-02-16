@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class UserResetPasswordAction implements EntityActionExecutor {
 
     @Override
-    public Object execute(Long entityId, Object request) {
+    public Object execute(Object entityId, Object request) {
         ResetPasswordRequest req = (ResetPasswordRequest) request;
         int len = (req != null && req.getNewPassword() != null) ? req.getNewPassword().length() : 0;
         return Map.of("userId", entityId, "message", "Password reset requested, newPassword length: " + len);

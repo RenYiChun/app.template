@@ -33,7 +33,7 @@ public class EntityCrudServiceRouter implements EntityCrudService {
     }
 
     @Override
-    public Object get(EntityMeta entityMeta, Long id) {
+    public Object get(EntityMeta entityMeta, Object id) {
         return target(entityMeta).get(entityMeta, id);
     }
 
@@ -43,17 +43,17 @@ public class EntityCrudServiceRouter implements EntityCrudService {
     }
 
     @Override
-    public Object update(EntityMeta entityMeta, Long id, Object body) {
+    public Object update(EntityMeta entityMeta, Object id, Object body) {
         return target(entityMeta).update(entityMeta, id, body);
     }
 
     @Override
-    public void delete(EntityMeta entityMeta, Long id) {
+    public void delete(EntityMeta entityMeta, Object id) {
         target(entityMeta).delete(entityMeta, id);
     }
 
     @Override
-    public void deleteBatch(EntityMeta entityMeta, List<Long> ids) {
+    public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
         target(entityMeta).deleteBatch(entityMeta, ids);
     }
 

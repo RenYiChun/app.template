@@ -10,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 基于 JPA EntityManager 的通用 CRUD 实现。实体类需为 JPA @Entity，主键为 Long。
+ * 基于 JPA EntityManager 的通用 CRUD 实现。实体类需为 JPA @Entity，主键类型可为 Long、String、UUID 等。
  * 当 classpath 存在 spring-boot-starter-data-jpa 且未自定义 EntityCrudService 时自动启用。
  */
 public class JpaEntityCrudService implements EntityCrudService {
@@ -39,7 +39,7 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional(readOnly = true)
-    public Object get(EntityMeta entityMeta, Long id) {
+    public Object get(EntityMeta entityMeta, Object id) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             return null;
@@ -61,7 +61,7 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional
-    public Object update(EntityMeta entityMeta, Long id, Object body) {
+    public Object update(EntityMeta entityMeta, Object id, Object body) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             return null;
@@ -76,7 +76,7 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional
-    public void delete(EntityMeta entityMeta, Long id) {
+    public void delete(EntityMeta entityMeta, Object id) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             return;
@@ -89,7 +89,7 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional
-    public void deleteBatch(EntityMeta entityMeta, List<Long> ids) {
+    public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
         if (ids == null || ids.isEmpty()) {
             return;
         }
@@ -97,7 +97,7 @@ public class JpaEntityCrudService implements EntityCrudService {
         if (entityClass == null) {
             return;
         }
-        for (Long id : ids) {
+        for (Object id : ids) {
             Object entity = entityManager.find(entityClass, id);
             if (entity != null) {
                 entityManager.remove(entity);
@@ -117,7 +117,7 @@ public class JpaEntityCrudService implements EntityCrudService {
         }
         List<Object> result = new java.util.ArrayList<>(entities.size());
         for (Object entity : entities) {
-            Long id = getEntityId(entity);
+            Object id = getEntityId(entity);
             if (id != null && entityManager.find(entityClass, id) != null) {
                 result.add(entityManager.merge(entity));
             }
@@ -125,18 +125,20 @@ public class JpaEntityCrudService implements EntityCrudService {
         return result;
     }
 
-    private Long getEntityId(Object entity) {
+    private Object getEntityId(Object entity) {
         try {
             Field idField = entity.getClass().getDeclaredField("id");
             idField.setAccessible(true);
-            Object v = idField.get(entity);
-            return v instanceof Long l ? l : (v instanceof Number n ? n.longValue() : null);
+            return idField.get(entity);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             return null;
         }
     }
 
-    private void setEntityId(Object entity, Long id) {
+    private void setEntityId(Object entity, Object id) {
+        if (entity == null || id == null) {
+            return;
+        }
         try {
             Field idField = entity.getClass().getDeclaredField("id");
             idField.setAccessible(true);

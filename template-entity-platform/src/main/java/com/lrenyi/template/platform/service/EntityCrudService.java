@@ -11,18 +11,18 @@ public interface EntityCrudService {
 
     List<?> list(EntityMeta entityMeta, Pageable pageable);
 
-    Object get(EntityMeta entityMeta, Long id);
+    Object get(EntityMeta entityMeta, Object id);
 
     Object create(EntityMeta entityMeta, Object body);
 
-    Object update(EntityMeta entityMeta, Long id, Object body);
+    Object update(EntityMeta entityMeta, Object id, Object body);
 
-    void delete(EntityMeta entityMeta, Long id);
+    void delete(EntityMeta entityMeta, Object id);
 
     /**
      * 批量删除：按主键 ID 列表删除多条记录。
      */
-    void deleteBatch(EntityMeta entityMeta, List<Long> ids);
+    void deleteBatch(EntityMeta entityMeta, List<?> ids);
 
     /**
      * 批量更新：按传入的实体列表（每条需带 id）执行更新，返回更新后的实体列表。

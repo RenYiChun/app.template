@@ -98,4 +98,9 @@ public @interface PlatformEntity {
      * 是否为此实体生成 CRUD 用请求/响应 DTO（CreateDTO、UpdateDTO、ResponseDTO），默认 true。
      */
     boolean generateDtos() default true;
+
+    /**
+     * 主键类型（Long、String、UUID 等）。默认 void 表示未指定，由扫描时从实体 id 字段类型推断。
+     */
+    Class<?> primaryKeyType() default void.class;
 }

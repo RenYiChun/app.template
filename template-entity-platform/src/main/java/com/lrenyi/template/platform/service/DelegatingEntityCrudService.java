@@ -25,7 +25,7 @@ public class DelegatingEntityCrudService implements EntityCrudService {
     }
 
     @Override
-    public Object get(EntityMeta entityMeta, Long id) {
+    public Object get(EntityMeta entityMeta, Object id) {
         return defaultService.get(entityMeta, id);
     }
 
@@ -35,17 +35,17 @@ public class DelegatingEntityCrudService implements EntityCrudService {
     }
 
     @Override
-    public Object update(EntityMeta entityMeta, Long id, Object body) {
+    public Object update(EntityMeta entityMeta, Object id, Object body) {
         return defaultService.update(entityMeta, id, body);
     }
 
     @Override
-    public void delete(EntityMeta entityMeta, Long id) {
+    public void delete(EntityMeta entityMeta, Object id) {
         defaultService.delete(entityMeta, id);
     }
 
     @Override
-    public void deleteBatch(EntityMeta entityMeta, List<Long> ids) {
+    public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
         defaultService.deleteBatch(entityMeta, ids);
     }
 

@@ -2,6 +2,7 @@ package com.lrenyi.template.platform.support;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.UUID;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -118,8 +119,24 @@ public class MetaScanner {
         meta.setPermissionRead(defaultPermission(ann.permissionRead(), pathSeg, (ann.crudEnabled() && ann.enableList()) || (ann.crudEnabled() && ann.enableGet()) || (ann.crudEnabled() && ann.enableExport()), "read"));
         meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg, ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
         meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg, ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
+        Class<?> pkType = ann.primaryKeyType() != void.class ? ann.primaryKeyType() : inferPrimaryKeyType(clazz);
+        meta.setPrimaryKeyType(pkType);
         meta.setFields(buildFieldMetas(clazz));
         return meta;
+    }
+
+    private static Class<?> inferPrimaryKeyType(Class<?> clazz) {
+        try {
+            Field idField = clazz.getDeclaredField("id");
+            Class<?> type = idField.getType();
+            if (type == Long.class || type == long.class || type == String.class || type == UUID.class
+                    || type == Integer.class || type == int.class) {
+                return type;
+            }
+        } catch (NoSuchFieldException ignored) {
+            // fallback
+        }
+        return Long.class;
     }
     
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
@@ -129,8 +146,10 @@ public class MetaScanner {
             fm.setName(f.getName());
             fm.setType(f.getType().getSimpleName());
             fm.setColumnName(toSnakeCase(f.getName()));
-            fm.setPrimaryKey(
-                    "id".equalsIgnoreCase(f.getName()) && (f.getType() == Long.class || f.getType() == long.class));
+            Class<?> fieldType = f.getType();
+            fm.setPrimaryKey("id".equalsIgnoreCase(f.getName())
+                    && (fieldType == Long.class || fieldType == long.class || fieldType == String.class
+                    || fieldType == UUID.class || fieldType == Integer.class || fieldType == int.class));
             fm.setRequired(fm.isPrimaryKey());
             fm.setExportExcluded(f.getAnnotation(ExportExclude.class) != null);
             ExportConverter exportConverter = f.getAnnotation(ExportConverter.class);

@@ -5,7 +5,7 @@
 ## 约定
 
 - **URL**：CRUD 使用 REST `GET/POST/PUT/DELETE /api/{entity}`、`/api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。
-- **主键**：默认 `Long`。
+- **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由实体类的 `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。
 - **元数据**：注解 `@PlatformEntity`、`@EntityAction`，启动时扫描注册。每个实体的默认 CRUD/导出接口可单独开关：`enableList`、`enableGet`、`enableCreate`、`enableUpdate`、`enableUpdateBatch`、`enableDelete`、`enableDeleteBatch`、`enableExport`（均默认 true），关闭某项则对应接口返回 404；OpenAPI 文档仅展示已启用的接口。
 - **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或列表，删除成功时 `data` 为 `null`。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
 - **CRUD DTO 自动生成**：编译期根据 `@PlatformEntity` 在实体包下生成 `dto` 子包中的 **CreateDTO**（创建请求）、**UpdateDTO**（更新请求）、**ResponseDTO**（响应 data）。可通过 `@PlatformEntity(generateDtos = false)` 关闭。**字段由谁组成**：默认取实体全部非 static/final 字段；创建/更新 DTO 自动排除 `id`；在字段上使用 **`@DtoExcludeFrom(DtoType.CREATE)`** / **`DtoType.UPDATE`** / **`DtoType.RESPONSE`** 可指定该字段不参与哪些 DTO（例如密码字段加 `@DtoExcludeFrom(DtoType.RESPONSE)` 避免响应带出密码）。Action 的请求/响应 DTO 在自定义 Action 时手写并在 `@EntityAction` 的 `requestType`/`responseType` 中指定。
@@ -29,7 +29,7 @@ app:
 
 ## 通用 JPA DAO（可选）
 
-引入 `spring-boot-starter-data-jpa` 后，框架会**自动**使用基于 `EntityManager` 的通用 CRUD（`JpaEntityCrudService`），无需为每个实体写 Repository。实体类需为 JPA `@Entity`，主键为 `Long`。未引入 JPA 时仍使用内存实现（仅演示用）。
+引入 `spring-boot-starter-data-jpa` 后，框架会**自动**使用基于 `EntityManager` 的通用 CRUD（`JpaEntityCrudService`），无需为每个实体写 Repository。实体类需为 JPA `@Entity`，主键类型可为 Long、String、UUID 等（见上方主键类型约定）。未引入 JPA 时仍使用内存实现（仅演示用）。
 
 ```xml
 <dependency>

@@ -16,6 +16,7 @@ import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.support.EntityDtoResolver;
 import com.lrenyi.template.platform.support.ExcelExportSupport;
+import com.lrenyi.template.platform.support.IdParser;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -75,8 +76,8 @@ public class GenericEntityController {
         return Result.getSuccess(toResponseList(meta, list));
     }
     
-    @GetMapping("/{entity}/{id:\\d+}")
-    public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
+    @GetMapping("/{entity}/{id}")
+    public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isGetEnabled()) {
             return notFound();
@@ -85,7 +86,11 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
-        Object one = crudService.get(meta, id);
+        Object idObj = parseIdOrBadRequest(meta, id);
+        if (idObj == null) {
+            return badRequest("id 格式错误");
+        }
+        Object one = crudService.get(meta, idObj);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
     }
     
@@ -104,9 +109,9 @@ public class GenericEntityController {
         return Result.getSuccess(toResponse(meta, created));
     }
     
-    @PutMapping("/{entity}/{id:\\d+}")
+    @PutMapping("/{entity}/{id}")
     public Result<?> update(@PathVariable("entity") String entity,
-            @PathVariable("id") Long id,
+            @PathVariable("id") String id,
             @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateEnabled()) {
@@ -116,13 +121,17 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
+        Object idObj = parseIdOrBadRequest(meta, id);
+        if (idObj == null) {
+            return badRequest("id 格式错误");
+        }
         Object bodyEntity = bodyToEntity(meta, body, true);
-        Object updated = crudService.update(meta, id, bodyEntity);
+        Object updated = crudService.update(meta, idObj, bodyEntity);
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
     }
     
-    @DeleteMapping("/{entity}/{id:\\d+}")
-    public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
+    @DeleteMapping("/{entity}/{id}")
+    public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteEnabled()) {
             return notFound();
@@ -131,15 +140,19 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
-        crudService.delete(meta, id);
+        Object idObj = parseIdOrBadRequest(meta, id);
+        if (idObj == null) {
+            return badRequest("id 格式错误");
+        }
+        crudService.delete(meta, idObj);
         return Result.getSuccess(null);
     }
     
     /**
-     * 批量删除。请求体为 ID 列表，例如 [1, 2, 3]。
+     * 批量删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
      */
     @DeleteMapping("/{entity}/batch")
-    public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<Long> ids) {
+    public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<?> ids) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteBatchEnabled()) {
             return notFound();
@@ -151,7 +164,11 @@ public class GenericEntityController {
         if (ids == null || ids.isEmpty()) {
             return Result.getSuccess(null);
         }
-        crudService.deleteBatch(meta, ids);
+        List<Object> parsedIds = parseIdsOrBadRequest(meta, ids);
+        if (parsedIds == null) {
+            return badRequest("id 列表格式错误");
+        }
+        crudService.deleteBatch(meta, parsedIds);
         return Result.getSuccess(null);
     }
     
@@ -172,14 +189,20 @@ public class GenericEntityController {
             return Result.getSuccess(List.of());
         }
         List<Object> entities = new java.util.ArrayList<>(body.size());
+        Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
         for (Map<String, Object> map : body) {
             Object idObj = map.get("id");
-            Long id = idObj instanceof Number n ? n.longValue() : null;
-            if (id == null) {
+            if (idObj == null) {
                 continue;
             }
+            Object idParsed;
+            try {
+                idParsed = IdParser.parseIdFromObject(idObj, pkType);
+            } catch (IllegalArgumentException e) {
+                return badRequest("id 格式错误: " + e.getMessage());
+            }
             Object bodyEntity = bodyToEntity(meta, map, true);
-            setEntityId(bodyEntity, id);
+            setEntityId(bodyEntity, idParsed);
             entities.add(bodyEntity);
         }
         List<?> updated = crudService.updateBatch(meta, entities);
@@ -217,14 +240,18 @@ public class GenericEntityController {
         }
     }
     
-    @PostMapping("/{entity}/{id:\\d+}/{actionName}")
+    @PostMapping("/{entity}/{id}/{actionName}")
     public Result<?> executeAction(@PathVariable("entity") String entity,
-            @PathVariable("id") Long id,
+            @PathVariable("id") String id,
             @PathVariable("actionName") String actionName,
             @RequestBody(required = false) Map<String, Object> body) {
         EntityMeta entityMeta = entityRegistry.getByPathSegment(entity);
         if (entityMeta == null) {
             return notFound();
+        }
+        Object idObj = parseIdOrBadRequest(entityMeta, id);
+        if (idObj == null) {
+            return badRequest("id 格式错误");
         }
         EntityActionExecutor executor = actionRegistry.getExecutor(entity, actionName);
         ActionMeta actionMeta = actionRegistry.getMeta(entity, actionName);
@@ -242,7 +269,7 @@ public class GenericEntityController {
                 && actionMeta.getRequestType() != Void.class) {
             requestObj = objectMapper.convertValue(body, actionMeta.getRequestType());
         }
-        Object result = executor.execute(id, requestObj);
+        Object result = executor.execute(idObj, requestObj);
         return Result.getSuccess(result != null ? result : Map.of());
     }
     
@@ -282,7 +309,7 @@ public class GenericEntityController {
         return list;
     }
     
-    private static void setEntityId(Object entity, Long id) {
+    private static void setEntityId(Object entity, Object id) {
         if (entity == null || id == null) {
             return;
         }
@@ -293,6 +320,30 @@ public class GenericEntityController {
         } catch (NoSuchFieldException | IllegalAccessException ignored) {
             // ignore
         }
+    }
+
+    private Object parseIdOrBadRequest(EntityMeta meta, String id) {
+        try {
+            Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
+            return IdParser.parseId(id, pkType);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private List<Object> parseIdsOrBadRequest(EntityMeta meta, List<?> ids) {
+        try {
+            Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
+            return IdParser.parseIds(ids, pkType);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static Result<Object> badRequest(String message) {
+        Result<Object> r = Result.getError(null, message);
+        r.setCode(400);
+        return r;
     }
     
     private static Result<Object> notFound() {

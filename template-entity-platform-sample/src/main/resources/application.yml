@@ -27,4 +27,4 @@ app:
   platform:
     api-prefix: /api
     scan-packages: com.lrenyi.template.platform.sample,com.lrenyi.template.platform.domain
-    enabled: true
+    permission-enabled: false

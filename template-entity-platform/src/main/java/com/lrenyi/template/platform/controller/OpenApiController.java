@@ -77,7 +77,7 @@ public class OpenApiController {
                                 String tag = tagForEntity(entity);
                                 putOperation(pathsMap, path, httpMethod, action.getSummary(),
                                         entity.getPathSegment() + "_" + action.getActionName(),
-                                        needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(), tag);
+                                        needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(), tag, entity);
                             }
                         }
                     } else {
@@ -91,7 +91,7 @@ public class OpenApiController {
                             String operationId = entity.getPathSegment() + "_" + methodName;
                             String tag = tagForEntity(entity);
                             putOperation(pathsMap, path, httpMethod, summary, operationId, hasRequestBody,
-                                    permissions != null && !"".equals(permissions) ? permissions : null, tag);
+                                    permissions != null && !"".equals(permissions) ? permissions : null, tag, entity);
                         }
                     }
                 }
@@ -118,13 +118,23 @@ public class OpenApiController {
     }
 
     private static void putOperation(Map<String, Map<String, Object>> pathsMap, String path, String method,
-            String summary, String operationId, boolean requestBody, Object permissions, String tag) {
+            String summary, String operationId, boolean requestBody, Object permissions, String tag, EntityMeta entity) {
         pathsMap.computeIfAbsent(path, k -> new HashMap<>());
         Map<String, Object> pathItem = pathsMap.get(path);
         Map<String, Object> op = new HashMap<>();
         op.put("tags", List.of(tag));
         op.put("summary", summary);
         op.put("operationId", operationId);
+        if (path.contains("{id}") && entity != null) {
+            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
+            String idSchemaType = (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ? "integer" : "string";
+            op.put("parameters", List.of(Map.of(
+                    "name", "id",
+                    "in", "path",
+                    "required", true,
+                    "schema", Map.of("type", idSchemaType),
+                    "description", "主键，类型为 " + pkType.getSimpleName())));
+        }
         op.put("responses", Map.of("200", Map.of("description", DEFAULT_RESPONSE_DESC)));
         if (requestBody) {
             op.put("requestBody", Map.of(
