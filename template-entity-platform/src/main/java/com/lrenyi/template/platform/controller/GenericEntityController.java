@@ -75,7 +75,7 @@ public class GenericEntityController {
         return Result.getSuccess(toResponseList(meta, list));
     }
     
-    @GetMapping("/{entity}/{id}")
+    @GetMapping("/{entity}/{id:\\d+}")
     public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isGetEnabled()) {
@@ -104,7 +104,7 @@ public class GenericEntityController {
         return Result.getSuccess(toResponse(meta, created));
     }
     
-    @PutMapping("/{entity}/{id}")
+    @PutMapping("/{entity}/{id:\\d+}")
     public Result<?> update(@PathVariable("entity") String entity,
             @PathVariable("id") Long id,
             @RequestBody Map<String, Object> body) {
@@ -121,7 +121,7 @@ public class GenericEntityController {
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
     }
     
-    @DeleteMapping("/{entity}/{id}")
+    @DeleteMapping("/{entity}/{id:\\d+}")
     public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") Long id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteEnabled()) {
@@ -217,7 +217,7 @@ public class GenericEntityController {
         }
     }
     
-    @PostMapping("/{entity}/{id}/{actionName}")
+    @PostMapping("/{entity}/{id:\\d+}/{actionName}")
     public Result<?> executeAction(@PathVariable("entity") String entity,
             @PathVariable("id") Long id,
             @PathVariable("actionName") String actionName,

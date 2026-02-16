@@ -2,6 +2,7 @@ package com.lrenyi.template.platform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
+import com.lrenyi.template.platform.controller.DocsUiController;
 import com.lrenyi.template.platform.controller.GenericEntityController;
 import com.lrenyi.template.platform.controller.OpenApiController;
 import com.lrenyi.template.platform.permission.DefaultPlatformPermissionChecker;
@@ -95,8 +96,15 @@ public class EntityPlatformAutoConfiguration {
 
     @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
-                                               org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
-        return new OpenApiController(entityRegistry, handlerMapping);
+            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping,
+            EntityPlatformProperties properties) {
+        return new OpenApiController(entityRegistry, handlerMapping, properties);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.platform.docs-ui-enabled", havingValue = "true", matchIfMissing = true)
+    public DocsUiController docsUiController(EntityPlatformProperties properties) {
+        return new DocsUiController(properties);
     }
 
     @Bean

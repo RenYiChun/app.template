@@ -42,11 +42,25 @@ public class EntityPlatformProperties {
      */
     private boolean rbacInitPermissions = true;
 
+    /**
+     * 是否启用内嵌 API 文档界面（Swagger UI）。为 true 时访问 docs-ui-path 可打开文档页。
+     */
+    private boolean docsUiEnabled = true;
+
+    /**
+     * API 文档界面入口路径，默认 /docs。仅当 docs-ui-enabled 为 true 时生效。
+     */
+    private String docsUiPath = "/docs";
+
     public void setApiPrefix(String apiPrefix) {
         this.apiPrefix = apiPrefix == null ? "/api" : apiPrefix;
     }
     
     public void setScanPackages(String scanPackages) {
         this.scanPackages = scanPackages != null ? scanPackages : "";
+    }
+
+    public void setDocsUiPath(String docsUiPath) {
+        this.docsUiPath = docsUiPath != null ? docsUiPath : "/docs";
     }
 }

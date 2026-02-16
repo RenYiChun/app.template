@@ -22,6 +22,8 @@ app:
     enabled: true
     permission-enabled: true
     default-allow-if-no-permission: true
+    docs-ui-enabled: true   # 是否启用内嵌 API 文档界面（Scalar），默认 true
+    docs-ui-path: /docs     # 文档界面入口路径，默认 /docs
     # 可选：rbac-cache-ttl-minutes、rbac-init-permissions 等见下方 RBAC 小节
 ```
 
@@ -49,6 +51,12 @@ app:
 5. **配置**：`app.platform.rbac-cache-ttl-minutes` 控制用户权限缓存分钟数，&lt;=0 表示不缓存；&gt;0 时需引入 Caffeine 依赖以启用缓存。
 
 未使用平台托管 RBAC 时（未扫描 platform.domain 或不提供 `UserPermissionResolver`），仍使用基于 `Authentication.getAuthorities()` 的默认校验，行为不变。
+
+## API 文档界面
+
+- **OpenAPI JSON**：`GET ${api-prefix}/docs` 返回标准 OpenAPI 3.0 文档（JSON），供程序或文档 UI 使用。
+- **内嵌文档页**：当 `app.platform.docs-ui-enabled` 为 true（默认）时，访问 `docs-ui-path`（默认 `/docs`）可打开内嵌的 **Scalar API Reference** 页面，自动加载上述 OpenAPI 文档，左侧按实体分组导航、右侧展示接口说明与试调。文档页与 `/api/docs` 受应用现有 Spring Security 配置约束（通常需认证后访问）。
+- 关闭文档界面：配置 `app.platform.docs-ui-enabled: false`。自定义入口路径：`app.platform.docs-ui-path: /api-docs`。
 
 ## 覆盖增删改查（特殊业务逻辑）
 
@@ -146,7 +154,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 3. 启动应用后即可访问：
    - `GET/POST /api/users`、`GET/PUT/DELETE /api/users/{id}`（CRUD）
    - `POST /api/users/{id}/resetPassword`（Action）
-   - `GET /api/docs`（简单 OpenAPI 风格文档）
+   - `GET /api/docs`（OpenAPI 3.0 JSON）、`GET /docs`（内嵌 Scalar 文档界面）
 
 ## 可运行示例
 
@@ -154,4 +162,4 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 mvn spring-boot:run -pl template-entity-platform-sample
 ```
 
-然后可请求：`GET http://localhost:8080/api/users`、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`。
+然后可请求：`GET http://localhost:8080/api/users`、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`（OpenAPI JSON）；在浏览器打开 `http://localhost:8080/docs` 可查看内嵌 API 文档界面（Scalar）。
