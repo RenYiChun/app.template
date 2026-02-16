@@ -1,13 +1,11 @@
 package com.lrenyi.template.platform.support;
 
 import java.util.List;
-import lombok.Getter;
 
 /**
  * 分页结果 DTO，用于替代直接序列化 PageImpl，避免 Spring Data 的序列化警告。
  * JSON 结构稳定：content、totalElements、totalPages、number、size。
  */
-@Getter
 public record PagedResult<T>(List<T> content, long totalElements, int totalPages, int number, int size) {
     
     public PagedResult(List<T> content, long totalElements, int totalPages, int number, int size) {
