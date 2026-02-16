@@ -5,57 +5,74 @@ import java.util.List;
 import java.util.Map;
 import com.lrenyi.template.platform.config.EntityPlatformProperties;
 import com.lrenyi.template.platform.domain.Permission;
+import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.Ordered;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 应用启动后根据已注册的实体元数据，向 sys_permission 表补齐缺失的权限记录。
+ * 应用启动后根据已注册的实体元数据（CRUD + Action 权限），向 sys_permission 表补齐缺失的权限记录。
  * 仅当启用 JPA 且 app.platform.rbac.init-permissions 为 true 时执行；若应用未扫描 platform.domain，
- * Permission 不在持久化单元内则静默跳过。
+ * Permission 不在持久化单元内会记录 WARN 日志便于排查。
  */
 public class PermissionInitializer implements ApplicationRunner, Ordered {
-    
+
     private static final Logger log = LoggerFactory.getLogger(PermissionInitializer.class);
-    
+
     private final EntityRegistry entityRegistry;
     private final EntityManager entityManager;
     private final EntityPlatformProperties properties;
-    
+    private final ObjectProvider<TransactionTemplate> transactionTemplateProvider;
+
     public PermissionInitializer(EntityRegistry entityRegistry,
             EntityManager entityManager,
-            EntityPlatformProperties properties) {
+            EntityPlatformProperties properties,
+            ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
         this.entityRegistry = entityRegistry;
         this.entityManager = entityManager;
         this.properties = properties;
+        this.transactionTemplateProvider = transactionTemplateProvider;
     }
-    
+
     @Override
     public void run(ApplicationArguments args) {
         if (!properties.isRbacInitPermissions()) {
             return;
         }
+        int entityCount = entityRegistry.getAll().size();
+        log.info("RBAC 权限初始化开始，已注册实体数: {}", entityCount);
+        TransactionTemplate transactionTemplate = transactionTemplateProvider.getIfAvailable();
+        if (transactionTemplate == null) {
+            log.warn("RBAC 权限初始化跳过：TransactionTemplate 不可用（需 PlatformTransactionManager）");
+            return;
+        }
         Map<String, String> toInit = collectPermissionsToInit();
         if (toInit.isEmpty()) {
+            log.warn("RBAC 权限初始化：未收集到待初始化权限（请确认 app.platform.scan-packages 已包含实体包，如 com.lrenyi.template.platform.domain）");
             return;
         }
         try {
-            int added = ensurePermissionsExist(toInit);
-            if (added > 0) {
+            Integer added = transactionTemplate.execute(status -> {
+                int n = ensurePermissionsExist(toInit);
+                entityManager.flush();
+                return n;
+            });
+            if (added != null && added > 0) {
                 log.info("RBAC 权限初始化：新增 {} 条权限记录", added);
             }
         } catch (Exception e) {
-            log.debug("RBAC 权限初始化跳过（可能未扫描 platform.domain 或未使用 JPA 管理 Permission）: {}",
-                      e.getMessage()
-            );
+            log.warn("RBAC 权限初始化失败，sys_permission 将无自动补齐数据（请确认已扫描 platform.domain 且使用 JPA）：{}",
+                    e.getMessage(), e);
         }
     }
-    
+
     @Override
     public int getOrder() {
         return Ordered.LOWEST_PRECEDENCE;
@@ -70,6 +87,17 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
             addIfNonBlank(permToDesc, meta.getPermissionRead(), displayName, "查询");
             addIfNonBlank(permToDesc, meta.getPermissionUpdate(), displayName, "更新");
             addIfNonBlank(permToDesc, meta.getPermissionDelete(), displayName, "删除");
+            if (meta.getActions() != null) {
+                for (ActionMeta action : meta.getActions()) {
+                    String actionDesc = action.getSummary() != null && !action.getSummary().isBlank()
+                            ? action.getSummary() : (action.getActionName() != null ? action.getActionName() : "自定义");
+                    if (action.getPermissions() != null) {
+                        for (String p : action.getPermissions()) {
+                            addIfNonBlank(permToDesc, p, displayName, "Action " + actionDesc);
+                        }
+                    }
+                }
+            }
         }
         return permToDesc;
     }
