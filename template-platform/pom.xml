@@ -8,8 +8,8 @@
         <artifactId>app.template</artifactId>
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
-    <artifactId>template-entity-platform</artifactId>
-    <name>Template Entity Platform</name>
+    <artifactId>template-platform</artifactId>
+    <name>Template Platform</name>
     <description>实体驱动业务平台内核：统一 Controller、Action 扩展、权限/日志/OpenAPI</description>
 
     <properties>
@@ -17,6 +17,13 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-platform-processor</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>com.lrenyi</groupId>
             <artifactId>template-core</artifactId>
@@ -86,6 +93,41 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <!-- Lombok 必须在第一位，先处理 @Getter/@Setter -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.38</version>
+                        </path>
+                        <!-- 然后处理自定义的 DTO 生成 -->
+                        <path>
+                            <groupId>com.lrenyi</groupId>
+                            <artifactId>template-platform-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/annotations</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

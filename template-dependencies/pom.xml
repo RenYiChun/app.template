@@ -272,6 +272,11 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>com.lrenyi</groupId>
                     <artifactId>jarenc-maven-plugin</artifactId>
                     <version>${jarenc-maven-plugin.version}</version>
