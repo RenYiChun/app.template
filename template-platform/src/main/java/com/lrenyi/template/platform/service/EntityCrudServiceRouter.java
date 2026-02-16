@@ -3,6 +3,7 @@ package com.lrenyi.template.platform.service;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
@@ -28,7 +29,7 @@ public class EntityCrudServiceRouter implements EntityCrudService {
     }
 
     @Override
-    public List<?> list(EntityMeta entityMeta, Pageable pageable) {
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
         return target(entityMeta).list(entityMeta, pageable);
     }
 

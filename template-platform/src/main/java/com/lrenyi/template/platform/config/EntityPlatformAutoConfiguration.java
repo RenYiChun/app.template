@@ -84,8 +84,8 @@ public class EntityPlatformAutoConfiguration {
     }
 
     @Bean
-    public EntityPlatformExceptionHandler entityPlatformExceptionHandler() {
-        return new EntityPlatformExceptionHandler();
+    public EntityPlatformExceptionHandler entityPlatformExceptionHandler(EntityPlatformProperties properties) {
+        return new EntityPlatformExceptionHandler(properties);
     }
 
     @Bean
@@ -114,10 +114,11 @@ public class EntityPlatformAutoConfiguration {
             EntityCrudService entityCrudService,
             EntityPlatformProperties properties,
             PlatformPermissionChecker platformPermissionChecker,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            org.springframework.beans.factory.ObjectProvider<jakarta.validation.Validator> validatorProvider) {
         return new GenericEntityController(
                 entityRegistry, actionRegistry, entityCrudService, properties,
-                platformPermissionChecker, objectMapper);
+                platformPermissionChecker, objectMapper, validatorProvider);
     }
 
     @Bean

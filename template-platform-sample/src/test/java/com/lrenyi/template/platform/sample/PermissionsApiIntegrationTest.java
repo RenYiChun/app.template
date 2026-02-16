@@ -65,9 +65,9 @@ class PermissionsApiIntegrationTest {
         assertThat(body).isNotNull();
         assertThat(body.path("code").asInt()).isEqualTo(200);
         JsonNode data = body.path("data");
-        assertThat(data.isArray()).isTrue();
-        assertThat(data.isEmpty())
-                .as("GET /api/permissions 的 data 应有记录")
+        assertThat(data.has("content")).isTrue();
+        assertThat(data.path("content").isEmpty())
+                .as("GET /api/permissions 的 data.content 应有记录")
                 .isFalse();
     }
 }

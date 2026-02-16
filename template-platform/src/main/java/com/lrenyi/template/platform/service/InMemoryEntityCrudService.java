@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 /**
@@ -21,16 +23,18 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     private final Map<String, AtomicLong> longIdGen = new ConcurrentHashMap<>();
 
     @Override
-    public List<?> list(EntityMeta entityMeta, Pageable pageable) {
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
         String path = entityMeta.getPathSegment();
         Map<Object, Object> map = store.get(path);
         if (map == null) {
-            return List.of();
+            return new PageImpl<>(List.of(), pageable, 0);
         }
         List<Object> list = new ArrayList<>(map.values());
+        long total = list.size();
         int from = (int) pageable.getOffset();
         int to = Math.min(from + pageable.getPageSize(), list.size());
-        return from >= list.size() ? List.of() : list.subList(from, to);
+        List<Object> content = from >= list.size() ? List.of() : list.subList(from, to);
+        return new PageImpl<>(new ArrayList<>(content), pageable, total);
     }
 
     @Override

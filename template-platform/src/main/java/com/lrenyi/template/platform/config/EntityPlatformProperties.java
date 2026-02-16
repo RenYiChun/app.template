@@ -52,6 +52,28 @@ public class EntityPlatformProperties {
      */
     private String docsUiPath = "/docs";
 
+    /**
+     * 列表接口每页最大条数。超过此值的 size 请求将被截断，避免大表全量查询导致 OOM。
+     */
+    private int maxPageSize = 500;
+
+    /**
+     * 导出 Excel 单次最大条数。超过此值的 size 请求将被截断。
+     */
+    private int maxExportSize = 50000;
+
+    /**
+     * 是否向客户端暴露异常详情（e.getMessage()）。生产环境应设为 false，避免泄露路径、SQL 等敏感信息。
+     * 开发/调试时可设为 true。
+     */
+    private boolean exposeExceptionMessage = false;
+
+    /**
+     * 是否对 create/update 请求体进行 Bean Validation 校验。需 classpath 存在 spring-boot-starter-validation。
+     * 在生成的 CreateDTO/UpdateDTO 或自定义 DTO 上添加 @NotNull、@Size 等注解即可生效。
+     */
+    private boolean validationEnabled = true;
+
     public void setApiPrefix(String apiPrefix) {
         this.apiPrefix = apiPrefix == null ? "/api" : apiPrefix;
     }

@@ -2,6 +2,7 @@ package com.lrenyi.template.platform.service;
 
 import com.lrenyi.template.platform.meta.EntityMeta;
 import java.util.List;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
@@ -9,7 +10,10 @@ import org.springframework.data.domain.Pageable;
  */
 public interface EntityCrudService {
 
-    List<?> list(EntityMeta entityMeta, Pageable pageable);
+    /**
+     * 分页查询，返回包含 content、totalElements、totalPages 等元数据的 Page。
+     */
+    Page<?> list(EntityMeta entityMeta, Pageable pageable);
 
     Object get(EntityMeta entityMeta, Object id);
 

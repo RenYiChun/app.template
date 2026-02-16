@@ -1,9 +1,13 @@
 package com.lrenyi.template.platform.controller;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
@@ -16,7 +20,9 @@ import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.support.EntityDtoResolver;
 import com.lrenyi.template.platform.support.ExcelExportSupport;
+import com.lrenyi.template.platform.support.PagedResult;
 import com.lrenyi.template.platform.support.IdParser;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -44,19 +50,22 @@ public class GenericEntityController {
     private final EntityPlatformProperties properties;
     private final PlatformPermissionChecker permissionChecker;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<Validator> validatorProvider;
 
     public GenericEntityController(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService crudService,
             EntityPlatformProperties properties,
             PlatformPermissionChecker permissionChecker,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ObjectProvider<Validator> validatorProvider) {
         this.entityRegistry = entityRegistry;
         this.actionRegistry = actionRegistry;
         this.crudService = crudService;
         this.properties = properties;
         this.permissionChecker = permissionChecker;
         this.objectMapper = objectMapper;
+        this.validatorProvider = validatorProvider;
     }
     
     @GetMapping("/{entity}")
@@ -71,9 +80,12 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
-        Pageable pageable = PageRequest.of(page, size);
-        List<?> list = crudService.list(meta, pageable);
-        return Result.getSuccess(toResponseList(meta, list));
+        int safeSize = Math.min(Math.max(1, size), properties.getMaxPageSize());
+        Pageable pageable = PageRequest.of(page, safeSize);
+        Page<?> pageResult = crudService.list(meta, pageable);
+        List<?> converted = toResponseList(meta, pageResult.getContent());
+        PagedResult<Object> pagedResult = PagedResult.from(pageResult, converted);
+        return Result.getSuccess(pagedResult);
     }
     
     @GetMapping("/{entity}/{id}")
@@ -104,6 +116,10 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
+        Result<Object> validationError = validateBody(meta, body, false);
+        if (validationError != null) {
+            return validationError;
+        }
         Object bodyEntity = bodyToEntity(meta, body, false);
         Object created = crudService.create(meta, bodyEntity);
         return Result.getSuccess(toResponse(meta, created));
@@ -124,6 +140,10 @@ public class GenericEntityController {
         Object idObj = parseIdOrBadRequest(meta, id);
         if (idObj == null) {
             return badRequest("id 格式错误");
+        }
+        Result<Object> validationError = validateBody(meta, body, true);
+        if (validationError != null) {
+            return validationError;
         }
         Object bodyEntity = bodyToEntity(meta, body, true);
         Object updated = crudService.update(meta, idObj, bodyEntity);
@@ -190,6 +210,8 @@ public class GenericEntityController {
         }
         List<Object> entities = new java.util.ArrayList<>(body.size());
         Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
+        Class<?> updateDtoClass = EntityDtoResolver.resolveUpdateDto(meta);
+        Validator validator = validatorProvider.getIfAvailable();
         for (Map<String, Object> map : body) {
             Object idObj = map.get("id");
             if (idObj == null) {
@@ -200,6 +222,13 @@ public class GenericEntityController {
                 idParsed = IdParser.parseIdFromObject(idObj, pkType);
             } catch (IllegalArgumentException e) {
                 return badRequest("id 格式错误: " + e.getMessage());
+            }
+            if (properties.isValidationEnabled() && validator != null && updateDtoClass != null) {
+                Object dto = objectMapper.convertValue(map, updateDtoClass);
+                Result<Object> ve = validateAndReturnError(dto, validator);
+                if (ve != null) {
+                    return ve;
+                }
             }
             Object bodyEntity = bodyToEntity(meta, map, true);
             setEntityId(bodyEntity, idParsed);
@@ -224,11 +253,11 @@ public class GenericEntityController {
         if (forbiddenResp != null) {
             return forbiddenResp;
         }
-        int safeSize = Math.min(Math.max(1, size), 50000);
+        int safeSize = Math.min(Math.max(1, size), properties.getMaxExportSize());
         Pageable pageable = PageRequest.of(page, safeSize);
-        List<?> list = crudService.list(meta, pageable);
+        Page<?> pageResult = crudService.list(meta, pageable);
         try {
-            byte[] bytes = ExcelExportSupport.toExcel(meta, list, objectMapper);
+            byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent(), objectMapper);
             String filename = entity + "-export.xlsx";
             return ResponseEntity.ok()
                                  .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
@@ -273,6 +302,40 @@ public class GenericEntityController {
         return Result.getSuccess(result != null ? result : Map.of());
     }
     
+    /**
+     * 当 DTO 存在且启用 Bean Validation 时，校验请求体。校验失败返回 400 的 Result，通过返回 null。
+     */
+    private Result<Object> validateBody(EntityMeta meta, Map<String, Object> body, boolean forUpdate) {
+        if (!properties.isValidationEnabled() || body == null) {
+            return null;
+        }
+        Validator validator = validatorProvider.getIfAvailable();
+        if (validator == null) {
+            return null;
+        }
+        Class<?> dtoClass = forUpdate ? EntityDtoResolver.resolveUpdateDto(meta) : EntityDtoResolver.resolveCreateDto(meta);
+        if (dtoClass == null) {
+            return null;
+        }
+        try {
+            Object dto = objectMapper.convertValue(body, dtoClass);
+            return validateAndReturnError(dto, validator);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Result<Object> validateAndReturnError(Object dto, Validator validator) {
+        Set<ConstraintViolation<Object>> violations = validator.validate(dto);
+        if (violations.isEmpty()) {
+            return null;
+        }
+        String message = violations.stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .collect(Collectors.joining("; "));
+        return badRequest(message);
+    }
+
     private Object bodyToEntity(EntityMeta meta, Map<String, Object> body, boolean forUpdate) {
         Class<?> entityClass = meta.getEntityClass();
         if (entityClass == null) {
@@ -308,7 +371,7 @@ public class GenericEntityController {
         }
         return list;
     }
-    
+
     private static void setEntityId(Object entity, Object id) {
         if (entity == null || id == null) {
             return;

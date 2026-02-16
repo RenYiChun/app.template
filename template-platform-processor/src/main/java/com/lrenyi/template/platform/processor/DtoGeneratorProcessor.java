@@ -107,10 +107,41 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 if (ann != null && ann.value() != null && ann.value().length > 0) {
                     Collections.addAll(excludeFrom, ann.value());
                 }
-                list.add(new FieldSpec(typeName, name, excludeFrom));
+                boolean notNull = hasColumnNullableFalse(field);
+                int maxSize = getColumnLength(field);
+                list.add(new FieldSpec(typeName, name, excludeFrom, notNull, maxSize));
             }
         }
         return list;
+    }
+
+    private static boolean hasColumnNullableFalse(VariableElement field) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
+                for (var entry : mirror.getElementValues().entrySet()) {
+                    if ("nullable".equals(entry.getKey().getSimpleName().toString())) {
+                        Object v = entry.getValue().getValue();
+                        return Boolean.FALSE.equals(v);
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static int getColumnLength(VariableElement field) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
+                for (var entry : mirror.getElementValues().entrySet()) {
+                    if ("length".equals(entry.getKey().getSimpleName().toString())) {
+                        Object v = entry.getValue().getValue();
+                        return v instanceof Integer i ? i : 0;
+                    }
+                }
+            }
+        }
+        return 0;
     }
     
     private String toSourceTypeName(TypeMirror mirror) {
@@ -140,6 +171,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             w.write("/**\n * 自动生成，请勿手改。\n */\n");
             w.write("public class " + className + " {\n\n");
             for (FieldSpec f : fields) {
+                w.write(fieldAnnotations(f));
                 w.write("    private " + f.typeName + " " + f.name + ";\n\n");
                 w.write("    public " + f.typeName + " get" + cap(f.name) + "() {\n        return " + f.name
                                 + ";\n    }\n\n");
@@ -150,15 +182,28 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
     }
     
+    private static String fieldAnnotations(FieldSpec f) {
+        StringBuilder sb = new StringBuilder();
+        if (f.notNull()) {
+            sb.append("    @jakarta.validation.constraints.NotNull\n");
+        }
+        if (f.maxSize() > 0 && "String".equals(f.typeName())) {
+            sb.append("    @jakarta.validation.constraints.Size(max = ").append(f.maxSize()).append(")\n");
+        }
+        return sb.toString();
+    }
+
     private static String cap(String name) {
         return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
     
-    private record FieldSpec(String typeName, String name, Set<DtoType> excludeFrom) {
-        private FieldSpec(String typeName, String name, Set<DtoType> excludeFrom) {
+    private record FieldSpec(String typeName, String name, Set<DtoType> excludeFrom, boolean notNull, int maxSize) {
+        private FieldSpec(String typeName, String name, Set<DtoType> excludeFrom, boolean notNull, int maxSize) {
             this.typeName = typeName;
             this.name = name;
             this.excludeFrom = excludeFrom != null ? excludeFrom : Set.of();
+            this.notNull = notNull;
+            this.maxSize = maxSize > 0 ? maxSize : 0;
         }
     }
 }

@@ -7,7 +7,7 @@
 - **URL**：CRUD 使用 REST `GET/POST/PUT/DELETE /api/{entity}`、`/api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。
 - **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由实体类的 `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。
 - **元数据**：注解 `@PlatformEntity`、`@EntityAction`，启动时扫描注册。每个实体的默认 CRUD/导出接口可单独开关：`enableList`、`enableGet`、`enableCreate`、`enableUpdate`、`enableUpdateBatch`、`enableDelete`、`enableDeleteBatch`、`enableExport`（均默认 true），关闭某项则对应接口返回 404；OpenAPI 文档仅展示已启用的接口。
-- **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或列表，删除成功时 `data` 为 `null`。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
+- **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或分页结果，删除成功时 `data` 为 `null`。列表接口 `data` 为 **PagedResult** 结构（`content`、`totalElements`、`totalPages`、`number`、`size`）。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
 - **CRUD DTO 自动生成**：编译期根据 `@PlatformEntity` 在实体包下生成 `dto` 子包中的 **CreateDTO**（创建请求）、**UpdateDTO**（更新请求）、**ResponseDTO**（响应 data）。可通过 `@PlatformEntity(generateDtos = false)` 关闭。**字段由谁组成**：默认取实体全部非 static/final 字段；创建/更新 DTO 自动排除 `id`；在字段上使用 **`@DtoExcludeFrom(DtoType.CREATE)`** / **`DtoType.UPDATE`** / **`DtoType.RESPONSE`** 可指定该字段不参与哪些 DTO（例如密码字段加 `@DtoExcludeFrom(DtoType.RESPONSE)` 避免响应带出密码）。Action 的请求/响应 DTO 在自定义 Action 时手写并在 `@EntityAction` 的 `requestType`/`responseType` 中指定。
 
 ## 配置
@@ -24,6 +24,10 @@ app:
     default-allow-if-no-permission: true
     docs-ui-enabled: true   # 是否启用内嵌 API 文档界面（Scalar），默认 true
     docs-ui-path: /docs     # 文档界面入口路径，默认 /docs
+    max-page-size: 500      # 列表接口每页最大条数，超过将被截断
+    max-export-size: 50000  # 导出 Excel 单次最大条数
+    expose-exception-message: false   # 生产环境务必 false，避免泄露敏感信息
+    validation-enabled: true          # 对 CreateDTO/UpdateDTO 进行 Bean Validation（需 spring-boot-starter-validation）
     # 可选：rbac-cache-ttl-minutes、rbac-init-permissions 等见下方 RBAC 小节
 ```
 
@@ -57,6 +61,51 @@ app:
 - **OpenAPI JSON**：`GET ${api-prefix}/docs` 返回标准 OpenAPI 3.0 文档（JSON），供程序或文档 UI 使用。
 - **内嵌文档页**：当 `app.platform.docs-ui-enabled` 为 true（默认）时，访问 `docs-ui-path`（默认 `/docs`）可打开内嵌的 **Scalar API Reference** 页面，自动加载上述 OpenAPI 文档，左侧按实体分组导航、右侧展示接口说明与试调。文档页与 `/api/docs` 受应用现有 Spring Security 配置约束（通常需认证后访问）。
 - 关闭文档界面：配置 `app.platform.docs-ui-enabled: false`。自定义入口路径：`app.platform.docs-ui-path: /api-docs`。
+
+## 生产环境配置
+
+**重要**：框架不提供 Spring Security 配置，生产项目必须自行配置认证与授权，否则 API 可能裸奔。
+
+### 必须满足
+
+1. **显式安全配置**：对 `/api/**`、`/docs`、`${api-prefix}/docs` 等路径配置认证（如 JWT、Session）与 RBAC 权限。
+2. **启用权限**：`app.platform.permission-enabled: true`。
+3. **收紧无权限默认策略**：`app.platform.default-allow-if-no-permission: false`，避免未配置权限的接口被放行。
+4. **异常脱敏**：`app.platform.expose-exception-message: false`（默认），避免向客户端泄露路径、SQL 等敏感信息。
+
+### 生产配置示例
+
+```yaml
+app:
+  platform:
+    permission-enabled: true
+    default-allow-if-no-permission: false
+    expose-exception-message: false
+    max-page-size: 200
+```
+
+### 与 template-api 集成
+
+若项目已引入 `template-api`，其 `DefaultSecurityFilterChainBuilder` 会根据 `app.template.security.permit-urls` 放行指定路径，其余需认证。将 `/docs`、`/api/docs` 等加入放行列表（若需匿名访问文档），或保持需认证后访问。
+
+### 自定义 SecurityFilterChain 示例
+
+```java
+@Configuration
+@EnableWebSecurity
+public class ProductionSecurityConfig {
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.authorizeHttpRequests(a -> a
+                .requestMatchers("/docs", "/api/docs").authenticated()  // 文档需认证
+                .requestMatchers("/api/**").authenticated()             // API 需认证
+                .anyRequest().denyAll());
+        // 按需配置 oauth2ResourceServer、formLogin 等
+        return http.build();
+    }
+}
+```
 
 ## 覆盖增删改查（特殊业务逻辑）
 

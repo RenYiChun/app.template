@@ -6,6 +6,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.lang.reflect.Field;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,16 +27,20 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<?> list(EntityMeta entityMeta, Pageable pageable) {
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        String jpql = "SELECT e FROM " + entityClass.getSimpleName() + " e";
+        String entityName = entityClass.getSimpleName();
+        long total = (Long) entityManager.createQuery("SELECT COUNT(e) FROM " + entityName + " e")
+                .getSingleResult();
+        String jpql = "SELECT e FROM " + entityName + " e";
         TypedQuery<Object> q = (TypedQuery<Object>) entityManager.createQuery(jpql, entityClass);
         q.setFirstResult((int) pageable.getOffset());
         q.setMaxResults(pageable.getPageSize());
-        return q.getResultList();
+        List<Object> content = q.getResultList();
+        return new PageImpl<>(content, pageable, total);
     }
 
     @Override

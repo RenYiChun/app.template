@@ -17,7 +17,10 @@
     </properties>
 
     <dependencies>
-        <!-- 只需要最小的依赖 -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
