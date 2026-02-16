@@ -2,8 +2,13 @@ package com.lrenyi.template.platform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.support.FilterCondition;
+import com.lrenyi.template.platform.support.ListCriteria;
+import com.lrenyi.template.platform.support.Op;
+import com.lrenyi.template.platform.support.SortOrder;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,18 +28,134 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     private final Map<String, AtomicLong> longIdGen = new ConcurrentHashMap<>();
 
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         String path = entityMeta.getPathSegment();
         Map<Object, Object> map = store.get(path);
         if (map == null) {
             return new PageImpl<>(List.of(), pageable, 0);
         }
         List<Object> list = new ArrayList<>(map.values());
+        ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
+        list = filterList(list, c.getFilters(), entityMeta.getEntityClass());
+        list = sortList(list, c.getSortOrders(), pageable.getSort());
         long total = list.size();
         int from = (int) pageable.getOffset();
         int to = Math.min(from + pageable.getPageSize(), list.size());
         List<Object> content = from >= list.size() ? List.of() : list.subList(from, to);
         return new PageImpl<>(new ArrayList<>(content), pageable, total);
+    }
+
+    private List<Object> filterList(List<Object> list, List<FilterCondition> filters, Class<?> entityClass) {
+        if (filters == null || filters.isEmpty()) {
+            return list;
+        }
+        return list.stream()
+                .filter(e -> matchesAll(e, filters, entityClass))
+                .toList();
+    }
+
+    private boolean matchesAll(Object entity, List<FilterCondition> filters, Class<?> entityClass) {
+        for (FilterCondition fc : filters) {
+            if (fc == null || fc.op() == null) {
+                continue;
+            }
+            Object fieldVal = getFieldValue(entity, fc.field(), entityClass);
+            if (!matches(fc.op(), fieldVal, fc.value())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean matches(Op op, Object fieldVal, Object expected) {
+        if (op == Op.IN) {
+            if (!(expected instanceof List<?> inList)) {
+                return false;
+            }
+            return inList.contains(fieldVal);
+        }
+        int cmp = compareForOp(fieldVal, expected);
+        return switch (op) {
+            case EQ -> cmp == 0;
+            case NE -> cmp != 0;
+            case GT -> cmp > 0;
+            case GTE -> cmp >= 0;
+            case LT -> cmp < 0;
+            case LTE -> cmp <= 0;
+            case LIKE -> fieldVal != null && expected instanceof String pattern
+                    && fieldVal.toString().toLowerCase().contains(pattern.toLowerCase());
+            default -> false;
+        };
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private int compareForOp(Object a, Object b) {
+        if (a == null && b == null) {
+            return 0;
+        }
+        if (a == null) {
+            return -1;
+        }
+        if (b == null) {
+            return 1;
+        }
+        if (a instanceof Comparable c) {
+            return c.compareTo(b);
+        }
+        return a.toString().compareTo(b.toString());
+    }
+
+    private Object getFieldValue(Object entity, String fieldName, Class<?> entityClass) {
+        if (entity == null || fieldName == null) {
+            return null;
+        }
+        try {
+            Field f = entityClass.getDeclaredField(fieldName);
+            f.setAccessible(true);
+            return f.get(entity);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            return null;
+        }
+    }
+
+    private List<Object> sortList(List<Object> list, List<SortOrder> sortOrders, org.springframework.data.domain.Sort pageableSort) {
+        if (sortOrders != null && !sortOrders.isEmpty()) {
+            Comparator<Object> comp = null;
+            for (SortOrder so : sortOrders) {
+                if (so == null || so.field() == null) {
+                    continue;
+                }
+                boolean desc = "desc".equalsIgnoreCase(so.dir());
+                Comparator<Object> c = Comparator.comparing(
+                        e -> getFieldValue(e, so.field(), e.getClass()),
+                        (a, b) -> {
+                            int r = compareForOp(a, b);
+                            return desc ? -r : r;
+                        });
+                comp = comp == null ? c : comp.thenComparing(c);
+            }
+            if (comp != null) {
+                return list.stream().sorted(comp).toList();
+            }
+        }
+        if (pageableSort != null && pageableSort.isSorted()) {
+            Comparator<Object> comp = null;
+            for (org.springframework.data.domain.Sort.Order o : pageableSort) {
+                boolean desc = o.isDescending();
+                Comparator<Object> c = Comparator.comparing(
+                        e -> getFieldValue(e, o.getProperty(), e.getClass()),
+                        (a, b) -> {
+                            int r = compareForOp(a, b);
+                            return desc ? -r : r;
+                        });
+                comp = comp == null ? c : comp.thenComparing(c);
+            }
+            if (comp != null) {
+                return list.stream().sorted(comp).toList();
+            }
+        }
+        return list;
     }
 
     @Override

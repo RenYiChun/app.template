@@ -124,7 +124,7 @@ public class EntityPlatformAuditConfiguration {
             return null;
         }
         return switch (methodName) {
-            case "list" -> "列表 " + entity;
+            case "search" -> "搜索 " + entity;
             case "get" -> {
                 if (args.length > 1 && args[1] != null) {
                     yield "获取 " + entity + "/" + args[1];

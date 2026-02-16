@@ -4,7 +4,7 @@
 
 ## 约定
 
-- **URL**：CRUD 使用 REST `GET/POST/PUT/DELETE /api/{entity}`、`/api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。
+- **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。导出使用 `POST /api/{entity}/export`。
 - **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由实体类的 `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。
 - **元数据**：注解 `@PlatformEntity`、`@EntityAction`，启动时扫描注册。每个实体的默认 CRUD/导出接口可单独开关：`enableList`、`enableGet`、`enableCreate`、`enableUpdate`、`enableUpdateBatch`、`enableDelete`、`enableDeleteBatch`、`enableExport`（均默认 true），关闭某项则对应接口返回 404；OpenAPI 文档仅展示已启用的接口。
 - **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或分页结果，删除成功时 `data` 为 `null`。列表接口 `data` 为 **PagedResult** 结构（`content`、`totalElements`、`totalPages`、`number`、`size`）。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
@@ -201,7 +201,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 1. 在实体类上使用 `@PlatformEntity(pathSegment = "users", displayName = "用户")`；若用 JPA，实体类同时加 `@Entity`。
 2. 实现 `EntityActionExecutor` 并在类上使用 `@EntityAction(entity = User.class, actionName = "resetPassword", ...)`，将该类注册为 Spring Bean（如 `@Component`）。
 3. 启动应用后即可访问：
-   - `GET/POST /api/users`、`GET/PUT/DELETE /api/users/{id}`（CRUD）
+   - `POST /api/users/search`（分页搜索）、`POST /api/users`（创建）、`GET/PUT/DELETE /api/users/{id}`（CRUD）
    - `POST /api/users/{id}/resetPassword`（Action）
    - `GET /api/docs`（OpenAPI 3.0 JSON）、`GET /docs`（内嵌 Scalar 文档界面）
 
@@ -211,4 +211,9 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 mvn spring-boot:run -pl template-platform-sample
 ```
 
-然后可请求：`GET http://localhost:8080/api/users`、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`（OpenAPI JSON）；在浏览器打开 `http://localhost:8080/docs` 可查看内嵌 API 文档界面（Scalar）。
+然后可请求：`POST http://localhost:8080/api/users/search`（body: `{"page":0,"size":20}` 或空）、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`（OpenAPI JSON）；在浏览器打开 `http://localhost:8080/docs` 可查看内嵌 API 文档界面（Scalar）。
+
+## 搜索与导出
+
+- **搜索**：`POST /api/{entity}/search`，请求体为 `{ "filters": [...], "sort": [...], "page": 0, "size": 20 }`。filters 每项为 `{ "field": "字段名", "op": "eq|ne|like|gt|gte|lt|lte|in", "value": 值 }`；sort 每项为 `{ "field": "字段名", "dir": "asc|desc" }`。仅允许过滤/排序 EntityMeta 中声明的字段。
+- **导出**：`POST /api/{entity}/export`，请求体与 search 相同，size 默认 10000，返回 Excel 文件流。

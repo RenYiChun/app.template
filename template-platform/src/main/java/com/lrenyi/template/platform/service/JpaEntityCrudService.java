@@ -2,13 +2,19 @@ package com.lrenyi.template.platform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.support.FilterCondition;
+import com.lrenyi.template.platform.support.ListCriteria;
+import com.lrenyi.template.platform.support.Op;
+import com.lrenyi.template.platform.support.SortOrder;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -27,20 +33,114 @@ public class JpaEntityCrudService implements EntityCrudService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
         String entityName = entityClass.getSimpleName();
-        long total = (Long) entityManager.createQuery("SELECT COUNT(e) FROM " + entityName + " e")
-                .getSingleResult();
-        String jpql = "SELECT e FROM " + entityName + " e";
+        ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
+        StringBuilder whereClause = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+        buildWhere(whereClause, params, c.getFilters(), entityName);
+        String where = whereClause.length() > 0 ? " WHERE " + whereClause : "";
+        long total = countWithWhere(entityName, where, params);
+        Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
+        String orderBy = buildOrderBy(sort, entityName);
+        String jpql = "SELECT e FROM " + entityName + " e" + where + orderBy;
         TypedQuery<Object> q = (TypedQuery<Object>) entityManager.createQuery(jpql, entityClass);
+        for (int i = 0; i < params.size(); i++) {
+            q.setParameter("p" + i, params.get(i));
+        }
         q.setFirstResult((int) pageable.getOffset());
         q.setMaxResults(pageable.getPageSize());
         List<Object> content = q.getResultList();
         return new PageImpl<>(content, pageable, total);
+    }
+
+    private void buildWhere(StringBuilder sb, List<Object> params, List<FilterCondition> filters, String entityAlias) {
+        for (int i = 0; i < filters.size(); i++) {
+            FilterCondition fc = filters.get(i);
+            if (fc == null || fc.op() == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(" AND ");
+            }
+            String attr = fc.field();
+            String paramName = "p" + params.size();
+            switch (fc.op()) {
+                case EQ -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" = :").append(paramName);
+                    params.add(fc.value());
+                }
+                case NE -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" <> :").append(paramName);
+                    params.add(fc.value());
+                }
+                case LIKE -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" LIKE :").append(paramName);
+                    Object v = fc.value();
+                    params.add(v instanceof String s ? "%" + s + "%" : v);
+                }
+                case GT -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" > :").append(paramName);
+                    params.add(fc.value());
+                }
+                case GTE -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" >= :").append(paramName);
+                    params.add(fc.value());
+                }
+                case LT -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" < :").append(paramName);
+                    params.add(fc.value());
+                }
+                case LTE -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" <= :").append(paramName);
+                    params.add(fc.value());
+                }
+                case IN -> {
+                    sb.append(entityAlias).append(".").append(attr).append(" IN :").append(paramName);
+                    params.add(fc.value());
+                }
+                default -> { /* skip */ }
+            }
+        }
+    }
+
+    private long countWithWhere(String entityName, String where, List<Object> params) {
+        String jpql = "SELECT COUNT(e) FROM " + entityName + " e" + where;
+        var q = entityManager.createQuery(jpql, Long.class);
+        for (int i = 0; i < params.size(); i++) {
+            q.setParameter("p" + i, params.get(i));
+        }
+        return q.getSingleResult();
+    }
+
+    private Sort resolveSort(List<SortOrder> sortOrders, Sort pageableSort) {
+        if (sortOrders != null && !sortOrders.isEmpty()) {
+            List<Sort.Order> orders = new ArrayList<>();
+            for (SortOrder so : sortOrders) {
+                if (so != null && so.field() != null && !so.field().isBlank()) {
+                    orders.add("desc".equalsIgnoreCase(so.dir())
+                            ? Sort.Order.desc(so.field())
+                            : Sort.Order.asc(so.field()));
+                }
+            }
+            return orders.isEmpty() ? pageableSort : Sort.by(orders);
+        }
+        return pageableSort;
+    }
+
+    private String buildOrderBy(Sort sort, String entityAlias) {
+        if (sort == null || !sort.isSorted()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (Sort.Order o : sort) {
+            parts.add(entityAlias + "." + o.getProperty() + " " + (o.isDescending() ? "DESC" : "ASC"));
+        }
+        return " ORDER BY " + String.join(", ", parts);
     }
 
     @Override

@@ -60,8 +60,13 @@ class UsersCrudIntegrationTest {
 
     @Test
     @Order(2)
-    void listUsers_returnsPageStructure() {
-        ResponseEntity<JsonNode> res = restTemplate.getForEntity(baseUrl(), JsonNode.class);
+    void searchUsers_returnsPageStructure() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> res = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
+                JsonNode.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode node = res.getBody();
         assertThat(node).isNotNull();
@@ -78,8 +83,13 @@ class UsersCrudIntegrationTest {
 
     @Test
     @Order(3)
-    void listUsers_withPagination() {
-        ResponseEntity<JsonNode> res = restTemplate.getForEntity(baseUrl() + "?page=0&size=5", JsonNode.class);
+    void searchUsers_withPagination() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> res = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 5), headers),
+                JsonNode.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode data = res.getBody().path("data");
         assertThat(data.path("size").asInt()).isEqualTo(5);
@@ -90,7 +100,12 @@ class UsersCrudIntegrationTest {
     @Order(4)
     void getUser() {
         createUserIfEmpty();
-        ResponseEntity<JsonNode> listRes = restTemplate.getForEntity(baseUrl(), JsonNode.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> listRes = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
+                JsonNode.class);
         JsonNode content = listRes.getBody().path("data").path("content");
         if (content.isEmpty()) {
             return;
@@ -105,14 +120,17 @@ class UsersCrudIntegrationTest {
     @Order(5)
     void updateUser() {
         createUserIfEmpty();
-        ResponseEntity<JsonNode> listRes = restTemplate.getForEntity(baseUrl(), JsonNode.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> listRes = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
+                JsonNode.class);
         JsonNode content = listRes.getBody().path("data").path("content");
         if (content.isEmpty()) {
             return;
         }
         long id = content.get(0).path("id").asLong();
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(
                 Map.of("username", "updated", "email", "updated@example.com"), headers);
         ResponseEntity<JsonNode> res = restTemplate.exchange(baseUrl() + "/" + id, HttpMethod.PUT, entity, JsonNode.class);
@@ -124,7 +142,12 @@ class UsersCrudIntegrationTest {
     @Order(6)
     void deleteUser() {
         createUserIfEmpty();
-        ResponseEntity<JsonNode> listRes = restTemplate.getForEntity(baseUrl(), JsonNode.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> listRes = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
+                JsonNode.class);
         JsonNode content = listRes.getBody().path("data").path("content");
         if (content.isEmpty()) {
             return;
@@ -137,7 +160,12 @@ class UsersCrudIntegrationTest {
 
     @Test
     void unknownEntity_returns404() {
-        ResponseEntity<JsonNode> res = restTemplate.getForEntity("http://localhost:" + port + "/api/nonexistent", JsonNode.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> res = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/nonexistent/search",
+                new HttpEntity<>(Map.of(), headers),
+                JsonNode.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().path("code").asInt()).isEqualTo(404);
     }
@@ -150,10 +178,13 @@ class UsersCrudIntegrationTest {
     }
 
     private void createUserIfEmpty() {
-        JsonNode listData = restTemplate.getForEntity(baseUrl(), JsonNode.class).getBody().path("data");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        JsonNode listData = restTemplate.postForEntity(
+                baseUrl() + "/search",
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
+                JsonNode.class).getBody().path("data");
         if (listData.path("content").isEmpty()) {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
             restTemplate.postForEntity(baseUrl(),
                     new HttpEntity<>(Map.of("username", "fixture", "email", "f@f.com"), headers),
                     JsonNode.class);

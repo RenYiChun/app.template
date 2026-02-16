@@ -1,6 +1,7 @@
 package com.lrenyi.template.platform.service;
 
 import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.support.ListCriteria;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,8 +22,8 @@ public class DelegatingEntityCrudService implements EntityCrudService {
     }
 
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable) {
-        return defaultService.list(entityMeta, pageable);
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+        return defaultService.list(entityMeta, pageable, criteria);
     }
 
     @Override

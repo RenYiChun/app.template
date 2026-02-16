@@ -20,11 +20,16 @@ import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.support.EntityDtoResolver;
 import com.lrenyi.template.platform.support.ExcelExportSupport;
-import com.lrenyi.template.platform.support.PagedResult;
 import com.lrenyi.template.platform.support.IdParser;
+import com.lrenyi.template.platform.support.ListCriteria;
+import com.lrenyi.template.platform.support.PagedResult;
+import com.lrenyi.template.platform.support.SearchRequest;
+import com.lrenyi.template.platform.support.SortOrder;
+import java.util.ArrayList;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +40,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * 统一入口 Controller：CRUD + Action 路由。
@@ -68,10 +72,12 @@ public class GenericEntityController {
         this.validatorProvider = validatorProvider;
     }
     
-    @GetMapping("/{entity}")
-    public Result<?> list(@PathVariable("entity") String entity,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
+    /**
+     * 搜索。POST 请求体为 SearchRequest（filters、sort、page、size），body 为空时使用默认值。
+     */
+    @PostMapping("/{entity}/search")
+    public Result<?> search(@PathVariable("entity") String entity,
+            @RequestBody(required = false) SearchRequest req) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isListEnabled()) {
             return notFound();
@@ -80,9 +86,11 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
-        int safeSize = Math.min(Math.max(1, size), properties.getMaxPageSize());
-        Pageable pageable = PageRequest.of(page, safeSize);
-        Page<?> pageResult = crudService.list(meta, pageable);
+        SearchRequest request = req != null ? req : SearchRequest.empty();
+        int safeSize = Math.min(Math.max(1, request.size()), properties.getMaxPageSize());
+        Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
+        ListCriteria criteria = ListCriteria.from(request, meta);
+        Page<?> pageResult = crudService.list(meta, pageable, criteria);
         List<?> converted = toResponseList(meta, pageResult.getContent());
         PagedResult<Object> pagedResult = PagedResult.from(pageResult, converted);
         return Result.getSuccess(pagedResult);
@@ -239,12 +247,11 @@ public class GenericEntityController {
     }
     
     /**
-     * 导出 Excel。仅导出未标注 @ExportExclude 的字段；支持分页参数。
+     * 导出 Excel。请求体与 search 相同（filters、sort、page、size），仅 size 默认更大；仅导出未标注 @ExportExclude 的字段。
      */
-    @GetMapping("/{entity}/export")
+    @PostMapping("/{entity}/export")
     public ResponseEntity<byte[]> export(@PathVariable("entity") String entity,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "10000") int size) {
+            @RequestBody(required = false) SearchRequest req) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isExportEnabled()) {
             return ResponseEntity.notFound().build();
@@ -253,9 +260,11 @@ public class GenericEntityController {
         if (forbiddenResp != null) {
             return forbiddenResp;
         }
-        int safeSize = Math.min(Math.max(1, size), properties.getMaxExportSize());
-        Pageable pageable = PageRequest.of(page, safeSize);
-        Page<?> pageResult = crudService.list(meta, pageable);
+        SearchRequest request = req != null ? req : SearchRequest.emptyForExport();
+        int safeSize = Math.min(Math.max(1, request.size()), properties.getMaxExportSize());
+        Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
+        ListCriteria criteria = ListCriteria.from(request, meta);
+        Page<?> pageResult = crudService.list(meta, pageable, criteria);
         try {
             byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent(), objectMapper);
             String filename = entity + "-export.xlsx";
@@ -457,5 +466,22 @@ public class GenericEntityController {
             return Collections.emptyList();
         }
         return List.of(p.trim());
+    }
+
+    private static Pageable buildPageable(int page, int size, List<SortOrder> sortOrders) {
+        if (sortOrders == null || sortOrders.isEmpty()) {
+            return PageRequest.of(page, size);
+        }
+        List<Sort.Order> orders = new ArrayList<>();
+        for (SortOrder so : sortOrders) {
+            if (so != null && so.field() != null && !so.field().isBlank()) {
+                orders.add("desc".equalsIgnoreCase(so.dir())
+                        ? Sort.Order.desc(so.field())
+                        : Sort.Order.asc(so.field()));
+            }
+        }
+        return orders.isEmpty()
+                ? PageRequest.of(page, size)
+                : PageRequest.of(page, size, Sort.by(orders));
     }
 }

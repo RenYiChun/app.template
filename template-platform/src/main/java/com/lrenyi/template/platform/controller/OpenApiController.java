@@ -115,6 +115,7 @@ public class OpenApiController {
             tagsList.add(tagDoc);
         }
         Map<String, Object> schemas = buildSchemas();
+        schemas.put("SearchRequest", buildSearchRequestSchema());
         Map<String, Object> doc = new HashMap<>();
         doc.put("openapi", "3.0.0");
         doc.put("info", Map.of("title", "Entity Platform API", "version", "1.0"));
@@ -122,6 +123,31 @@ public class OpenApiController {
         doc.put("paths", pathsMap);
         doc.put("components", Map.of("schemas", schemas));
         return ResponseEntity.ok(doc);
+    }
+
+    private Map<String, Object> buildSearchRequestSchema() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("filters", Map.of(
+                "type", "array",
+                "items", Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                                "field", Map.of("type", "string", "description", "字段名"),
+                                "op", Map.of("type", "string", "description", "操作符: eq, ne, like, gt, gte, lt, lte, in"),
+                                "value", Map.of("description", "值；in 时为数组")))));
+        properties.put("sort", Map.of(
+                "type", "array",
+                "items", Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                                "field", Map.of("type", "string", "description", "排序字段"),
+                                "dir", Map.of("type", "string", "enum", List.of("asc", "desc"), "description", "asc 或 desc")))));
+        properties.put("page", Map.of("type", "integer", "description", "页码，默认 0"));
+        properties.put("size", Map.of("type", "integer", "description", "每页条数"));
+        schema.put("properties", properties);
+        return schema;
     }
 
     private Map<String, Object> buildSchemas() {
@@ -156,8 +182,28 @@ public class OpenApiController {
                 schemas.put(simpleName + "UpdateDTO", buildSchemaFromEntityFields(entity, true));
                 schemas.put(simpleName + "ResponseDTO", buildSchemaFromEntityFields(entity, true));
             }
+            schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));
         }
         return schemas;
+    }
+
+    private Map<String, Object> buildPagedResultSchema(EntityMeta entity) {
+        String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
+        String itemRef = simpleName != null ? (EntityDtoResolver.resolveResponseDto(entity) != null
+                ? EntityDtoResolver.resolveResponseDto(entity).getSimpleName()
+                : simpleName + "ResponseDTO") : "object";
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("content", Map.of(
+                "type", "array",
+                "items", Map.of("$ref", "#/components/schemas/" + itemRef)));
+        properties.put("totalElements", Map.of("type", "integer", "format", "int64"));
+        properties.put("totalPages", Map.of("type", "integer"));
+        properties.put("number", Map.of("type", "integer"));
+        properties.put("size", Map.of("type", "integer"));
+        schema.put("properties", properties);
+        return schema;
     }
 
     /** 当 DTO 类不可用时，根据实体字段元数据生成 schema，保证文档始终有请求/响应参数说明。 */
@@ -272,10 +318,11 @@ public class OpenApiController {
                             "type", "array",
                             "items", Map.of("$ref", "#/components/schemas/" + requestSchemaRef))
                     : Map.of("$ref", "#/components/schemas/" + requestSchemaRef);
+            boolean required = !"SearchRequest".equals(requestSchemaRef);
             op.put("requestBody", Map.of(
-                    "required", true,
-                    "content", Map.of("application/json", 
-                        Map.of("schema", schema))));
+                    "required", required,
+                    "content", Map.of("application/json",
+                            Map.of("schema", schema))));
         } else if (requestBody && requestSchemaArrayOfIds && entity != null) {
             Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
             String idSchemaType = (pkType == Long.class || pkType == long.class
@@ -298,6 +345,9 @@ public class OpenApiController {
     }
 
     private String getRequestSchemaForMethod(String methodName, EntityMeta entity) {
+        if ("search".equals(methodName) || "export".equals(methodName)) {
+            return "SearchRequest";
+        }
         String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
         if (simpleName == null) {
             return null;
@@ -324,12 +374,16 @@ public class OpenApiController {
     }
 
     private String getResponseSchemaForMethod(String methodName, EntityMeta entity) {
+        if ("export".equals(methodName)) {
+            return null;
+        }
         String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
         if (simpleName == null) {
             return null;
         }
         return switch (methodName) {
-            case "list", "get", "create", "update" -> {
+            case "search" -> simpleName + "PagedResult";
+            case "get", "create", "update" -> {
                 Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
                 yield responseDto != null ? responseDto.getSimpleName() : (simpleName + "ResponseDTO");
             }
@@ -348,7 +402,7 @@ public class OpenApiController {
 
     private static String summaryFromMethodName(String methodName) {
         return switch (methodName) {
-            case "list" -> "list";
+            case "search" -> "分页搜索";
             case "get" -> "get";
             case "create" -> "create";
             case "update" -> "update";
@@ -362,7 +416,7 @@ public class OpenApiController {
 
     private static boolean isOperationEnabled(EntityMeta entity, String methodName) {
         return switch (methodName) {
-            case "list" -> entity.isListEnabled();
+            case "search" -> entity.isListEnabled();
             case "get" -> entity.isGetEnabled();
             case "create" -> entity.isCreateEnabled();
             case "update" -> entity.isUpdateEnabled();
@@ -376,7 +430,7 @@ public class OpenApiController {
 
     private static Object permissionsForMethod(String methodName, EntityMeta entity) {
         return switch (methodName) {
-            case "list", "get", "export" -> entity.getPermissionRead();
+            case "search", "get", "export" -> entity.getPermissionRead();
             case "create" -> entity.getPermissionCreate();
             case "update", "updateBatch" -> entity.getPermissionUpdate();
             case "delete", "deleteBatch" -> entity.getPermissionDelete();

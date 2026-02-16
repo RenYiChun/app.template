@@ -1,6 +1,7 @@
 package com.lrenyi.template.platform.service;
 
 import com.lrenyi.template.platform.meta.EntityMeta;
+import com.lrenyi.template.platform.support.ListCriteria;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,8 +13,10 @@ public interface EntityCrudService {
 
     /**
      * 分页查询，返回包含 content、totalElements、totalPages 等元数据的 Page。
+     *
+     * @param criteria 过滤与排序条件，可为 ListCriteria.empty()
      */
-    Page<?> list(EntityMeta entityMeta, Pageable pageable);
+    Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria);
 
     Object get(EntityMeta entityMeta, Object id);
 
