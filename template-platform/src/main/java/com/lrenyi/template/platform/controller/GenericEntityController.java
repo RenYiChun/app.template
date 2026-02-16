@@ -152,7 +152,7 @@ public class GenericEntityController {
      * 批量删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
      */
     @DeleteMapping("/{entity}/batch")
-    public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<?> ids) {
+    public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<Object> ids) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteBatchEnabled()) {
             return notFound();

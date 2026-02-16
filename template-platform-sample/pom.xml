@@ -20,14 +20,15 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-entity-platform-processor</artifactId>
+            <artifactId>template-platform-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-entity-platform</artifactId>
+            <artifactId>template-platform</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.lrenyi</groupId>
@@ -69,7 +70,7 @@
                         <!-- DTO processor -->
                         <path>
                             <groupId>com.lrenyi</groupId>
-                            <artifactId>template-entity-platform-processor</artifactId>
+                            <artifactId>template-platform-processor</artifactId>
                             <version>${project.version}</version>
                         </path>
                     </annotationProcessorPaths>

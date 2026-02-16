@@ -179,7 +179,7 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-entity-platform</artifactId>
+                <artifactId>template-platform</artifactId>
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>

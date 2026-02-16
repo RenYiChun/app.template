@@ -26,7 +26,7 @@ import com.lrenyi.template.platform.annotation.DtoType;
 /**
  * 编译期根据 @PlatformEntity 生成 CRUD 用 DTO：CreateDTO（请求-创建）、UpdateDTO（请求-更新）、ResponseDTO（响应 data）。
  * 生成到实体所在包的 dto 子包下。
- * 注意：PlatformEntity 注解定义在 template-entity-platform 模块，运行时也需要。
+ * 注意：PlatformEntity 注解定义在 template-platform 模块，运行时也需要。
  */
 @SupportedAnnotationTypes("com.lrenyi.template.platform.annotation.PlatformEntity")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)

@@ -10,7 +10,7 @@
     </parent>
     <artifactId>template-platform-processor</artifactId>
     <name>Template Platform Processor</name>
-    <description>实体平台 Annotation Processor：编译期生成 DTO</description>
+    <description>实体平台 Annotation Processor：编译期生成 DTO。使用时须在 maven-compiler-plugin 的 annotationProcessorPaths 中显式声明本模块。</description>
 
     <properties>
         <checker.root.dir>${project.parent.basedir}</checker.root.dir>

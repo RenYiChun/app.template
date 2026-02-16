@@ -159,7 +159,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 ## 可运行示例
 
 ```bash
-mvn spring-boot:run -pl template-entity-platform-sample
+mvn spring-boot:run -pl template-platform-sample
 ```
 
 然后可请求：`GET http://localhost:8080/api/users`、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`（OpenAPI JSON）；在浏览器打开 `http://localhost:8080/docs` 可查看内嵌 API 文档界面（Scalar）。
