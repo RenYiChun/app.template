@@ -11,11 +11,15 @@ import com.lrenyi.template.platform.support.EntityPlatformAspect;
 import com.lrenyi.template.platform.support.EntityPlatformExceptionHandler;
 import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
+import com.lrenyi.template.platform.service.EntityCrudServiceRouter;
 import com.lrenyi.template.platform.service.InMemoryEntityCrudService;
+import com.lrenyi.template.platform.service.PathSegmentAwareCrudService;
 import com.lrenyi.template.platform.support.MetaScanner;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -59,8 +63,18 @@ public class EntityPlatformAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean(EntityCrudService.class)
     public EntityCrudService entityCrudService(
-            @Qualifier("defaultEntityCrudService") EntityCrudService defaultService) {
-        return defaultService;
+            @Qualifier("defaultEntityCrudService") EntityCrudService defaultService,
+            List<PathSegmentAwareCrudService> pathSegmentAwareServices) {
+        Map<String, EntityCrudService> pathSegmentToDelegate = new LinkedHashMap<>();
+        if (pathSegmentAwareServices != null) {
+            for (PathSegmentAwareCrudService service : pathSegmentAwareServices) {
+                String segment = service.getPathSegment();
+                if (segment != null && !segment.isBlank() && !pathSegmentToDelegate.containsKey(segment)) {
+                    pathSegmentToDelegate.put(segment.trim(), service);
+                }
+            }
+        }
+        return new EntityCrudServiceRouter(defaultService, pathSegmentToDelegate);
     }
 
     @Bean

@@ -12,14 +12,17 @@
 
 ## 配置
 
+配置前缀为 `app.platform`（与代码中 `@ConfigurationProperties(prefix = "app.platform")` 一致）：
+
 ```yaml
 app:
-  entity-platform:
+  platform:
     api-prefix: /api
     scan-packages: com.example.your.package   # 扫描 @PlatformEntity 的包，多个用逗号分隔
     enabled: true
     permission-enabled: true
     default-allow-if-no-permission: true
+    # 可选：rbac-cache-ttl-minutes、rbac-init-permissions 等见下方 RBAC 小节
 ```
 
 ## 通用 JPA DAO（可选）
@@ -49,7 +52,7 @@ app:
 
 ## 覆盖增删改查（特殊业务逻辑）
 
-当部分实体需要特殊逻辑（如创建前校验、删除软删、查询过滤）时，有两种方式：
+当部分实体需要特殊逻辑（如创建前校验、删除软删、查询过滤）时，可采用以下方式之一。若希望**按实体拆分实现**（每个实体一个类，无需在方法里 if 分支），优先用**方式三**。
 
 ### 方式一：委托 + 按实体分支
 
@@ -81,7 +84,7 @@ public class MyEntityCrudService implements EntityCrudService {
 
 ### 方式二：继承 DelegatingEntityCrudService
 
-继承 `DelegatingEntityCrudService`，只重写需要改的方法（或方法内再按实体分支），其余自动委托给默认实现。
+继承 `DelegatingEntityCrudService`，只重写需要改的方法（或方法内再按实体分支），其余自动委托给默认实现。需在实现类上加 `@Primary`，且所有实体请求都会先进入该类。
 
 ```java
 @Primary
@@ -101,6 +104,40 @@ public class MyEntityCrudService extends DelegatingEntityCrudService {
     }
 }
 ```
+
+### 方式三：按实体覆盖（PathSegmentAwareCrudService）
+
+为**不同实体**提供独立实现类，由框架按 `pathSegment` 路由到对应实现，无需在一个类里对多实体做 if-else。同一 pathSegment 仅应有一个实现。
+
+1. 实现接口 `PathSegmentAwareCrudService`（继承 `EntityCrudService`），实现 `getPathSegment()` 返回该类负责的实体 pathSegment（如 `"users"`、`"orders"`）。
+2. 通常继承 `DelegatingEntityCrudService` 并注入 `@Qualifier("defaultEntityCrudService") EntityCrudService`，只重写该实体需要的方法，其余自动走默认实现。
+3. 将实现类注册为 Spring Bean（如 `@Component`），无需 `@Primary`。框架会收集所有 `PathSegmentAwareCrudService` 并注入 `EntityCrudServiceRouter`，未注册的实体仍走默认实现。
+
+示例：仅对 `users` 自定义创建逻辑（如密码加密），其余方法用默认。
+
+```java
+@Component
+public class UsersCrudService extends DelegatingEntityCrudService implements PathSegmentAwareCrudService {
+
+    public UsersCrudService(@Qualifier("defaultEntityCrudService") EntityCrudService defaultService) {
+        super(defaultService);
+    }
+
+    @Override
+    public String getPathSegment() {
+        return "users";
+    }
+
+    @Override
+    public Object create(EntityMeta entityMeta, Object body) {
+        // 仅 users 的创建逻辑，如密码加密后再调用默认
+        // ...
+        return defaultService.create(entityMeta, body);
+    }
+}
+```
+
+再为 `orders` 定义 `OrdersCrudService`，`getPathSegment()` 返回 `"orders"`，只重写需要的方法（如 `delete` 做软删）即可。
 
 ## 使用
 

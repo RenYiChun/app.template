@@ -57,7 +57,7 @@ class NatsFlowSourceTest {
         when(message.getData()).thenReturn("v1".getBytes(StandardCharsets.UTF_8));
         when(subscription.nextMessage(any(Duration.class)))
                 .thenReturn(message)
-                .thenReturn(null);
+                .thenThrow(new IllegalStateException("closed"));
 
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
 
@@ -76,11 +76,8 @@ class NatsFlowSourceTest {
     }
 
     @Test
-    void close_idempotent() throws Exception {
-        when(subscription.nextMessage(any(Duration.class))).thenThrow(new IllegalStateException("closed"));
-
+    void close_idempotent() {
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
-        assertFalse(source.hasNext());
         source.close();
         source.close();
         verify(subscription).unsubscribe();
