@@ -4,6 +4,7 @@
 
 import type { Result } from './types.js';
 import { SUCCESS_CODE } from './types.js';
+import { joinPath, ensureSlash } from './utils.js';
 
 export interface AuthClientConfig {
   baseURL?: string;
@@ -34,17 +35,6 @@ export interface AuthUser {
   email: string;
 }
 
-function ensureSlash(s: string): string {
-  if (!s || s === '/') return '';
-  return s.startsWith('/') ? s : `/${s}`;
-}
-
-function joinPath(...parts: string[]): string {
-  return parts
-    .filter(Boolean)
-    .map((p) => String(p).replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, ''))
-    .join('/');
-}
 
 export class AuthClient {
   private readonly baseURL: string;
@@ -68,6 +58,11 @@ export class AuthClient {
     this.requestFn = (url, opts = {}) =>
       baseRequest(url, { ...opts, credentials: (opts.credentials as RequestCredentials) ?? 'include' });
     this.onUnauthorized = config.onUnauthorized;
+
+    // 从本地存储加载 token
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('auth_token');
+    }
   }
 
   /** 获取当前 token，供请求拦截器使用 */
@@ -78,6 +73,9 @@ export class AuthClient {
   /** 清除 token */
   clearToken(): void {
     this.token = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+    }
   }
 
   private authHeaders(): Record<string, string> {
@@ -111,7 +109,7 @@ export class AuthClient {
 
   /** 获取验证码 */
   async getCaptcha(): Promise<CaptchaResult> {
-    const res = await this.requestFn(this.url('auth/0/captcha'), { method: 'GET' });
+    const res = await this.requestFn(this.url('auth/_action/captcha'), { method: 'GET' });
     const data = await this.handleResult<CaptchaResult>(res);
     if (!data?.key || !data?.imageBase64) {
       throw new Error('验证码接口返回格式异常');
@@ -155,6 +153,9 @@ export class AuthClient {
     }
 
     this.token = accessToken;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_token', accessToken);
+    }
 
     const username = (tokenData.username ?? tokenData.sub ?? req.username) as string;
     return {
@@ -168,7 +169,7 @@ export class AuthClient {
   async logout(): Promise<void> {
     this.clearToken();
     try {
-      await this.requestFn(this.url('auth/0/logout'), {
+      await this.requestFn(this.url('auth/_action/logout'), {
         method: 'POST',
         headers: this.authHeaders(),
       });
@@ -178,7 +179,7 @@ export class AuthClient {
 
   /** 获取当前用户 */
   async me(): Promise<AuthUser | null> {
-    const res = await this.requestFn(this.url('auth/0/me'), {
+    const res = await this.requestFn(this.url('auth/_action/me'), {
       method: 'GET',
       headers: this.authHeaders(),
     });

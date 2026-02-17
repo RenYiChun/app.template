@@ -25,29 +25,28 @@
             text-color="#94a3b8"
             active-text-color="#ffffff"
             :collapse-transition="false"
+            router
           >
-            <el-menu-item index="1">
+            <el-menu-item index="1" @click="$router.push('/')">
               <el-icon><DataBoard /></el-icon>
-              <template #title>Dashboard</template>
+              <template #title>控制台</template>
             </el-menu-item>
             
             <el-sub-menu index="2">
               <template #title>
-                <el-icon><User /></el-icon>
-                <span>User Management</span>
+                <el-icon><Setting /></el-icon>
+                <span>系统管理</span>
               </template>
-              <el-menu-item index="2-1">Users List</el-menu-item>
-              <el-menu-item index="2-2">Roles & Permissions</el-menu-item>
+              <el-menu-item index="/system/users">用户管理</el-menu-item>
+              <el-menu-item index="/system/roles">角色管理</el-menu-item>
+              <el-menu-item index="/system/departments">部门管理</el-menu-item>
+              <el-menu-item index="/system/dicts">字典管理</el-menu-item>
+              <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
             </el-sub-menu>
 
-            <el-menu-item index="3">
-              <el-icon><Setting /></el-icon>
-              <template #title>Settings</template>
-            </el-menu-item>
-
-            <el-menu-item index="4">
+            <el-menu-item index="3" @click="$router.push('/docs')">
               <el-icon><Document /></el-icon>
-              <template #title>Documentation</template>
+              <template #title>文档</template>
             </el-menu-item>
           </el-menu>
         </el-scrollbar>
@@ -115,64 +114,7 @@
 
       <!-- Dashboard Content View -->
       <div class="content-wrapper">
-         <!-- Welcome Banner -->
-         <div class="welcome-banner">
-             <div class="wb-text">
-                 <h2>Hello, {{ user?.username || 'User' }}! 👋</h2>
-                 <p>Here's what's happening with your projects today.</p>
-             </div>
-             <div class="wb-actions">
-                 <el-button type="primary">New Project</el-button>
-             </div>
-         </div>
-         
-         <!-- Stats Cards (Example Content) -->
-         <div class="stats-grid">
-             <el-card class="stat-card" shadow="hover">
-                 <div class="stat-icon icon-blue"><UserFilled /></div>
-                 <div class="stat-info">
-                     <span class="stat-label">Total Users</span>
-                     <span class="stat-value">1,234</span>
-                     <span class="stat-trend trend-up">+12%</span>
-                 </div>
-             </el-card>
-             <el-card class="stat-card" shadow="hover">
-                 <div class="stat-icon icon-green"><Money /></div>
-                 <div class="stat-info">
-                     <span class="stat-label">Revenue</span>
-                     <span class="stat-value">$45,231</span>
-                     <span class="stat-trend trend-up">+5.4%</span>
-                 </div>
-             </el-card>
-             <el-card class="stat-card" shadow="hover">
-                 <div class="stat-icon icon-purple"><Files /></div>
-                 <div class="stat-info">
-                     <span class="stat-label">Projects</span>
-                     <span class="stat-value">42</span>
-                     <span class="stat-trend">stable</span>
-                 </div>
-             </el-card>
-             <el-card class="stat-card" shadow="hover">
-                 <div class="stat-icon icon-orange"><WarningFilled /></div>
-                 <div class="stat-info">
-                     <span class="stat-label">Alerts</span>
-                     <span class="stat-value">3</span>
-                     <span class="stat-trend trend-down">-2</span>
-                 </div>
-             </el-card>
-         </div>
-
-         <!-- Placeholder for dynamic content -->
-         <!-- In a real app, <router-view /> would be here -->
-         <el-card class="content-card" shadow="never">
-             <template #header>
-                 <div class="card-header">
-                     <span>Recent Activity</span>
-                     <el-button text>View All</el-button>
-                 </div>
-             </template>
-             <el-empty description="No recent activity to display" />
-         </el-card>
+        <router-view></router-view>
       </div>
     </main>
   </div>

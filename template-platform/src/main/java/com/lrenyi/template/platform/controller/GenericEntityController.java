@@ -281,7 +281,7 @@ public class GenericEntityController {
         }
     }
 
-    @RequestMapping(path = "/{entity}/{id}/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
+    @RequestMapping(path = "/{entity}/{id}/_action/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
             RequestMethod.PUT, RequestMethod.DELETE })
     public Result<?> executeAction(
             jakarta.servlet.http.HttpServletRequest request,
@@ -295,7 +295,7 @@ public class GenericEntityController {
     /**
      * 无 ID 的 Action，支持 GET/POST/PUT/DELETE。
      */
-    @RequestMapping(path = "/{entity}/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
+    @RequestMapping(path = "/{entity}/_action/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
             RequestMethod.PUT, RequestMethod.DELETE })
     public Result<?> executeActionNoId(
             jakarta.servlet.http.HttpServletRequest request,

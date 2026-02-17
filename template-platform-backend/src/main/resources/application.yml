@@ -49,7 +49,7 @@ app:
       local-jwt-public-key: true
       permit-urls:
         template-platform-backend:
-          - /api/auth/0/captcha
+          - /api/auth/_action/captcha
           - /docs
           - /api/docs
           - /oauth2/token

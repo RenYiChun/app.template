@@ -10,18 +10,14 @@ import lombok.Setter;
 
 /**
  * 操作日志 domain：按 platform 规则标注后自动拥有默认 Controller（列表/查询/导出等）。
- * 采集到的 {@link com.lrenyi.template.platform.audit.model.AuditLogInfo} 通过 EntityCrudService 写入本实体入库。
+ * 采集到的 {@link com.lrenyi.template.platform.audit.model.AuditLogInfo} 通过
+ * EntityCrudService 写入本实体入库。
  */
 @Setter
 @Getter
 @Entity
-@Table(name = "operation_log")
-@PlatformEntity(
-        pathSegment = "operation_logs",
-        displayName = "操作日志",
-        table = "operation_log",
-        generateDtos = false
-)
+@Table(name = "sys_operation_log")
+@PlatformEntity(pathSegment = "sys_operation_log", displayName = "操作日志", table = "sys_operation_log", generateDtos = false)
 public class OperationLog extends BaseEntity<Long> {
 
     @Column(length = 128)

@@ -4,6 +4,7 @@
 
 import type { Result, SearchRequest, PagedResult } from './types.js';
 import { SUCCESS_CODE } from './types.js';
+import { joinPath, ensureSlash } from './utils.js';
 
 export interface EntityClientConfig {
   /** API 基础 URL，如 https://example.com */
@@ -12,28 +13,21 @@ export interface EntityClientConfig {
   apiPrefix?: string;
   /** 自定义请求函数，用于注入 axios/fetch 或添加认证头 */
   request?: (url: string, options: RequestInit) => Promise<Response>;
+  /** 平台 ID，用于多租户/多平台支持 */
+  platformId?: string | number;
 }
 
-function ensureSlash(s: string): string {
-  if (!s || s === '/') return '';
-  return s.startsWith('/') ? s : `/${s}`;
-}
-
-function joinPath(...parts: string[]): string {
-  return parts
-    .filter(Boolean)
-    .map((p) => p.replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, ''))
-    .join('/');
-}
 
 export class EntityClient {
   private readonly baseURL: string;
   private readonly apiPrefix: string;
+  private readonly platformId?: string | number;
   private readonly requestFn: (url: string, options: RequestInit) => Promise<Response>;
 
   constructor(config: EntityClientConfig = {}) {
     this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
     this.apiPrefix = ensureSlash(config.apiPrefix ?? '/api') || '';
+    this.platformId = config.platformId;
     const baseRequest = config.request ?? fetch.bind(globalThis);
     this.requestFn = (url, opts) =>
       baseRequest(url, { ...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include' });
@@ -179,18 +173,20 @@ export class EntityClient {
   }
 
   /** 执行实体 Action */
-  async executeAction<T = Record<string, unknown>>(
-    entity: string,
-    id: string | number,
+  async executeAction<T = any>(
+    entityName: string,
+    id: string | number | null | undefined,
     actionName: string,
-    body?: Record<string, unknown>
+    body?: any,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'POST',
   ): Promise<T> {
-    const res = await this.requestFn(this.url(`${entity}/${id}/${actionName}`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const path = id
+      ? joinPath(entityName, String(id), '_action', actionName)
+      : joinPath(entityName, '_action', actionName);
+    const res = await this.requestFn(this.url(path), {
+      method,
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await this.handleResult<T>(res);
-    return (data ?? {}) as T;
+    return this.handleResult<T>(res);
   }
 }

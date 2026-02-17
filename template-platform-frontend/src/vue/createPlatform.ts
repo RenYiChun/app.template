@@ -42,6 +42,7 @@ export function createPlatform(options: PlatformOptions = {}) {
   };
   defaultClient = new EntityClient({
     ...clientConfig,
+    platformId: clientConfig.platformId,
     request: requestWithToken,
   });
   defaultMeta = new MetaService(defaultClient, options.meta);

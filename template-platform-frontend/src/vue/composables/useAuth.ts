@@ -17,12 +17,13 @@ export interface UseAuthReturn {
   refreshMe: () => Promise<AuthUser | null>;
 }
 
+const user = ref<AuthUser | null>(null);
+const loading = ref(false);
+const captchaKey = ref('');
+const captchaImage = ref('');
+
 export function useAuth(): UseAuthReturn {
   const { authClient } = getPlatform();
-  const user = ref<AuthUser | null>(null);
-  const loading = ref(false);
-  const captchaKey = ref('');
-  const captchaImage = ref('');
 
   if (!authClient) {
     throw new Error('Platform 未初始化或未配置 auth，请先调用 createPlatform({ auth: {...} })');

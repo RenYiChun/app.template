@@ -5,6 +5,7 @@
 export { AuthClient, EntityClient, MetaService } from '../core/index.js';
 export type {
   AuthClientConfig,
+  EntityClientConfig,
   LoginRequest,
   CaptchaResult,
   AuthUser,
