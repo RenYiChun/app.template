@@ -291,7 +291,7 @@ const handleSaveRoles = async () => {
     });
     const existing = existingResult.content || [];
     for (const ur of existing) {
-      await client.delete('user_roles', ur.id);
+      await client.delete('user_roles', ur.id as string | number);
     }
 
     // 添加新角色
@@ -318,7 +318,7 @@ onMounted(() => {
 
 <style scoped>
 .user-list-container {
-  padding: 20px;
+  padding: 0;
 }
 
 .card-header {

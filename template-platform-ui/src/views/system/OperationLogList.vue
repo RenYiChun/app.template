@@ -228,7 +228,7 @@ onMounted(() => {
 
 <style scoped>
 .operation-log-container {
-  padding: 20px;
+  padding: 0;
 }
 
 .card-header {

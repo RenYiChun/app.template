@@ -331,7 +331,7 @@ onMounted(() => {
 
 <style scoped>
 .dict-list-container {
-  padding: 20px;
+  padding: 0;
 }
 
 .card-header {

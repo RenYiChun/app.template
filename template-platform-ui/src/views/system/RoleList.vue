@@ -211,7 +211,7 @@ const handleSavePerms = async () => {
     });
     const existing = existingResult.content || [];
     for (const rp of existing) {
-      await client.delete('role_permissions', rp.id);
+      await client.delete('role_permissions', rp.id as string | number);
     }
 
     // 添加新权限
@@ -238,7 +238,7 @@ onMounted(() => {
 
 <style scoped>
 .role-list-container {
-  padding: 20px;
+  padding: 0;
 }
 
 .card-header {
