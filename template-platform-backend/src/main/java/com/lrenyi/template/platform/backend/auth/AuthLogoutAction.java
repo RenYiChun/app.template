@@ -14,7 +14,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
 @RequiredArgsConstructor
-@EntityAction(entity = Auth.class, actionName = "logout", method = RequestMethod.POST, summary = "登出")
+@EntityAction(entity = Auth.class, actionName = "logout", method = RequestMethod.POST, summary = "登出", requireId = false)
 public class AuthLogoutAction implements EntityActionExecutor {
 
     @Override

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 
 @Component
 @RequiredArgsConstructor
-@EntityAction(entity = Auth.class, actionName = "me", method = RequestMethod.GET, summary = "获取当前用户")
+@EntityAction(entity = Auth.class, actionName = "me", method = RequestMethod.GET, summary = "获取当前用户", requireId = false)
 public class AuthMeAction implements EntityActionExecutor {
 
     private final UserRepository userRepository;

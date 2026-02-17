@@ -27,7 +27,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import org.springframework.web.util.pattern.PathPattern;
 
 /**
- * 根据 GenericEntityController 的映射自动发现接口，结合 EntityMeta/ActionMeta 生成 OpenAPI 3.0 文档（JSON），
+ * 根据 GenericEntityController 的映射自动发现接口，结合 EntityMeta/ActionMeta 生成 OpenAPI 3.0
+ * 文档（JSON），
  * 供 Swagger UI 等标准文档界面使用。
  */
 @RestController
@@ -38,7 +39,7 @@ public class OpenApiController {
 
     private final EntityRegistry entityRegistry;
     private final RequestMappingHandlerMapping handlerMapping;
-    
+
     public OpenApiController(EntityRegistry entityRegistry, RequestMappingHandlerMapping handlerMapping) {
         this.entityRegistry = entityRegistry;
         this.handlerMapping = handlerMapping;
@@ -88,25 +89,60 @@ public class OpenApiController {
                     if (patternStr.contains("{actionName}")) {
                         for (EntityMeta entity : entityRegistry.getAll()) {
                             for (ActionMeta action : entity.getActions()) {
-                                RequestMethod actionMethod = action.getMethod() != null ? action.getMethod() : RequestMethod.POST;
+                                RequestMethod actionMethod = action.getMethod() != null ? action.getMethod()
+                                        : RequestMethod.POST;
                                 if (m != actionMethod) {
                                     continue;
                                 }
+                                // 判断当前 path pattern 是否包含 {id}
+                                boolean hasIdParam = patternStr.contains("{id}");
+
+                                // 核心逻辑:
+                                // 如果 Action 本身声明需要 ID (requireId=true, 默认)：
+                                // - 仅生成含 {id} 的路径文档
+                                // 如果 Action 本身声明不需要 ID (requireId=false)：
+                                // - 仅生成不含 {id} 的路径文档 (避免误导用户)
+
+                                if (action.isRequireId()) {
+                                    if (!hasIdParam) {
+                                        continue; // 跳过无ID路径
+                                    }
+                                } else {
+                                    if (hasIdParam) {
+                                        continue; // 跳过有ID路径
+                                    }
+                                }
+
                                 String path = patternStr
                                         .replace("{entity}", entity.getPathSegment())
                                         .replace("{actionName}", action.getActionName());
+
                                 boolean needBody = action.getRequestType() != null
                                         && action.getRequestType() != Void.class;
                                 String tag = tagForEntity(entity);
+
+                                // OperationId 策略：
+                                // 有 ID 的: entity_actionName
+                                // 无 ID 的: entity_actionName_NoId (可选，或者依然叫 entity_actionName，因为二者互斥了)
+                                // 考虑到兼容性与唯一性，若二者互斥，直接用 entity_actionName 也可以。
+                                // 但为了明确语义，保持 entity_actionName_NoId 也可以。
+                                // 鉴于之前用户已经看到 NoId 后缀，我们保持这个后缀以便区分，或者如果互斥了，去掉后缀更干净？
+                                // 如果互斥，同一个 entity_actionName 只会出现一次。直接用 entity_actionName 最干净。
+
+                                String opId = entity.getPathSegment() + "_" + action.getActionName();
+                                if (!action.isRequireId()) {
+                                    opId += "_NoId";
+                                }
+
                                 putOperation(pathsMap, path, httpMethod, action.getSummary(),
-                                        entity.getPathSegment() + "_" + action.getActionName(),
-                                        needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(), tag, entity,
-                                             null,
-                                             false,
-                                             false,
-                                             null,
-                                             null
-                                );
+                                        opId,
+                                        needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(),
+                                        tag, entity,
+                                        null,
+                                        false,
+                                        false,
+                                        null,
+                                        null);
                             }
                         }
                     } else {
@@ -125,12 +161,11 @@ public class OpenApiController {
                             String responseSchema = getResponseSchemaForMethod(methodName, entity);
                             putOperation(pathsMap, path, httpMethod, summary, operationId, hasRequestBody,
                                     permissions != null && !"".equals(permissions) ? permissions : null, tag, entity,
-                                         requestSchema,
-                                         requestSchemaArray,
-                                         requestSchemaArrayOfIds,
-                                         responseSchema,
-                                         methodName
-                            );
+                                    requestSchema,
+                                    requestSchemaArray,
+                                    requestSchemaArrayOfIds,
+                                    responseSchema,
+                                    methodName);
                         }
                     }
                 }
@@ -164,7 +199,8 @@ public class OpenApiController {
                         "type", "object",
                         "properties", Map.of(
                                 "field", Map.of("type", "string", "description", "字段名"),
-                                "op", Map.of("type", "string", "description", "操作符: eq, ne, like, gt, gte, lt, lte, in"),
+                                "op",
+                                Map.of("type", "string", "description", "操作符: eq, ne, like, gt, gte, lt, lte, in"),
                                 "value", Map.of("description", "值；in 时为数组")))));
         properties.put("sort", Map.of(
                 "type", "array",
@@ -172,23 +208,21 @@ public class OpenApiController {
                         "type", "object",
                         "properties", Map.of(
                                 "field", Map.of("type", "string", "description", "排序字段"),
-                                "dir", Map.of("type", "string", "enum", List.of("asc", "desc"), "description", "asc 或 desc")))));
+                                "dir", Map.of("type", "string", "enum", List.of("asc", "desc"), "description",
+                                        "asc 或 desc")))));
         properties.put("page", Map.of("type", "integer", "description", "页码，默认 0"));
         properties.put("size", Map.of("type", "integer", "description", "每页条数"));
         schema.put("properties", properties);
         schema.put("example",
-                   Map.of("filters",
-                          List.of(Map.of("field", "username", "op", "like", "value", "john"),
-                                  Map.of("field", "status", "op", "in", "value", List.of(1, 2))
-                          ),
-                          "sort",
-                          List.of(Map.of("field", "createTime", "dir", "desc")),
-                          "page",
-                          0,
-                          "size",
-                          20
-                   )
-        );
+                Map.of("filters",
+                        List.of(Map.of("field", "username", "op", "like", "value", "john"),
+                                Map.of("field", "status", "op", "in", "value", List.of(1, 2))),
+                        "sort",
+                        List.of(Map.of("field", "createTime", "dir", "desc")),
+                        "page",
+                        0,
+                        "size",
+                        20));
         return schema;
     }
 
@@ -322,9 +356,10 @@ public class OpenApiController {
 
     private static String tagForEntity(EntityMeta entity) {
         return entity.getDisplayName() != null && !entity.getDisplayName().isBlank()
-                ? entity.getDisplayName() : entity.getPathSegment();
+                ? entity.getDisplayName()
+                : entity.getPathSegment();
     }
-    
+
     private static void putOperation(Map<String, Map<String, Object>> pathsMap,
             String path,
             String httpMethod,
@@ -340,7 +375,8 @@ public class OpenApiController {
         op.put("operationId", operationId);
         if (path.contains("{id}") && entity != null) {
             Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
-            String idSchemaType = (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ? "integer" : "string";
+            String idSchemaType = (pkType == Long.class || pkType == long.class || pkType == Integer.class
+                    || pkType == int.class) ? "integer" : "string";
             op.put("parameters", List.of(Map.of(
                     "name", "id",
                     "in", "path",
@@ -351,8 +387,8 @@ public class OpenApiController {
         Map<String, Object> responseContent = new LinkedHashMap<>();
         if (responseSchemaRef != null) {
             responseContent.put("description", DEFAULT_RESPONSE_DESC);
-            responseContent.put("content", Map.of("application/json", 
-                Map.of("schema", Map.of("$ref", "#/components/schemas/" + responseSchemaRef))));
+            responseContent.put("content", Map.of("application/json",
+                    Map.of("schema", Map.of("$ref", "#/components/schemas/" + responseSchemaRef))));
         } else {
             responseContent.put("description", DEFAULT_RESPONSE_DESC);
         }
@@ -394,7 +430,7 @@ public class OpenApiController {
         }
         pathItem.put(httpMethod, op);
     }
-    
+
     private static Map<String, Object> buildQueryableFields(EntityMeta entity) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (entity.getFields() == null) {
@@ -413,7 +449,7 @@ public class OpenApiController {
         }
         return result;
     }
-    
+
     private static List<String> operatorsForType(String type) {
         if (type == null || type.isBlank()) {
             return List.of("eq", "ne");

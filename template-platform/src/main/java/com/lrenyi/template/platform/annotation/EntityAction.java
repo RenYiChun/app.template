@@ -55,4 +55,10 @@ public @interface EntityAction {
      * 所需权限标识，可多个。
      */
     String[] permissions() default {};
+
+    /**
+     * 该 Action 是否需要实体 ID。
+     * 默认为 true。若为 false，OpenAPI 文档将只生成不带 ID 的接口路径（/api/{entity}/{actionName}）。
+     */
+    boolean requireId() default true;
 }

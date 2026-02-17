@@ -49,7 +49,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 @org.springframework.web.bind.annotation.RestController
 @org.springframework.web.bind.annotation.RequestMapping("${app.platform.api-prefix:/api}")
 public class GenericEntityController {
-    
+
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final EntityCrudService crudService;
@@ -73,7 +73,7 @@ public class GenericEntityController {
         this.objectMapper = objectMapper;
         this.validatorProvider = validatorProvider;
     }
-    
+
     /**
      * 搜索。POST 请求体为 SearchRequest（filters、sort、page、size），body 为空时使用默认值。
      */
@@ -97,7 +97,7 @@ public class GenericEntityController {
         PagedResult<Object> pagedResult = PagedResult.from(pageResult, converted);
         return Result.getSuccess(pagedResult);
     }
-    
+
     @GetMapping("/{entity}/{id}")
     public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
@@ -115,7 +115,7 @@ public class GenericEntityController {
         Object one = crudService.get(meta, idObj);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
     }
-    
+
     @PostMapping("/{entity}")
     public Result<?> create(@PathVariable("entity") String entity, @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
@@ -134,7 +134,7 @@ public class GenericEntityController {
         Object created = crudService.create(meta, bodyEntity);
         return Result.getSuccess(toResponse(meta, created));
     }
-    
+
     @PutMapping("/{entity}/{id}")
     public Result<?> update(@PathVariable("entity") String entity,
             @PathVariable("id") String id,
@@ -159,7 +159,7 @@ public class GenericEntityController {
         Object updated = crudService.update(meta, idObj, bodyEntity);
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
     }
-    
+
     @DeleteMapping("/{entity}/{id}")
     public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
@@ -177,7 +177,7 @@ public class GenericEntityController {
         crudService.delete(meta, idObj);
         return Result.getSuccess(null);
     }
-    
+
     /**
      * 批量删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
      */
@@ -201,7 +201,7 @@ public class GenericEntityController {
         crudService.deleteBatch(meta, parsedIds);
         return Result.getSuccess(null);
     }
-    
+
     /**
      * 批量更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
@@ -247,9 +247,10 @@ public class GenericEntityController {
         List<?> updated = crudService.updateBatch(meta, entities);
         return Result.getSuccess(toResponseList(meta, updated));
     }
-    
+
     /**
-     * 导出 Excel。请求体与 search 相同（filters、sort、page、size），仅 size 默认更大；仅导出未标注 @ExportExclude 的字段。
+     * 导出 Excel。请求体与 search 相同（filters、sort、page、size），仅 size
+     * 默认更大；仅导出未标注 @ExportExclude 的字段。
      */
     @PostMapping("/{entity}/export")
     public ResponseEntity<byte[]> export(@PathVariable("entity") String entity,
@@ -271,30 +272,56 @@ public class GenericEntityController {
             byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent(), objectMapper);
             String filename = entity + "-export.xlsx";
             return ResponseEntity.ok()
-                                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                                 .contentType(MediaType.parseMediaType(
-                                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                                 .body(bytes);
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(bytes);
         } catch (Exception e) {
             throw new RuntimeException("导出 Excel 失败", e);
         }
     }
-    
-    @RequestMapping(path = "/{entity}/{id}/{actionName}",
-            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
+
+    @RequestMapping(path = "/{entity}/{id}/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
+            RequestMethod.PUT, RequestMethod.DELETE })
     public Result<?> executeAction(
             jakarta.servlet.http.HttpServletRequest request,
             @PathVariable("entity") String entity,
             @PathVariable("id") String id,
             @PathVariable("actionName") String actionName,
             @RequestBody(required = false) Map<String, Object> body) {
+        return executeActionInternal(request, entity, id, actionName, body);
+    }
+
+    /**
+     * 无 ID 的 Action，支持 GET/POST/PUT/DELETE。
+     */
+    @RequestMapping(path = "/{entity}/{actionName}", method = { RequestMethod.GET, RequestMethod.POST,
+            RequestMethod.PUT, RequestMethod.DELETE })
+    public Result<?> executeActionNoId(
+            jakarta.servlet.http.HttpServletRequest request,
+            @PathVariable("entity") String entity,
+            @PathVariable("actionName") String actionName,
+            @RequestBody(required = false) Map<String, Object> body) {
+        // search, export, batch 等保留字已经由具体方法处理，此处处理其他自定义 Action
+        return executeActionInternal(request, entity, null, actionName, body);
+    }
+
+    private Result<?> executeActionInternal(
+            jakarta.servlet.http.HttpServletRequest request,
+            String entity,
+            String id,
+            String actionName,
+            Map<String, Object> body) {
         EntityMeta entityMeta = entityRegistry.getByPathSegment(entity);
         if (entityMeta == null) {
             return notFound();
         }
-        Object idObj = parseIdOrBadRequest(entityMeta, id);
-        if (idObj == null) {
-            return badRequest("id 格式错误");
+        Object idObj = null;
+        if (id != null) {
+            idObj = parseIdOrBadRequest(entityMeta, id);
+            if (idObj == null) {
+                return badRequest("id 格式错误");
+            }
         }
         EntityActionExecutor executor = actionRegistry.getExecutor(entity, actionName);
         ActionMeta actionMeta = actionRegistry.getMeta(entity, actionName);
@@ -308,8 +335,8 @@ public class GenericEntityController {
             r.setCode(405);
             return r;
         }
-        List<String> actionPerms =
-                actionMeta.getPermissions() != null ? actionMeta.getPermissions() : Collections.emptyList();
+        List<String> actionPerms = actionMeta.getPermissions() != null ? actionMeta.getPermissions()
+                : Collections.emptyList();
         Result<Object> forbidden = requirePermission(actionPerms);
         if (forbidden != null) {
             return forbidden;
@@ -322,7 +349,7 @@ public class GenericEntityController {
         Object result = executor.execute(idObj, requestObj);
         return Result.getSuccess(result != null ? result : Map.of());
     }
-    
+
     /**
      * 当 DTO 存在且启用 Bean Validation 时，校验请求体。校验失败返回 400 的 Result，通过返回 null。
      */
@@ -334,7 +361,8 @@ public class GenericEntityController {
         if (validator == null) {
             return null;
         }
-        Class<?> dtoClass = forUpdate ? EntityDtoResolver.resolveUpdateDto(meta) : EntityDtoResolver.resolveCreateDto(meta);
+        Class<?> dtoClass = forUpdate ? EntityDtoResolver.resolveUpdateDto(meta)
+                : EntityDtoResolver.resolveCreateDto(meta);
         if (dtoClass == null) {
             return null;
         }
@@ -362,15 +390,15 @@ public class GenericEntityController {
         if (entityClass == null) {
             return objectMapper.convertValue(body, Object.class);
         }
-        Class<?> dtoClass =
-                forUpdate ? EntityDtoResolver.resolveUpdateDto(meta) : EntityDtoResolver.resolveCreateDto(meta);
+        Class<?> dtoClass = forUpdate ? EntityDtoResolver.resolveUpdateDto(meta)
+                : EntityDtoResolver.resolveCreateDto(meta);
         if (dtoClass != null) {
             Object dto = objectMapper.convertValue(body, dtoClass);
             return objectMapper.convertValue(dto, entityClass);
         }
         return objectMapper.convertValue(body, entityClass);
     }
-    
+
     private Object toResponse(EntityMeta meta, Object entity) {
         if (entity == null) {
             return null;
@@ -381,7 +409,7 @@ public class GenericEntityController {
         }
         return entity;
     }
-    
+
     private List<?> toResponseList(EntityMeta meta, List<?> list) {
         if (list == null || list.isEmpty()) {
             return list;
@@ -429,13 +457,13 @@ public class GenericEntityController {
         r.setCode(400);
         return r;
     }
-    
+
     private static Result<Object> notFound() {
         Result<Object> r = Result.getError(null, "未找到");
         r.setCode(404);
         return r;
     }
-    
+
     /**
      * 权限校验：不通过时返回 403 的 Result，通过时返回 null。
      */
@@ -449,7 +477,7 @@ public class GenericEntityController {
         }
         return permissionChecker.hasAnyPermission(requiredPermissions) ? null : forbidden();
     }
-    
+
     /**
      * 权限校验（用于返回 ResponseEntity 的 export）：不通过时返回 403 响应，通过时返回 null。
      */
@@ -459,13 +487,13 @@ public class GenericEntityController {
         }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
-    
+
     private static Result<Object> forbidden() {
         Result<Object> r = Result.getError(null, "无权限");
         r.setCode(403);
         return r;
     }
-    
+
     private static List<String> getRequiredPermissionsForCrud(EntityMeta meta, String crudOp) {
         String p = switch (crudOp) {
             case "read" -> meta.getPermissionRead();

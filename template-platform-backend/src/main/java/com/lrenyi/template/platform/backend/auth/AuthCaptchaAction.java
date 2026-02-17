@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 
 @Component
 @RequiredArgsConstructor
-@EntityAction(entity = Auth.class, actionName = "captcha", method = RequestMethod.GET, summary = "获取验证码")
+@EntityAction(entity = Auth.class, actionName = "captcha", method = RequestMethod.GET, summary = "获取验证码", requireId = false)
 public class AuthCaptchaAction implements EntityActionExecutor {
 
     private final CaptchaService captchaService;

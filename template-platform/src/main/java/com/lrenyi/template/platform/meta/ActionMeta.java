@@ -22,6 +22,7 @@ public class ActionMeta {
     private Class<?> responseType;
     private String summary;
     private String description;
+    private boolean requireId = true;
     private List<String> permissions = new ArrayList<>();
 
     public void setPermissions(List<String> permissions) {

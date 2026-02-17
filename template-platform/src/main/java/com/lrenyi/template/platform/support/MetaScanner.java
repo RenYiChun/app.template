@@ -34,7 +34,8 @@ import org.springframework.util.StringUtils;
 
 /**
  * 启动时扫描 @PlatformEntity 与 @EntityAction，构建 EntityMeta/ActionMeta 并注册。
- * 当 scan-packages 配置非空时使用 classpath 扫描，可注册 JPA 与非 JPA 的 @PlatformEntity（如 Auth）；
+ * 当 scan-packages 配置非空时使用 classpath 扫描，可注册 JPA 与非 JPA 的 @PlatformEntity（如
+ * Auth）；
  * 否则若 JPA 可用则从 Metamodel 获取。
  */
 public class MetaScanner {
@@ -56,7 +57,7 @@ public class MetaScanner {
         this.actionRegistry = actionRegistry;
         this.basePackage = basePackage == null || basePackage.isEmpty() ? "" : basePackage;
     }
-    
+
     /**
      * 仅扫描并注册 @PlatformEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
      * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @PlatformEntity）；
@@ -69,7 +70,7 @@ public class MetaScanner {
             registerFromMetamodel();
         }
     }
-    
+
     /**
      * 仅注册 Action 执行器（实体需已通过 registerEntitiesOnly 注册）。
      */
@@ -96,7 +97,7 @@ public class MetaScanner {
             log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
         }
     }
-    
+
     /**
      * 扫描 @PlatformEntity 实体并注册；注册带 @EntityAction 的 Action 执行器。
      * 实体注册逻辑见 registerEntitiesOnly()。
@@ -105,13 +106,14 @@ public class MetaScanner {
         registerEntitiesOnly();
         registerActionExecutors(actionExecutorBeans);
     }
-    
+
     /** 从 JPA Metamodel 获取实体，避免 classpath 扫描。 */
     private void registerFromMetamodel() {
-        Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of() : Arrays.stream(basePackage.split(","))
-                                                                               .map(String::trim)
-                                                                               .filter(s -> !s.isEmpty())
-                                                                               .collect(Collectors.toSet());
+        Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of()
+                : Arrays.stream(basePackage.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toSet());
         for (var managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
             Class<?> clazz = managedType.getJavaType();
             if (clazz == null) {
@@ -127,7 +129,7 @@ public class MetaScanner {
             registerEntity(clazz);
         }
     }
-    
+
     private void registerEntity(Class<?> clazz) {
         PlatformEntity ann = clazz.getAnnotation(PlatformEntity.class);
         if (ann == null) {
@@ -139,7 +141,7 @@ public class MetaScanner {
         entityRegistry.register(meta);
         log.debug("Registered entity: {}", meta.getPathSegment());
     }
-    
+
     /** 回退：通过 classpath 扫描（在长 classpath 下可能较慢）。 */
     private void registerFromClasspathScan() {
         String[] packages = basePackage.isEmpty() ? new String[0] : basePackage.split(",");
@@ -164,13 +166,13 @@ public class MetaScanner {
             }
         }
     }
-    
+
     private static void validateExtendsBaseEntity(Class<?> clazz) {
         if (!BaseEntity.class.isAssignableFrom(clazz)) {
             throw new IllegalStateException("@PlatformEntity 实体 " + clazz.getName() + " 必须继承 BaseEntity<ID>");
         }
     }
-    
+
     private EntityMeta buildEntityMeta(Class<?> clazz, PlatformEntity ann) {
         EntityMeta meta = new EntityMeta();
         String simpleName = clazz.getSimpleName();
@@ -188,16 +190,22 @@ public class MetaScanner {
         meta.setDeleteBatchEnabled(ann.crudEnabled() && ann.enableDeleteBatch());
         meta.setExportEnabled(ann.crudEnabled() && ann.enableExport());
         String pathSeg = meta.getPathSegment();
-        meta.setPermissionCreate(defaultPermission(ann.permissionCreate(), pathSeg, ann.crudEnabled() && ann.enableCreate(), "create"));
-        meta.setPermissionRead(defaultPermission(ann.permissionRead(), pathSeg, (ann.crudEnabled() && ann.enableList()) || (ann.crudEnabled() && ann.enableGet()) || (ann.crudEnabled() && ann.enableExport()), "read"));
-        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg, ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
-        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg, ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
+        meta.setPermissionCreate(
+                defaultPermission(ann.permissionCreate(), pathSeg, ann.crudEnabled() && ann.enableCreate(), "create"));
+        meta.setPermissionRead(defaultPermission(
+                ann.permissionRead(), pathSeg, (ann.crudEnabled() && ann.enableList())
+                        || (ann.crudEnabled() && ann.enableGet()) || (ann.crudEnabled() && ann.enableExport()),
+                "read"));
+        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg,
+                ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
+        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg,
+                ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
         Class<?> pkType = ann.primaryKeyType() != void.class ? ann.primaryKeyType() : inferPrimaryKeyType(clazz);
         meta.setPrimaryKeyType(pkType);
         meta.setFields(buildFieldMetas(clazz));
         return meta;
     }
-    
+
     /**
      * 从 BaseEntity&lt;ID&gt; 泛型参数推断主键类型；若泛型擦除则回退到 id 字段类型。
      */
@@ -218,7 +226,7 @@ public class MetaScanner {
         }
         return inferFromIdField(clazz);
     }
-    
+
     /** 泛型擦除时的回退：遍历类层级，从 id 字段或 @Id 注解字段推断类型。 */
     private static Class<?> inferFromIdField(Class<?> clazz) {
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
@@ -235,7 +243,7 @@ public class MetaScanner {
         }
         return Long.class;
     }
-    
+
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
         List<FieldMeta> list = new ArrayList<>();
         List<Class<?>> hierarchy = new ArrayList<>();
@@ -265,7 +273,7 @@ public class MetaScanner {
         }
         return list;
     }
-    
+
     private ActionMeta buildActionMeta(EntityAction ann) {
         ActionMeta meta = new ActionMeta();
         meta.setActionName(ann.actionName());
@@ -275,13 +283,16 @@ public class MetaScanner {
         meta.setResponseType(ann.responseType());
         meta.setSummary(ann.summary());
         meta.setDescription(ann.description());
+        meta.setDescription(ann.description());
+        meta.setRequireId(ann.requireId());
         if (ann.permissions() != null && ann.permissions().length > 0) {
             meta.setPermissions(Arrays.stream(ann.permissions()).collect(Collectors.toList()));
         }
         return meta;
     }
-    
-    private static String defaultPermission(String fromAnnotation, String pathSegment, boolean operationEnabled, String action) {
+
+    private static String defaultPermission(String fromAnnotation, String pathSegment, boolean operationEnabled,
+            String action) {
         if (StringUtils.hasText(fromAnnotation)) {
             return fromAnnotation.trim();
         }
@@ -295,7 +306,7 @@ public class MetaScanner {
         }
         return toPluralLower(entityClass.getSimpleName());
     }
-    
+
     private static String toSnakeCase(String name) {
         if (name == null || name.isEmpty()) {
             return name;
@@ -314,7 +325,7 @@ public class MetaScanner {
         }
         return sb.toString();
     }
-    
+
     private static String toPluralLower(String simpleName) {
         if (simpleName == null || simpleName.isEmpty()) {
             return simpleName;
@@ -328,7 +339,7 @@ public class MetaScanner {
         }
         return lower + "s";
     }
-    
+
     private static boolean isVowel(char c) {
         return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
     }
