@@ -41,7 +41,7 @@ public class OauthSecurityFilterChainBuilder {
     private PasswordAuthenticationFilter preAuthenticationFilter;
     private PasswordEncoder passwordEncoder;
     private UserDetailsService userDetailsService;
-    
+
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
@@ -51,81 +51,82 @@ public class OauthSecurityFilterChainBuilder {
         AntPathRequestMatcher postLogOut = new AntPathRequestMatcher("/logout", "POST");
         RequestMatcher combinedMatcher = new OrRequestMatcher(endpointsMatcher, postLogOut);
 
-        String[] uris = {"/jwt/public/key"};
+        String[] uris = { "/jwt/public/key" };
         http.securityMatcher(combinedMatcher).exceptionHandling((exceptions) -> {
             String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
             LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
             MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
             exceptions.defaultAuthenticationEntryPointFor(point, matcher);
         });
-        http.csrf((csrf) -> csrf.ignoringRequestMatchers(new RequestMatcher[]{endpointsMatcher}));
+        http.csrf((csrf) -> csrf.ignoringRequestMatchers(new RequestMatcher[] { endpointsMatcher }));
         Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
         if (StringUtils.hasLength(loginPage)) {
             loginCustomizer = form -> form.loginPage(loginPage);
         }
         http.formLogin(loginCustomizer);
+        http.cors(Customizer.withDefaults());
         http.logout(logout -> logout.logoutUrl("/logout").addLogoutHandler(handler).logoutSuccessHandler(handler));
-        
+
         Set<String> allPermitUrls = security.getAllPermitUrls();
         http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))
-                                                     .permitAll()
-                                                     .anyRequest()
-                                                     .authenticated());
+                .permitAll()
+                .anyRequest()
+                .authenticated());
         http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.with(authorizationServerConfigurer, Customizer.withDefaults());
-        
+
         OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         configurer.tokenEndpoint(point -> {
             point.errorResponseHandler(templateAuthenticationFailureHandler);
             point.accessTokenRequestConverter(new PasswordGrantAuthenticationConverter());
             point.authenticationProvider(new PasswordGrantAuthenticationProvider(authorizationService,
-                                                                                 tokenGenerator,
-                                                                                 passwordEncoder,
-                                                                                 userDetailsService
-            ));
+                    tokenGenerator,
+                    passwordEncoder,
+                    userDetailsService));
         });
         // 配置内省端点 - 启用标准 /oauth2/introspect
         configurer.tokenIntrospectionEndpoint(Customizer.withDefaults());
         configurer.oidc(Customizer.withDefaults());
         return http.build();
     }
-    
+
     @Autowired
     public void setTemplateConfigProperties(TemplateConfigProperties templateConfigProperties) {
         this.templateConfigProperties = templateConfigProperties;
     }
-    
+
     @Autowired
     public void setAuthorizationService(OAuth2AuthorizationService authorizationService) {
         this.authorizationService = authorizationService;
     }
-    
+
     @Autowired
     public void setTokenGenerator(OAuth2TokenGenerator<?> tokenGenerator) {
         this.tokenGenerator = tokenGenerator;
     }
-    
+
     @Autowired
     public void setHandler(TemplateLogOutHandler handler) {
         this.handler = handler;
     }
-    
+
     @Autowired
-    public void setTemplateAuthenticationFailureHandler(AuthenticationFailureHandler templateAuthenticationFailureHandler) {
+    public void setTemplateAuthenticationFailureHandler(
+            AuthenticationFailureHandler templateAuthenticationFailureHandler) {
         this.templateAuthenticationFailureHandler = templateAuthenticationFailureHandler;
     }
-    
+
     @Autowired
     public void setPreAuthenticationFilter(PasswordAuthenticationFilter preAuthenticationFilter) {
         this.preAuthenticationFilter = preAuthenticationFilter;
     }
-    
+
     @Autowired
     @Qualifier("passwordEncoder")
     public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
         this.passwordEncoder = passwordEncoder;
     }
-    
+
     @Autowired
     public void setUserDetailsService(RbacUserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;

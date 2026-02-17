@@ -120,7 +120,7 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 
 ### 4. 登录（Auth）
 
-后端需实现 auth 域：`/api/auth/0/captcha`、`/api/auth/0/login`、`/api/auth/0/logout`、`/api/auth/0/me`。EntityClient 与 AuthClient 自动携带 `credentials: 'include'` 以支持 Session Cookie。
+后端需实现 auth 域：`/api/auth/0/captcha`、`/oauth2/token`（标准 OAuth2 登录）、`/api/auth/0/logout`、`/api/auth/0/me`。EntityClient 与 AuthClient 自动携带 `credentials: 'include'` 以支持 Session Cookie 及 Bearer Token。
 
 **初始化时配置 auth**（含 401 回调）：
 

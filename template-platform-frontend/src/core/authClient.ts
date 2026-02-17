@@ -127,6 +127,10 @@ export class AuthClient {
     params.set('password', req.password);
     params.set('client_id', this.clientId);
     params.set('client_secret', this.clientSecret);
+    if (req.captchaKey && req.captchaCode) {
+      params.set('captchaKey', req.captchaKey);
+      params.set('captchaCode', req.captchaCode);
+    }
 
     const res = await this.requestFn(this.tokenURL, {
       method: 'POST',

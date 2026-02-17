@@ -19,7 +19,8 @@ import java.util.function.Consumer;
 /**
  * 平台后端扩展配置。安全由 template-api 的 DefaultSecurityFilterChainBuilder 统一处理，
  * permit-urls 通过 application.yml 的 app.template.security.permit-urls 配置。
- * PasswordEncoder 使用 DelegatingPasswordEncoder，支持 {noop}、{bcrypt} 等格式（用于 OAuth2 client_secret 及用户密码）。
+ * PasswordEncoder 使用 DelegatingPasswordEncoder，支持 {noop}、{bcrypt} 等格式（用于 OAuth2
+ * client_secret 及用户密码）。
  * 此处提供 CORS 及 Session 策略。
  */
 @Configuration
@@ -34,7 +35,7 @@ public class PlatformBackendConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000", "http://127.0.0.1:3000"));
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
