@@ -4,8 +4,10 @@
 
 ## 启动
 
+在项目根目录执行：
+
 ```bash
-mvn spring-boot:run
+mvnw.cmd spring-boot:run -pl template-platform-backend
 ```
 
 - 接口前缀：`/api`
@@ -14,9 +16,9 @@ mvn spring-boot:run
 
 ## 与前端联调
 
-1. 启动本后端：`mvn spring-boot:run`（端口 8080）
-2. 启动前端：在 `template-platform-frontend` 同级或业务前端项目中配置 `VITE_API_BASE_URL=http://localhost:8080`
-3. 前端 `createPlatform({ client: { baseURL: 'http://localhost:8080', apiPrefix: '/api' } })`
+1. 启动本后端：`mvnw.cmd spring-boot:run -pl template-platform-backend`（在项目根目录，端口 8080）
+2. 启动 `template-platform-ui`：`cd ..\template-platform-ui && npm install && npm run dev`（端口 3000，proxy 到 8080）
+3. 或业务前端：配置 `VITE_API_BASE_URL=http://localhost:8080`，`createPlatform({ client: { baseURL: 'http://localhost:8080', apiPrefix: '/api' } })`
 4. 已启用 CORS，允许 `http://localhost:3000`、`http://127.0.0.1:3000` 跨域
 
 ## 示例实体

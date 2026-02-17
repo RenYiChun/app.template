@@ -17,9 +17,9 @@ import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.service.EntityCrudServiceRouter;
 import com.lrenyi.template.platform.service.InMemoryEntityCrudService;
 import com.lrenyi.template.platform.service.PathSegmentAwareCrudService;
-import com.lrenyi.template.platform.support.EntityPlatformAspect;
-import com.lrenyi.template.platform.support.EntityPlatformExceptionHandler;
 import com.lrenyi.template.platform.support.MetaScanner;
+import com.lrenyi.template.platform.support.PlatformAspect;
+import com.lrenyi.template.platform.support.PlatformExceptionHandler;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,9 +35,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.Ordered;
 
 @AutoConfiguration
-@EnableConfigurationProperties(EntityPlatformProperties.class)
+@EnableConfigurationProperties(PlatformProperties.class)
 @ConditionalOnProperty(name = "app.platform.enabled", havingValue = "true", matchIfMissing = true)
-public class EntityPlatformAutoConfiguration {
+public class PlatformAutoConfiguration {
 
     @Bean
     public EntityRegistry entityRegistry() {
@@ -53,7 +53,7 @@ public class EntityPlatformAutoConfiguration {
     public MetaScanner metaScanner(
             EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
-            EntityPlatformProperties properties) {
+            PlatformProperties properties) {
         String base = properties.getScanPackages();
         return new MetaScanner(entityRegistry, actionRegistry, base);
     }
@@ -83,13 +83,13 @@ public class EntityPlatformAutoConfiguration {
     }
 
     @Bean
-    public EntityPlatformAspect entityPlatformAspect() {
-        return new EntityPlatformAspect();
+    public PlatformAspect platformAspect() {
+        return new PlatformAspect();
     }
 
     @Bean
-    public EntityPlatformExceptionHandler entityPlatformExceptionHandler(EntityPlatformProperties properties) {
-        return new EntityPlatformExceptionHandler(properties);
+    public PlatformExceptionHandler platformExceptionHandler(PlatformProperties properties) {
+        return new PlatformExceptionHandler(properties);
     }
 
     @Bean
@@ -106,7 +106,7 @@ public class EntityPlatformAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "app.platform.docs-ui-enabled", havingValue = "true", matchIfMissing = true)
-    public DocsUiController docsUiController(EntityPlatformProperties properties) {
+    public DocsUiController docsUiController(PlatformProperties properties) {
         return new DocsUiController(properties);
     }
 
@@ -115,7 +115,7 @@ public class EntityPlatformAutoConfiguration {
             EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
-            EntityPlatformProperties properties,
+            PlatformProperties properties,
             PlatformPermissionChecker platformPermissionChecker,
             ObjectMapper objectMapper,
             org.springframework.beans.factory.ObjectProvider<jakarta.validation.Validator> validatorProvider) {
@@ -125,12 +125,12 @@ public class EntityPlatformAutoConfiguration {
     }
 
     @Bean
-    public EntityPlatformInitializer entityPlatformInitializer(
+    public PlatformInitializer platformInitializer(
             MetaScanner metaScanner,
             EntityRegistry entityRegistry,
             ApplicationContext applicationContext,
             ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
-        return new EntityPlatformInitializer(metaScanner,
+        return new PlatformInitializer(metaScanner,
                                              entityRegistry,
                                              applicationContext,
                                              entityManagerFactoryProvider
@@ -140,16 +140,16 @@ public class EntityPlatformAutoConfiguration {
     /**
      * 在 ApplicationRunner 阶段执行实体扫描与 Action 注册（启动完成后执行，避免在 refresh 期间阻塞）。
      */
-    public static class EntityPlatformInitializer implements ApplicationRunner, Ordered {
-        
-        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(EntityPlatformInitializer.class);
+    public static class PlatformInitializer implements ApplicationRunner, Ordered {
+
+        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PlatformInitializer.class);
 
         private final MetaScanner metaScanner;
         private final EntityRegistry entityRegistry;
         private final ApplicationContext applicationContext;
         private final ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider;
 
-        public EntityPlatformInitializer(
+        public PlatformInitializer(
                 MetaScanner metaScanner,
                 EntityRegistry entityRegistry,
                 ApplicationContext applicationContext,
@@ -159,12 +159,12 @@ public class EntityPlatformAutoConfiguration {
             this.applicationContext = applicationContext;
             this.entityManagerFactoryProvider = entityManagerFactoryProvider;
         }
-        
+
         @Override
         public int getOrder() {
             return Ordered.HIGHEST_PRECEDENCE;
         }
-        
+
         @Override
         public void run(ApplicationArguments args) {
             try {

@@ -3,7 +3,7 @@ package com.lrenyi.template.platform.rbac.init;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.config.PlatformProperties;
 import com.lrenyi.template.platform.domain.Permission;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
@@ -28,12 +28,12 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
 
     private final EntityRegistry entityRegistry;
     private final EntityManager entityManager;
-    private final EntityPlatformProperties properties;
+    private final PlatformProperties properties;
     private final ObjectProvider<TransactionTemplate> transactionTemplateProvider;
 
     public PermissionInitializer(EntityRegistry entityRegistry,
             EntityManager entityManager,
-            EntityPlatformProperties properties,
+            PlatformProperties properties,
             ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
         this.entityRegistry = entityRegistry;
         this.entityManager = entityManager;

@@ -23,7 +23,7 @@ import org.springframework.http.ResponseEntity;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        classes = EntityPlatformSampleApplication.class
+        classes = PlatformSampleApplication.class
 )
 @Import(RbacAutoConfiguration.class)
 class PermissionsApiIntegrationTest {

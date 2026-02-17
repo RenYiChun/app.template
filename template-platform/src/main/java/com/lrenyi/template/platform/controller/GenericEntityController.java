@@ -11,7 +11,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.config.PlatformProperties;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.permission.PlatformPermissionChecker;
@@ -40,6 +40,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 /**
  * 统一入口 Controller：CRUD + Action 路由。
@@ -51,7 +53,7 @@ public class GenericEntityController {
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final EntityCrudService crudService;
-    private final EntityPlatformProperties properties;
+    private final PlatformProperties properties;
     private final PlatformPermissionChecker permissionChecker;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<Validator> validatorProvider;
@@ -59,7 +61,7 @@ public class GenericEntityController {
     public GenericEntityController(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService crudService,
-            EntityPlatformProperties properties,
+            PlatformProperties properties,
             PlatformPermissionChecker permissionChecker,
             ObjectMapper objectMapper,
             ObjectProvider<Validator> validatorProvider) {
@@ -278,8 +280,11 @@ public class GenericEntityController {
         }
     }
     
-    @PostMapping("/{entity}/{id}/{actionName}")
-    public Result<?> executeAction(@PathVariable("entity") String entity,
+    @RequestMapping(path = "/{entity}/{id}/{actionName}",
+            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
+    public Result<?> executeAction(
+            jakarta.servlet.http.HttpServletRequest request,
+            @PathVariable("entity") String entity,
             @PathVariable("id") String id,
             @PathVariable("actionName") String actionName,
             @RequestBody(required = false) Map<String, Object> body) {
@@ -295,6 +300,13 @@ public class GenericEntityController {
         ActionMeta actionMeta = actionRegistry.getMeta(entity, actionName);
         if (executor == null || actionMeta == null) {
             return notFound();
+        }
+        RequestMethod allowed = actionMeta.getMethod() != null ? actionMeta.getMethod() : RequestMethod.POST;
+        RequestMethod actual = RequestMethod.valueOf(request.getMethod());
+        if (actual != allowed) {
+            Result<Object> r = Result.getError(null, "请求方法不允许: 需要 " + allowed + ", 收到 " + actual);
+            r.setCode(405);
+            return r;
         }
         List<String> actionPerms =
                 actionMeta.getPermissions() != null ? actionMeta.getPermissions() : Collections.emptyList();

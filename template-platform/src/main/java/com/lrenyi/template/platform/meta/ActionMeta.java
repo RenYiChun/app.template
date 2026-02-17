@@ -1,5 +1,7 @@
 package com.lrenyi.template.platform.meta;
 
+import org.springframework.web.bind.annotation.RequestMethod;
+
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -14,6 +16,8 @@ public class ActionMeta {
 
     private String actionName;
     private String entityName;
+    /** HTTP 方法，默认 POST。 */
+    private RequestMethod method = RequestMethod.POST;
     private Class<?> requestType;
     private Class<?> responseType;
     private String summary;

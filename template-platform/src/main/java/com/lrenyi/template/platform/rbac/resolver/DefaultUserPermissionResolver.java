@@ -3,7 +3,7 @@ package com.lrenyi.template.platform.rbac.resolver;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.config.PlatformProperties;
 import com.lrenyi.template.platform.permission.UserPermissionResolver;
 import com.lrenyi.template.platform.rbac.service.RbacQueryService;
 import org.springframework.security.core.Authentication;
@@ -15,10 +15,10 @@ import org.springframework.security.core.Authentication;
 public class DefaultUserPermissionResolver implements UserPermissionResolver {
     
     private final RbacQueryService rbacQueryService;
-    private final EntityPlatformProperties properties;
+    private final PlatformProperties properties;
     private final Object cacheOrNull;
     
-    public DefaultUserPermissionResolver(RbacQueryService rbacQueryService, EntityPlatformProperties properties) {
+    public DefaultUserPermissionResolver(RbacQueryService rbacQueryService, PlatformProperties properties) {
         this.rbacQueryService = rbacQueryService;
         this.properties = properties;
         this.cacheOrNull = buildCacheIfEnabled();

@@ -29,8 +29,10 @@ A quick-to-use template library focusing on Spring Boot Security and OAuth2.
 ## Build
 
 ```bash
-mvn clean install
+.\mvnw.cmd clean install
 ```
+
+（Windows 使用 `mvnw.cmd`；Unix 使用 `./mvnw`）
 
 ## Documentation
 

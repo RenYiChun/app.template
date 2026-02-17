@@ -88,6 +88,10 @@ public class OpenApiController {
                     if (patternStr.contains("{actionName}")) {
                         for (EntityMeta entity : entityRegistry.getAll()) {
                             for (ActionMeta action : entity.getActions()) {
+                                RequestMethod actionMethod = action.getMethod() != null ? action.getMethod() : RequestMethod.POST;
+                                if (m != actionMethod) {
+                                    continue;
+                                }
                                 String path = patternStr
                                         .replace("{entity}", entity.getPathSegment())
                                         .replace("{actionName}", action.getActionName());

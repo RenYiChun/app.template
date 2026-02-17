@@ -8,6 +8,7 @@ import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProv
 import com.lrenyi.oauth2.service.oauth2.password.RbacUserDetailsService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
@@ -120,6 +121,7 @@ public class OauthSecurityFilterChainBuilder {
     }
     
     @Autowired
+    @Qualifier("passwordEncoder")
     public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
         this.passwordEncoder = passwordEncoder;
     }

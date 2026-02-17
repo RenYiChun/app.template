@@ -24,7 +24,7 @@ import org.springframework.http.ResponseEntity;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        classes = EntityPlatformSampleApplication.class
+        classes = PlatformSampleApplication.class
 )
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class UsersCrudIntegrationTest {

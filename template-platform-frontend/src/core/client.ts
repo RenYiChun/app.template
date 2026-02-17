@@ -34,7 +34,9 @@ export class EntityClient {
   constructor(config: EntityClientConfig = {}) {
     this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
     this.apiPrefix = ensureSlash(config.apiPrefix ?? '/api') || '';
-    this.requestFn = config.request ?? fetch.bind(globalThis);
+    const baseRequest = config.request ?? fetch.bind(globalThis);
+    this.requestFn = (url, opts) =>
+      baseRequest(url, { ...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include' });
   }
 
   /** 获取 OpenAPI 文档 URL，供 MetaService 使用 */

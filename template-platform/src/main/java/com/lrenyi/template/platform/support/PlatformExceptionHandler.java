@@ -1,27 +1,38 @@
 package com.lrenyi.template.platform.support;
 
 import com.lrenyi.template.core.util.Result;
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.config.PlatformProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * 实体平台统一异常处理，直接返回 Result（与 Controller 一致，不再使用 ResponseEntity）。
+ * HttpStatusException 及其子类返回对应 HTTP 状态码。
  * 生产环境应配置 app.platform.expose-exception-message=false，避免向客户端泄露敏感信息。
  */
 @RestControllerAdvice(basePackages = "com.lrenyi.template.platform.controller")
-public class EntityPlatformExceptionHandler {
+public class PlatformExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(EntityPlatformExceptionHandler.class);
+    private static final Logger log = LoggerFactory.getLogger(PlatformExceptionHandler.class);
 
     private static final String GENERIC_ERROR_MESSAGE = "服务器内部错误";
 
-    private final EntityPlatformProperties properties;
+    private final PlatformProperties properties;
 
-    public EntityPlatformExceptionHandler(EntityPlatformProperties properties) {
+    public PlatformExceptionHandler(PlatformProperties properties) {
         this.properties = properties;
+    }
+
+    @ExceptionHandler(HttpStatusException.class)
+    public ResponseEntity<Result<Object>> handleHttpStatusException(HttpStatusException e) {
+        log.debug("HTTP status exception: {} - {}", e.getStatusCode(), e.getMessage());
+        String message = properties.isExposeExceptionMessage() ? e.getMessage() : GENERIC_ERROR_MESSAGE;
+        Result<Object> r = Result.getError(null, message);
+        r.setCode(e.getStatusCode());
+        return ResponseEntity.status(e.getStatusCode()).body(r);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

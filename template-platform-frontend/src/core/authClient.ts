@@ -1,0 +1,184 @@
+/**
+ * 认证客户端：OAuth2 Password Grant 获取 JWT，Bearer Token 访问接口
+ */
+
+import type { Result } from './types.js';
+import { SUCCESS_CODE } from './types.js';
+
+export interface AuthClientConfig {
+  baseURL?: string;
+  apiPrefix?: string;
+  request?: (url: string, options: RequestInit) => Promise<Response>;
+  onUnauthorized?: () => void;
+  /** OAuth2 客户端 ID */
+  oauth2ClientId?: string;
+  /** OAuth2 客户端密钥 */
+  oauth2ClientSecret?: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+  captchaKey?: string;
+  captchaCode?: string;
+}
+
+export interface CaptchaResult {
+  key: string;
+  imageBase64: string;
+}
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
+function ensureSlash(s: string): string {
+  if (!s || s === '/') return '';
+  return s.startsWith('/') ? s : `/${s}`;
+}
+
+function joinPath(...parts: string[]): string {
+  return parts
+    .filter(Boolean)
+    .map((p) => String(p).replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, ''))
+    .join('/');
+}
+
+export class AuthClient {
+  private readonly baseURL: string;
+  private readonly apiPrefix: string;
+  private readonly oauth2BaseURL: string;
+  private readonly tokenURL: string;
+  private readonly requestFn: (url: string, options: RequestInit) => Promise<Response>;
+  private readonly onUnauthorized?: () => void;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private token: string | null = null;
+
+  constructor(config: AuthClientConfig = {}) {
+    this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
+    this.apiPrefix = ensureSlash(config.apiPrefix ?? '/api') || '';
+    this.oauth2BaseURL = this.baseURL;
+    this.tokenURL = joinPath(this.oauth2BaseURL, 'oauth2/token');
+    this.clientId = config.oauth2ClientId ?? 'platform-client';
+    this.clientSecret = config.oauth2ClientSecret ?? 'platform-secret';
+    const baseRequest = config.request ?? fetch.bind(globalThis);
+    this.requestFn = (url, opts = {}) =>
+      baseRequest(url, { ...opts, credentials: (opts.credentials as RequestCredentials) ?? 'include' });
+    this.onUnauthorized = config.onUnauthorized;
+  }
+
+  /** 获取当前 token，供请求拦截器使用 */
+  getToken(): string | null {
+    return this.token;
+  }
+
+  /** 清除 token */
+  clearToken(): void {
+    this.token = null;
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+  }
+
+  private url(path: string): string {
+    return joinPath(this.baseURL, this.apiPrefix, path);
+  }
+
+  private async json<T>(res: Response): Promise<T> {
+    const text = await res.text();
+    if (!text) return {} as T;
+    return JSON.parse(text) as T;
+  }
+
+  private async handleResult<T>(res: Response): Promise<T> {
+    if (res.status === 401) {
+      this.clearToken();
+      this.onUnauthorized?.();
+    }
+    const result = (await this.json<Result<T>>(res)) as Result<T>;
+    if (result.code !== SUCCESS_CODE && result.code !== 200) {
+      const err = new Error(result.message ?? `请求失败: ${res.status}`);
+      (err as Error & { code?: number; response?: Response }).code = result.code;
+      (err as Error & { code?: number; response?: Response }).response = res;
+      throw err;
+    }
+    return result.data as T;
+  }
+
+  /** 获取验证码 */
+  async getCaptcha(): Promise<CaptchaResult> {
+    const res = await this.requestFn(this.url('auth/0/captcha'), { method: 'GET' });
+    const data = await this.handleResult<CaptchaResult>(res);
+    if (!data?.key || !data?.imageBase64) {
+      throw new Error('验证码接口返回格式异常');
+    }
+    return data;
+  }
+
+  /** 登录：OAuth2 Password Grant */
+  async login(req: LoginRequest): Promise<AuthUser> {
+    const params = new URLSearchParams();
+    params.set('grant_type', 'authorization_password');
+    params.set('username', req.username);
+    params.set('password', req.password);
+    params.set('client_id', this.clientId);
+    params.set('client_secret', this.clientSecret);
+
+    const res = await this.requestFn(this.tokenURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`登录失败: ${res.status} ${text}`);
+    }
+
+    const tokenData = (await this.json<{
+      access_token?: string;
+      username?: string;
+      sub?: string;
+    }>(res)) as Record<string, unknown>;
+
+    const accessToken = tokenData.access_token as string;
+    if (!accessToken) {
+      throw new Error('登录成功但未返回 access_token');
+    }
+
+    this.token = accessToken;
+
+    const username = (tokenData.username ?? tokenData.sub ?? req.username) as string;
+    return {
+      id: 0,
+      username: username || req.username,
+      email: '',
+    };
+  }
+
+  /** 登出（清除本地 token） */
+  async logout(): Promise<void> {
+    this.clearToken();
+    try {
+      await this.requestFn(this.url('auth/0/logout'), {
+        method: 'POST',
+        headers: this.authHeaders(),
+      });
+    } catch {
+    }
+  }
+
+  /** 获取当前用户 */
+  async me(): Promise<AuthUser | null> {
+    const res = await this.requestFn(this.url('auth/0/me'), {
+      method: 'GET',
+      headers: this.authHeaders(),
+    });
+    const data = await this.handleResult<AuthUser | null>(res);
+    return data ?? null;
+  }
+}

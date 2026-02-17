@@ -12,21 +12,21 @@ import org.springframework.core.annotation.Order;
  */
 @Aspect
 @Order(100)
-public final class EntityPlatformAspect {
+public final class PlatformAspect {
 
-    private static final Logger log = LoggerFactory.getLogger(EntityPlatformAspect.class);
+    private static final Logger log = LoggerFactory.getLogger(PlatformAspect.class);
 
     @Around("execution(* com.lrenyi.template.platform.controller.GenericEntityController.*(..))")
     public Object logRequest(ProceedingJoinPoint pjp) throws Throwable {
         String method = pjp.getSignature().getName();
         Object[] args = pjp.getArgs();
-        log.debug("EntityPlatform request: method={}, argsCount={}", method, args != null ? args.length : 0);
+        log.debug("Platform request: method={}, argsCount={}", method, args != null ? args.length : 0);
         try {
             Object result = pjp.proceed();
-            log.debug("EntityPlatform response: method={}", method);
+            log.debug("Platform response: method={}", method);
             return result;
         } catch (Throwable t) {
-            log.warn("EntityPlatform error: method={}, error={}", method, t.getMessage());
+            log.warn("Platform error: method={}, error={}", method, t.getMessage());
             throw t;
         }
     }

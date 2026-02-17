@@ -118,17 +118,59 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 </script>
 ```
 
+### 4. 登录（Auth）
+
+后端需实现 auth 域：`/api/auth/0/captcha`、`/api/auth/0/login`、`/api/auth/0/logout`、`/api/auth/0/me`。EntityClient 与 AuthClient 自动携带 `credentials: 'include'` 以支持 Session Cookie。
+
+**初始化时配置 auth**（含 401 回调）：
+
+```ts
+import { createPlatform } from '@lrenyi/template-platform-frontend/vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+createPlatform({
+  client: { baseURL: 'http://localhost:8080' },
+  auth: {
+    onUnauthorized: () => router.push('/login'),
+  },
+});
+```
+
+**登录页**（配合 vue-router 路由守卫）：
+
+```vue
+<template>
+  <LoginPage
+    :redirect-path="(route.query.redirect as string) || '/'"
+    :on-success="(_, path) => router.push(path)"
+  />
+</template>
+
+<script setup lang="ts">
+import { LoginPage } from '@lrenyi/template-platform-frontend/vue';
+import { useRoute, useRouter } from 'vue-router';
+
+const route = useRoute();
+const router = useRouter();
+</script>
+```
+
+**路由守卫**：在 `router.beforeEach` 中判断 `useAuth().user`，未登录且非 `/login` 时重定向到登录页。
+
 ## API 参考
 
 ### Core 层（框架无关）
 
-- `EntityClient`：通用 API 客户端，对接 template-platform REST
+- `EntityClient`：通用 API 客户端，对接 template-platform REST，请求自动携带 `credentials: 'include'`
+- `AuthClient`：认证 API（getCaptcha、login、logout、me），支持 `onUnauthorized` 回调
 - `MetaService`：解析 `/api/docs` 获取实体元数据
-- 类型：`Result`、`PagedResult`、`SearchRequest`、`FilterCondition`、`SortOrder`
+- 类型：`Result`、`PagedResult`、`SearchRequest`、`AuthUser`、`LoginRequest`、`CaptchaResult`
 
 ### Vue 层
 
-- `createPlatform(options)`：初始化，应用入口调用
+- `createPlatform(options)`：初始化，支持 `client`、`meta`、`auth` 配置
 - `getPlatform()`：获取 client 与 meta
 - `useEntityCrud(client, entity, options)`：CRUD 逻辑
 - `useEntityMeta(meta, pathSegment)`：实体元数据
@@ -136,6 +178,8 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 - `EntitySearchBar`：搜索栏
 - `EntityForm`：新建/编辑表单
 - `EntityCrudPage`：完整 CRUD 页（搜索+表格+分页）
+- `LoginPage`：登录页（用户名、密码、验证码）
+- `useAuth()`：认证状态与操作（user、fetchCaptcha、login、logout、refreshMe）
 - `registerEntityConfig(pathSegment, config)`：实体级配置覆盖
 
 ### 实体配置

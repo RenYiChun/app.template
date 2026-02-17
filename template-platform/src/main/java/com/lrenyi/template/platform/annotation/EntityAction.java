@@ -1,5 +1,7 @@
 package com.lrenyi.template.platform.annotation;
 
+import org.springframework.web.bind.annotation.RequestMethod;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -23,6 +25,11 @@ public @interface EntityAction {
      * 动作名，对应 URL 最后一段，如 resetPassword。
      */
     String actionName();
+
+    /**
+     * HTTP 方法，默认 POST。
+     */
+    RequestMethod method() default RequestMethod.POST;
 
     /**
      * 请求体类型，无 body 时用 Void 或 EmptyRequest。

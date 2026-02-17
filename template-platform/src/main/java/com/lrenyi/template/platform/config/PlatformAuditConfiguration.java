@@ -30,7 +30,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-public class EntityPlatformAuditConfiguration {
+public class PlatformAuditConfiguration {
 
     @Configuration(proxyBeanMethods = false)
     @EnableAsync

@@ -5,7 +5,7 @@
 ## 约定
 
 - **实体基类**：所有 `@PlatformEntity` 实体**必须继承** `com.lrenyi.template.platform.domain.BaseEntity<ID>`。BaseEntity 提供统一主键及审计字段：`id`、`createTime`、`updateTime`、`createBy`、`updateBy`、`deleted`、`remark`。主键类型 `ID` 支持 `Long`、`Integer`、`UUID`、`String`。`createTime`/`updateTime` 由 `@PrePersist`/`@PreUpdate` 自动填充；`createBy`/`updateBy` 可由业务在创建/更新时赋值，或启用 JPA Auditing（`@EnableJpaAuditing` + `AuditorAware` Bean）后由 `AuditingEntityListener` 自动填充。
-- **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用 `POST /api/{entity}/{id}/{actionName}`。导出使用 `POST /api/{entity}/export`。
+- **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用 `GET/POST/PUT/DELETE /api/{entity}/{id}/{actionName}`，HTTP 方法由 `@EntityAction(method = ...)` 指定，默认 POST。导出使用 `POST /api/{entity}/export`。
 - **主键类型**：由 `@PlatformEntity(primaryKeyType = ...)` 显式指定，或由 BaseEntity 泛型 / `id` 字段类型推断；支持 `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回 400。Long/Integer 使用序列 `platform_entity_seq` 生成；UUID 随机生成；String 需业务在持久化前赋值。
 - **元数据**：注解 `@PlatformEntity`、`@EntityAction`，启动时扫描注册。每个实体的默认 CRUD/导出接口可单独开关：`enableList`、`enableGet`、`enableCreate`、`enableUpdate`、`enableUpdateBatch`、`enableDelete`、`enableDeleteBatch`、`enableExport`（均默认 true），关闭某项则对应接口返回 404；OpenAPI 文档仅展示已启用的接口。
 - **响应体**：成功与异常均使用 `template-core` 的 **Result&lt;T&gt;** 包装（`code`、`data`、`message`）；成功时 `data` 为实体或分页结果，删除成功时 `data` 为 `null`。列表接口 `data` 为 **PagedResult** 结构（`content`、`totalElements`、`totalPages`、`number`、`size`）。若希望 `data` 为响应 DTO 而非实体，可在自定义 `EntityCrudService` 中做实体→DTO 转换后返回；请求 DTO 可由调用方按接口约定自行定义，或使用下方生成的 CRUD DTO。
@@ -200,7 +200,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 ## 使用
 
 1. 实体类**继承** `BaseEntity<Long>`（或 `BaseEntity<UUID>` 等），并标注 `@PlatformEntity(pathSegment = "users", displayName = "用户")`；若用 JPA，实体类同时加 `@Entity`。
-2. 实现 `EntityActionExecutor` 并在类上使用 `@EntityAction(entity = User.class, actionName = "resetPassword", ...)`，将该类注册为 Spring Bean（如 `@Component`）。
+2. 实现 `EntityActionExecutor` 并在类上使用 `@EntityAction(entity = User.class, actionName = "resetPassword", method = RequestMethod.POST, ...)` 将该类注册为 Spring Bean（如 `@Component`）。`method` 可选，默认 POST，支持 GET/POST/PUT/DELETE。
 3. 启动应用后即可访问：
    - `POST /api/users/search`（分页搜索）、`POST /api/users`（创建）、`GET/PUT/DELETE /api/users/{id}`（CRUD）
    - `POST /api/users/{id}/resetPassword`（Action）
@@ -209,7 +209,7 @@ public class UsersCrudService extends DelegatingEntityCrudService implements Pat
 ## 可运行示例
 
 ```bash
-mvn spring-boot:run -pl template-platform-sample
+mvnw.cmd spring-boot:run -pl template-platform-backend
 ```
 
 然后可请求：`POST http://localhost:8080/api/users/search`（body: `{"page":0,"size":20}` 或空）、`POST http://localhost:8080/api/users`（body: `{"username":"a","email":"a@b.c"}`）、`POST http://localhost:8080/api/users/1/resetPassword`（body: `{"newPassword":"xxx"}`）、`GET http://localhost:8080/api/docs`（OpenAPI JSON）；在浏览器打开 `http://localhost:8080/docs` 可查看内嵌 API 文档界面（Scalar）。

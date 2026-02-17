@@ -34,7 +34,8 @@ import org.springframework.util.StringUtils;
 
 /**
  * 启动时扫描 @PlatformEntity 与 @EntityAction，构建 EntityMeta/ActionMeta 并注册。
- * 当 JPA 可用时优先从 EntityManagerFactory 元模型获取实体（避免慢速 classpath 扫描）。
+ * 当 scan-packages 配置非空时使用 classpath 扫描，可注册 JPA 与非 JPA 的 @PlatformEntity（如 Auth）；
+ * 否则若 JPA 可用则从 Metamodel 获取。
  */
 public class MetaScanner {
 
@@ -58,13 +59,14 @@ public class MetaScanner {
     
     /**
      * 仅扫描并注册 @PlatformEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
-     * 等阶段卡住）。当 JPA 可用时从 Metamodel 获取；否则回退到 classpath 扫描。
+     * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @PlatformEntity）；
+     * 否则且 JPA 可用时从 Metamodel 获取。
      */
     public void registerEntitiesOnly() {
-        if (entityManagerFactory != null) {
-            registerFromMetamodel();
-        } else {
+        if (StringUtils.hasText(basePackage)) {
             registerFromClasspathScan();
+        } else if (entityManagerFactory != null) {
+            registerFromMetamodel();
         }
     }
     
@@ -97,7 +99,7 @@ public class MetaScanner {
     
     /**
      * 扫描 @PlatformEntity 实体并注册；注册带 @EntityAction 的 Action 执行器。
-     * 当 JPA 可用时从 Metamodel 获取实体（快速）；否则回退到 classpath 扫描。
+     * 实体注册逻辑见 registerEntitiesOnly()。
      */
     public void scanAndRegister(List<Object> actionExecutorBeans) {
         registerEntitiesOnly();
@@ -268,6 +270,7 @@ public class MetaScanner {
         ActionMeta meta = new ActionMeta();
         meta.setActionName(ann.actionName());
         meta.setEntityName(ann.entity().getSimpleName());
+        meta.setMethod(ann.method());
         meta.setRequestType(ann.requestType());
         meta.setResponseType(ann.responseType());
         meta.setSummary(ann.summary());

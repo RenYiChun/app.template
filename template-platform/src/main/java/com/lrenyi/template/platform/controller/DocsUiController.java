@@ -1,6 +1,6 @@
 package com.lrenyi.template.platform.controller;
 
-import com.lrenyi.template.platform.config.EntityPlatformProperties;
+import com.lrenyi.template.platform.config.PlatformProperties;
 import java.nio.charset.StandardCharsets;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -20,9 +20,9 @@ public class DocsUiController {
     
     private static final String SCALAR_CDN = "https://cdn.jsdelivr.net/npm/@scalar/api-reference";
 
-    private final EntityPlatformProperties properties;
+    private final PlatformProperties properties;
 
-    public DocsUiController(EntityPlatformProperties properties) {
+    public DocsUiController(PlatformProperties properties) {
         this.properties = properties;
     }
 

@@ -1,5 +1,5 @@
 com.lrenyi.template.platform.config.JpaPlatformEntityScanConfiguration
 com.lrenyi.template.platform.config.JpaEntityCrudServiceAutoConfiguration
 com.lrenyi.template.platform.config.RbacAutoConfiguration
-com.lrenyi.template.platform.config.EntityPlatformAutoConfiguration
-com.lrenyi.template.platform.config.EntityPlatformAuditConfiguration
+com.lrenyi.template.platform.config.PlatformAutoConfiguration
+com.lrenyi.template.platform.config.PlatformAuditConfiguration

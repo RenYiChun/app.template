@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Configuration
 @AutoConfigureAfter(name = "org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration")
-@AutoConfigureBefore(EntityPlatformAutoConfiguration.class)
+@AutoConfigureBefore(PlatformAutoConfiguration.class)
 public class RbacAutoConfiguration {
 
     @Bean
@@ -37,7 +37,7 @@ public class RbacAutoConfiguration {
     @Bean
     @ConditionalOnBean(RbacQueryService.class)
     public UserPermissionResolver defaultUserPermissionResolver(RbacQueryService rbacQueryService,
-                                                                EntityPlatformProperties properties) {
+                                                                PlatformProperties properties) {
         return new DefaultUserPermissionResolver(rbacQueryService, properties);
     }
 
@@ -51,7 +51,7 @@ public class RbacAutoConfiguration {
     @ConditionalOnClass(EntityManager.class)
     public PermissionInitializer permissionInitializer(EntityRegistry entityRegistry,
                                                       EntityManager entityManager,
-                                                      EntityPlatformProperties properties,
+                                                      PlatformProperties properties,
                                                       ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
         return new PermissionInitializer(entityRegistry, entityManager, properties, transactionTemplateProvider);
     }
