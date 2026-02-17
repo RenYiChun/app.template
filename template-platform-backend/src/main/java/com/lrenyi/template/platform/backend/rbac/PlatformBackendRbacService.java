@@ -1,5 +1,9 @@
 package com.lrenyi.template.platform.backend.rbac;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.api.rbac.model.AppUser;
 import com.lrenyi.template.api.rbac.model.Permission;
@@ -8,10 +12,6 @@ import com.lrenyi.template.platform.backend.domain.User;
 import com.lrenyi.template.platform.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,7 +31,7 @@ public class PlatformBackendRbacService implements com.lrenyi.oauth2.service.oau
 
     @Override
     public AppUser<?> findUserByIdentifier(String identifier, IdentifierType identifierType) {
-        if (identifier == null || identifier.isBlank()) {
+        if (identifier.isBlank()) {
             return null;
         }
         Optional<User> userOpt = switch (identifierType) {
@@ -43,9 +43,6 @@ public class PlatformBackendRbacService implements com.lrenyi.oauth2.service.oau
 
     @Override
     public <T> List<Role> getRolesByUserId(T userId) {
-        if (userId == null) {
-            return Collections.emptyList();
-        }
         String userIdStr = resolveUserId(userId);
         if (userIdStr == null) {
             return Collections.emptyList();
@@ -69,9 +66,6 @@ public class PlatformBackendRbacService implements com.lrenyi.oauth2.service.oau
 
     @Override
     public <T> List<Permission> getPermissionsByRoleId(T roleId) {
-        if (roleId == null) {
-            return Collections.emptyList();
-        }
         Object id = roleId;
         if (roleId instanceof String s) {
             try {
@@ -137,35 +131,30 @@ public class PlatformBackendRbacService implements com.lrenyi.oauth2.service.oau
         @Override
         public void setPermissions(List<Permission> permissions) {}
     }
-
-    private static final class PermissionAdapter implements Permission {
-        private final com.lrenyi.template.platform.domain.Permission perm;
-
-        PermissionAdapter(com.lrenyi.template.platform.domain.Permission perm) {
-            this.perm = perm;
-        }
-
+    
+    private record PermissionAdapter(com.lrenyi.template.platform.domain.Permission perm) implements Permission {
+        
         @Override
         public String getId() {
             return perm.getId() != null ? perm.getId().toString() : null;
         }
-
+        
         @Override
         public void setId(String id) {}
-
+        
         @Override
         public String getName() {
             return perm.getName();
         }
-
+        
         @Override
         public void setName(String name) {}
-
+        
         @Override
         public String getPermission() {
             return perm.getPermission();
         }
-
+        
         @Override
         public void setPermission(String permission) {}
     }
