@@ -11,6 +11,10 @@ const router = createRouter({
       component: () => import('../views/HomeView.vue'),
       children: [
         {
+          path: '',
+          redirect: '/system/users',
+        },
+        {
           path: 'system/users',
           name: 'UserManagement',
           component: () => import('../views/system/UserList.vue'),

@@ -17,7 +17,7 @@
       <!-- Menu Items -->
       <div class="sidebar-menu">
         <el-scrollbar>
-          <el-menu
+            <el-menu
             :default-active="activeMenu"
             class="el-menu-vertical"
             :collapse="isCollapsed"
@@ -25,12 +25,9 @@
             text-color="#94a3b8"
             active-text-color="#ffffff"
             :collapse-transition="false"
-            router
+            @select="handleSelect"
           >
-            <el-menu-item index="1" @click="$router.push('/')">
-              <el-icon><DataBoard /></el-icon>
-              <template #title>控制台</template>
-            </el-menu-item>
+            <!-- Console is removed as requested -->
             
             <el-sub-menu index="2">
               <template #title>
@@ -44,7 +41,7 @@
               <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
             </el-sub-menu>
 
-            <el-menu-item index="3" @click="$router.push('/docs')">
+            <el-menu-item index="docs">
               <el-icon><Document /></el-icon>
               <template #title>文档</template>
             </el-menu-item>
@@ -71,8 +68,8 @@
           </button>
           
           <el-breadcrumb separator="/" class="breadcrumb">
-            <el-breadcrumb-item :to="{ path: '/' }">Home</el-breadcrumb-item>
-            <el-breadcrumb-item>Dashboard</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="$route.name">{{ $route.name }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
 
@@ -135,7 +132,14 @@ const { user, logout, refreshMe } = useAuth();
 const router = useRouter();
 
 const isCollapsed = ref(false);
-const activeMenu = ref('1');
+const activeMenu = computed(() => router.currentRoute.value.path);
+const handleSelect = (index: string) => {
+    if (index === 'docs') {
+        window.open('http://localhost:8080/docs', '_blank');
+    } else if (index.startsWith('/')) {
+        router.push(index);
+    }
+};
 
 const userInitial = computed(() => {
     return (user.value?.username?.[0] || 'A').toUpperCase();

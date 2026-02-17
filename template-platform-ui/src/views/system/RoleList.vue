@@ -39,6 +39,9 @@
         <el-form-item label="角色名称" prop="roleName">
           <el-input v-model="form.roleName" />
         </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -91,6 +94,7 @@ const form = reactive({
   id: null as number | null,
   roleCode: '',
   roleName: '',
+  remark: '',
 });
 
 const rules = {
@@ -116,6 +120,7 @@ const handleAdd = () => {
     id: null,
     roleCode: '',
     roleName: '',
+    remark: '',
   });
   dialogVisible.value = true;
 };
@@ -188,7 +193,7 @@ const loadPermissions = async () => {
 const loadRolePermissions = async (roleId: number) => {
   try {
     const result = await client.search('role_permissions', {
-      filters: [{ field: 'roleId', op: 'eq', value: roleId }],
+      filters: [{ field: 'role.id', op: 'eq', value: roleId }],
       page: 0,
       size: 1000,
     });
@@ -205,7 +210,7 @@ const handleSavePerms = async () => {
 
     // 删除所有现有权限
     const existingResult = await client.search('role_permissions', {
-      filters: [{ field: 'roleId', op: 'eq', value: currentRole.value.id }],
+      filters: [{ field: 'role.id', op: 'eq', value: currentRole.value.id }],
       page: 0,
       size: 1000,
     });

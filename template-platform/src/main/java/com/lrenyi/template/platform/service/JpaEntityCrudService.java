@@ -43,11 +43,11 @@ public class JpaEntityCrudService implements EntityCrudService {
         ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
         StringBuilder whereClause = new StringBuilder();
         List<Object> params = new ArrayList<>();
-        buildWhere(whereClause, params, c.getFilters(), entityName);
+        buildWhere(whereClause, params, c.getFilters(), "e");
         String where = whereClause.length() > 0 ? " WHERE " + whereClause : "";
         long total = countWithWhere(entityName, where, params);
         Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
-        String orderBy = buildOrderBy(sort, entityName);
+        String orderBy = buildOrderBy(sort, "e");
         String jpql = "SELECT e FROM " + entityName + " e" + where + orderBy;
         TypedQuery<Object> q = (TypedQuery<Object>) entityManager.createQuery(jpql, entityClass);
         for (int i = 0; i < params.size(); i++) {
@@ -104,7 +104,8 @@ public class JpaEntityCrudService implements EntityCrudService {
                     sb.append(entityAlias).append(".").append(attr).append(" IN :").append(paramName);
                     params.add(fc.value());
                 }
-                default -> { /* skip */ }
+                default -> {
+                    /* skip */ }
             }
         }
     }
@@ -239,7 +240,7 @@ public class JpaEntityCrudService implements EntityCrudService {
     private void setEntityId(Object entity, Object id) {
         InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
     }
-    
+
     private static Field findIdField(Class<?> clazz) {
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             try {

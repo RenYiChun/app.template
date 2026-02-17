@@ -34,6 +34,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
+          <el-button type="success" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
 
@@ -201,6 +202,37 @@ const handleReset = () => {
     dateRange: [],
   });
   handleSearch();
+};
+
+const handleExport = async () => {
+  try {
+    const filters: any[] = [];
+    if (searchForm.userName) {
+      filters.push({ field: 'userName', op: 'like', value: searchForm.userName });
+    }
+    if (searchForm.serviceName) {
+      filters.push({ field: 'serviceName', op: 'like', value: searchForm.serviceName });
+    }
+    if (searchForm.success !== null) {
+      filters.push({ field: 'success', op: 'eq', value: searchForm.success });
+    }
+    if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+      filters.push({ field: 'operationTime', op: 'gte', value: searchForm.dateRange[0] });
+      filters.push({ field: 'operationTime', op: 'lte', value: searchForm.dateRange[1] });
+    }
+
+    const blob = await client.export('sys_operation_log', { filters });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'operation_logs.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    ElMessage.error('导出失败');
+  }
 };
 
 const handleViewDetail = (row: any) => {

@@ -7,6 +7,9 @@
           <el-button type="primary" @click="handleAdd(null)">
             <el-icon><Plus /></el-icon> 新增顶级部门
           </el-button>
+          <el-button type="success" @click="handleExport">
+            导出 Excel
+          </el-button>
         </div>
       </template>
 
@@ -203,6 +206,22 @@ const handleDelete = async (row: any) => {
     loadData();
   } catch (error: any) {
     ElMessage.error(error.message || '删除失败');
+  }
+};
+
+const handleExport = async () => {
+  try {
+    const blob = await client.export('departments', {});
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'departments.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    ElMessage.error('导出失败');
   }
 };
 

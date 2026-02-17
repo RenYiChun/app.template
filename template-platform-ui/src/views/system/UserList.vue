@@ -24,6 +24,7 @@
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
+          <el-button type="success" @click="handleExport">导出</el-button>
         </el-form-item>
       </el-form>
 
@@ -86,6 +87,19 @@
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" />
         </el-form-item>
+        <el-form-item label="部门" prop="departmentId">
+          <el-cascader
+            v-model="form.departmentId"
+            :options="deptTreeData"
+            :props="{ label: 'name', value: 'id', checkStrictly: true, emitPath: false }"
+            placeholder="请选择部门"
+            clearable
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" />
+        </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
             <el-radio label="1">正常</el-radio>
@@ -129,6 +143,7 @@ const tableData = ref<any[]>([]);
 const allRoles = ref<any[]>([]);
 const selectedRoles = ref<number[]>([]);
 const currentUser = ref<any>(null);
+const deptTreeData = ref<any[]>([]);
 
 const searchForm = reactive({
   username: '',
@@ -153,6 +168,8 @@ const form = reactive({
   password: '',
   email: '',
   phone: '',
+  departmentId: null as number | null,
+  remark: '',
   status: '1',
 });
 
@@ -202,15 +219,19 @@ const handleAdd = () => {
     password: '',
     email: '',
     phone: '',
+    departmentId: null,
+    remark: '',
     status: '1',
   });
   dialogVisible.value = true;
+  loadDeptTree();
 };
 
 const handleEdit = (row: any) => {
   dialogTitle.value = '编辑用户';
   Object.assign(form, { ...row, password: '' });
   dialogVisible.value = true;
+  loadDeptTree();
 };
 
 const handleDialogClose = () => {
@@ -221,11 +242,14 @@ const handleSubmit = async () => {
   await formRef.value.validate();
   submitting.value = true;
   try {
+    const submitData = { ...form };
     if (form.id) {
-      await client.update('users', form.id, form);
+      if (!submitData.password) delete (submitData as any).password;
+      await client.update('users', form.id, submitData);
       ElMessage.success('更新成功');
     } else {
-      await client.create('users', form);
+      delete (submitData as any).id;
+      await client.create('users', submitData);
       ElMessage.success('创建成功');
     }
     dialogVisible.value = false;
@@ -246,6 +270,56 @@ const handleDelete = async (row: any) => {
   } catch (error: any) {
     ElMessage.error(error.message || '删除失败');
   }
+};
+
+const handleExport = async () => {
+  try {
+    const filters: any[] = [];
+    if (searchForm.username) {
+      filters.push({ field: 'username', op: 'like', value: searchForm.username });
+    }
+    if (searchForm.status) {
+      filters.push({ field: 'status', op: 'eq', value: searchForm.status });
+    }
+
+    const blob = await client.export('users', { filters });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'users.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    ElMessage.error('导出失败');
+  }
+};
+
+const loadDeptTree = async () => {
+  try {
+    const result = await client.search('departments', { page: 0, size: 1000 });
+    const list = result.content || [];
+    deptTreeData.value = buildTree(list);
+  } catch (error: any) {
+    console.error('加载部门树失败', error);
+  }
+};
+
+const buildTree = (list: any[]) => {
+  const map: any = {};
+  const roots: any[] = [];
+  list.forEach((item) => {
+    map[item.id] = { ...item, children: [] };
+  });
+  list.forEach((item) => {
+    if (item.parentId && map[item.parentId]) {
+      map[item.parentId].children.push(map[item.id]);
+    } else {
+      roots.push(map[item.id]);
+    }
+  });
+  return roots;
 };
 
 const handleAssignRoles = async (row: any) => {

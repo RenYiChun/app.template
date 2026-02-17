@@ -1,5 +1,7 @@
 package com.lrenyi.template.platform.support;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.List;
 
@@ -10,15 +12,17 @@ public record SearchRequest(
         List<FilterCondition> filters,
         List<SortOrder> sort,
         int page,
-        int size
-) {
-    public SearchRequest {
-        if (filters == null) {
-            filters = Collections.emptyList();
-        }
-        if (sort == null) {
-            sort = Collections.emptyList();
-        }
+        int size) {
+    @JsonCreator
+    public SearchRequest(
+            @JsonProperty("filters") List<FilterCondition> filters,
+            @JsonProperty("sort") List<SortOrder> sort,
+            @JsonProperty("page") int page,
+            @JsonProperty("size") int size) {
+        this.filters = filters != null ? filters : Collections.emptyList();
+        this.sort = sort != null ? sort : Collections.emptyList();
+        this.page = page;
+        this.size = size;
     }
 
     public static SearchRequest empty() {

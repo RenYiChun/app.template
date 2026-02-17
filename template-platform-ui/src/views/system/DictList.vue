@@ -10,6 +10,9 @@
               <el-button type="primary" @click="handleAddDict">
                 <el-icon><Plus /></el-icon> 新增字典
               </el-button>
+              <el-button type="success" @click="handleExportDict">
+                导出
+              </el-button>
             </div>
           </template>
 
@@ -41,6 +44,9 @@
               <span>字典项列表 {{ currentDict ? `(${currentDict.dictName})` : '' }}</span>
               <el-button type="primary" @click="handleAddItem" :disabled="!currentDict">
                 <el-icon><Plus /></el-icon> 新增字典项
+              </el-button>
+              <el-button type="success" @click="handleExportItem" :disabled="!currentDict">
+                导出
               </el-button>
             </div>
           </template>
@@ -268,6 +274,22 @@ const handleDeleteDict = async (row: any) => {
   }
 };
 
+const handleExportDict = async () => {
+  try {
+    const blob = await client.export('sys_dicts', {});
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'dicts.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    ElMessage.error('导出失败');
+  }
+};
+
 const handleAddItem = () => {
   if (!currentDict.value) return;
   itemDialogTitle.value = '新增字典项';
@@ -321,6 +343,24 @@ const handleDeleteItem = async (row: any) => {
     loadItems(currentDict.value.dictCode);
   } catch (error: any) {
     ElMessage.error(error.message || '删除失败');
+  }
+};
+
+const handleExportItem = async () => {
+  if (!currentDict.value) return;
+  try {
+    const filters: any[] = [{ field: 'dictCode', op: 'eq', value: currentDict.value.dictCode }];
+    const blob = await client.export('sys_dict_items', { filters });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `dict_items_${currentDict.value.dictCode}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    ElMessage.error('导出失败');
   }
 };
 
