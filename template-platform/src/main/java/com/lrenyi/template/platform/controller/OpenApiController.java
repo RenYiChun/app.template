@@ -180,12 +180,20 @@ public class OpenApiController {
         }
         Map<String, Object> schemas = buildSchemas();
         schemas.put("SearchRequest", buildSearchRequestSchema());
+        Map<String, Object> securitySchemes = Map.of(
+                "bearerAuth", Map.of(
+                        "type", "http",
+                        "scheme", "bearer",
+                        "bearerFormat", "JWT"
+                )
+        );
         Map<String, Object> doc = new HashMap<>();
         doc.put("openapi", "3.0.0");
         doc.put("info", Map.of("title", "Entity Platform API", "version", "1.0"));
         doc.put("tags", tagsList);
         doc.put("paths", pathsMap);
-        doc.put("components", Map.of("schemas", schemas));
+        doc.put("components", Map.of("schemas", schemas, "securitySchemes", securitySchemes));
+        doc.put("security", List.of(Map.of("bearerAuth", List.of())));
         return ResponseEntity.ok(doc);
     }
 

@@ -135,7 +135,9 @@ const isCollapsed = ref(false);
 const activeMenu = computed(() => router.currentRoute.value.path);
 const handleSelect = (index: string) => {
     if (index === 'docs') {
-        window.open('http://localhost:8080/docs', '_blank');
+        const token = localStorage.getItem('auth_token');
+        const url = token ? `/docs?token=${token}` : '/docs';
+        window.open(url, '_blank');
     } else if (index.startsWith('/')) {
         router.push(index);
     }
