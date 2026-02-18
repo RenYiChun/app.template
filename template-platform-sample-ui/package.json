@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@lrenyi/platform-headless": "file:../template-platform-headless",
+    "@lrenyi/platform-ui": "file:../template-platform-ui",
     "element-plus": "^2.5.0",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"

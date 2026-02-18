@@ -115,7 +115,8 @@
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { usePlatform, EntityCrudPage, BusinessError, NetworkError } from '@lrenyi/platform-headless/vue';
+import { usePlatform, BusinessError, NetworkError } from '@lrenyi/platform-headless/vue';
+import { EntityCrudPage } from '@lrenyi/platform-ui';
 
 const { client } = usePlatform();
 interface User {

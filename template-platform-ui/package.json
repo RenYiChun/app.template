@@ -1,0 +1,31 @@
+{
+  "name": "@lrenyi/platform-ui",
+  "version": "1.0.0",
+  "description": "template-platform UI 组件库 (Element Plus)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "peerDependencies": {
+    "@lrenyi/platform-headless": "file:../template-platform-headless",
+    "element-plus": ">=2.0.0",
+    "vue": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "element-plus": "^2.5.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.8.0",
+    "vue": "^3.4.0"
+  }
+}

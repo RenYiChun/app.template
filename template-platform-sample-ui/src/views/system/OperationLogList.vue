@@ -76,8 +76,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { EntityCrudPage, usePlatform } from '@lrenyi/platform-headless/vue';
-import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
+import { usePlatform } from '@lrenyi/platform-headless/vue';
+import { EntityCrudPage } from '@lrenyi/platform-ui';
+import type { ColumnConfig } from '@lrenyi/platform-ui';
 import dayjs from 'dayjs';
 
 interface OperationLog {

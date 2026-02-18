@@ -89,7 +89,8 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { usePlatform, EntityTable, useEntityCrud, BusinessError } from '@lrenyi/platform-headless/vue';
+import { usePlatform, useEntityCrud, BusinessError } from '@lrenyi/platform-headless/vue';
+import { EntityTable } from '@lrenyi/platform-ui';
 
 const { client } = usePlatform();
 

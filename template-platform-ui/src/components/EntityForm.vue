@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { SchemaProperty } from '../../core/index.js';
+import type { SchemaProperty } from '@lrenyi/platform-headless';
 
 const props = withDefaults(
   defineProps<{

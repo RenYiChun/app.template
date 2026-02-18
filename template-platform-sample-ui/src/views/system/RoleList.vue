@@ -62,7 +62,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { usePlatform, EntityCrudPage, BusinessError } from '@lrenyi/platform-headless/vue';
+import { usePlatform, BusinessError } from '@lrenyi/platform-headless/vue';
+import { EntityCrudPage } from '@lrenyi/platform-ui';
 
 const { client } = usePlatform();
 

@@ -63,12 +63,10 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
-import { usePlatform } from '../createPlatform.js';
-import { useEntityMeta } from '../composables/useEntityMeta.js';
-import { useEntityCrud } from '../composables/useEntityCrud.js';
+import { usePlatform, useEntityMeta, useEntityCrud } from '@lrenyi/platform-headless/vue';
 import { resolveColumns, getEntityConfig } from '../config.js';
 import type { ColumnConfig } from '../config.js';
-import type { FilterCondition, SearchRequest } from '../../core/index.js';
+import type { FilterCondition, SearchRequest } from '@lrenyi/platform-headless';
 
 const props = withDefaults(
   defineProps<{
@@ -151,8 +149,8 @@ const searchFieldsConfig = computed(() => {
   return config?.searchFields;
 });
 
-const onFiltersChange = (v: Array<{ field: string; op: import('../../core/index.js').Op; value: unknown }>) => {
-  filters.value = v as import('../../core/index.js').FilterCondition[];
+const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/platform-headless').Op; value: unknown }>) => {
+  filters.value = v as import('@lrenyi/platform-headless').FilterCondition[];
 };
 
 const pageOneBased = computed({
@@ -214,3 +212,22 @@ defineExpose({
   reset: onReset,
 });
 </script>
+
+<style>
+/* 实体 CRUD 页面布局样式 */
+/* 注意：这里没有使用 scoped，以便允许样式穿透或被外部覆盖。但为了避免污染，使用了 .entity-crud-page 命名空间 */
+.entity-crud-page .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.entity-crud-page .batch-actions {
+  margin-bottom: 12px;
+}
+
+.entity-crud-page .el-pagination {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+</style>

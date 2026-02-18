@@ -59,8 +59,7 @@
 
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue';
-import type { FilterCondition, Op } from '../../core/index.js';
-import type { EntityMeta } from '../../core/index.js';
+import type { FilterCondition, Op, EntityMeta } from '@lrenyi/platform-headless';
 
 const props = withDefaults(
   defineProps<{
