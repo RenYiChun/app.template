@@ -53,7 +53,6 @@
         <module>template-flow-sources</module>
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
-        <module>template-fastgen-parent</module>
         <module>template-platform-processor</module>
         <module>template-platform</module>
         <module>template-platform-sample-backend</module>
