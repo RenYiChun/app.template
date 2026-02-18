@@ -63,7 +63,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
-import { getPlatform } from '../createPlatform.js';
+import { usePlatform } from '../createPlatform.js';
 import { useEntityMeta } from '../composables/useEntityMeta.js';
 import { useEntityCrud } from '../composables/useEntityCrud.js';
 import { resolveColumns, getEntityConfig } from '../config.js';
@@ -100,7 +100,7 @@ const emit = defineEmits<{
   (e: 'action', action: string, row: Record<string, unknown>): void;
 }>();
 
-const { client, meta } = getPlatform();
+const { client, meta } = usePlatform();
 const { meta: entityMeta, loading: metaLoading, refresh: refreshMeta } = useEntityMeta(meta, props.entity);
 
 const crud = useEntityCrud(client, props.entity, {

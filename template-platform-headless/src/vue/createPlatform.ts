@@ -8,6 +8,7 @@ import { MetaService } from '../core/index.js';
 import type { AuthClientConfig } from '../core/authClient.js';
 import type { EntityClientConfig } from '../core/index.js';
 import type { MetaServiceConfig } from '../core/index.js';
+import { inject, type App, type InjectionKey } from 'vue';
 
 export interface PlatformOptions {
   client?: EntityClientConfig;
@@ -15,15 +16,25 @@ export interface PlatformOptions {
   auth?: AuthClientConfig;
 }
 
+export interface PlatformInstance {
+  client: EntityClient;
+  meta: MetaService;
+  authClient: AuthClient | null;
+  install(app: App): void;
+}
+
+export const PlatformSymbol: InjectionKey<PlatformInstance> = Symbol('Platform');
+
 let defaultClient: EntityClient | null = null;
 let defaultMeta: MetaService | null = null;
 let defaultAuthClient: AuthClient | null = null;
 
-export function createPlatform(options: PlatformOptions = {}) {
+export function createPlatform(options: PlatformOptions = {}): PlatformInstance {
   const clientConfig = options.client ?? {};
   const baseRequest = clientConfig.request ?? ((url: string, opts?: RequestInit) =>
     fetch(url, { ...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include' }));
-  defaultAuthClient = new AuthClient({
+  
+  const authClient = new AuthClient({
     baseURL: clientConfig.baseURL,
     apiPrefix: clientConfig.apiPrefix,
     request: baseRequest,
@@ -32,21 +43,48 @@ export function createPlatform(options: PlatformOptions = {}) {
     oauth2ClientSecret: options.auth?.oauth2ClientSecret,
     ...options.auth,
   });
+  
   const requestWithToken = (url: string, opts: RequestInit = {}) => {
-    const token = defaultAuthClient?.getToken();
+    const token = authClient.getToken();
     const headers = new Headers(opts.headers);
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
     return baseRequest(url, { ...opts, headers });
   };
-  defaultClient = new EntityClient({
+  
+  const client = new EntityClient({
     ...clientConfig,
     platformId: clientConfig.platformId,
     request: requestWithToken,
   });
-  defaultMeta = new MetaService(defaultClient, options.meta);
-  return { client: defaultClient, meta: defaultMeta, authClient: defaultAuthClient };
+  
+  const meta = new MetaService(client, options.meta);
+
+  // Set global singletons for backward compatibility
+  defaultClient = client;
+  defaultMeta = meta;
+  defaultAuthClient = authClient;
+
+  const instance: PlatformInstance = { 
+    client, 
+    meta, 
+    authClient,
+    install(app: App) {
+      app.provide(PlatformSymbol, this);
+    }
+  };
+
+  return instance;
+}
+
+export function usePlatform() {
+  const platform = inject(PlatformSymbol);
+  if (platform) {
+    return platform;
+  }
+  // Fallback to global singleton
+  return getPlatform();
 }
 
 export function getPlatform() {

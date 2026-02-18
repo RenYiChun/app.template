@@ -110,9 +110,9 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getPlatform, EntityCrudPage, type FilterCondition } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityCrudPage, type FilterCondition } from '@lrenyi/platform-headless/vue';
 
-const { client } = getPlatform();
+const { client } = usePlatform();
 
 const dictCrudRef = ref();
 const itemCrudRef = ref();

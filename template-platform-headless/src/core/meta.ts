@@ -83,13 +83,14 @@ export class MetaService {
       return this.cached;
     }
     const docsUrl = this.client.getDocsUrl();
-    const headers: Record<string, string> = {};
-    // Docs are public, no need to send token which might be invalid and cause 401
-    const res = await fetch(docsUrl, { credentials: 'include', headers });
-    if (res.status === 401 && typeof window !== 'undefined') {
-      const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.assign(`/login?redirect=${redirect}`);
-      throw new Error('未授权，已跳转登录');
+    
+    // 使用 EntityClient.request 保持统一的请求行为（如 baseURL 处理）
+    // 但 Docs 通常是公开的，如果 Token 失效可能导致 401。
+    // 如果返回 401，我们抛出特定错误供上层处理（例如跳转登录），而不是直接操作 window.location
+    const res = await this.client.request(docsUrl, { method: 'GET' });
+
+    if (res.status === 401) {
+      throw new Error('Unauthorized: 无法获取 OpenAPI 文档，请检查登录状态');
     }
     if (!res.ok) throw new Error(`拉取 OpenAPI 失败: ${res.status} ${docsUrl}`);
     const doc = (await res.json()) as OpenApiDoc;

@@ -2,7 +2,7 @@
  * 认证客户端：OAuth2 Password Grant 获取 JWT，Bearer Token 访问接口
  */
 
-import type { Result } from './types.js';
+import type { Result, StorageProvider } from './types.js';
 import { SUCCESS_CODE } from './types.js';
 import { joinPath, ensureSlash } from './utils.js';
 
@@ -15,6 +15,8 @@ export interface AuthClientConfig {
   oauth2ClientId?: string;
   /** OAuth2 客户端密钥 */
   oauth2ClientSecret?: string;
+  /** 存储接口（默认为 localStorage） */
+  storage?: StorageProvider;
 }
 
 export interface LoginRequest {
@@ -45,6 +47,7 @@ export class AuthClient {
   private readonly onUnauthorized?: () => void;
   private readonly clientId: string;
   private readonly clientSecret: string;
+  private readonly storage?: StorageProvider;
   private token: string | null = null;
 
   constructor(config: AuthClientConfig = {}) {
@@ -59,10 +62,15 @@ export class AuthClient {
       baseRequest(url, { ...opts, credentials: (opts.credentials as RequestCredentials) ?? 'include' });
     this.onUnauthorized = config.onUnauthorized;
 
-    // 从本地存储加载 token
-    if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('auth_token');
+    // 优先使用传入的 storage，否则尝试使用 localStorage
+    if (config.storage) {
+      this.storage = config.storage;
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      this.storage = window.localStorage;
     }
+
+    // 从存储加载 token
+    this.token = this.storage?.getItem('auth_token') ?? null;
   }
 
   /** 获取当前 token，供请求拦截器使用 */
@@ -73,9 +81,7 @@ export class AuthClient {
   /** 清除 token */
   clearToken(): void {
     this.token = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token');
-    }
+    this.storage?.removeItem('auth_token');
   }
 
   private authHeaders(): Record<string, string> {
@@ -153,9 +159,7 @@ export class AuthClient {
     }
 
     this.token = accessToken;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_token', accessToken);
-    }
+    this.storage?.setItem('auth_token', accessToken);
 
     const username = (tokenData.username ?? tokenData.sub ?? req.username) as string;
     return {

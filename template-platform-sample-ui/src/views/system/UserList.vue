@@ -115,9 +115,9 @@
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { getPlatform, EntityCrudPage } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityCrudPage } from '@lrenyi/platform-headless/vue';
 
-const { client } = getPlatform();
+const { client } = usePlatform();
 
 const crudRef = ref();
 const submitting = ref(false);

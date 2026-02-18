@@ -16,7 +16,7 @@ export type {
   PagedResult,
   Result,
 } from '../core/index.js';
-export { createPlatform, getPlatform } from './createPlatform.js';
+export { createPlatform, getPlatform, usePlatform } from './createPlatform.js';
 export { useAuth } from './composables/useAuth.js';
 export { useEntityCrud } from './composables/useEntityCrud.js';
 export { useEntityMeta } from './composables/useEntityMeta.js';

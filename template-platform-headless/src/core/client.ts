@@ -33,6 +33,17 @@ export class EntityClient {
       baseRequest(url, { ...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include' });
   }
 
+  /**
+   * 发起请求（使用内部配置的 requestFn，会自动处理 baseURL 和 credentials）
+   * @param url 完整 URL 或 path
+   * @param options 请求选项
+   */
+  async request(url: string, options: RequestInit = {}): Promise<Response> {
+    // 如果是相对路径且不以 http 开头，自动拼接 baseURL
+    const fullUrl = url.startsWith('http') ? url : this.url(url.replace(/^\//, ''));
+    return this.requestFn(fullUrl, options);
+  }
+
   /** 获取 OpenAPI 文档 URL，供 MetaService 使用 */
   getDocsUrl(): string {
     return joinPath(this.baseURL, this.apiPrefix, 'docs');

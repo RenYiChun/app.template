@@ -7,7 +7,7 @@ import App from './App.vue';
 import router from './router';
 import { createPlatform } from '@lrenyi/platform-headless/vue';
 
-createPlatform({
+const platform = createPlatform({
   client: { baseURL: '', apiPrefix: '/api' },
   auth: {
     onUnauthorized: () => {
@@ -17,6 +17,7 @@ createPlatform({
 });
 
 const app = createApp(App);
+app.use(platform);
 app.use(ElementPlus);
 app.use(router);
 app.mount('#app');

@@ -44,3 +44,10 @@ export interface Result<T> {
 
 /** 成功状态码 */
 export const SUCCESS_CODE = 0;
+
+/** 存储接口抽象 */
+export interface StorageProvider {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}

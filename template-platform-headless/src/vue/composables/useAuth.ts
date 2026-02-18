@@ -3,7 +3,7 @@
  */
 
 import { ref, type Ref } from 'vue';
-import { getPlatform } from '../createPlatform.js';
+import { usePlatform } from '../createPlatform.js';
 import type { AuthUser, LoginRequest } from '../../core/authClient.js';
 
 export interface UseAuthReturn {
@@ -23,7 +23,7 @@ const captchaKey = ref('');
 const captchaImage = ref('');
 
 export function useAuth(): UseAuthReturn {
-  const { authClient } = getPlatform();
+  const { authClient } = usePlatform();
 
   if (!authClient) {
     throw new Error('Platform 未初始化或未配置 auth，请先调用 createPlatform({ auth: {...} })');
