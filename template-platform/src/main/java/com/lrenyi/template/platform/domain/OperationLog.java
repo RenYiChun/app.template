@@ -1,10 +1,11 @@
 package com.lrenyi.template.platform.domain;
 
+import java.util.Date;
 import com.lrenyi.template.platform.annotation.PlatformEntity;
+import com.lrenyi.template.platform.annotation.Searchable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import java.util.Date;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,20 +20,33 @@ import lombok.Setter;
 @Table(name = "sys_operation_log")
 @PlatformEntity(pathSegment = "sys_operation_log", displayName = "操作日志", table = "sys_operation_log", generateDtos = false)
 public class OperationLog extends BaseEntity<Long> {
-
+    
+    @Searchable(label = "用户名", order = 1)
     @Column(length = 128)
     private String userName;
+    
+    @Searchable(label = "操作描述", order = 5)
     @Column(length = 512)
     private String description;
+
     @Column(nullable = false)
+    @Searchable(label = "操作时间", order = 6)
     private Date operationTime;
+
     private Long executionTimeMs;
+    
+    @Searchable(label = "请求IP", order = 2)
     @Column(length = 64)
     private String requestIp;
+    
+    @Searchable(label = "请求路径", order = 3)
     @Column(length = 512)
     private String requestUri;
+
     @Column(length = 16)
     private String requestMethod;
+    
+    @Searchable(label = "是否成功", order = 4)
     private boolean success;
     @Column(length = 2048)
     private String exceptionDetails;

@@ -21,7 +21,7 @@ export interface OperationMeta {
   summary?: string;
   operationId?: string;
   permissions?: string[];
-  queryableFields?: Record<string, { type: string; operators: Op[] }>;
+  queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
 }
 
 /** Action 元数据 */
@@ -35,6 +35,7 @@ export interface ActionMeta {
 export interface EntityMeta {
   pathSegment: string;
   displayName: string;
+  exportEnabled?: boolean;
   operations: Record<string, OperationMeta>;
   actions: ActionMeta[];
   schemas: {
@@ -42,7 +43,7 @@ export interface EntityMeta {
     update?: Record<string, SchemaProperty>;
     response?: Record<string, SchemaProperty>;
   };
-  queryableFields?: Record<string, { type: string; operators: Op[] }>;
+  queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
 }
 
 const OP_LIST: Op[] = ['eq', 'ne', 'like', 'gt', 'gte', 'lt', 'lte', 'in'];
@@ -82,7 +83,14 @@ export class MetaService {
       return this.cached;
     }
     const docsUrl = this.client.getDocsUrl();
-    const res = await fetch(docsUrl);
+    const headers: Record<string, string> = {};
+    // Docs are public, no need to send token which might be invalid and cause 401
+    const res = await fetch(docsUrl, { credentials: 'include', headers });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.assign(`/login?redirect=${redirect}`);
+      throw new Error('未授权，已跳转登录');
+    }
     if (!res.ok) throw new Error(`拉取 OpenAPI 失败: ${res.status} ${docsUrl}`);
     const doc = (await res.json()) as OpenApiDoc;
     this.cached = doc;
@@ -162,18 +170,21 @@ export class MetaService {
             operationId,
             permissions: (operation as OpenApiOperation & { 'x-permissions'?: string | string[] })['x-permissions'] as string[] | undefined,
           };
-          const qf = (operation as OpenApiOperation & { 'x-queryable-fields'?: Record<string, { type: string; operators: string[] }> })['x-queryable-fields'];
+          const qf = (operation as OpenApiOperation & { 'x-queryable-fields'?: Record<string, { type: string; operators: string[]; label?: string; order?: number }> })['x-queryable-fields'];
           if (qf) {
             opMeta.queryableFields = {};
             for (const [f, v] of Object.entries(qf)) {
               opMeta.queryableFields[f] = {
                 type: v?.type ?? 'string',
                 operators: (v?.operators ?? []) as Op[],
+                label: v?.label,
+                order: v?.order,
               };
             }
           }
           meta.operations[last] = opMeta;
           if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
+          if (last === 'export') meta.exportEnabled = true;
         }
 
         // 解析 schema 引用

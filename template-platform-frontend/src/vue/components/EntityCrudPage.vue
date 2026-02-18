@@ -1,6 +1,6 @@
 <template>
   <div class="entity-crud-page">
-    <el-card v-loading="metaLoading">
+    <el-card v-loading="metaLoading" :shadow="shadow">
       <template #header>
         <div class="card-header">
           <span>{{ displayName }}管理</span>
@@ -9,13 +9,14 @@
       </template>
 
       <EntitySearchBar
-        v-if="entityMeta"
         :entity-meta="entityMeta"
         :fields="searchFieldsConfig"
         :model-value="filters"
+        :export-loading="exportLoading"
         @update:model-value="onFiltersChange"
         @search="onSearch"
         @reset="onReset"
+        @export="handleExport"
       >
         <template v-if="$slots.search" #default="slotProps">
           <slot name="search" v-bind="slotProps" />
@@ -23,7 +24,7 @@
       </EntitySearchBar>
 
       <div v-if="selectable && selectedIds.length" class="batch-actions">
-        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+        <el-button v-if="selectable && selectedIds.length" type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </div>
 
       <EntityTable
@@ -65,7 +66,7 @@ import EntityTable from './EntityTable.vue';
 import { getPlatform } from '../createPlatform.js';
 import { useEntityMeta } from '../composables/useEntityMeta.js';
 import { useEntityCrud } from '../composables/useEntityCrud.js';
-import { resolveColumns } from '../config.js';
+import { resolveColumns, getEntityConfig } from '../config.js';
 import type { ColumnConfig } from '../config.js';
 
 const props = withDefaults(
@@ -76,11 +77,13 @@ const props = withDefaults(
     rowActions?: string[];
     selectable?: boolean;
     enableCreate?: boolean;
+    shadow?: 'always' | 'hover' | 'never';
   }>(),
   {
     rowActions: () => ['view', 'edit', 'delete'],
     selectable: false,
     enableCreate: true,
+    shadow: 'always',
   }
 );
 
@@ -111,11 +114,37 @@ const {
   resetFilters,
   remove,
   removeBatch,
+  exportExcel,
 } = crud;
+
+const exportLoading = ref(false);
+
+const handleExport = async () => {
+  exportLoading.value = true;
+  try {
+    const blob = await exportExcel();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${props.entity}-export.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (e) {
+    console.error('Export failed', e);
+  } finally {
+    exportLoading.value = false;
+  }
+};
 
 const displayName = computed(() => entityMeta.value?.displayName ?? props.entity);
 const columns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
-const searchFieldsConfig = computed(() => props.searchFields ?? []);
+const searchFieldsConfig = computed(() => {
+  if (props.searchFields) return props.searchFields;
+  const config = getEntityConfig(props.entity);
+  return config?.searchFields;
+});
 
 const onFiltersChange = (v: Array<{ field: string; op: import('../../core/index.js').Op; value: unknown }>) => {
   filters.value = v as import('../../core/index.js').FilterCondition[];

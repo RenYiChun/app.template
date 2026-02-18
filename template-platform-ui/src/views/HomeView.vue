@@ -39,6 +39,7 @@
               <el-menu-item index="/system/departments">部门管理</el-menu-item>
               <el-menu-item index="/system/dicts">字典管理</el-menu-item>
               <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
+              <el-menu-item index="/system/operation-logs-auto">操作日志(Auto)</el-menu-item>
             </el-sub-menu>
 
             <el-menu-item index="docs">

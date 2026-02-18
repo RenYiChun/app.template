@@ -16,6 +16,7 @@ import com.lrenyi.template.platform.annotation.EntityAction;
 import com.lrenyi.template.platform.annotation.ExportConverter;
 import com.lrenyi.template.platform.annotation.ExportExclude;
 import com.lrenyi.template.platform.annotation.PlatformEntity;
+import com.lrenyi.template.platform.annotation.Searchable;
 import com.lrenyi.template.platform.domain.BaseEntity;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
@@ -241,11 +242,19 @@ public class MetaScanner {
 
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
         List<FieldMeta> list = new ArrayList<>();
+        List<String> annotated = new ArrayList<>();
         List<Class<?>> hierarchy = new ArrayList<>();
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             hierarchy.add(c);
         }
         Collections.reverse(hierarchy);
+        for (Class<?> c : hierarchy) {
+            for (Field f : c.getDeclaredFields()) {
+                if (f.getAnnotation(Searchable.class) != null) {
+                    annotated.add(f.getName());
+                }
+            }
+        }
         for (Class<?> c : hierarchy) {
             for (Field f : c.getDeclaredFields()) {
                 FieldMeta fm = new FieldMeta();
@@ -258,6 +267,13 @@ public class MetaScanner {
                                 || fieldType == String.class || fieldType == UUID.class || fieldType == Integer.class
                                 || fieldType == int.class));
                 fm.setRequired(fm.isPrimaryKey());
+                Searchable searchable = f.getAnnotation(Searchable.class);
+                fm.setQueryable(annotated.contains(f.getName()));
+                if (searchable != null) {
+                    String label = searchable.label();
+                    fm.setSearchLabel(label);
+                    fm.setSearchOrder(searchable.order());
+                }
                 fm.setExportExcluded(f.getAnnotation(ExportExclude.class) != null);
                 ExportConverter exportConverter = f.getAnnotation(ExportConverter.class);
                 if (exportConverter != null) {

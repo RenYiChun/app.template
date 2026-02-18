@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import com.lrenyi.template.platform.meta.ActionMeta;
 import com.lrenyi.template.platform.meta.EntityMeta;
 import com.lrenyi.template.platform.meta.FieldMeta;
@@ -448,14 +449,30 @@ public class OpenApiController {
             if (fm == null || fm.getName() == null || fm.getName().isBlank()) {
                 continue;
             }
+            if (!fm.isQueryable()) {
+                continue;
+            }
             String type = fm.getType() != null ? fm.getType() : "String";
             List<String> operators = operatorsForType(type);
             Map<String, Object> fieldInfo = new LinkedHashMap<>();
             fieldInfo.put("type", type);
             fieldInfo.put("operators", operators);
+            if (fm.getSearchLabel() != null) {
+                fieldInfo.put("label", fm.getSearchLabel());
+            }
+            fieldInfo.put("order", fm.getSearchOrder());
             result.put(fm.getName(), fieldInfo);
         }
-        return result;
+        // 按 order 排序
+        return result.entrySet().stream()
+                .sorted((e1, e2) -> {
+                    Map<String, Object> m1 = (Map<String, Object>) e1.getValue();
+                    Map<String, Object> m2 = (Map<String, Object>) e2.getValue();
+                    int o1 = (int) m1.getOrDefault("order", 0);
+                    int o2 = (int) m2.getOrDefault("order", 0);
+                    return Integer.compare(o1, o2);
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
     }
 
     private static List<String> operatorsForType(String type) {
