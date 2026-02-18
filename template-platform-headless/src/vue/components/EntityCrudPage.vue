@@ -162,36 +162,36 @@ const pageOneBased = computed({
 
 const selectedIds = ref<(string | number)[]>([]);
 
-const onSearch = () => {
+const onSearch = async () => {
   page.value = 0;
-  doSearch();
+  await doSearch();
 };
 
-const onReset = () => {
+const onReset = async () => {
   resetFilters();
-  doSearch();
+  await doSearch();
 };
 
-const onSizeChange = () => {
+const onSizeChange = async () => {
   page.value = 0;
-  doSearch();
+  await doSearch();
 };
 
-const onPageChange = () => {
-  doSearch();
+const onPageChange = async () => {
+  await doSearch();
 };
 
-const doSearch = (overrides?: Partial<SearchRequest>) => {
+const doSearch = async (overrides?: Partial<SearchRequest>) => {
   const userFilters = overrides?.filters ?? filters.value;
   const finalFilters = [...(props.baseFilters || []), ...userFilters];
-  search({ ...overrides, filters: finalFilters });
+  await search({ ...overrides, filters: finalFilters });
 };
 
 const handleBatchDelete = async () => {
   if (selectedIds.value.length === 0) return;
   await removeBatch(selectedIds.value);
   selectedIds.value = [];
-  doSearch();
+  await doSearch();
 };
 
 // Watch baseFilters change to trigger search if immediate or already loaded

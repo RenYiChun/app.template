@@ -170,7 +170,7 @@ export class EntityClient {
   /** 批量更新 */
   async updateBatch<T = Record<string, unknown>>(
     entity: string,
-    items: Array<{ id: string | number } & Record<string, unknown>>
+    items: Array<{ id: string | number } & Partial<T>>
   ): Promise<T[]> {
     if (!items.length) return [];
     const res = await this.requestFn(this.url(`${entity}/batch`), {
@@ -232,6 +232,7 @@ export class EntityClient {
       update: (id: string | number, body: Partial<T>) => this.update<T>(name, id, body),
       delete: (id: string | number) => this.delete(name, id),
       deleteBatch: (ids: (string | number)[]) => this.deleteBatch(name, ids),
+      updateBatch: (items: Array<{ id: string | number } & Partial<T>>) => this.updateBatch<T>(name, items),
     };
   }
 }

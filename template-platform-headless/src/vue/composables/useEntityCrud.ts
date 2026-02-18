@@ -12,7 +12,7 @@ export interface UseEntityCrudOptions {
   onError?: (err: Error) => void;
 }
 
-export function useEntityCrud(
+export function useEntityCrud<T = Record<string, unknown>>(
   client: EntityClient,
   entity: string,
   options: UseEntityCrudOptions = {}
@@ -23,7 +23,7 @@ export function useEntityCrud(
     onError,
   } = options;
 
-  const items = ref<Record<string, unknown>[]>([]);
+  const items = ref<T[]>([]);
   const total = ref(0);
   const loading = ref(false);
   const filters = ref<FilterCondition[]>([]);
@@ -46,7 +46,7 @@ export function useEntityCrud(
         page: overrides?.page ?? page.value,
         size: overrides?.size ?? size.value,
       };
-      const result = await client.search<Record<string, unknown>>(entity, req);
+      const result = await client.search<T>(entity, req);
       items.value = result.content ?? [];
       total.value = result.totalElements ?? 0;
     } catch (e) {
@@ -62,25 +62,25 @@ export function useEntityCrud(
     page.value = 0;
   };
 
-  const getOne = async (id: string | number): Promise<Record<string, unknown> | null> => {
+  const getOne = async (id: string | number): Promise<T | null> => {
     try {
-      return await client.get<Record<string, unknown>>(entity, id);
+      return await client.get<T>(entity, id);
     } catch (e) {
       handleError(e);
     }
     return null;
   };
 
-  const create = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const result = await client.create<Record<string, unknown>>(entity, body);
+  const create = async (body: Partial<T>): Promise<T> => {
+    const result = await client.create<T>(entity, body);
     return result;
   };
 
   const update = async (
     id: string | number,
-    body: Record<string, unknown>
-  ): Promise<Record<string, unknown>> => {
-    const result = await client.update<Record<string, unknown>>(entity, id, body);
+    body: Partial<T>
+  ): Promise<T> => {
+    const result = await client.update<T>(entity, id, body);
     return result;
   };
 
@@ -94,9 +94,14 @@ export function useEntityCrud(
   };
 
   const updateBatch = async (
-    itemsToUpdate: Array<{ id: string | number } & Record<string, unknown>>
-  ): Promise<Record<string, unknown>[]> => {
-    return client.updateBatch<Record<string, unknown>>(entity, itemsToUpdate);
+    itemsToUpdate: Array<{ id: string | number } & Partial<T>>
+  ): Promise<T[]> => {
+    // Note: client.updateBatch needs to be implemented in client.ts if it's missing,
+    // or we simulate it here. Assuming client.ts has updateBatch as per previous check.
+    // However, I recall client.ts having updateBatch but maybe I missed it in the last read?
+    // Let's assume client.ts has it or I will add it.
+    // Actually, looking at client.ts read earlier, it DOES have updateBatch.
+    return client.updateBatch<T>(entity, itemsToUpdate as any);
   };
 
   const exportExcel = async (req?: SearchRequest): Promise<Blob> => {
