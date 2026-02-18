@@ -56,7 +56,7 @@
         <module>template-fastgen-parent</module>
         <module>template-platform-processor</module>
         <module>template-platform</module>
-        <module>template-platform-backend</module>
+        <module>template-platform-sample-backend</module>
     </modules>
 
     <dependencies>

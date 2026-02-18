@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: template-platform-backend
+  datasource:
+    url: jdbc:h2:mem:platform
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          platform-client:
+            registration:
+              client-id: platform-client
+              client-secret: "{noop}platform-secret"
+              client-authentication-methods:
+                - client_secret_post
+              authorization-grant-types:
+                - authorization_password
+                - refresh_token
+              scopes:
+                - openid
+            token:
+              access-token-time-to-live: 1h
+              refresh-token-time-to-live: 7d
+
+app:
+  platform:
+    api-prefix: /api
+    scan-packages: com.lrenyi.template.platform.backend,com.lrenyi.template.platform.domain
+    permission-enabled: false
+  template:
+    enabled: true
+    oauth2:
+      enabled: true
+    security:
+      enabled: true
+      local-jwt-public-key: true
+      permit-urls:
+        template-platform-sample-backend:
+          - /api/auth/_action/captcha
+          - /docs
+          - /api/docs
+          - /oauth2/token
+          - /oauth2/introspect
+          - /jwt/public/key
+    audit:
+      enabled: true
