@@ -76,9 +76,32 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { EntityCrudPage } from '@lrenyi/platform-headless/vue';
+import { EntityCrudPage, usePlatform } from '@lrenyi/platform-headless/vue';
 import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 import dayjs from 'dayjs';
+
+interface OperationLog {
+  id: number;
+  userName: string;
+  serviceName: string;
+  description: string;
+  requestMethod: string;
+  requestUri: string;
+  requestIp: string;
+  serverIp: string;
+  success: boolean;
+  reason?: string;
+  exceptionDetails?: string;
+  executionTimeMs: number;
+  operationTime: string;
+  targetType?: string;
+  targetId?: string;
+  affectedCount?: number;
+  extra?: string;
+}
+
+const { client } = usePlatform();
+const logClient = client.define<OperationLog>('sys_operation_log');
 
 // 自定义列配置：控制宽度、标题、顺序
 const columns: ColumnConfig[] = [
@@ -94,14 +117,14 @@ const columns: ColumnConfig[] = [
 ];
 
 const detailDialogVisible = ref(false);
-const currentLog = ref<any>(null);
+const currentLog = ref<OperationLog | null>(null);
 
-const handleView = (row: any) => {
-  currentLog.value = row;
+const handleView = (row: Record<string, unknown>) => {
+  currentLog.value = row as unknown as OperationLog;
   detailDialogVisible.value = true;
 };
 
-const formatDate = (val: string | number | Date) => {
+const formatDate = (val: string | number | Date | undefined) => {
   if (!val) return '';
   return dayjs(val).format('YYYY-MM-DD HH:mm:ss');
 };

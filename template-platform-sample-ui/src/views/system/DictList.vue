@@ -110,9 +110,30 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { usePlatform, EntityCrudPage, type FilterCondition } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityCrudPage, type FilterCondition, BusinessError } from '@lrenyi/platform-headless/vue';
 
 const { client } = usePlatform();
+
+interface Dict {
+  id: number;
+  dictCode: string;
+  dictName: string;
+  description: string;
+  createTime: string;
+}
+
+interface DictItem {
+  id: number;
+  dictCode: string;
+  itemText: string;
+  itemValue: string;
+  sortOrder: number;
+  status: string;
+  description: string;
+}
+
+const dictClient = client.define<Dict>('sys_dicts');
+const itemClient = client.define<DictItem>('sys_dict_items');
 
 const dictCrudRef = ref();
 const itemCrudRef = ref();
@@ -182,7 +203,7 @@ const handleDeleteDict = async (row: any) => {
     await ElMessageBox.confirm('确认删除该字典?', '提示', {
       type: 'warning',
     });
-    await client.delete('sys_dicts', row.id);
+    await dictClient.delete(row.id);
     ElMessage.success('删除成功');
     dictCrudRef.value?.refresh();
     if (currentDict.value?.id === row.id) {
@@ -191,8 +212,9 @@ const handleDeleteDict = async (row: any) => {
       // 我们希望清空，或者重置
       itemCrudRef.value?.refresh();
     }
-  } catch (error) {
-    // Cancel or Error
+  } catch (error: any) {
+    if (error === 'cancel') return;
+    ElMessage.error(error instanceof Error ? error.message : '删除失败');
   }
 };
 
@@ -201,17 +223,24 @@ const handleSubmitDict = async () => {
   await dictFormRef.value.validate();
   submitting.value = true;
   try {
+    const submitData = { ...dictForm };
     if (dictForm.id) {
-      await client.update('sys_dicts', dictForm.id, dictForm);
+      await dictClient.update(dictForm.id, submitData);
       ElMessage.success('更新成功');
     } else {
-      await client.create('sys_dicts', dictForm);
+      delete (submitData as any).id;
+      await dictClient.create(submitData);
       ElMessage.success('创建成功');
     }
     dictDialogVisible.value = false;
     dictCrudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }
@@ -254,11 +283,12 @@ const handleDeleteItem = async (row: any) => {
     await ElMessageBox.confirm('确认删除该字典项?', '提示', {
       type: 'warning',
     });
-    await client.delete('sys_dict_items', row.id);
+    await itemClient.delete(row.id);
     ElMessage.success('删除成功');
     itemCrudRef.value?.refresh();
-  } catch (error) {
-    // Cancel or Error
+  } catch (error: any) {
+    if (error === 'cancel') return;
+    ElMessage.error(error instanceof Error ? error.message : '删除失败');
   }
 };
 
@@ -267,17 +297,24 @@ const handleSubmitItem = async () => {
   await itemFormRef.value.validate();
   submitting.value = true;
   try {
+    const submitData = { ...itemForm };
     if (itemForm.id) {
-      await client.update('sys_dict_items', itemForm.id, itemForm);
+      await itemClient.update(itemForm.id, submitData);
       ElMessage.success('更新成功');
     } else {
-      await client.create('sys_dict_items', itemForm);
+      delete (submitData as any).id;
+      await itemClient.create(submitData);
       ElMessage.success('创建成功');
     }
     itemDialogVisible.value = false;
     itemCrudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }

@@ -89,9 +89,23 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { usePlatform, EntityTable, useEntityCrud } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityTable, useEntityCrud, BusinessError } from '@lrenyi/platform-headless/vue';
 
 const { client } = usePlatform();
+
+interface Department {
+  id: number;
+  name: string;
+  parentId: number | null;
+  leader: string;
+  phone: string;
+  email: string;
+  sortOrder: number;
+  status: string;
+  children?: Department[];
+}
+
+const deptClient = client.define<Department>('departments');
 
 const {
   items,
@@ -99,7 +113,7 @@ const {
   search,
   remove,
   exportExcel,
-} = useEntityCrud(client, 'departments');
+} = useEntityCrud<Department>(client, 'departments');
 
 const submitting = ref(false);
 const exportLoading = ref(false);
@@ -190,18 +204,25 @@ const handleSubmit = async () => {
   await formRef.value.validate();
   submitting.value = true;
   try {
+    const submitData = { ...form };
     if (form.id) {
-      await client.update('departments', form.id, form);
+      await deptClient.update(form.id, submitData);
       ElMessage.success('更新成功');
     } else {
-      await client.create('departments', form);
+      delete (submitData as any).id;
+      await deptClient.create(submitData);
       ElMessage.success('创建成功');
     }
     dialogVisible.value = false;
     // 刷新数据
     search({ page: 0, size: 1000 });
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }
@@ -210,14 +231,15 @@ const handleSubmit = async () => {
 const handleDelete = async (row: any) => {
   await ElMessageBox.confirm('确定删除该部门吗？', '提示', { type: 'warning' });
   try {
-    await remove(row.id);
+    await deptClient.delete(row.id);
     ElMessage.success('删除成功');
     // useEntityCrud remove usually refreshes automatically if using delete method?
     // remove() in useEntityCrud calls delete and then usually we need to refresh.
     // Let's check useEntityCrud implementation. Assuming it might not auto-refresh for complex cases or we want to be safe.
     search({ page: 0, size: 1000 });
   } catch (error: any) {
-    // Cancel or Error
+    if (error === 'cancel') return;
+    ElMessage.error(error instanceof Error ? error.message : '删除失败');
   }
 };
 

@@ -62,9 +62,21 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { usePlatform, EntityCrudPage } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityCrudPage, BusinessError } from '@lrenyi/platform-headless/vue';
 
 const { client } = usePlatform();
+
+interface Role {
+  id: number;
+  roleCode: string;
+  roleName: string;
+  remark: string;
+  createTime: string;
+}
+
+const roleClient = client.define<Role>('roles');
+const permClient = client.define<any>('permissions');
+const rolePermClient = client.define<any>('role_permissions');
 
 const crudRef = ref();
 const submitting = ref(false);
@@ -124,17 +136,24 @@ const handleSubmit = async () => {
   await formRef.value.validate();
   submitting.value = true;
   try {
+    const submitData = { ...form };
     if (form.id) {
-      await client.update('roles', form.id, form);
+      await roleClient.update(form.id, submitData);
       ElMessage.success('更新成功');
     } else {
-      await client.create('roles', form);
+      delete (submitData as any).id;
+      await roleClient.create(submitData);
       ElMessage.success('创建成功');
     }
     dialogVisible.value = false;
     crudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }
@@ -143,11 +162,12 @@ const handleSubmit = async () => {
 const handleDelete = async (row: any) => {
   await ElMessageBox.confirm('确定删除该角色吗？', '提示', { type: 'warning' });
   try {
-    await client.delete('roles', row.id);
+    await roleClient.delete(row.id);
     ElMessage.success('删除成功');
     crudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '删除失败');
+    if (error === 'cancel') return;
+    ElMessage.error(error instanceof Error ? error.message : '删除失败');
   }
 };
 
@@ -161,7 +181,7 @@ const handleAssignPermissions = async (row: any) => {
 const loadPermissions = async () => {
   permsLoading.value = true;
   try {
-    const result = await client.search('permissions', { page: 0, size: 1000 });
+    const result = await permClient.search({ page: 0, size: 1000 });
     const perms = result.content || [];
     // 简单平铺展示
     permTreeData.value = perms.map((p: any) => ({
@@ -177,7 +197,7 @@ const loadPermissions = async () => {
 
 const loadRolePermissions = async (roleId: number) => {
   try {
-    const result = await client.search('role_permissions', {
+    const result = await rolePermClient.search({
       filters: [{ field: 'role.id', op: 'eq', value: roleId }],
       page: 0,
       size: 1000,
@@ -194,19 +214,19 @@ const handleSavePerms = async () => {
     const checkedKeys = permTreeRef.value.getCheckedKeys();
 
     // 删除所有现有权限
-    const existingResult = await client.search('role_permissions', {
+    const existingResult = await rolePermClient.search({
       filters: [{ field: 'role.id', op: 'eq', value: currentRole.value.id }],
       page: 0,
       size: 1000,
     });
     const existing = existingResult.content || [];
     for (const rp of existing) {
-      await client.delete('role_permissions', rp.id as string | number);
+      await rolePermClient.delete(rp.id as string | number);
     }
 
     // 添加新权限
     for (const permId of checkedKeys) {
-      await client.create('role_permissions', {
+      await rolePermClient.create({
         role: { id: currentRole.value.id },
         permission: { id: permId },
       });
@@ -215,7 +235,12 @@ const handleSavePerms = async () => {
     ElMessage.success('权限分配成功');
     permDialogVisible.value = false;
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }
