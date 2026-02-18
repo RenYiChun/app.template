@@ -120,7 +120,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuth } from '@lrenyi/platform-headless/vue';
+import { useAuth, usePlatform } from '@lrenyi/platform-headless/vue';
 import { 
   DataBoard, User, Setting, Document, 
   Expand, Fold, Bell, ArrowDown, SwitchButton,
@@ -129,13 +129,14 @@ import {
 import { ElMessage } from 'element-plus';
 
 const { user, logout, refreshMe } = useAuth();
+const { authClient } = usePlatform();
 const router = useRouter();
 
 const isCollapsed = ref(false);
 const activeMenu = computed(() => router.currentRoute.value.path);
 const handleSelect = (index: string) => {
     if (index === 'docs') {
-        const token = localStorage.getItem('auth_token');
+        const token = authClient?.getToken();
         const url = token ? `/docs?token=${token}` : '/docs';
         window.open(url, '_blank');
     } else if (index.startsWith('/')) {

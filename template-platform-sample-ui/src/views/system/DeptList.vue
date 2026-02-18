@@ -15,7 +15,7 @@
 
       <!-- 树形表格 -->
       <el-table
-        :data="tableData"
+        :data="treeData"
         v-loading="loading"
         border
         stripe
@@ -176,8 +176,8 @@ const handleAdd = (parent: any) => {
 
 const handleEdit = (row: any) => {
   dialogTitle.value = '编辑部门';
-  const parent = items.value.find((d) => d.id === row.parentId);
-  parentDeptName.value = parent ? parent.name : '无';
+  const parent = items.value.find((d: any) => d.id === row.parentId);
+  parentDeptName.value = parent ? (parent as any).name : '无';
   Object.assign(form, row);
   dialogVisible.value = true;
 };

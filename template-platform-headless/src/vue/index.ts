@@ -15,6 +15,7 @@ export type {
   SortOrder,
   PagedResult,
   Result,
+  StorageProvider,
 } from '../core/index.js';
 export { createPlatform, getPlatform, usePlatform } from './createPlatform.js';
 export { useAuth } from './composables/useAuth.js';

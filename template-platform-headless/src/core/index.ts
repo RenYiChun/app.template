@@ -22,6 +22,7 @@ export type {
   FilterCondition,
   SortOrder,
   Op,
+  StorageProvider,
 } from './types.js';
 export { SUCCESS_CODE } from './types.js';
 export * from './utils.js';
