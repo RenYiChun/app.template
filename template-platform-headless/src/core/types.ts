@@ -45,6 +45,17 @@ export interface Result<T> {
 /** 成功状态码 */
 export const SUCCESS_CODE = 0;
 
+/** 基础实体接口，所有实体建议继承此接口 */
+export interface BaseEntity {
+  id: number | string;
+  [key: string]: unknown;
+}
+
+/** 实体定义辅助类型 */
+export interface EntityDef<T = BaseEntity> {
+  name: string;
+}
+
 /** 存储接口抽象 */
 export interface StorageProvider {
   getItem(key: string): string | null;

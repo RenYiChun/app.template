@@ -5,6 +5,7 @@
 import type { Result, SearchRequest, PagedResult } from './types.js';
 import { SUCCESS_CODE } from './types.js';
 import { joinPath, ensureSlash } from './utils.js';
+import { NetworkError, HttpError, BusinessError, AuthError } from './errors.js';
 
 export interface EntityClientConfig {
   /** API 基础 URL，如 https://example.com */
@@ -41,7 +42,27 @@ export class EntityClient {
   async request(url: string, options: RequestInit = {}): Promise<Response> {
     // 如果是相对路径且不以 http 开头，自动拼接 baseURL
     const fullUrl = url.startsWith('http') ? url : this.url(url.replace(/^\//, ''));
-    return this.requestFn(fullUrl, options);
+    try {
+      const response = await this.requestFn(fullUrl, options);
+      
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new AuthError(response);
+        }
+        throw new HttpError(response);
+      }
+      
+      return response;
+    } catch (error: any) {
+      if (error instanceof NetworkError || error instanceof HttpError || error instanceof BusinessError || error instanceof AuthError) {
+        throw error;
+      }
+      // 如果是 fetch 抛出的原生错误（如网络问题），包装为 NetworkError
+      if (error.name === 'TypeError' || error.message.includes('network') || error.message.includes('failed to fetch')) {
+        throw new NetworkError(error.message);
+      }
+      throw error;
+    }
   }
 
   /** 获取 OpenAPI 文档 URL，供 MetaService 使用 */
@@ -61,11 +82,9 @@ export class EntityClient {
 
   private async handleResult<T>(res: Response): Promise<T> {
     const result = (await this.json<Result<T>>(res)) as Result<T>;
+    // 检查业务状态码
     if (result.code !== SUCCESS_CODE && result.code !== 200) {
-      const err = new Error(result.message ?? `请求失败: ${res.status}`);
-      (err as Error & { code?: number; response?: Response }).code = result.code;
-      (err as Error & { code?: number; response?: Response }).response = res;
-      throw err;
+      throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
     }
     return result.data as T;
   }
@@ -101,32 +120,32 @@ export class EntityClient {
   }
 
   /** 创建 */
-  async create<T = Record<string, unknown>>(
+  async create<T = Record<string, unknown>, R = T>(
     entity: string,
-    body: Record<string, unknown>
-  ): Promise<T> {
+    body: Partial<T>
+  ): Promise<R> {
     const res = await this.requestFn(this.url(entity), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await this.handleResult<T>(res);
+    const data = await this.handleResult<R>(res);
     if (data == null) throw new Error('创建成功但无返回数据');
     return data;
   }
 
   /** 更新 */
-  async update<T = Record<string, unknown>>(
+  async update<T = Record<string, unknown>, R = T>(
     entity: string,
     id: string | number,
-    body: Record<string, unknown>
-  ): Promise<T> {
+    body: Partial<T>
+  ): Promise<R> {
     const res = await this.requestFn(this.url(`${entity}/${id}`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await this.handleResult<T>(res);
+    const data = await this.handleResult<R>(res);
     if (data == null) throw new Error('更新成功但无返回数据');
     return data;
   }
@@ -199,5 +218,20 @@ export class EntityClient {
       body: body ? JSON.stringify(body) : undefined,
     });
     return this.handleResult<T>(res);
+  }
+
+  /**
+   * 定义一个强类型的实体操作对象，简化后续调用
+   * @param name 实体名称（URL path segment）
+   */
+  define<T = Record<string, unknown>>(name: string) {
+    return {
+      search: (req?: SearchRequest) => this.search<T>(name, req),
+      get: (id: string | number) => this.get<T>(name, id),
+      create: (body: Partial<T>) => this.create<T>(name, body),
+      update: (id: string | number, body: Partial<T>) => this.update<T>(name, id, body),
+      delete: (id: string | number) => this.delete(name, id),
+      deleteBatch: (ids: (string | number)[]) => this.deleteBatch(name, ids),
+    };
   }
 }

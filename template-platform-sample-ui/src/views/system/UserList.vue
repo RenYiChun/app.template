@@ -115,9 +115,26 @@
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { usePlatform, EntityCrudPage } from '@lrenyi/platform-headless/vue';
+import { usePlatform, EntityCrudPage, BusinessError, NetworkError } from '@lrenyi/platform-headless/vue';
 
 const { client } = usePlatform();
+interface User {
+  id: number;
+  username: string;
+  nickname: string;
+  email: string;
+  phone: string;
+  status: string;
+  departmentId: number | null;
+  remark: string;
+  createTime: string;
+  password?: string;
+}
+
+const userClient = client.define<User>('users');
+const deptClient = client.define<any>('departments');
+const roleClient = client.define<any>('roles');
+const userRoleClient = client.define<any>('user_roles');
 
 const crudRef = ref();
 const submitting = ref(false);
@@ -220,17 +237,22 @@ const handleSubmit = async () => {
     const submitData = { ...form };
     if (form.id) {
       if (!submitData.password) delete (submitData as any).password;
-      await client.update('users', form.id, submitData);
+      await userClient.update(form.id, submitData);
       ElMessage.success('更新成功');
     } else {
       delete (submitData as any).id;
-      await client.create('users', submitData);
+      await userClient.create(submitData);
       ElMessage.success('创建成功');
     }
     dialogVisible.value = false;
     crudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    if (error instanceof BusinessError) {
+      ElMessage.error(error.message);
+    } else {
+      ElMessage.error('操作失败');
+      console.error(error);
+    }
   } finally {
     submitting.value = false;
   }
@@ -239,17 +261,18 @@ const handleSubmit = async () => {
 const handleDelete = async (row: any) => {
   await ElMessageBox.confirm('确定删除该用户吗？', '提示', { type: 'warning' });
   try {
-    await client.delete('users', row.id);
+    await userClient.delete(row.id);
     ElMessage.success('删除成功');
     crudRef.value?.refresh();
   } catch (error: any) {
-    ElMessage.error(error.message || '删除失败');
+    if (error === 'cancel') return;
+    ElMessage.error(error instanceof Error ? error.message : '删除失败');
   }
 };
 
 const loadDeptTree = async () => {
   try {
-    const result = await client.search('departments', { page: 0, size: 1000 });
+    const result = await deptClient.search({ page: 0, size: 1000 });
     const list = result.content || [];
     deptTreeData.value = buildTree(list);
   } catch (error: any) {
@@ -283,7 +306,7 @@ const handleAssignRoles = async (row: any) => {
 const loadRoles = async () => {
   rolesLoading.value = true;
   try {
-    const result = await client.search('roles', { page: 0, size: 1000 });
+    const result = await roleClient.search({ page: 0, size: 1000 });
     allRoles.value = result.content || [];
   } catch (error: any) {
     ElMessage.error('加载角色失败');
@@ -293,8 +316,9 @@ const loadRoles = async () => {
 };
 
 const loadUserRoles = async (username: string) => {
+  rolesLoading.value = true;
   try {
-    const result = await client.search('user_roles', {
+    const result = await userRoleClient.search({
       filters: [{ field: 'userId', op: 'eq', value: username }],
       page: 0,
       size: 1000,
@@ -302,6 +326,8 @@ const loadUserRoles = async (username: string) => {
     selectedRoles.value = (result.content || []).map((ur: any) => ur.role?.id).filter(Boolean);
   } catch (error: any) {
     ElMessage.error('加载用户角色失败');
+  } finally {
+    rolesLoading.value = false;
   }
 };
 
@@ -309,19 +335,19 @@ const handleSaveRoles = async () => {
   submitting.value = true;
   try {
     // 删除所有现有角色
-    const existingResult = await client.search('user_roles', {
+    const existingResult = await userRoleClient.search({
       filters: [{ field: 'userId', op: 'eq', value: currentUser.value.username }],
       page: 0,
       size: 1000,
     });
     const existing = existingResult.content || [];
     for (const ur of existing) {
-      await client.delete('user_roles', ur.id as string | number);
+      await userRoleClient.delete(ur.id as string | number);
     }
 
     // 添加新角色
     for (const roleId of selectedRoles.value) {
-      await client.create('user_roles', {
+      await userRoleClient.create({
         userId: currentUser.value.username,
         role: { id: roleId },
       });

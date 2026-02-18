@@ -2,7 +2,7 @@
  * template-platform 前端 Vue 层
  */
 
-export { AuthClient, EntityClient, MetaService } from '../core/index.js';
+export { AuthClient, EntityClient, MetaService, PlatformError, NetworkError, HttpError, BusinessError, AuthError } from '../core/index.js';
 export type {
   AuthClientConfig,
   EntityClientConfig,

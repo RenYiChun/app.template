@@ -5,6 +5,7 @@
 import type { Result, StorageProvider } from './types.js';
 import { SUCCESS_CODE } from './types.js';
 import { joinPath, ensureSlash } from './utils.js';
+import { NetworkError, HttpError, BusinessError, AuthError } from './errors.js';
 
 export interface AuthClientConfig {
   baseURL?: string;
@@ -99,16 +100,18 @@ export class AuthClient {
   }
 
   private async handleResult<T>(res: Response): Promise<T> {
-    if (res.status === 401) {
-      this.clearToken();
-      this.onUnauthorized?.();
+    if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+            this.clearToken();
+            this.onUnauthorized?.();
+            throw new AuthError(res);
+        }
+        throw new HttpError(res);
     }
+    
     const result = (await this.json<Result<T>>(res)) as Result<T>;
     if (result.code !== SUCCESS_CODE && result.code !== 200) {
-      const err = new Error(result.message ?? `请求失败: ${res.status}`);
-      (err as Error & { code?: number; response?: Response }).code = result.code;
-      (err as Error & { code?: number; response?: Response }).response = res;
-      throw err;
+      throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
     }
     return result.data as T;
   }
@@ -144,7 +147,11 @@ export class AuthClient {
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`登录失败: ${res.status} ${text}`);
+      // OAuth2 登录失败通常返回 400 或 401，这里统一包装为 AuthError
+      if (res.status === 401 || res.status === 400) {
+        throw new AuthError(res, `登录失败: ${text}`);
+      }
+      throw new HttpError(res, `登录失败: ${res.status} ${text}`);
     }
 
     const tokenData = (await this.json<{
@@ -155,7 +162,7 @@ export class AuthClient {
 
     const accessToken = tokenData.access_token as string;
     if (!accessToken) {
-      throw new Error('登录成功但未返回 access_token');
+      throw new BusinessError(-1, '登录成功但未返回 access_token', tokenData);
     }
 
     this.token = accessToken;
