@@ -7,7 +7,7 @@
 在项目根目录执行：
 
 ```bash
-mvnw.cmd spring-boot:run -pl template-platform-backend
+mvnw.cmd spring-boot:run -pl template-platform-sample-backend
 ```
 
 - 接口前缀：`/api`

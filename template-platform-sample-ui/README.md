@@ -13,7 +13,7 @@ npm run dev
 
 ## 与后端联调
 
-1. 启动后端：`mvnw.cmd spring-boot:run -pl template-platform-backend`（端口 8080）
+1. 启动后端：`mvnw.cmd spring-boot:run -pl template-platform-sample-backend`（端口 8080）
 2. 启动本应用：`npm run dev`（端口 3000）
 3. 默认账号：`admin` / `admin123`
 

@@ -1,61 +1,30 @@
 <template>
-  <div class="operation-log-container">
-    <EntityCrudPage
-      ref="crudRef"
-      entity="sys_operation_log"
-      :columns="columns"
+  <div class="operation-log-auto-container">
+    <!-- 
+      通过 Config 和 Slot，让自动生成组件达到手写级的精细度
+    -->
+    <EntityCrudPage 
+      entity="sys_operation_log" 
       :enable-create="false"
       :row-actions="['view']"
-      @view="handleViewDetail"
+      :columns="columns"
+      shadow="never"
+      @view="handleView"
     >
-      <template #search="{ onSearch, onReset, onExport }">
-        <el-form :model="searchForm" inline class="search-form">
-          <el-form-item label="用户名">
-            <el-input v-model="searchForm.userName" placeholder="请输入用户名" clearable @keyup.enter="onSearch(buildFilters())" />
-          </el-form-item>
-          <el-form-item label="服务名称">
-            <el-input v-model="searchForm.serviceName" placeholder="请输入服务名称" clearable @keyup.enter="onSearch(buildFilters())" />
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="searchForm.success" placeholder="请选择" clearable @change="onSearch(buildFilters())">
-              <el-option label="成功" :value="true" />
-              <el-option label="失败" :value="false" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="操作时间">
-            <el-date-picker
-              v-model="searchForm.dateRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              @change="onSearch(buildFilters())"
-            />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="onSearch(buildFilters())">查询</el-button>
-            <el-button @click="handleReset(onReset)">重置</el-button>
-            <el-button type="success" @click="onExport">导出</el-button>
-          </el-form-item>
-        </el-form>
-      </template>
-
+      <!-- 自定义状态列 -->
       <template #column-success="{ value }">
         <el-tag :type="value ? 'success' : 'danger'">
           {{ value ? '成功' : '失败' }}
         </el-tag>
       </template>
+
+      <!-- 自定义时间列 -->
       <template #column-operationTime="{ value }">
         {{ formatDate(value) }}
       </template>
-
-      <template #row-actions="{ row }">
-        <el-button link type="primary" @click="handleViewDetail(row)">详情</el-button>
-      </template>
     </EntityCrudPage>
 
-    <!-- 详情对话框 -->
+    <!-- 详情对话框 (直接复用手写逻辑) -->
     <el-dialog v-model="detailDialogVisible" title="操作日志详情" width="700px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="ID">{{ currentLog?.id }}</el-descriptions-item>
@@ -106,72 +75,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
+import { EntityCrudPage } from '@lrenyi/platform-headless/vue';
+import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 import dayjs from 'dayjs';
-import { EntityCrudPage, type ColumnConfig, type FilterCondition } from '@lrenyi/platform-headless/vue';
+
+// 自定义列配置：控制宽度、标题、顺序
+const columns: ColumnConfig[] = [
+  { prop: 'id', width: 80, label: 'ID' },
+  { prop: 'userName', width: 120, label: '用户名' },
+  { prop: 'description', width: 200, label: '操作描述' }, // TODO: tooltip supported? Need to check EntityTable
+  { prop: 'serviceName', width: 120, label: '服务名称' },
+  { prop: 'requestMethod', width: 100, label: '请求方法' },
+  { prop: 'requestIp', width: 140, label: 'IP地址' },
+  { prop: 'success', width: 80, label: '状态' },
+  { prop: 'executionTimeMs', width: 120, label: '执行时长(ms)' },
+  { prop: 'operationTime', width: 180, label: '操作时间' },
+];
+
+const detailDialogVisible = ref(false);
+const currentLog = ref<any>(null);
+
+const handleView = (row: any) => {
+  currentLog.value = row;
+  detailDialogVisible.value = true;
+};
 
 const formatDate = (val: string | number | Date) => {
   if (!val) return '';
   return dayjs(val).format('YYYY-MM-DD HH:mm:ss');
 };
-
-const crudRef = ref();
-const detailDialogVisible = ref(false);
-const currentLog = ref<any>(null);
-
-const searchForm = reactive({
-  userName: '',
-  serviceName: '',
-  success: null as boolean | null,
-  dateRange: [] as string[],
-});
-
-const columns: ColumnConfig[] = [
-  { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'userName', label: '用户名', width: 120 },
-  { prop: 'description', label: '操作描述', minWidth: 200, showOverflowTooltip: true },
-  { prop: 'serviceName', label: '服务名称', width: 120 },
-  { prop: 'requestMethod', label: '请求方法', width: 100 },
-  { prop: 'requestIp', label: 'IP地址', width: 140 },
-  { prop: 'success', label: '状态', width: 80 },
-  { prop: 'executionTimeMs', label: '执行时长(ms)', width: 120 },
-  { prop: 'operationTime', label: '操作时间', width: 180 },
-];
-
-const buildFilters = (): FilterCondition[] => {
-  const filters: FilterCondition[] = [];
-  if (searchForm.userName) {
-    filters.push({ field: 'userName', op: 'like', value: searchForm.userName });
-  }
-  if (searchForm.serviceName) {
-    filters.push({ field: 'serviceName', op: 'like', value: searchForm.serviceName });
-  }
-  if (searchForm.success !== null && searchForm.success !== undefined) {
-    filters.push({ field: 'success', op: 'eq', value: searchForm.success });
-  }
-  if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-    filters.push({ field: 'operationTime', op: 'gte', value: searchForm.dateRange[0] });
-    filters.push({ field: 'operationTime', op: 'lte', value: searchForm.dateRange[1] });
-  }
-  return filters;
-};
-
-const handleReset = (onReset: () => void) => {
-  searchForm.userName = '';
-  searchForm.serviceName = '';
-  searchForm.success = null;
-  searchForm.dateRange = [];
-  onReset();
-};
-
-const handleViewDetail = (row: any) => {
-  currentLog.value = row;
-  detailDialogVisible.value = true;
-};
 </script>
 
 <style scoped>
-.operation-log-container {
-  padding: 20px;
+.operation-log-list-container {
+  /* padding: 20px; HomeView has global padding */
 }
 </style>

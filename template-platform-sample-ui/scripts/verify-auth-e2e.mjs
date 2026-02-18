@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 登录接口端到端验证脚本（OAuth2 Password Grant + JWT）。
- * 需先启动 template-platform-backend（mvnw.cmd spring-boot:run -pl template-platform-backend）。
+ * 需先启动 template-platform-sample-backend（mvnw.cmd spring-boot:run -pl template-platform-sample-backend）。
  * 用法: node scripts/verify-auth-e2e.mjs [baseUrl]
  */
 

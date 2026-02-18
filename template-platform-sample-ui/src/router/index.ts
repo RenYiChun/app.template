@@ -39,12 +39,6 @@ const router = createRouter({
           name: 'OperationLogManagement',
           component: () => import('../views/system/OperationLogList.vue'),
         },
-        {
-          path: 'system/operation-logs-auto',
-          name: 'OperationLogAutoManagement',
-          component: () => import('../views/system/OperationLogAuto.vue'),
-          meta: { public: true },
-        },
       ]
     },
   ],
