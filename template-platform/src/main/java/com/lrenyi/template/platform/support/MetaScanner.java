@@ -232,12 +232,7 @@ public class MetaScanner {
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
                 if ("id".equals(f.getName()) || f.getAnnotation(jakarta.persistence.Id.class) != null) {
-                    Class<?> type = f.getType();
-                    if (type == Long.class || type == long.class || type == String.class || type == UUID.class
-                            || type == Integer.class || type == int.class) {
-                        return type;
-                    }
-                    return Long.class;
+                    return f.getType();
                 }
             }
         }

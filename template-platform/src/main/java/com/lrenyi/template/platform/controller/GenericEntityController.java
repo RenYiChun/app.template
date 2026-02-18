@@ -1,7 +1,10 @@
 package com.lrenyi.template.platform.controller;
 
+import com.lrenyi.template.platform.support.PlatformServices;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.ConversionException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +23,6 @@ import com.lrenyi.template.platform.registry.EntityRegistry;
 import com.lrenyi.template.platform.service.EntityCrudService;
 import com.lrenyi.template.platform.support.EntityDtoResolver;
 import com.lrenyi.template.platform.support.ExcelExportSupport;
-import com.lrenyi.template.platform.support.IdParser;
 import com.lrenyi.template.platform.support.ListCriteria;
 import com.lrenyi.template.platform.support.PagedResult;
 import com.lrenyi.template.platform.support.SearchRequest;
@@ -47,7 +49,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
  * 统一入口 Controller：CRUD + Action 路由。
  */
 @org.springframework.web.bind.annotation.RestController
-@org.springframework.web.bind.annotation.RequestMapping("${app.platform.api-prefix:/api}")
+@org.springframework.web.bind.annotation.RequestMapping("${app.platform.api-prefix:/api/platform}")
 public class GenericEntityController {
 
     private final EntityRegistry entityRegistry;
@@ -57,21 +59,17 @@ public class GenericEntityController {
     private final PlatformPermissionChecker permissionChecker;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<Validator> validatorProvider;
+    private final ConversionService conversionService;
 
-    public GenericEntityController(EntityRegistry entityRegistry,
-            ActionRegistry actionRegistry,
-            EntityCrudService crudService,
-            PlatformProperties properties,
-            PlatformPermissionChecker permissionChecker,
-            ObjectMapper objectMapper,
-            ObjectProvider<Validator> validatorProvider) {
-        this.entityRegistry = entityRegistry;
-        this.actionRegistry = actionRegistry;
-        this.crudService = crudService;
-        this.properties = properties;
-        this.permissionChecker = permissionChecker;
-        this.objectMapper = objectMapper;
-        this.validatorProvider = validatorProvider;
+    public GenericEntityController(PlatformServices services) {
+        this.entityRegistry = services.getEntityRegistry();
+        this.actionRegistry = services.getActionRegistry();
+        this.crudService = services.getCrudService();
+        this.properties = services.getProperties();
+        this.permissionChecker = services.getPermissionChecker();
+        this.objectMapper = services.getObjectMapper();
+        this.validatorProvider = services.getValidatorProvider();
+        this.conversionService = services.getConversionService();
     }
 
     /**
@@ -229,8 +227,8 @@ public class GenericEntityController {
             }
             Object idParsed;
             try {
-                idParsed = IdParser.parseIdFromObject(idObj, pkType);
-            } catch (IllegalArgumentException e) {
+                idParsed = conversionService.convert(idObj, pkType);
+            } catch (ConversionException | IllegalArgumentException e) {
                 return badRequest("id 格式错误: " + e.getMessage());
             }
             if (properties.isValidationEnabled() && validator != null && updateDtoClass != null) {
@@ -437,8 +435,8 @@ public class GenericEntityController {
     private Object parseIdOrBadRequest(EntityMeta meta, String id) {
         try {
             Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
-            return IdParser.parseId(id, pkType);
-        } catch (IllegalArgumentException e) {
+            return conversionService.convert(id, pkType);
+        } catch (ConversionException | IllegalArgumentException e) {
             return null;
         }
     }
@@ -446,8 +444,15 @@ public class GenericEntityController {
     private List<Object> parseIdsOrBadRequest(EntityMeta meta, List<?> ids) {
         try {
             Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
-            return IdParser.parseIds(ids, pkType);
-        } catch (IllegalArgumentException e) {
+            if (ids == null || ids.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<Object> result = new ArrayList<>(ids.size());
+            for (Object id : ids) {
+                result.add(conversionService.convert(id, pkType));
+            }
+            return result;
+        } catch (ConversionException | IllegalArgumentException e) {
             return null;
         }
     }

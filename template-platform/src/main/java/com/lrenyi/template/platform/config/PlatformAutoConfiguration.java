@@ -20,7 +20,9 @@ import com.lrenyi.template.platform.service.PathSegmentAwareCrudService;
 import com.lrenyi.template.platform.support.MetaScanner;
 import com.lrenyi.template.platform.support.PlatformAspect;
 import com.lrenyi.template.platform.support.PlatformExceptionHandler;
+import com.lrenyi.template.platform.support.PlatformServices;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.validation.Validator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
@@ -33,6 +35,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.Ordered;
+import org.springframework.core.convert.ConversionService;
 
 @AutoConfiguration
 @EnableConfigurationProperties(PlatformProperties.class)
@@ -111,17 +114,23 @@ public class PlatformAutoConfiguration {
     }
 
     @Bean
-    public GenericEntityController genericEntityController(
+    public PlatformServices platformServices(
             EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
             PlatformProperties properties,
             PlatformPermissionChecker platformPermissionChecker,
             ObjectMapper objectMapper,
-            org.springframework.beans.factory.ObjectProvider<jakarta.validation.Validator> validatorProvider) {
-        return new GenericEntityController(
+            ObjectProvider<Validator> validatorProvider,
+            ConversionService conversionService) {
+        return new PlatformServices(
                 entityRegistry, actionRegistry, entityCrudService, properties,
-                platformPermissionChecker, objectMapper, validatorProvider);
+                platformPermissionChecker, objectMapper, validatorProvider, conversionService);
+    }
+
+    @Bean
+    public GenericEntityController genericEntityController(PlatformServices platformServices) {
+        return new GenericEntityController(platformServices);
     }
 
     @Bean

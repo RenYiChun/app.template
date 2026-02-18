@@ -61,20 +61,20 @@ public class PlatformIdGenerator implements IdentifierGenerator {
     public Object generate(SharedSessionContractImplementor session, Object object) throws HibernateException {
         Class<?> javaType = idType.getReturnedClass();
 
+        // 优先检查是否已赋值
+        Object currentId = getCurrentId(object);
+        if (currentId != null) {
+            return currentId;
+        }
+
         if (javaType == Long.class || javaType == long.class || javaType == Integer.class || javaType == int.class) {
             return sequenceDelegate.generate(session, object);
         }
         if (javaType == UUID.class) {
             return UUID.randomUUID();
         }
-        if (javaType == String.class) {
-            Object currentId = getCurrentId(object);
-            if (currentId != null) {
-                return currentId;
-            }
-            throw new HibernateException("String 类型主键必须由业务在持久化前赋值");
-        }
-        throw new HibernateException("不支持的主键类型: " + javaType.getName());
+        
+        throw new HibernateException("主键类型 " + javaType.getName() + " 必须由业务在持久化前赋值");
     }
 
     private static Object getCurrentId(Object entity) {
