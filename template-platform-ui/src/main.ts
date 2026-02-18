@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 import './styles/main.css';
+import './styles/entity-crud.css';
 import App from './App.vue';
 import router from './router';
 import { createPlatform } from '@lrenyi/template-platform-frontend/vue';

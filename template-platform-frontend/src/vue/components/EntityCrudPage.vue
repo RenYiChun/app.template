@@ -188,18 +188,3 @@ onMounted(async () => {
   await search();
 });
 </script>
-
-<style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.batch-actions {
-  margin-bottom: 12px;
-}
-.el-pagination {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-</style>
