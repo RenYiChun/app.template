@@ -5,7 +5,9 @@
       :data="items"
       border
       stripe
+      :row-key="rowKey"
       v-bind="$attrs"
+      @selection-change="onSelectionChange"
     >
       <el-table-column
         v-if="selectable"
@@ -64,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ColumnConfig } from '../config.js';
+import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 
 const props = withDefaults(
   defineProps<{
@@ -78,6 +80,8 @@ const props = withDefaults(
     rowActions?: string[];
     /** 是否可选 */
     selectable?: boolean;
+    /** 行唯一标识字段 */
+    rowKey?: string;
     /** 操作列宽度 */
     rowActionsWidth?: number;
   }>(),
@@ -85,6 +89,7 @@ const props = withDefaults(
     loading: false,
     rowActions: () => ['view', 'edit', 'delete'],
     selectable: false,
+    rowKey: 'id',
     rowActionsWidth: 180,
   }
 );
@@ -94,6 +99,7 @@ const emit = defineEmits<{
   (e: 'edit', row: Record<string, unknown>): void;
   (e: 'delete', row: Record<string, unknown>): void;
   (e: 'action', action: string, row: Record<string, unknown>): void;
+  (e: 'selection-change', rows: Record<string, unknown>[], ids: Array<string | number>): void;
 }>();
 
 const actionLabel = (act: string) =>
@@ -107,5 +113,13 @@ const emitAction = (act: string, row: Record<string, unknown>) => {
   else if (act === 'edit') emit('edit', row);
   else if (act === 'delete') emit('delete', row);
   else emit('action', act, row);
+};
+
+const onSelectionChange = (rows: Record<string, unknown>[]) => {
+  const key = props.rowKey ?? 'id';
+  const ids = rows
+    .map((r) => r?.[key] as unknown)
+    .filter((v): v is string | number => typeof v === 'string' || typeof v === 'number');
+  emit('selection-change', rows, ids);
 };
 </script>

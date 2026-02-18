@@ -7,6 +7,6 @@ export {
   registerEntityConfig,
   getEntityConfig,
   resolveColumns,
-} from './config.js';
+} from '@lrenyi/platform-headless/vue';
 
-export type { EntityConfig, ColumnConfig } from './config.js';
+export type { EntityConfig, ColumnConfig } from '@lrenyi/platform-headless/vue';

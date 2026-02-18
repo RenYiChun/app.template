@@ -14,6 +14,7 @@ export interface PlatformOptions {
   client?: EntityClientConfig;
   meta?: MetaServiceConfig;
   auth?: AuthClientConfig;
+  allowGlobalFallback?: boolean;
 }
 
 export interface PlatformInstance {
@@ -28,8 +29,10 @@ export const PlatformSymbol: InjectionKey<PlatformInstance> = Symbol('Platform')
 let defaultClient: EntityClient | null = null;
 let defaultMeta: MetaService | null = null;
 let defaultAuthClient: AuthClient | null = null;
+let allowGlobalFallback = true;
 
 export function createPlatform(options: PlatformOptions = {}): PlatformInstance {
+  allowGlobalFallback = options.allowGlobalFallback ?? true;
   const clientConfig = options.client ?? {};
   const baseRequest = clientConfig.request ?? ((url: string, opts?: RequestInit) =>
     fetch(url, { ...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include' }));
@@ -83,7 +86,9 @@ export function usePlatform() {
   if (platform) {
     return platform;
   }
-  // Fallback to global singleton
+  if (!allowGlobalFallback) {
+    throw new Error('Platform 未注入，请先在应用入口 app.use(createPlatform(...))');
+  }
   return getPlatform();
 }
 

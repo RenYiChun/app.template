@@ -215,6 +215,7 @@ export class EntityClient {
       : joinPath(entityName, '_action', actionName);
     const res = await this.requestFn(this.url(path), {
       method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
     return this.handleResult<T>(res);

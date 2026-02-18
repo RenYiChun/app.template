@@ -3,6 +3,7 @@ import ElementPlus, { ElMessage } from 'element-plus';
 import 'element-plus/dist/index.css';
 import '@lrenyi/platform-ui/dist/style.css';
 import './styles/main.css';
+import './styles/platform-ui-overrides.css';
 import App from './App.vue';
 import router from './router';
 import { createPlatform, PlatformError, NetworkError, BusinessError } from '@lrenyi/platform-headless/vue';

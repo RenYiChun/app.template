@@ -12,6 +12,7 @@ export interface SchemaProperty {
   description?: string;
   enum?: string[];
   $ref?: string;
+  required?: boolean;
 }
 
 /** 操作元数据（从 OpenAPI path item 解析） */
@@ -120,7 +121,6 @@ export class MetaService {
       const desc = t.description ?? '';
       const match = desc.match(/pathSegment:\s*(\S+)/);
       if (match) tagToPathSegment.set(t.name, match[1].trim());
-      else tagToPathSegment.set(t.name, t.name);
     }
 
     const entityBySegment = new Map<string, EntityMeta>();
@@ -137,7 +137,10 @@ export class MetaService {
         const opTags = operation.tags ?? [];
         const tag = opTags[0];
         const displayName = tag ?? segment;
-        const pathSeg = tagToPathSegment.get(tag ?? '') ?? segment;
+        if (tag && !tagToPathSegment.has(tag)) {
+          tagToPathSegment.set(tag, segment);
+        }
+        const pathSeg = (tag ? tagToPathSegment.get(tag) : undefined) ?? segment;
 
         let meta = entityBySegment.get(pathSeg);
         if (!meta) {
@@ -153,16 +156,27 @@ export class MetaService {
         }
 
         const operationId = operation.operationId ?? `${pathSeg}_${method}`;
-        const parts = operationId.split('_');
-        const last = parts[parts.length - 1];
-        const isAction = path.includes('{actionName}') || (parts.length > 2 && !['search', 'get', 'create', 'update', 'delete', 'deleteBatch', 'updateBatch', 'export'].includes(last));
+        const opIdParts = operationId.split('_');
+        const last = opIdParts[opIdParts.length - 1];
+        const knownOps = ['search', 'get', 'create', 'update', 'delete', 'deleteBatch', 'updateBatch', 'export'];
+        const actionIdx = parts.indexOf('_action');
+        const actionFromPath = actionIdx >= 0 ? parts[actionIdx + 1] : undefined;
+        const hasActionInPath = actionIdx >= 0 || path.includes('/_action/');
+        const isAction =
+          hasActionInPath ||
+          path.includes('{actionName}') ||
+          (opIdParts.length > 2 && !knownOps.includes(last));
+        const actionName =
+          (actionFromPath && !actionFromPath.startsWith('{') ? actionFromPath : undefined) ?? last;
 
         if (isAction) {
-          meta.actions.push({
-            actionName: last,
-            summary: operation.summary,
-            permissions: (operation as OpenApiOperation & { 'x-permissions'?: string | string[] })['x-permissions'] as string[] | undefined,
-          });
+          if (!meta.actions.some((a) => a.actionName === actionName)) {
+            meta.actions.push({
+              actionName,
+              summary: operation.summary,
+              permissions: (operation as OpenApiOperation & { 'x-permissions'?: string | string[] })['x-permissions'] as string[] | undefined,
+            });
+          }
         } else {
           const opMeta: OperationMeta = {
             method: method.toUpperCase(),
@@ -194,7 +208,15 @@ export class MetaService {
         if (schemaRef) {
           const schemaName = schemaRef.replace('#/components/schemas/', '');
           const schema = schemas[schemaName];
-          if (schema?.properties) meta.schemas[last === 'create' ? 'create' : last === 'update' || last === 'updateBatch' ? 'update' : 'response'] = schema.properties as Record<string, SchemaProperty>;
+          if (schema?.properties) {
+            const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+            const props = schema.properties as Record<string, SchemaProperty>;
+            const enriched: Record<string, SchemaProperty> = {};
+            for (const [k, v] of Object.entries(props)) {
+              enriched[k] = { ...v, required: requiredSet.has(k) };
+            }
+            meta.schemas[last === 'create' ? 'create' : last === 'update' || last === 'updateBatch' ? 'update' : 'response'] = enriched;
+          }
         }
 
         const resp = operation.responses?.['200'] as { content?: { 'application/json'?: { schema?: { $ref?: string } } } } | undefined;
@@ -231,6 +253,7 @@ interface OpenApiDoc {
 interface OpenApiSchema {
   type?: string;
   properties?: Record<string, unknown>;
+  required?: string[];
 }
 
 interface OpenApiOperation {

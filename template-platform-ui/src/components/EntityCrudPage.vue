@@ -24,7 +24,8 @@
       </EntitySearchBar>
 
       <div v-if="selectable && selectedIds.length" class="batch-actions">
-        <el-button v-if="selectable && selectedIds.length" type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+        <span class="batch-actions__hint">已选 {{ selectedIds.length }} 项</span>
+        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </div>
 
       <EntityTable
@@ -33,6 +34,8 @@
         :loading="loading"
         :row-actions="rowActions"
         :selectable="selectable"
+        :row-key="rowKey"
+        @selection-change="onSelectionChange"
         @view="(row) => emit('view', row)"
         @edit="(row) => emit('edit', row)"
         @delete="(row) => emit('delete', row)"
@@ -61,11 +64,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
-import { usePlatform, useEntityMeta, useEntityCrud } from '@lrenyi/platform-headless/vue';
-import { resolveColumns, getEntityConfig } from '../config.js';
-import type { ColumnConfig } from '../config.js';
+import { usePlatform, useEntityMeta, useEntityCrud, resolveColumns, getEntityConfig } from '@lrenyi/platform-headless/vue';
+import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 import type { FilterCondition, SearchRequest } from '@lrenyi/platform-headless';
 
 const props = withDefaults(
@@ -75,7 +78,9 @@ const props = withDefaults(
     searchFields?: string[];
     rowActions?: string[];
     selectable?: boolean;
+    rowKey?: string;
     enableCreate?: boolean;
+    confirmBatchDelete?: boolean;
     shadow?: 'always' | 'hover' | 'never';
     baseFilters?: FilterCondition[];
     immediate?: boolean;
@@ -83,7 +88,9 @@ const props = withDefaults(
   {
     rowActions: () => ['view', 'edit', 'delete'],
     selectable: false,
+    rowKey: 'id',
     enableCreate: true,
+    confirmBatchDelete: true,
     shadow: 'always',
     baseFilters: () => [],
     immediate: true,
@@ -180,13 +187,25 @@ const onPageChange = async () => {
 };
 
 const doSearch = async (overrides?: Partial<SearchRequest>) => {
+  selectedIds.value = [];
   const userFilters = overrides?.filters ?? filters.value;
   const finalFilters = [...(props.baseFilters || []), ...userFilters];
   await search({ ...overrides, filters: finalFilters });
 };
 
+const onSelectionChange = (_rows: Record<string, unknown>[], ids: Array<string | number>) => {
+  selectedIds.value = ids;
+};
+
 const handleBatchDelete = async () => {
   if (selectedIds.value.length === 0) return;
+  if (props.confirmBatchDelete) {
+    try {
+      await ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条记录吗？`, '提示', { type: 'warning' });
+    } catch (e) {
+      return;
+    }
+  }
   await removeBatch(selectedIds.value);
   selectedIds.value = [];
   await doSearch();
@@ -214,8 +233,6 @@ defineExpose({
 </script>
 
 <style>
-/* 实体 CRUD 页面布局样式 */
-/* 注意：这里没有使用 scoped，以便允许样式穿透或被外部覆盖。但为了避免污染，使用了 .entity-crud-page 命名空间 */
 .entity-crud-page .card-header {
   display: flex;
   justify-content: space-between;
@@ -224,6 +241,13 @@ defineExpose({
 
 .entity-crud-page .batch-actions {
   margin-bottom: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.entity-crud-page .batch-actions__hint {
+  color: var(--el-text-color-regular);
 }
 
 .entity-crud-page .el-pagination {

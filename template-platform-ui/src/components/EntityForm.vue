@@ -71,8 +71,12 @@ const props = withDefaults(
     initial?: Record<string, unknown>;
     /** 只读字段（不渲染） */
     readonlyFields?: string[];
+    /** 额外/覆盖校验规则 */
+    rulesOverride?: FormRules;
+    /** 规则覆盖模式：merge=追加，replace=完全替换 */
+    rulesMode?: 'merge' | 'replace';
   }>(),
-  { readonlyFields: () => [] }
+  { readonlyFields: () => [], rulesMode: 'merge' }
 );
 
 const emit = defineEmits<{
@@ -96,13 +100,38 @@ watch(
 watch(
   formFields,
   (s) => {
+    for (const k of Object.keys(rules)) {
+      delete (rules as any)[k];
+    }
     for (const key of Object.keys(s)) {
       if (!(key in formData)) {
         formData[key] = s[key].type === 'boolean' ? false : '';
       }
       const prop = s[key];
-      if (prop && !rules[key]) {
-        rules[key] = [{ required: true, message: `请输入${key}`, trigger: 'blur' }];
+      if (prop) {
+        const rs: any[] = [];
+        const trigger = prop.enum || prop.type === 'boolean' || isDateType(prop) ? 'change' : 'blur';
+        if (prop.required) {
+          rs.push({ required: true, message: `请输入${key}`, trigger });
+        }
+        const fmt = (prop.format ?? '').toLowerCase();
+        if (fmt === 'email') {
+          rs.push({ type: 'email', message: `请输入正确的${key}`, trigger: 'blur' });
+        }
+        const ov = props.rulesOverride?.[key] as any[] | undefined;
+        if (props.rulesMode === 'replace') {
+          if (ov) rules[key] = ov;
+          else if (rs.length) rules[key] = rs;
+        } else {
+          if (rs.length && ov?.length) rules[key] = [...rs, ...ov];
+          else if (rs.length) rules[key] = rs;
+          else if (ov?.length) rules[key] = ov;
+        }
+      }
+    }
+    if (props.rulesOverride && props.rulesMode === 'merge') {
+      for (const [k, v] of Object.entries(props.rulesOverride)) {
+        if (!rules[k as any]) (rules as any)[k] = v as any;
       }
     }
   },
