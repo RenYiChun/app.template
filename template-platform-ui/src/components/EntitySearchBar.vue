@@ -42,8 +42,8 @@
         </el-form-item>
       </template>
       <el-form-item class="search-actions">
-        <el-button type="primary" @click="handleSearch">{{ searchText }}</el-button>
-        <el-button @click="handleReset">{{ resetText }}</el-button>
+        <el-button type="primary" :icon="Search" @click="handleSearch">{{ searchText }}</el-button>
+        <el-button :icon="Refresh" @click="handleReset">{{ resetText }}</el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue';
+import { Search, Refresh } from '@element-plus/icons-vue';
 import type { FilterCondition, Op, EntityMeta } from '@lrenyi/platform-headless';
 
 const props = withDefaults(

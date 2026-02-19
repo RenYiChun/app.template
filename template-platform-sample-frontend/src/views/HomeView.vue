@@ -40,11 +40,6 @@
               <el-menu-item index="/system/dicts">{{ $t('menu.dicts') }}</el-menu-item>
               <el-menu-item index="/system/operation-logs">{{ $t('menu.logs') }}</el-menu-item>
             </el-sub-menu>
-
-            <el-menu-item index="docs">
-              <el-icon><Document /></el-icon>
-              <template #title>{{ $t('menu.docs') }}</template>
-            </el-menu-item>
           </el-menu>
         </el-scrollbar>
       </div>
@@ -74,6 +69,13 @@
         </div>
 
         <div class="header-right">
+          <!-- Notification Icon -->
+          <div class="icon-btn" @click="handleDocs" style="cursor: pointer; margin-right: 16px;">
+            <el-tooltip :content="$t('menu.docs')" placement="bottom">
+              <el-icon :size="20"><Document /></el-icon>
+            </el-tooltip>
+          </div>
+
           <!-- Notification Icon -->
           <div class="icon-btn">
             <el-badge is-dot class="item">
@@ -138,16 +140,18 @@ const router = useRouter();
 const isCollapsed = ref(false);
 const activeMenu = computed(() => router.currentRoute.value.path);
 const handleSelect = (index: string) => {
-    if (index === 'docs') {
-        const token = authClient?.getToken();
-        const url = token ? `/docs?token=${token}` : '/docs';
-        window.open(url, '_blank');
-    } else if (index.startsWith('/')) {
-        router.push(index);
-    }
-};
+          if (index.startsWith('/')) {
+              router.push(index);
+          }
+      };
 
-const userInitial = computed(() => {
+      const handleDocs = () => {
+          const token = authClient?.getToken();
+          const url = token ? `/docs?token=${token}` : '/docs';
+          window.open(url, '_blank');
+      };
+
+      const userInitial = computed(() => {
     return (user.value?.username?.[0] || 'A').toUpperCase();
 });
 

@@ -3,35 +3,12 @@
     <EntityCrudPage
       entity="users"
       :columns="columns"
-      :search-fields="['username', 'status']"
       :locale="platformUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
       @delete="handleDelete"
       @export="handleExport"
     >
-      <!-- 自定义搜索栏插槽 (可选，如果自动生成的满足要求则不需要) -->
-      <!-- 这里为了演示 status 的下拉选择，我们可以使用 slot，或者依赖元数据 -->
-      <!-- 假设元数据中 status 是 dict 或 enum，EntitySearchBar 会自动生成下拉。 -->
-      <!-- 如果不是，我们这里先用 slot 还原之前的搜索体验 -->
-      <template #search="{ onSearch, onReset, onExport }">
-        <el-form :inline="true" :model="searchForm" class="search-form">
-          <el-form-item :label="$t('system.user.username')">
-            <el-input v-model="searchForm.username" :placeholder="$t('system.user.inputUsername')" clearable @keyup.enter="onSearch(buildFilters())" />
-          </el-form-item>
-          <el-form-item :label="$t('system.user.status')">
-            <el-select v-model="searchForm.status" :placeholder="$t('system.user.selectStatus')" clearable @change="onSearch(buildFilters())">
-              <el-option :label="$t('common.enable')" value="1" />
-              <el-option :label="$t('common.disable')" value="0" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="onSearch(buildFilters())">{{ $t('common.search') }}</el-button>
-            <el-button @click="handleReset(onReset)">{{ $t('common.reset') }}</el-button>
-            <el-button type="success" @click="onExport">{{ $t('common.export') }}</el-button>
-          </el-form-item>
-        </el-form>
-      </template>
 
       <!-- 自定义状态列 -->
       <template #column-status="{ value }">
@@ -150,11 +127,6 @@ const selectedRoles = ref<number[]>([]);
 const currentUser = ref<any>(null);
 const deptTreeData = ref<any[]>([]);
 
-const searchForm = reactive({
-  username: '',
-  status: '',
-});
-
 const columns = computed(() => [
   { prop: 'id', label: 'ID', width: 80 },
   { prop: 'username', label: t('system.user.username') },
@@ -164,23 +136,6 @@ const columns = computed(() => [
   { prop: 'status', label: t('system.user.status'), width: 80 },
   { prop: 'createTime', label: t('system.user.createTime'), width: 180 },
 ]);
-
-const buildFilters = () => {
-  const filters: any[] = [];
-  if (searchForm.username) {
-    filters.push({ field: 'username', op: 'like', value: searchForm.username });
-  }
-  if (searchForm.status) {
-    filters.push({ field: 'status', op: 'eq', value: searchForm.status });
-  }
-  return filters;
-};
-
-const handleReset = (resetFn: () => void) => {
-  searchForm.username = '';
-  searchForm.status = '';
-  resetFn();
-};
 
 const dialogVisible = ref(false);
 const roleDialogVisible = ref(false);
@@ -372,21 +327,5 @@ const handleSaveRoles = async () => {
 <style scoped>
 .user-list-container {
   padding: 0;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-}
-
-.search-form {
-  margin-bottom: 20px;
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
 }
 </style>

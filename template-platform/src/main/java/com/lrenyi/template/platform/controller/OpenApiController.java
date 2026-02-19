@@ -152,6 +152,15 @@ public class OpenApiController {
                             if (!isOperationEnabled(entity, methodName)) {
                                 continue;
                             }
+                            // 额外检查：防止 methodName 不匹配导致 batch 操作泄露
+                            if (patternStr.endsWith("/batch")) {
+                                if ("delete".equals(httpMethod) && !entity.isDeleteBatchEnabled()) {
+                                    continue;
+                                }
+                                if ("put".equals(httpMethod) && !entity.isUpdateBatchEnabled()) {
+                                    continue;
+                                }
+                            }
                             String path = patternStr.replace("{entity}", entity.getPathSegment());
                             String summary = summaryFromMethodName(methodName);
                             Object permissions = permissionsForMethod(methodName, entity);

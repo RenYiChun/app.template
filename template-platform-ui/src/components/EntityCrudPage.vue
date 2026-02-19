@@ -24,14 +24,17 @@
       <!-- 工具栏 -->
       <div class="crud-toolbar">
         <div class="toolbar-left">
-          <el-button v-if="enableCreate" type="primary" @click="emit('create')">
+          <el-button v-if="canCreate" type="primary" @click="emit('create')" size="default">
             <el-icon class="el-icon--left"><Plus /></el-icon>{{ createText }}
           </el-button>
-          <el-button v-if="selectable && selectedIds.length" type="danger" plain @click="handleBatchDelete">
+          <el-button v-if="canBatchDelete && isSelectable" type="danger" plain :disabled="!selectedIds.length" @click="handleBatchDelete" size="default">
             <el-icon class="el-icon--left"><Delete /></el-icon>{{ batchDeleteText }}
           </el-button>
+          <el-button v-if="canBatchUpdate && isSelectable" type="primary" plain :disabled="!selectedIds.length" @click="handleBatchUpdate" size="default">
+            <el-icon class="el-icon--left"><Edit /></el-icon>{{ batchUpdateText }}
+          </el-button>
           <!-- 导出按钮 -->
-          <el-button v-if="enableExport" type="primary" plain :loading="exportLoading" @click="handleExport">
+          <el-button v-if="canExport" type="primary" plain :loading="exportLoading" @click="handleExport" size="default">
             <el-icon class="el-icon--left"><Download /></el-icon>{{ exportText }}
           </el-button>
           <slot name="toolbar-left" />
@@ -39,14 +42,14 @@
         <div class="toolbar-right">
           <slot name="toolbar-right" />
           <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
-            <el-button circle :icon="Search" @click="showSearch = !showSearch" />
+            <el-button circle :icon="Search" @click="showSearch = !showSearch" size="default" />
           </el-tooltip>
           <el-tooltip :content="refreshText" placement="top">
-            <el-button circle :icon="Refresh" @click="onSearch" />
+            <el-button circle :icon="Refresh" @click="onSearch" size="default" />
           </el-tooltip>
           <el-popover placement="bottom" :width="200" trigger="click">
             <template #reference>
-              <el-button circle :icon="Setting" />
+              <el-button circle :icon="Setting" size="default" />
             </template>
             <div class="column-setting-popover">
               <div class="popover-title">列设置</div>
@@ -69,7 +72,7 @@
           :items="items"
           :loading="loading"
           :row-actions="rowActions"
-          :selectable="selectable"
+          :selectable="isSelectable"
           :row-key="rowKey"
           :locale="locale"
           @selection-change="onSelectionChange"
@@ -106,10 +109,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Delete, Refresh, Download, Search, Setting } from '@element-plus/icons-vue';
+import { Plus, Delete, Refresh, Download, Search, Setting, Edit } from '@element-plus/icons-vue';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
-import { usePlatform, useEntityMeta, useEntityCrud, resolveColumns, getEntityConfig } from '@lrenyi/platform-headless/vue';
+import {
+  usePlatform,
+  useEntityMeta,
+  useEntityCrud,
+  resolveColumns,
+  getEntityConfig,
+} from '@lrenyi/platform-headless/vue';
 import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 import type { FilterCondition, SearchRequest } from '@lrenyi/platform-headless';
 
@@ -172,14 +181,14 @@ const props = withDefaults(
     rowActions: () => ['view', 'edit', 'delete'],
     selectable: false,
     rowKey: 'id',
-    enableCreate: true,
-    enableExport: true,
+    enableCreate: undefined,
+    enableExport: undefined,
     confirmBatchDelete: true,
     shadow: 'always',
     baseFilters: () => [],
     immediate: true,
     defaultPageSize: 10,
-  }
+  },
 );
 
 const emit = defineEmits<{
@@ -187,6 +196,7 @@ const emit = defineEmits<{
   (e: 'view', row: Record<string, unknown>): void;
   (e: 'edit', row: Record<string, unknown>): void;
   (e: 'delete', row: Record<string, unknown>): void;
+  (e: 'batch-update', ids: (string | number)[]): void;
   (e: 'action', action: string, row: Record<string, unknown>): void;
 }>();
 
@@ -233,13 +243,37 @@ const formatText = (template: string, vars?: Record<string, string | number>) =>
   return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
 };
 
+const canCreate = computed(() => {
+  if (props.enableCreate !== undefined) return props.enableCreate;
+  return entityMeta.value ? !!entityMeta.value.operations?.create : true;
+});
+
+const canBatchDelete = computed(() => {
+  return !!entityMeta.value?.operations?.deleteBatch;
+});
+
+const canBatchUpdate = computed(() => {
+  return !!entityMeta.value?.operations?.updateBatch;
+});
+
+const canExport = computed(() => {
+  if (props.enableExport !== undefined) return props.enableExport;
+  return entityMeta.value ? (!!entityMeta.value.operations?.export || !!entityMeta.value.exportEnabled) : true;
+});
+
+const isSelectable = computed(() => {
+  if (props.selectable) return true;
+  return canBatchDelete.value || canBatchUpdate.value;
+});
+
 const manageSuffix = computed(() => props.locale?.common?.manageSuffix ?? '管理');
 const createText = computed(() => props.locale?.common?.add ?? '新增');
 const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '批量删除');
+const batchUpdateText = computed(() => props.locale?.common?.batchUpdate ?? '批量更新');
 const exportText = computed(() => props.locale?.common?.export ?? '导出');
 const refreshText = computed(() => props.locale?.common?.refresh ?? '刷新');
 const selectedCountText = computed(() =>
-  formatText(props.locale?.common?.selectedCount ?? '已选 {count} 项', { count: selectedIds.value.length })
+  formatText(props.locale?.common?.selectedCount ?? '已选 {count} 项', { count: selectedIds.value.length }),
 );
 const paginationInfoText = computed(() => {
   const start = total.value === 0 ? 0 : (pageOneBased.value - 1) * size.value + 1;
@@ -270,35 +304,35 @@ const handleExport = async () => {
 
 const displayName = computed(() => entityMeta.value?.displayName ?? props.entity);
 const searchFieldsConfig = computed(() => {
-    // 优先使用 props.searchFields
-    if (props.searchFields && props.searchFields.length > 0) {
-      return props.searchFields;
-    }
-    
-    // 其次尝试从 entityConfig 获取
-    const config = getEntityConfig(props.entity);
-    if (config?.searchFields && config.searchFields.length > 0) {
-      return config.searchFields;
-    }
+  // 优先使用 props.searchFields
+  if (props.searchFields && props.searchFields.length > 0) {
+    return props.searchFields;
+  }
 
-    // 最后尝试从 meta.queryableFields 自动生成
-    if (entityMeta.value?.queryableFields) {
-      // 这里不需要手动转换，EntitySearchBar 会自动处理 meta.queryableFields
-      // 但为了让 EntitySearchBar 正确渲染，我们需要确保传递了 entityMeta
-      return []; // 返回空数组，让 EntitySearchBar 内部基于 meta 自动生成
-    }
+  // 其次尝试从 entityConfig 获取
+  const config = getEntityConfig(props.entity);
+  if (config?.searchFields && config.searchFields.length > 0) {
+    return config.searchFields;
+  }
 
-    return [];
-  });
+  // 最后尝试从 meta.queryableFields 自动生成
+  if (entityMeta.value?.queryableFields) {
+    // 这里不需要手动转换，EntitySearchBar 会自动处理 meta.queryableFields
+    // 但为了让 EntitySearchBar 正确渲染，我们需要确保传递了 entityMeta
+    return []; // 返回空数组，让 EntitySearchBar 内部基于 meta 自动生成
+  }
 
-  // 调试日志：监控 entityMeta 的变化
-  watch(() => entityMeta.value, (newVal) => {
-    // meta changed
-  }, { immediate: true });
-  
-  watch(() => metaLoading.value, (newVal) => {
-    // loading changed
-  });
+  return [];
+});
+
+// 调试日志：监控 entityMeta 的变化
+watch(() => entityMeta.value, (newVal) => {
+  // meta changed
+}, { immediate: true });
+
+watch(() => metaLoading.value, (newVal) => {
+  // loading changed
+});
 
 const allColumns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
 
@@ -321,7 +355,9 @@ const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/platform-
 
 const pageOneBased = computed({
   get: () => page.value + 1,
-  set: (v) => { page.value = Math.max(0, v - 1); },
+  set: (v) => {
+    page.value = Math.max(0, v - 1);
+  },
 });
 
 const selectedIds = ref<(string | number)[]>([]);
@@ -362,7 +398,7 @@ const handleBatchDelete = async () => {
     try {
       const message = formatText(
         props.locale?.common?.batchDeleteConfirm ?? '确定删除选中的 {count} 条记录吗？',
-        { count: selectedIds.value.length }
+        { count: selectedIds.value.length },
       );
       await ElMessageBox.confirm(message, props.locale?.common?.tips ?? '提示', { type: 'warning' });
     } catch (e) {
@@ -372,6 +408,11 @@ const handleBatchDelete = async () => {
   await removeBatch(selectedIds.value);
   selectedIds.value = [];
   await doSearch();
+};
+
+const handleBatchUpdate = () => {
+  if (selectedIds.value.length === 0) return;
+  emit('batch-update', selectedIds.value);
 };
 
 // Watch baseFilters change to trigger search if immediate or already loaded
@@ -445,7 +486,6 @@ defineExpose({
 
 .entity-crud-page .toolbar-left {
   display: flex;
-  gap: 8px;
 }
 
 /* 工具栏按钮组 */

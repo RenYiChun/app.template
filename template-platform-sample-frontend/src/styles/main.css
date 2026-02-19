@@ -35,6 +35,10 @@ html, body {
   border-radius: 8px !important;
 }
 
+.el-button + .el-button {
+  margin-left: 5px !important;
+}
+
 .el-input__inner, .el-select__wrapper {
   border-radius: 8px !important;
 }

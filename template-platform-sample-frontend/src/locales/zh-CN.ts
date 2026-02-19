@@ -143,7 +143,7 @@ export default {
     depts: '部门管理',
     dicts: '字典管理',
     logs: '操作日志',
-    docs: '文档',
+    docs: 'API文档',
     profile: '个人中心',
     settings: '账号设置',
     logout: '退出登录',
