@@ -8,7 +8,7 @@
         <artifactId>app.template</artifactId>
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
-    <artifactId>template-platform</artifactId>
+    <artifactId>template-dataforge</artifactId>
     <name>Template Platform</name>
     <description>实体驱动业务平台内核：统一 Controller、Action 扩展、权限/日志/OpenAPI</description>
 

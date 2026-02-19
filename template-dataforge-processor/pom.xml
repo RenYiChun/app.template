@@ -8,7 +8,7 @@
         <artifactId>app.template</artifactId>
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
-    <artifactId>template-platform-processor</artifactId>
+    <artifactId>template-dataforge-processor</artifactId>
     <name>Template Platform Processor</name>
     <description>实体平台 Annotation Processor：编译期生成 DTO。使用时须在 maven-compiler-plugin 的 annotationProcessorPaths 中显式声明本模块。</description>
 

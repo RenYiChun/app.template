@@ -8,7 +8,7 @@
         <artifactId>app.template</artifactId>
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
-    <artifactId>template-platform-sample-backend</artifactId>
+    <artifactId>template-dataforge-sample-backend</artifactId>
     <name>Template Platform Sample Backend</name>
     <description>template-platform-headless 对应的后端示例：实体 CRUD、Action、OpenAPI 文档</description>
     <packaging>jar</packaging>
@@ -20,14 +20,14 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-platform-processor</artifactId>
+            <artifactId>template-dataforge-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-platform</artifactId>
+            <artifactId>template-dataforge</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
