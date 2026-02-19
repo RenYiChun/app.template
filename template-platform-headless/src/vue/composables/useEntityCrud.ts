@@ -2,9 +2,8 @@
  * useEntityCrud：实体 CRUD 逻辑 Composables
  */
 
-import { ref, type Ref } from 'vue';
-import type { EntityClient, FilterCondition, SortOrder } from '../../core/index.js';
-import type { SearchRequest } from '../../core/index.js';
+import {ref} from 'vue';
+import type {EntityClient, FilterCondition, SearchRequest, SortOrder} from '../../core';
 
 export interface UseEntityCrudOptions {
   initialPageSize?: number;
@@ -72,16 +71,14 @@ export function useEntityCrud<T = Record<string, unknown>>(
   };
 
   const create = async (body: Partial<T>): Promise<T> => {
-    const result = await client.create<T>(entity, body);
-    return result;
+    return await client.create<T>(entity, body);
   };
 
   const update = async (
     id: string | number,
     body: Partial<T>
   ): Promise<T> => {
-    const result = await client.update<T>(entity, id, body);
-    return result;
+    return await client.update<T>(entity, id, body);
   };
 
   const remove = async (id: string | number): Promise<void> => {

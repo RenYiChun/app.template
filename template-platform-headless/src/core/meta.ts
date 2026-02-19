@@ -2,8 +2,8 @@
  * MetaService：拉取并解析 GET /api/docs 的 OpenAPI 文档
  */
 
-import type { Op } from './types.js';
-import type { EntityClient } from './client.js';
+import type {Op} from './types.js';
+import type {EntityClient} from './client.js';
 
 /** OpenAPI Schema 属性 */
 export interface SchemaProperty {
@@ -84,11 +84,13 @@ export class MetaService {
       return this.cached;
     }
     const docsUrl = this.client.getDocsUrl();
+    // Add timestamp to prevent caching
+    const urlWithTs = docsUrl + (docsUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
     
     // 使用 EntityClient.request 保持统一的请求行为（如 baseURL 处理）
     // 但 Docs 通常是公开的，如果 Token 失效可能导致 401。
     // 如果返回 401，我们抛出特定错误供上层处理（例如跳转登录），而不是直接操作 window.location
-    const res = await this.client.request(docsUrl, { method: 'GET' });
+    const res = await this.client.request(urlWithTs, { method: 'GET' });
 
     if (res.status === 401) {
       throw new Error('Unauthorized: 无法获取 OpenAPI 文档，请检查登录状态');
@@ -197,6 +199,31 @@ export class MetaService {
               };
             }
           }
+
+          // 如果是 export 操作，且有 queryableFields，则尝试将其复制给 search 操作
+          if (last === 'export' && opMeta.queryableFields) {
+            // 查找对应的 search 操作
+            let searchOp = meta.operations['search'];
+            if (!searchOp) {
+              // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
+              // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
+              // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
+              // 如果我们找不到 'search' key，可能是 operationId 解析问题
+              // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
+            }
+            
+            if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
+              searchOp.queryableFields = { ...opMeta.queryableFields };
+              // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
+              meta.queryableFields = searchOp.queryableFields;
+            }
+            
+            // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
+            if (!meta.queryableFields) {
+              meta.queryableFields = { ...opMeta.queryableFields };
+            }
+          }
+
           meta.operations[last] = opMeta;
           if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
           if (last === 'export') meta.exportEnabled = true;

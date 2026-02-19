@@ -108,6 +108,17 @@ const emit = defineEmits<{
 const { client, meta } = usePlatform();
 const { meta: entityMeta, loading: metaLoading, refresh: refreshMeta } = useEntityMeta(meta, props.entity);
 
+// 强制触发一次 meta 加载检查
+onMounted(async () => {
+  if (!entityMeta.value) {
+    try {
+      await refreshMeta();
+    } catch (e) {
+      console.error('[EntityCrudPage] meta refresh failed:', e);
+    }
+  }
+});
+
 const crud = useEntityCrud(client, props.entity, {
   onError: (e) => console.error(e),
 });
@@ -151,10 +162,35 @@ const handleExport = async () => {
 const displayName = computed(() => entityMeta.value?.displayName ?? props.entity);
 const columns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
 const searchFieldsConfig = computed(() => {
-  if (props.searchFields) return props.searchFields;
-  const config = getEntityConfig(props.entity);
-  return config?.searchFields;
-});
+    // 优先使用 props.searchFields
+    if (props.searchFields && props.searchFields.length > 0) {
+      return props.searchFields;
+    }
+    
+    // 其次尝试从 entityConfig 获取
+    const config = getEntityConfig(props.entity);
+    if (config?.searchFields && config.searchFields.length > 0) {
+      return config.searchFields;
+    }
+
+    // 最后尝试从 meta.queryableFields 自动生成
+    if (entityMeta.value?.queryableFields) {
+      // 这里不需要手动转换，EntitySearchBar 会自动处理 meta.queryableFields
+      // 但为了让 EntitySearchBar 正确渲染，我们需要确保传递了 entityMeta
+      return []; // 返回空数组，让 EntitySearchBar 内部基于 meta 自动生成
+    }
+
+    return [];
+  });
+
+  // 调试日志：监控 entityMeta 的变化
+  watch(() => entityMeta.value, (newVal) => {
+    // meta changed
+  }, { immediate: true });
+  
+  watch(() => metaLoading.value, (newVal) => {
+    // loading changed
+  });
 
 const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/platform-headless').Op; value: unknown }>) => {
   filters.value = v as import('@lrenyi/platform-headless').FilterCondition[];

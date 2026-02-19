@@ -143,6 +143,7 @@ public class OpenApiController {
                                         false,
                                         false,
                                         null,
+                                        null,
                                         null);
                             }
                         }
@@ -160,13 +161,23 @@ public class OpenApiController {
                             boolean requestSchemaArray = isRequestSchemaArrayForMethod(methodName);
                             boolean requestSchemaArrayOfIds = isRequestSchemaArrayOfIdsForMethod(methodName);
                             String responseSchema = getResponseSchemaForMethod(methodName, entity);
+                            
+                            // 修正：确保 methodName 为 search 时，也像 GenericEntityController 一样生成 x-queryable-fields
+                            // 原来的逻辑只有在 GenericEntityController 的 search 方法被直接映射时才生效
+                            // 但这里我们是在遍历 entityRegistry 动态生成的 operation，所以需要手动注入 x-queryable-fields
+                            Map<String, Object> queryableFields = null;
+                            if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
+                                queryableFields = buildQueryableFields(entity);
+                            }
+
                             putOperation(pathsMap, path, httpMethod, summary, operationId, hasRequestBody,
                                     permissions != null && !"".equals(permissions) ? permissions : null, tag, entity,
                                     requestSchema,
                                     requestSchemaArray,
                                     requestSchemaArrayOfIds,
                                     responseSchema,
-                                    methodName);
+                                    methodName,
+                                    queryableFields); // 传入 queryableFields
                         }
                     }
                 }
@@ -375,7 +386,8 @@ public class OpenApiController {
             String summary, String operationId, boolean requestBody, Object permissions, String tag, EntityMeta entity,
             String requestSchemaRef, boolean requestSchemaArray, boolean requestSchemaArrayOfIds,
             String responseSchemaRef,
-            String methodName) {
+            String methodName,
+            Map<String, Object> queryableFields) { // 新增参数
         pathsMap.computeIfAbsent(path, k -> new HashMap<>());
         Map<String, Object> pathItem = pathsMap.get(path);
         Map<String, Object> op = new HashMap<>();
@@ -431,12 +443,17 @@ public class OpenApiController {
         if (permissions != null && !"".equals(permissions)) {
             op.put("x-permissions", permissions);
         }
-        if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
-            Map<String, Object> queryableFields = buildQueryableFields(entity);
-            if (!queryableFields.isEmpty()) {
-                op.put("x-queryable-fields", queryableFields);
+        
+        // 优先使用传入的 queryableFields，如果没有传入且符合条件，尝试内部构建（兼容旧逻辑）
+        if (queryableFields != null && !queryableFields.isEmpty()) {
+            op.put("x-queryable-fields", queryableFields);
+        } else if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
+            Map<String, Object> builtFields = buildQueryableFields(entity);
+            if (!builtFields.isEmpty()) {
+                op.put("x-queryable-fields", builtFields);
             }
         }
+        
         pathItem.put(httpMethod, op);
     }
 

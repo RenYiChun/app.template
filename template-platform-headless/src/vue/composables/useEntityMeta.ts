@@ -3,8 +3,8 @@
  */
 
 import { ref, type Ref } from 'vue';
-import type { EntityMeta } from '../../core/index.js';
-import type { MetaService } from '../../core/index.js';
+import type { EntityMeta } from '../../core';
+import type { MetaService } from '../../core';
 
 export function useEntityMeta(
   metaService: MetaService,
@@ -25,6 +25,7 @@ export function useEntityMeta(
     try {
       meta.value = await metaService.getEntity(pathSegment);
     } catch (e) {
+      console.error('[useEntityMeta] error fetching meta', e);
       error.value = e instanceof Error ? e : new Error(String(e));
       meta.value = null;
     } finally {

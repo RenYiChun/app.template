@@ -2,10 +2,10 @@
  * 通用 EntityClient：按 pathSegment 调用 template-platform REST API
  */
 
-import type { Result, SearchRequest, PagedResult } from './types.js';
-import { SUCCESS_CODE } from './types.js';
-import { joinPath, ensureSlash } from './utils.js';
-import { NetworkError, HttpError, BusinessError, AuthError } from './errors.js';
+import type {PagedResult, Result, SearchRequest} from './types.js';
+import {SUCCESS_CODE} from './types.js';
+import {ensureSlash, joinPath} from './utils.js';
+import {AuthError, BusinessError, HttpError, NetworkError} from './errors.js';
 
 export interface EntityClientConfig {
   /** API 基础 URL，如 https://example.com */
@@ -115,8 +115,7 @@ export class EntityClient {
     id: string | number
   ): Promise<T | null> {
     const res = await this.requestFn(this.url(`${entity}/${id}`), { method: 'GET' });
-    const data = await this.handleResult<T | null>(res);
-    return data;
+    return await this.handleResult<T | null>(res);
   }
 
   /** 创建 */

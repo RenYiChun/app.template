@@ -65,7 +65,7 @@ const props = withDefaults(
   defineProps<{
     entityMeta: EntityMeta | null;
     /** 限定可搜索的字段，不传则用 meta.queryableFields 全部 */
-    fields?: string[];
+    fields?: string[] | any[];
     modelValue?: FilterCondition[];
     exportLoading?: boolean;
   }>(),
@@ -89,15 +89,37 @@ interface SearchField {
 
 const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;
-  const qf = meta?.queryableFields;
-  // 直接使用后端返回的顺序（OpenAPI 中已排序），或者根据 order 字段再次排序
-  const list = qf ? Object.keys(qf) : [];
+  const qf = meta?.queryableFields ?? {};
+  
+  // console.log('[EntitySearchBar] computing fields', { meta, qf, propsFields: props.fields });
+
+  // 如果提供了 fields prop，则优先使用，并保持顺序
+  if (props.fields?.length) {
+    return props.fields.map((f) => {
+      // 兼容传入的是字符串还是对象
+      const fieldName = typeof f === 'string' ? f : f.field;
+      const info = qf[fieldName] ?? { type: 'string', operators: ['eq', 'ne', 'like'] as Op[] };
+      
+      // 如果传入的是对象且有 label/type 等配置，优先使用
+      const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
+      
+      return {
+        field: fieldName,
+        label: label,
+        type: (typeof f === 'object' && f.type) ? f.type : (info.type ?? 'string'),
+        operators: info.operators ?? (['eq', 'ne', 'like'] as Op[]),
+        order: 0,
+      };
+    });
+  }
+
+  // 否则使用 queryableFields 中的所有字段，并排序
+  const list = Object.keys(qf);
   return list
     .map((f) => {
-      const info = qf?.[f] ?? { type: 'string', operators: ['eq', 'ne', 'like'] as Op[] };
+      const info = qf[f];
       return {
         field: f,
-        // 优先使用后端返回的 label，否则回退到字段名
         label: (info as any).label || f,
         type: info.type ?? 'string',
         operators: info.operators ?? (['eq', 'ne', 'like'] as Op[]),

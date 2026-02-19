@@ -2,13 +2,9 @@
  * 创建 platform 实例，供应用入口调用
  */
 
-import { AuthClient } from '../core/authClient.js';
-import { EntityClient } from '../core/index.js';
-import { MetaService } from '../core/index.js';
-import type { AuthClientConfig } from '../core/authClient.js';
-import type { EntityClientConfig } from '../core/index.js';
-import type { MetaServiceConfig } from '../core/index.js';
-import { inject, type App, type InjectionKey } from 'vue';
+import type {AuthClientConfig, EntityClientConfig, MetaServiceConfig} from '../core';
+import {AuthClient, EntityClient, MetaService} from '../core';
+import {type App, inject, type InjectionKey} from 'vue';
 
 export interface PlatformOptions {
   client?: EntityClientConfig;
@@ -69,16 +65,14 @@ export function createPlatform(options: PlatformOptions = {}): PlatformInstance 
   defaultMeta = meta;
   defaultAuthClient = authClient;
 
-  const instance: PlatformInstance = { 
-    client, 
-    meta, 
+  return {
+    client,
+    meta,
     authClient,
     install(app: App) {
       app.provide(PlatformSymbol, this);
     }
   };
-
-  return instance;
 }
 
 export function usePlatform() {

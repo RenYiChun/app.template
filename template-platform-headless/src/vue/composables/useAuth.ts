@@ -4,7 +4,7 @@
 
 import { ref, type Ref } from 'vue';
 import { usePlatform } from '../createPlatform.js';
-import type { AuthUser, LoginRequest } from '../../core/authClient.js';
+import type { AuthUser, LoginRequest } from '../../core';
 
 export interface UseAuthReturn {
   user: Ref<AuthUser | null>;

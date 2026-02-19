@@ -2,7 +2,7 @@
  * EntityConfigRegistry：实体级配置覆盖
  */
 
-import type { EntityMeta } from '../core/index.js';
+import type { EntityMeta } from '../core';
 
 export interface ColumnConfig {
   prop: string;

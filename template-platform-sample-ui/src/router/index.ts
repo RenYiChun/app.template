@@ -38,6 +38,7 @@ const router = createRouter({
           path: 'system/operation-logs',
           name: 'OperationLogManagement',
           component: () => import('../views/system/OperationLogList.vue'),
+          meta: { public: true },
         },
       ]
     },
