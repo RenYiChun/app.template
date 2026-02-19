@@ -1,16 +1,11 @@
 package com.lrenyi.template.platform.controller;
 
-import com.lrenyi.template.platform.support.PlatformServices;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
-import org.springframework.core.convert.ConversionService;
-import org.springframework.core.convert.ConversionException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.ObjectProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.platform.action.EntityActionExecutor;
@@ -25,9 +20,14 @@ import com.lrenyi.template.platform.support.EntityDtoResolver;
 import com.lrenyi.template.platform.support.ExcelExportSupport;
 import com.lrenyi.template.platform.support.ListCriteria;
 import com.lrenyi.template.platform.support.PagedResult;
+import com.lrenyi.template.platform.support.PlatformServices;
 import com.lrenyi.template.platform.support.SearchRequest;
 import com.lrenyi.template.platform.support.SortOrder;
-import java.util.ArrayList;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.convert.ConversionException;
+import org.springframework.core.convert.ConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,12 +44,13 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 统一入口 Controller：CRUD + Action 路由。
  */
-@org.springframework.web.bind.annotation.RestController
-@org.springframework.web.bind.annotation.RequestMapping("${app.platform.api-prefix:/api/platform}")
+@RestController
+@RequestMapping("${app.platform.api-prefix:/api}")
 public class GenericEntityController {
 
     private final EntityRegistry entityRegistry;

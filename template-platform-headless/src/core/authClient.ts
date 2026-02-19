@@ -53,7 +53,7 @@ export class AuthClient {
 
   constructor(config: AuthClientConfig = {}) {
     this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
-    this.apiPrefix = ensureSlash(config.apiPrefix ?? '/api') || '';
+    this.apiPrefix = ensureSlash(config.apiPrefix ?? '') || '';
     this.oauth2BaseURL = this.baseURL;
     this.tokenURL = joinPath(this.oauth2BaseURL, 'oauth2/token');
     this.clientId = config.oauth2ClientId ?? 'platform-client';
