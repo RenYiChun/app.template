@@ -40,7 +40,7 @@
         v-if="rowActions?.length || $slots['row-actions']"
         :label="actionsText"
         fixed="right"
-        :width="rowActionsWidth"
+        :width="calculatedActionsWidth"
       >
         <template #default="scope">
           <slot v-if="$slots['row-actions']" name="row-actions" :row="scope.row" />
@@ -66,8 +66,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useSlots } from 'vue';
 import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
+
+const slots = useSlots();
 
 const props = withDefaults(
   defineProps<{
@@ -100,7 +102,7 @@ const props = withDefaults(
     rowActions: () => ['view', 'edit', 'delete'],
     selectable: false,
     rowKey: 'id',
-    rowActionsWidth: 180,
+    // rowActionsWidth 默认不设值，通过 computed 自动计算
   }
 );
 
@@ -122,8 +124,13 @@ const actionLabel = (act: string) =>
 const actionsText = computed(() => props.locale?.common?.actions ?? '操作');
 const noDataText = computed(() => props.locale?.common?.noData ?? '暂无数据');
 
-const actionProps = (act: string) =>
-  act === 'delete' ? { type: 'danger' as const } : act === 'view' ? {} : { type: 'primary' as const };
+const actionProps = (act: string) => {
+  const common = { link: true };
+  if (act === 'delete') {
+    return { ...common, type: 'danger' as const };
+  }
+  return { ...common, type: 'primary' as const };
+};
 
 const emitAction = (act: string, row: Record<string, unknown>) => {
   if (act === 'view') emit('view', row);
@@ -131,6 +138,37 @@ const emitAction = (act: string, row: Record<string, unknown>) => {
   else if (act === 'delete') emit('delete', row);
   else emit('action', act, row);
 };
+
+// 自动计算操作列宽度
+const calculatedActionsWidth = computed(() => {
+  // 1. 如果 props 显式传入了宽度，优先使用
+  if (props.rowActionsWidth) return props.rowActionsWidth;
+
+  // 2. 如果没有自定义插槽，且有默认的操作按钮，根据按钮数量和文字长度估算宽度
+  if (!slots['row-actions'] && props.rowActions && props.rowActions.length > 0) {
+    const buttonsWidth = props.rowActions.reduce((acc, act, index) => {
+      const label = actionLabel(act);
+      // 估算：每个汉字约 14px，英文约 8px。
+      // 文字链接没有边框和大的内边距，所以 buffer 可以减小。
+      // 这里简化为：字符数 * 14 + 12 (margin)
+      const textWidth = label.length * 14;
+      const btnWidth = textWidth + 12; 
+      
+      // 按钮之间的间距（Element Plus 默认 margin-left: 12px）
+      // 文字链接可能更紧凑，但保持一致性
+      const margin = index > 0 ? 0 : 0; // margin 包含在 btnWidth 估算里了，或者忽略
+      
+      return acc + btnWidth + margin;
+    }, 0);
+
+    // 加上单元格左右 padding (通常是 12px * 2 = 24px)
+    // 额外加 10px buffer 以防万一
+    return buttonsWidth + 24 + 10;
+  }
+
+  // 3. 如果使用了插槽或者无法估算，使用默认值 180
+  return 180;
+});
 
 const onSelectionChange = (rows: Record<string, unknown>[]) => {
   const key = props.rowKey ?? 'id';

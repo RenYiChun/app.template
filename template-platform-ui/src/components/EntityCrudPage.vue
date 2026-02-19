@@ -31,7 +31,7 @@
             <el-icon class="el-icon--left"><Delete /></el-icon>{{ batchDeleteText }}
           </el-button>
           <!-- 导出按钮 -->
-          <el-button v-if="enableExport" :loading="exportLoading" @click="handleExport">
+          <el-button v-if="enableExport" type="primary" plain :loading="exportLoading" @click="handleExport">
             <el-icon class="el-icon--left"><Download /></el-icon>{{ exportText }}
           </el-button>
           <slot name="toolbar-left" />
@@ -44,13 +44,28 @@
           <el-tooltip :content="refreshText" placement="top">
             <el-button circle :icon="Refresh" @click="onSearch" />
           </el-tooltip>
+          <el-popover placement="bottom" :width="200" trigger="click">
+            <template #reference>
+              <el-button circle :icon="Setting" />
+            </template>
+            <div class="column-setting-popover">
+              <div class="popover-title">列设置</div>
+              <el-checkbox-group v-model="visibleColumnProps" direction="vertical">
+                <div v-for="col in allColumns" :key="col.prop" class="column-checkbox-item">
+                  <el-checkbox :value="col.prop">
+                    {{ col.label || col.prop }}
+                  </el-checkbox>
+                </div>
+              </el-checkbox-group>
+            </div>
+          </el-popover>
         </div>
       </div>
 
       <!-- 表格 -->
       <div class="crud-table" v-loading="loading">
         <EntityTable
-          :columns="columns"
+          :columns="displayColumns"
           :items="items"
           :loading="loading"
           :row-actions="rowActions"
@@ -91,7 +106,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Delete, Refresh, Download, Search } from '@element-plus/icons-vue';
+import { Plus, Delete, Refresh, Download, Search, Setting } from '@element-plus/icons-vue';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
 import { usePlatform, useEntityMeta, useEntityCrud, resolveColumns, getEntityConfig } from '@lrenyi/platform-headless/vue';
@@ -254,7 +269,6 @@ const handleExport = async () => {
 };
 
 const displayName = computed(() => entityMeta.value?.displayName ?? props.entity);
-const columns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
 const searchFieldsConfig = computed(() => {
     // 优先使用 props.searchFields
     if (props.searchFields && props.searchFields.length > 0) {
@@ -285,6 +299,21 @@ const searchFieldsConfig = computed(() => {
   watch(() => metaLoading.value, (newVal) => {
     // loading changed
   });
+
+const allColumns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
+
+const visibleColumnProps = ref<string[]>([]);
+
+watch(() => allColumns.value, (newVal) => {
+  if (newVal && newVal.length > 0) {
+    visibleColumnProps.value = newVal.map(col => col.prop);
+  }
+}, { immediate: true });
+
+const displayColumns = computed(() => {
+  if (!allColumns.value) return [];
+  return allColumns.value.filter(col => visibleColumnProps.value.includes(col.prop));
+});
 
 const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/platform-headless').Op; value: unknown }>) => {
   filters.value = v as import('@lrenyi/platform-headless').FilterCondition[];
@@ -384,6 +413,7 @@ defineExpose({
   overflow: hidden;
   max-height: 500px;
   transition: all 0.3s ease-in-out;
+  border-top: 2px solid var(--el-color-primary);
 }
 
 .entity-crud-page .crud-search-card.is-hidden {
@@ -402,6 +432,7 @@ defineExpose({
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
   padding: 12px;
+  border-top: 2px solid var(--el-color-primary);
 }
 
 /* 工具栏区域 */
@@ -446,9 +477,20 @@ defineExpose({
 
 /* 覆盖表格默认样式，使其更美观 */
 .entity-crud-page .el-table {
-  --el-table-header-bg-color: var(--el-fill-color-light);
+  --el-table-header-bg-color: var(--el-color-primary-light-9);
   --el-table-header-text-color: var(--el-text-color-primary);
   border-radius: 4px;
   overflow: hidden;
+}
+
+.column-setting-popover .popover-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 8px;
+}
+
+.column-setting-popover .column-checkbox-item {
+  margin-bottom: 4px;
 }
 </style>
