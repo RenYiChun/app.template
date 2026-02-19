@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { useAuth } from '@lrenyi/platform-headless/vue';
+import { useAuthStore } from '../stores/auth';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -46,19 +46,22 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, _from, next) => {
-  const { user, refreshMe } = useAuth();
-  if (to.meta.public) {
+  const authStore = useAuthStore();
+  
+  if (to.meta.public || to.path === '/login') {
     next();
     return;
   }
-  if (!user.value) {
+  
+  if (!authStore.user) {
     try {
-      await refreshMe();
+      await authStore.refreshMe();
     } catch {
       // ignore
     }
   }
-  if (!user.value) {
+  
+  if (!authStore.user) {
     next({ path: '/login', query: { redirect: to.fullPath } });
   } else {
     next();

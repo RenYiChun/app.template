@@ -10,9 +10,9 @@
       @delete="handleDelete"
     >
       <template #row-actions="{ row }">
-        <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-        <el-button link type="warning" @click="handleAssignPermissions(row)">分配权限</el-button>
-        <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+        <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+        <el-button link type="warning" @click="handleAssignPermissions(row)">{{ $t('system.role.assignPerms') }}</el-button>
+        <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
       </template>
     </EntityCrudPage>
 
@@ -24,24 +24,24 @@
       @close="handleDialogClose"
     >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
-        <el-form-item label="角色编码" prop="roleCode">
+        <el-form-item :label="$t('system.role.code')" prop="roleCode">
           <el-input v-model="form.roleCode" :disabled="!!form.id" />
         </el-form-item>
-        <el-form-item label="角色名称" prop="roleName">
+        <el-form-item :label="$t('system.role.name')" prop="roleName">
           <el-input v-model="form.roleName" />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="$t('system.role.remark')" prop="remark">
           <el-input v-model="form.remark" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 分配权限对话框 -->
-    <el-dialog v-model="permDialogVisible" title="分配权限" width="600px">
+    <el-dialog v-model="permDialogVisible" :title="$t('system.role.assignPerms')" width="600px">
       <el-tree
         ref="permTreeRef"
         :data="permTreeData"
@@ -52,19 +52,21 @@
         v-loading="permsLoading"
       />
       <template #footer>
-        <el-button @click="permDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSavePerms" :loading="submitting">确定</el-button>
+        <el-button @click="permDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSavePerms" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { usePlatform, BusinessError } from '@lrenyi/platform-headless/vue';
 import { EntityCrudPage } from '@lrenyi/platform-ui';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const { client } = usePlatform();
 
 interface Role {
@@ -89,15 +91,15 @@ const permTreeRef = ref();
 
 const dialogVisible = ref(false);
 const permDialogVisible = ref(false);
-const dialogTitle = ref('新增角色');
+const dialogTitle = ref(t('system.role.add'));
 const formRef = ref();
 
-const columns = ref([
+const columns = computed(() => [
   { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'roleCode', label: '角色编码' },
-  { prop: 'roleName', label: '角色名称' },
-  { prop: 'remark', label: '备注' },
-  { prop: 'createTime', label: '创建时间', width: 180 },
+  { prop: 'roleCode', label: t('system.role.code') },
+  { prop: 'roleName', label: t('system.role.name') },
+  { prop: 'remark', label: t('system.role.remark') },
+  { prop: 'createTime', label: t('system.role.createTime'), width: 180 },
 ]);
 
 const form = reactive({
@@ -108,12 +110,12 @@ const form = reactive({
 });
 
 const rules = {
-  roleCode: [{ required: true, message: '请输入角色编码', trigger: 'blur' }],
-  roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
+  roleCode: [{ required: true, message: t('system.role.inputCode'), trigger: 'blur' }],
+  roleName: [{ required: true, message: t('system.role.inputName'), trigger: 'blur' }],
 };
 
 const handleAdd = () => {
-  dialogTitle.value = '新增角色';
+  dialogTitle.value = t('system.role.add');
   Object.assign(form, {
     id: null,
     roleCode: '',
@@ -124,7 +126,7 @@ const handleAdd = () => {
 };
 
 const handleEdit = (row: any) => {
-  dialogTitle.value = '编辑角色';
+  dialogTitle.value = t('system.role.edit');
   Object.assign(form, row);
   dialogVisible.value = true;
 };
@@ -140,11 +142,11 @@ const handleSubmit = async () => {
     const submitData = { ...form };
     if (form.id) {
       await roleClient.update(form.id, submitData);
-      ElMessage.success('更新成功');
+      ElMessage.success(t('common.updateSuccess'));
     } else {
       delete (submitData as any).id;
       await roleClient.create(submitData);
-      ElMessage.success('创建成功');
+      ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
     crudRef.value?.refresh();
@@ -152,7 +154,7 @@ const handleSubmit = async () => {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
     } else {
-      ElMessage.error('操作失败');
+      ElMessage.error(t('common.operationFailed'));
       console.error(error);
     }
   } finally {
@@ -161,14 +163,14 @@ const handleSubmit = async () => {
 };
 
 const handleDelete = async (row: any) => {
-  await ElMessageBox.confirm('确定删除该角色吗？', '提示', { type: 'warning' });
+  await ElMessageBox.confirm(t('system.role.deleteConfirm'), t('common.tips'), { type: 'warning' });
   try {
     await roleClient.delete(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success(t('common.deleteSuccess'));
     crudRef.value?.refresh();
   } catch (error: any) {
     if (error === 'cancel') return;
-    ElMessage.error(error instanceof Error ? error.message : '删除失败');
+    ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));
   }
 };
 
@@ -189,8 +191,8 @@ const loadPermissions = async () => {
       id: p.id,
       name: `${p.name} (${p.permission})`,
     }));
-  } catch (error: any) {
-    ElMessage.error('加载权限失败');
+  } catch {
+    ElMessage.error(t('system.role.loadPermsFailed'));
   } finally {
     permsLoading.value = false;
   }
@@ -204,8 +206,8 @@ const loadRolePermissions = async (roleId: number) => {
       size: 1000,
     });
     selectedPerms.value = (result.content || []).map((rp: any) => rp.permission?.id).filter(Boolean);
-  } catch (error: any) {
-    ElMessage.error('加载角色权限失败');
+  } catch {
+    ElMessage.error(t('system.role.loadRolePermsFailed'));
   }
 };
 
@@ -233,13 +235,13 @@ const handleSavePerms = async () => {
       });
     }
 
-    ElMessage.success('权限分配成功');
+    ElMessage.success(t('system.role.assignPermsSuccess'));
     permDialogVisible.value = false;
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
     } else {
-      ElMessage.error('操作失败');
+      ElMessage.error(t('common.operationFailed'));
       console.error(error);
     }
   } finally {

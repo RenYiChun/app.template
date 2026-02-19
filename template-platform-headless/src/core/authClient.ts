@@ -50,6 +50,7 @@ export class AuthClient {
   private readonly clientSecret: string;
   private readonly storage?: StorageProvider;
   private token: string | null = null;
+  private refreshToken: string | null = null;
 
   constructor(config: AuthClientConfig = {}) {
     this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
@@ -72,6 +73,7 @@ export class AuthClient {
 
     // 从存储加载 token
     this.token = this.storage?.getItem('auth_token') ?? null;
+    this.refreshToken = this.storage?.getItem('refresh_token') ?? null;
   }
 
   /** 获取当前 token，供请求拦截器使用 */
@@ -79,10 +81,17 @@ export class AuthClient {
     return this.token;
   }
 
+  /** 获取 refresh token */
+  getRefreshToken(): string | null {
+    return this.refreshToken;
+  }
+
   /** 清除 token */
   clearToken(): void {
     this.token = null;
+    this.refreshToken = null;
     this.storage?.removeItem('auth_token');
+    this.storage?.removeItem('refresh_token');
   }
 
   private authHeaders(): Record<string, string> {
@@ -156,6 +165,7 @@ export class AuthClient {
 
     const tokenData = (await this.json<{
       access_token?: string;
+      refresh_token?: string;
       username?: string;
       sub?: string;
     }>(res)) as Record<string, unknown>;
@@ -168,12 +178,62 @@ export class AuthClient {
     this.token = accessToken;
     this.storage?.setItem('auth_token', accessToken);
 
+    const refreshToken = tokenData.refresh_token as string;
+    if (refreshToken) {
+      this.refreshToken = refreshToken;
+      this.storage?.setItem('refresh_token', refreshToken);
+    }
+
     const username = (tokenData.username ?? tokenData.sub ?? req.username) as string;
     return {
       id: 0,
       username: username || req.username,
       email: '',
     };
+  }
+
+  /** 刷新 token */
+  async refresh(): Promise<string> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const params = new URLSearchParams();
+    params.set('grant_type', 'refresh_token');
+    params.set('refresh_token', this.refreshToken);
+    params.set('client_id', this.clientId);
+    params.set('client_secret', this.clientSecret);
+
+    const res = await this.requestFn(this.tokenURL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    if (!res.ok) {
+      this.clearToken();
+      throw new AuthError(res, 'Token refresh failed');
+    }
+
+    const tokenData = (await this.json<{
+      access_token?: string;
+      refresh_token?: string;
+    }>(res)) as Record<string, unknown>;
+
+    const accessToken = tokenData.access_token as string;
+    if (!accessToken) {
+      throw new Error('Token refresh response missing access_token');
+    }
+
+    this.token = accessToken;
+    this.storage?.setItem('auth_token', accessToken);
+
+    if (tokenData.refresh_token) {
+      this.refreshToken = tokenData.refresh_token as string;
+      this.storage?.setItem('refresh_token', this.refreshToken);
+    }
+
+    return accessToken;
   }
 
   /** 登出（清除本地 token） */

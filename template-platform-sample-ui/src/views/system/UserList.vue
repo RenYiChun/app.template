@@ -15,19 +15,19 @@
       <!-- 如果不是，我们这里先用 slot 还原之前的搜索体验 -->
       <template #search="{ onSearch, onReset, onExport }">
         <el-form :inline="true" :model="searchForm" class="search-form">
-          <el-form-item label="用户名">
-            <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable @keyup.enter="onSearch(buildFilters())" />
+          <el-form-item :label="$t('system.user.username')">
+            <el-input v-model="searchForm.username" :placeholder="$t('system.user.inputUsername')" clearable @keyup.enter="onSearch(buildFilters())" />
           </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="searchForm.status" placeholder="请选择状态" clearable @change="onSearch(buildFilters())">
-              <el-option label="正常" value="1" />
-              <el-option label="停用" value="0" />
+          <el-form-item :label="$t('system.user.status')">
+            <el-select v-model="searchForm.status" :placeholder="$t('system.user.selectStatus')" clearable @change="onSearch(buildFilters())">
+              <el-option :label="$t('common.enable')" value="1" />
+              <el-option :label="$t('common.disable')" value="0" />
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="onSearch(buildFilters())">查询</el-button>
-            <el-button @click="handleReset(onReset)">重置</el-button>
-            <el-button type="success" @click="onExport">导出</el-button>
+            <el-button type="primary" @click="onSearch(buildFilters())">{{ $t('common.search') }}</el-button>
+            <el-button @click="handleReset(onReset)">{{ $t('common.reset') }}</el-button>
+            <el-button type="success" @click="onExport">{{ $t('common.export') }}</el-button>
           </el-form-item>
         </el-form>
       </template>
@@ -35,15 +35,15 @@
       <!-- 自定义状态列 -->
       <template #column-status="{ value }">
         <el-tag :type="value === '1' ? 'success' : 'danger'">
-          {{ value === '1' ? '正常' : '停用' }}
+          {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
         </el-tag>
       </template>
 
       <!-- 自定义行操作 -->
       <template #row-actions="{ row }">
-        <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-        <el-button link type="warning" @click="handleAssignRoles(row)">分配角色</el-button>
-        <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+        <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+        <el-button link type="warning" @click="handleAssignRoles(row)">{{ $t('system.user.assignRoles') }}</el-button>
+        <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
       </template>
     </EntityCrudPage>
 
@@ -55,69 +55,70 @@
       @close="handleDialogClose"
     >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="$t('system.user.username')" prop="username">
           <el-input v-model="form.username" :disabled="!!form.id" />
         </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
+        <el-form-item :label="$t('system.user.nickname')" prop="nickname">
           <el-input v-model="form.nickname" />
         </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="!form.id">
+        <el-form-item :label="$t('system.user.password')" prop="password" v-if="!form.id">
           <el-input v-model="form.password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item :label="$t('system.user.email')" prop="email">
           <el-input v-model="form.email" />
         </el-form-item>
-        <el-form-item label="手机号" prop="phone">
+        <el-form-item :label="$t('system.user.phone')" prop="phone">
           <el-input v-model="form.phone" />
         </el-form-item>
-        <el-form-item label="部门" prop="departmentId">
+        <el-form-item :label="$t('system.user.dept')" prop="departmentId">
           <el-cascader
             v-model="form.departmentId"
             :options="deptTreeData"
             :props="{ label: 'name', value: 'id', checkStrictly: true, emitPath: false }"
-            placeholder="请选择部门"
+            :placeholder="$t('system.user.selectDept')"
             clearable
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="备注" prop="remark">
+        <el-form-item :label="$t('system.role.remark')" prop="remark">
           <el-input v-model="form.remark" type="textarea" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('system.user.status')" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio label="1">正常</el-radio>
-            <el-radio label="0">停用</el-radio>
+            <el-radio label="1">{{ $t('common.enable') }}</el-radio>
+            <el-radio label="0">{{ $t('common.disable') }}</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 分配角色对话框 -->
-    <el-dialog v-model="roleDialogVisible" title="分配角色" width="500px">
+    <el-dialog v-model="roleDialogVisible" :title="$t('system.user.assignRoles')" width="500px">
       <el-checkbox-group v-model="selectedRoles" v-loading="rolesLoading">
         <el-checkbox v-for="role in allRoles" :key="role.id" :label="role.id">
           {{ role.roleName }}
         </el-checkbox>
       </el-checkbox-group>
       <template #footer>
-        <el-button @click="roleDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveRoles" :loading="submitting">确定</el-button>
+        <el-button @click="roleDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSaveRoles" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
-import { usePlatform, BusinessError, NetworkError } from '@lrenyi/platform-headless/vue';
+import { usePlatform, BusinessError } from '@lrenyi/platform-headless/vue';
 import { EntityCrudPage } from '@lrenyi/platform-ui';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const { client } = usePlatform();
 interface User {
   id: number;
@@ -150,14 +151,14 @@ const searchForm = reactive({
   status: '',
 });
 
-const columns = ref([
+const columns = computed(() => [
   { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'username', label: '用户名' },
-  { prop: 'nickname', label: '昵称' },
-  { prop: 'email', label: '邮箱' },
-  { prop: 'phone', label: '手机号' },
-  { prop: 'status', label: '状态', width: 80 },
-  { prop: 'createTime', label: '创建时间', width: 180 },
+  { prop: 'username', label: t('system.user.username') },
+  { prop: 'nickname', label: t('system.user.nickname') },
+  { prop: 'email', label: t('system.user.email') },
+  { prop: 'phone', label: t('system.user.phone') },
+  { prop: 'status', label: t('system.user.status'), width: 80 },
+  { prop: 'createTime', label: t('system.user.createTime'), width: 180 },
 ]);
 
 const buildFilters = () => {
@@ -179,7 +180,7 @@ const handleReset = (resetFn: () => void) => {
 
 const dialogVisible = ref(false);
 const roleDialogVisible = ref(false);
-const dialogTitle = ref('新增用户');
+const dialogTitle = ref(t('system.user.add'));
 const formRef = ref();
 
 const form = reactive({
@@ -195,12 +196,12 @@ const form = reactive({
 });
 
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [{ required: true, message: t('system.user.inputUsername'), trigger: 'blur' }],
+  password: [{ required: true, message: t('system.user.inputPassword'), trigger: 'blur' }],
 };
 
 const handleAdd = () => {
-  dialogTitle.value = '新增用户';
+  dialogTitle.value = t('system.user.add');
   Object.assign(form, {
     id: null,
     username: '',
@@ -217,11 +218,11 @@ const handleAdd = () => {
 };
 
 const handleExport = () => {
-  ElMessage.info('导出功能开发中');
+  ElMessage.info(t('common.operationFailed'));
 };
 
 const handleEdit = (row: any) => {
-  dialogTitle.value = '编辑用户';
+  dialogTitle.value = t('system.user.edit');
   Object.assign(form, { ...row, password: '' });
   dialogVisible.value = true;
   loadDeptTree();
@@ -239,11 +240,11 @@ const handleSubmit = async () => {
     if (form.id) {
       if (!submitData.password) delete (submitData as any).password;
       await userClient.update(form.id, submitData);
-      ElMessage.success('更新成功');
+      ElMessage.success(t('common.updateSuccess'));
     } else {
       delete (submitData as any).id;
       await userClient.create(submitData);
-      ElMessage.success('创建成功');
+      ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
     crudRef.value?.refresh();
@@ -251,7 +252,7 @@ const handleSubmit = async () => {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
     } else {
-      ElMessage.error('操作失败');
+      ElMessage.error(t('common.operationFailed'));
       console.error(error);
     }
   } finally {
@@ -260,14 +261,14 @@ const handleSubmit = async () => {
 };
 
 const handleDelete = async (row: any) => {
-  await ElMessageBox.confirm('确定删除该用户吗？', '提示', { type: 'warning' });
+  await ElMessageBox.confirm(t('system.user.deleteConfirm'), t('common.tips'), { type: 'warning' });
   try {
     await userClient.delete(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success(t('common.deleteSuccess'));
     crudRef.value?.refresh();
   } catch (error: any) {
     if (error === 'cancel') return;
-    ElMessage.error(error instanceof Error ? error.message : '删除失败');
+    ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));
   }
 };
 
@@ -277,7 +278,7 @@ const loadDeptTree = async () => {
     const list = result.content || [];
     deptTreeData.value = buildTree(list);
   } catch (error: any) {
-    console.error('加载部门树失败', error);
+    console.error(t('system.user.loadDeptTreeFailed'), error);
   }
 };
 
@@ -309,8 +310,8 @@ const loadRoles = async () => {
   try {
     const result = await roleClient.search({ page: 0, size: 1000 });
     allRoles.value = result.content || [];
-  } catch (error: any) {
-    ElMessage.error('加载角色失败');
+  } catch {
+    ElMessage.error(t('system.user.loadRolesFailed'));
   } finally {
     rolesLoading.value = false;
   }
@@ -325,8 +326,8 @@ const loadUserRoles = async (username: string) => {
       size: 1000,
     });
     selectedRoles.value = (result.content || []).map((ur: any) => ur.role?.id).filter(Boolean);
-  } catch (error: any) {
-    ElMessage.error('加载用户角色失败');
+  } catch {
+    ElMessage.error(t('system.user.loadUserRolesFailed'));
   } finally {
     rolesLoading.value = false;
   }
@@ -354,15 +355,14 @@ const handleSaveRoles = async () => {
       });
     }
 
-    ElMessage.success('角色分配成功');
+    ElMessage.success(t('system.user.assignRolesSuccess'));
     roleDialogVisible.value = false;
   } catch (error: any) {
-    ElMessage.error(error.message || '操作失败');
+    ElMessage.error(error.message || t('common.operationFailed'));
   } finally {
     submitting.value = false;
   }
 };
-
 </script>
 
 <style scoped>

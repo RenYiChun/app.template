@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { createPinia } from 'pinia';
 import ElementPlus, { ElMessage } from 'element-plus';
 import 'element-plus/dist/index.css';
 import '@lrenyi/platform-ui/dist/index.css';
@@ -6,6 +7,7 @@ import './styles/main.css';
 import './styles/platform-ui-overrides.css';
 import App from './App.vue';
 import router from './router';
+import i18n from './i18n';
 import { createPlatform, PlatformError, NetworkError, BusinessError } from '@lrenyi/platform-headless/vue';
 
 const platform = createPlatform({
@@ -34,6 +36,8 @@ app.config.errorHandler = (err, instance, info) => {
   }
 };
 
+app.use(createPinia());
+app.use(i18n);
 app.use(platform);
 app.use(ElementPlus);
 app.use(router);

@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "lint": "eslint . --fix",
+    "format": "prettier --write src/"
   },
   "dependencies": {
     "@lrenyi/platform-headless": "file:../template-platform-headless",
@@ -15,6 +17,13 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
-    "vite": "^6.1.0"
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.7.0",
+    "eslint": "^10.0.0",
+    "eslint-plugin-vue": "^10.8.0",
+    "pinia": "^3.0.4",
+    "prettier": "^3.8.1",
+    "vite": "^6.1.0",
+    "vue-i18n": "^9.14.5"
   }
 }

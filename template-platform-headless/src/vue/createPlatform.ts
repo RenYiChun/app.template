@@ -43,13 +43,26 @@ export function createPlatform(options: PlatformOptions = {}): PlatformInstance 
     ...options.auth,
   });
   
-  const requestWithToken = (url: string, opts: RequestInit = {}) => {
+  const requestWithToken = async (url: string, opts: RequestInit = {}) => {
     const token = authClient.getToken();
     const headers = new Headers(opts.headers);
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
-    return baseRequest(url, { ...opts, headers });
+    const res = await baseRequest(url, { ...opts, headers });
+    
+    // 如果返回 401，尝试刷新 token 并重试
+    if (res.status === 401 && authClient.getRefreshToken()) {
+      try {
+        const newToken = await authClient.refresh();
+        headers.set('Authorization', `Bearer ${newToken}`);
+        return await baseRequest(url, { ...opts, headers });
+      } catch (e) {
+        // 刷新失败，返回原始 401 响应，由后续逻辑触发登出
+        return res;
+      }
+    }
+    return res;
   };
   
   const client = new EntityClient({

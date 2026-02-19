@@ -32,18 +32,18 @@
             <el-sub-menu index="2">
               <template #title>
                 <el-icon><Setting /></el-icon>
-                <span>系统管理</span>
+                <span>{{ $t('menu.system') }}</span>
               </template>
-              <el-menu-item index="/system/users">用户管理</el-menu-item>
-              <el-menu-item index="/system/roles">角色管理</el-menu-item>
-              <el-menu-item index="/system/departments">部门管理</el-menu-item>
-              <el-menu-item index="/system/dicts">字典管理</el-menu-item>
-              <el-menu-item index="/system/operation-logs">操作日志</el-menu-item>
+              <el-menu-item index="/system/users">{{ $t('menu.users') }}</el-menu-item>
+              <el-menu-item index="/system/roles">{{ $t('menu.roles') }}</el-menu-item>
+              <el-menu-item index="/system/departments">{{ $t('menu.depts') }}</el-menu-item>
+              <el-menu-item index="/system/dicts">{{ $t('menu.dicts') }}</el-menu-item>
+              <el-menu-item index="/system/operation-logs">{{ $t('menu.logs') }}</el-menu-item>
             </el-sub-menu>
 
             <el-menu-item index="docs">
               <el-icon><Document /></el-icon>
-              <template #title>文档</template>
+              <template #title>{{ $t('menu.docs') }}</template>
             </el-menu-item>
           </el-menu>
         </el-scrollbar>
@@ -68,7 +68,7 @@
           </button>
           
           <el-breadcrumb separator="/" class="breadcrumb">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/' }">{{ $t('menu.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="$route.name">{{ $route.name }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -95,13 +95,13 @@
                   <p class="dh-email">admin@platform.com</p>
                 </div>
                 <el-dropdown-item divided command="profile">
-                    <el-icon><User /></el-icon> Profile
+                    <el-icon><User /></el-icon> {{ $t('menu.profile') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="settings">
-                    <el-icon><Setting /></el-icon> Account Settings
+                    <el-icon><Setting /></el-icon> {{ $t('menu.settings') }}
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout" class="danger-item">
-                    <el-icon><SwitchButton /></el-icon> Log Out
+                    <el-icon><SwitchButton /></el-icon> {{ $t('menu.logout') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -120,15 +120,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuth, usePlatform } from '@lrenyi/platform-headless/vue';
+import { usePlatform } from '@lrenyi/platform-headless/vue';
+import { useAuthStore } from '../stores/auth';
+import { storeToRefs } from 'pinia';
 import { 
-  DataBoard, User, Setting, Document, 
-  Expand, Fold, Bell, ArrowDown, SwitchButton,
-  UserFilled, Money, Files, WarningFilled
+  User, Setting, Document, 
+  Expand, Fold, Bell, ArrowDown, SwitchButton
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
-const { user, logout, refreshMe } = useAuth();
+const authStore = useAuthStore();
+const { user } = storeToRefs(authStore);
+const { logout, refreshMe } = authStore;
 const { authClient } = usePlatform();
 const router = useRouter();
 

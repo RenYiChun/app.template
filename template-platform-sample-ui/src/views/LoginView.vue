@@ -30,8 +30,8 @@
       <div class="login-section">
         <div class="login-wrapper">
           <div class="login-header">
-            <h2>Sign In</h2>
-            <p>Welcome back! Please enter your details.</p>
+            <h2>{{ $t('login.title') }}</h2>
+            <p>{{ $t('login.welcome') }}</p>
           </div>
 
           <el-form
@@ -45,7 +45,7 @@
             <el-form-item prop="username">
               <el-input
                 v-model="form.username"
-                placeholder="Username or Email"
+                :placeholder="$t('login.username')"
                 class="modern-input"
                 :prefix-icon="UserIcon"
                 tabindex="1"
@@ -56,7 +56,7 @@
               <el-input
                 v-model="form.password"
                 type="password"
-                placeholder="Password"
+                :placeholder="$t('login.password')"
                 show-password
                 class="modern-input"
                 :prefix-icon="LockIcon"
@@ -69,7 +69,7 @@
               <div class="captcha-container">
                 <el-input
                   v-model="form.captchaCode"
-                  placeholder="Verification Code"
+                  :placeholder="$t('login.captcha')"
                   class="modern-input captcha-input"
                   :prefix-icon="KeyIcon"
                   @keyup.enter="handleLogin"
@@ -89,12 +89,12 @@
                 @click="handleLogin"
                 tabindex="4"
               >
-                Log In
+                {{ $t('login.loginBtn') }}
               </el-button>
             </div>
             
             <div class="form-footer-links">
-                <a href="#" class="forgot-password">Forgot Password?</a>
+                <a href="#" class="forgot-password">{{ $t('login.forgotPwd') }}</a>
             </div>
           </el-form>
         </div>
@@ -107,20 +107,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, shallowRef } from 'vue';
+import { ref, reactive, onMounted, shallowRef, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useAuth } from '@lrenyi/platform-headless/vue';
+import { useAuthStore } from '../stores/auth';
+import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import { User, Lock, Key } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
 
 // Manually mapping icons
 const UserIcon = shallowRef(User);
 const LockIcon = shallowRef(Lock);
 const KeyIcon = shallowRef(Key);
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
-const { login, fetchCaptcha, captchaKey, captchaImage, loading } = useAuth();
+const authStore = useAuthStore();
+const { captchaKey, captchaImage, loading } = storeToRefs(authStore);
+const { login, fetchCaptcha } = authStore;
 
 const formRef = ref();
 const errorMsg = ref('');
@@ -131,11 +136,11 @@ const form = reactive({
   captchaCode: '',
 });
 
-const rules = {
-  username: [{ required: true, message: 'Please enter username', trigger: 'blur' }],
-  password: [{ required: true, message: 'Please enter password', trigger: 'blur' }],
-  captchaCode: [{ required: false, message: 'Please enter captcha', trigger: 'blur' }],
-};
+const rules = computed(() => ({
+  username: [{ required: true, message: t('login.username') + ' is required', trigger: 'blur' }],
+  password: [{ required: true, message: t('login.password') + ' is required', trigger: 'blur' }],
+  captchaCode: [{ required: false, message: t('login.captcha') + ' is required', trigger: 'blur' }],
+}));
 
 const handleLogin = async () => {
   if (!formRef.value) return;
@@ -150,12 +155,12 @@ const handleLogin = async () => {
           captchaCode: form.captchaCode || undefined,
         });
         
-        ElMessage.success('Welcome back!');
+        ElMessage.success(t('login.success'));
         const redirect = (route.query.redirect as string) || '/';
         router.push(redirect);
       } catch (err: any) {
         // console.error(err);
-        errorMsg.value = err.message || 'Login failed. Please check your credentials.';
+        errorMsg.value = err.message || t('login.failed');
         fetchCaptcha();
       }
     }

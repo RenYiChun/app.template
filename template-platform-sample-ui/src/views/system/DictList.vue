@@ -13,8 +13,8 @@
           @row-click="handleDictSelect"
         >
           <template #row-actions="{ row }">
-            <el-button link type="primary" @click="handleEditDict(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDeleteDict(row)">删除</el-button>
+            <el-button link type="primary" @click="handleEditDict(row)">{{ $t('common.edit') }}</el-button>
+            <el-button link type="danger" @click="handleDeleteDict(row)">{{ $t('common.delete') }}</el-button>
           </template>
         </EntityCrudPage>
       </el-col>
@@ -33,16 +33,16 @@
           @delete="handleDeleteItem"
         >
           <template #header>
-            <span>字典项列表 {{ currentDict ? `(${currentDict.dictName})` : '' }}</span>
+            <span>{{ $t('system.dict.itemTitle') }} {{ currentDict ? `(${currentDict.dictName})` : '' }}</span>
           </template>
           <template #column-status="{ value }">
             <el-tag :type="value === '1' ? 'success' : 'danger'">
-              {{ value === '1' ? '启用' : '禁用' }}
+              {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
             </el-tag>
           </template>
           <template #row-actions="{ row }">
-            <el-button link type="primary" @click="handleEditItem(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDeleteItem(row)">删除</el-button>
+            <el-button link type="primary" @click="handleEditItem(row)">{{ $t('common.edit') }}</el-button>
+            <el-button link type="danger" @click="handleDeleteItem(row)">{{ $t('common.delete') }}</el-button>
           </template>
         </EntityCrudPage>
       </el-col>
@@ -56,19 +56,19 @@
       @close="handleDictDialogClose"
     >
       <el-form :model="dictForm" :rules="dictRules" ref="dictFormRef" label-width="100px">
-        <el-form-item label="字典编码" prop="dictCode">
+        <el-form-item :label="$t('system.dict.code')" prop="dictCode">
           <el-input v-model="dictForm.dictCode" :disabled="!!dictForm.id" />
         </el-form-item>
-        <el-form-item label="字典名称" prop="dictName">
+        <el-form-item :label="$t('system.dict.name')" prop="dictName">
           <el-input v-model="dictForm.dictName" />
         </el-form-item>
-        <el-form-item label="描述" prop="description">
+        <el-form-item :label="$t('system.dict.description')" prop="description">
           <el-input v-model="dictForm.description" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dictDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitDict" :loading="submitting">确定</el-button>
+        <el-button @click="dictDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmitDict" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
@@ -80,28 +80,28 @@
       @close="handleItemDialogClose"
     >
       <el-form :model="itemForm" :rules="itemRules" ref="itemFormRef" label-width="100px">
-        <el-form-item label="显示文本" prop="itemText">
+        <el-form-item :label="$t('system.dictItem.text')" prop="itemText">
           <el-input v-model="itemForm.itemText" />
         </el-form-item>
-        <el-form-item label="实际值" prop="itemValue">
+        <el-form-item :label="$t('system.dictItem.value')" prop="itemValue">
           <el-input v-model="itemForm.itemValue" />
         </el-form-item>
-        <el-form-item label="排序" prop="sortOrder">
+        <el-form-item :label="$t('system.dictItem.sort')" prop="sortOrder">
           <el-input-number v-model="itemForm.sortOrder" :min="0" />
         </el-form-item>
-        <el-form-item label="状态" prop="status">
+        <el-form-item :label="$t('system.dictItem.status')" prop="status">
           <el-radio-group v-model="itemForm.status">
-            <el-radio label="1">启用</el-radio>
-            <el-radio label="0">禁用</el-radio>
+            <el-radio label="1">{{ $t('common.enable') }}</el-radio>
+            <el-radio label="0">{{ $t('common.disable') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="描述" prop="description">
+        <el-form-item :label="$t('system.dictItem.description')" prop="description">
           <el-input v-model="itemForm.description" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitItem" :loading="submitting">确定</el-button>
+        <el-button @click="itemDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmitItem" :loading="submitting">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -112,7 +112,9 @@ import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { usePlatform, type FilterCondition, BusinessError } from '@lrenyi/platform-headless/vue';
 import { EntityCrudPage } from '@lrenyi/platform-ui';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const { client } = usePlatform();
 
 interface Dict {
@@ -149,8 +151,8 @@ const itemFilters = computed<FilterCondition[]>(() => {
 
 const dictDialogVisible = ref(false);
 const itemDialogVisible = ref(false);
-const dictDialogTitle = ref('新增字典');
-const itemDialogTitle = ref('新增字典项');
+const dictDialogTitle = ref(t('system.dict.add'));
+const itemDialogTitle = ref(t('system.dictItem.add'));
 const dictFormRef = ref();
 const itemFormRef = ref();
 
@@ -171,19 +173,19 @@ const itemForm = reactive({
   description: '',
 });
 
-const dictRules = {
-  dictCode: [{ required: true, message: '请输入字典编码', trigger: 'blur' }],
-  dictName: [{ required: true, message: '请输入字典名称', trigger: 'blur' }],
-};
+const dictRules = computed(() => ({
+  dictCode: [{ required: true, message: t('system.dict.inputCode'), trigger: 'blur' }],
+  dictName: [{ required: true, message: t('system.dict.inputName'), trigger: 'blur' }],
+}));
 
-const itemRules = {
-  itemText: [{ required: true, message: '请输入显示文本', trigger: 'blur' }],
-  itemValue: [{ required: true, message: '请输入实际值', trigger: 'blur' }],
-};
+const itemRules = computed(() => ({
+  itemText: [{ required: true, message: t('system.dictItem.inputText'), trigger: 'blur' }],
+  itemValue: [{ required: true, message: t('system.dictItem.inputValue'), trigger: 'blur' }],
+}));
 
 // 字典相关操作
 const handleAddDict = () => {
-  dictDialogTitle.value = '新增字典';
+  dictDialogTitle.value = t('system.dict.add');
   Object.assign(dictForm, {
     id: null,
     dictCode: '',
@@ -194,18 +196,18 @@ const handleAddDict = () => {
 };
 
 const handleEditDict = (row: any) => {
-  dictDialogTitle.value = '编辑字典';
+  dictDialogTitle.value = t('system.dict.edit');
   Object.assign(dictForm, row);
   dictDialogVisible.value = true;
 };
 
 const handleDeleteDict = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确认删除该字典?', '提示', {
+    await ElMessageBox.confirm(t('system.dict.deleteConfirm'), t('common.tips'), {
       type: 'warning',
     });
     await dictClient.delete(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success(t('common.deleteSuccess'));
     dictCrudRef.value?.refresh();
     if (currentDict.value?.id === row.id) {
       currentDict.value = null;
@@ -215,7 +217,7 @@ const handleDeleteDict = async (row: any) => {
     }
   } catch (error: any) {
     if (error === 'cancel') return;
-    ElMessage.error(error instanceof Error ? error.message : '删除失败');
+    ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));
   }
 };
 
@@ -227,11 +229,11 @@ const handleSubmitDict = async () => {
     const submitData = { ...dictForm };
     if (dictForm.id) {
       await dictClient.update(dictForm.id, submitData);
-      ElMessage.success('更新成功');
+      ElMessage.success(t('common.updateSuccess'));
     } else {
       delete (submitData as any).id;
       await dictClient.create(submitData);
-      ElMessage.success('创建成功');
+      ElMessage.success(t('common.createSuccess'));
     }
     dictDialogVisible.value = false;
     dictCrudRef.value?.refresh();
@@ -239,7 +241,7 @@ const handleSubmitDict = async () => {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
     } else {
-      ElMessage.error('操作失败');
+      ElMessage.error(t('common.operationFailed'));
       console.error(error);
     }
   } finally {
@@ -260,7 +262,7 @@ const handleDictSelect = (row: any) => {
 // 字典项相关操作
 const handleAddItem = () => {
   if (!currentDict.value) return;
-  itemDialogTitle.value = '新增字典项';
+  itemDialogTitle.value = t('system.dictItem.add');
   Object.assign(itemForm, {
     id: null,
     dictCode: currentDict.value.dictCode,
@@ -274,22 +276,22 @@ const handleAddItem = () => {
 };
 
 const handleEditItem = (row: any) => {
-  itemDialogTitle.value = '编辑字典项';
+  itemDialogTitle.value = t('system.dictItem.edit');
   Object.assign(itemForm, row);
   itemDialogVisible.value = true;
 };
 
 const handleDeleteItem = async (row: any) => {
   try {
-    await ElMessageBox.confirm('确认删除该字典项?', '提示', {
+    await ElMessageBox.confirm(t('system.dictItem.deleteConfirm'), t('common.tips'), {
       type: 'warning',
     });
     await itemClient.delete(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success(t('common.deleteSuccess'));
     itemCrudRef.value?.refresh();
   } catch (error: any) {
     if (error === 'cancel') return;
-    ElMessage.error(error instanceof Error ? error.message : '删除失败');
+    ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));
   }
 };
 
@@ -301,11 +303,11 @@ const handleSubmitItem = async () => {
     const submitData = { ...itemForm };
     if (itemForm.id) {
       await itemClient.update(itemForm.id, submitData);
-      ElMessage.success('更新成功');
+      ElMessage.success(t('common.updateSuccess'));
     } else {
       delete (submitData as any).id;
       await itemClient.create(submitData);
-      ElMessage.success('创建成功');
+      ElMessage.success(t('common.createSuccess'));
     }
     itemDialogVisible.value = false;
     itemCrudRef.value?.refresh();
@@ -313,7 +315,7 @@ const handleSubmitItem = async () => {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
     } else {
-      ElMessage.error('操作失败');
+      ElMessage.error(t('common.operationFailed'));
       console.error(error);
     }
   } finally {
