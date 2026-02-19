@@ -39,6 +39,7 @@
               <el-menu-item index="/system/departments">{{ $t('menu.depts') }}</el-menu-item>
               <el-menu-item index="/system/dicts">{{ $t('menu.dicts') }}</el-menu-item>
               <el-menu-item index="/system/operation-logs">{{ $t('menu.logs') }}</el-menu-item>
+              <el-menu-item index="/system/metadata">{{ $t('menu.metadata') }}</el-menu-item>
             </el-sub-menu>
           </el-menu>
         </el-scrollbar>

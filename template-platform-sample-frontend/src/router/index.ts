@@ -40,6 +40,11 @@ const router = createRouter({
           component: () => import('../views/system/OperationLogList.vue'),
           meta: { public: true },
         },
+        {
+          path: 'system/metadata',
+          name: 'MetadataViewer',
+          component: () => import('../views/system/MetadataList.vue'),
+        },
       ]
     },
   ],
