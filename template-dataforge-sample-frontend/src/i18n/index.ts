@@ -15,7 +15,7 @@ const i18n = createI18n({
 
 export default i18n;
 
-export const usePlatformUiLocale = () => {
+export const useDataforgeUiLocale = () => {
   const { t } = useI18n();
   return computed(() => ({
     common: {
@@ -36,20 +36,20 @@ export const usePlatformUiLocale = () => {
       submit: t('common.submit'),
     },
     search: {
-      inputPlaceholder: t('platformUi.search.inputPlaceholder'),
-      selectPlaceholder: t('platformUi.search.selectPlaceholder'),
-      rangePlaceholder: t('platformUi.search.rangePlaceholder'),
-      start: t('platformUi.search.start'),
-      end: t('platformUi.search.end'),
-      all: t('platformUi.search.all'),
-      yes: t('platformUi.search.yes'),
-      no: t('platformUi.search.no'),
+      inputPlaceholder: t('dataforgeUi.search.inputPlaceholder'),
+      selectPlaceholder: t('dataforgeUi.search.selectPlaceholder'),
+      rangePlaceholder: t('dataforgeUi.search.rangePlaceholder'),
+      start: t('dataforgeUi.search.start'),
+      end: t('dataforgeUi.search.end'),
+      all: t('dataforgeUi.search.all'),
+      yes: t('dataforgeUi.search.yes'),
+      no: t('dataforgeUi.search.no'),
     },
     form: {
-      inputPlaceholder: t('platformUi.form.inputPlaceholder'),
-      selectPlaceholder: t('platformUi.form.selectPlaceholder'),
-      required: t('platformUi.form.required'),
-      email: t('platformUi.form.email'),
+      inputPlaceholder: t('dataforgeUi.form.inputPlaceholder'),
+      selectPlaceholder: t('dataforgeUi.form.selectPlaceholder'),
+      required: t('dataforgeUi.form.required'),
+      email: t('dataforgeUi.form.email'),
     },
     errors: {
       exportFailed: t('error.exportFailed'),

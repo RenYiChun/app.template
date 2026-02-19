@@ -1,5 +1,5 @@
 /**
- * 通用 EntityClient：按 pathSegment 调用 template-platform REST API
+ * 通用 EntityClient：按 pathSegment 调用 template-dataforge REST API
  */
 
 import type {PagedResult, Result, SearchRequest} from './types.js';
@@ -15,20 +15,20 @@ export interface EntityClientConfig {
     /** 自定义请求函数，用于注入 axios/fetch 或添加认证头 */
     request?: (url: string, options: RequestInit) => Promise<Response>;
     /** 平台 ID，用于多租户/多平台支持 */
-    platformId?: string | number;
+    dataforgeId?: string | number;
 }
 
 
 export class EntityClient {
     private readonly baseURL: string;
     private readonly apiPrefix: string;
-    private readonly platformId?: string | number;
+    private readonly dataforgeId?: string | number;
     private readonly requestFn: (url: string, options: RequestInit) => Promise<Response>;
 
     constructor(config: EntityClientConfig = {}) {
         this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
         this.apiPrefix = ensureSlash(config.apiPrefix ?? '') || '';
-        this.platformId = config.platformId;
+        this.dataforgeId = config.dataforgeId;
         const baseRequest = config.request ?? fetch.bind(globalThis);
         this.requestFn = (url, opts) =>
             baseRequest(url, {...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include'});

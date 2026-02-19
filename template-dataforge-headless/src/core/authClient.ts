@@ -57,8 +57,8 @@ export class AuthClient {
     this.apiPrefix = ensureSlash(config.apiPrefix ?? '') || '';
     this.oauth2BaseURL = this.baseURL;
     this.tokenURL = joinPath(this.oauth2BaseURL, 'oauth2/token');
-    this.clientId = config.oauth2ClientId ?? 'platform-client';
-    this.clientSecret = config.oauth2ClientSecret ?? 'platform-secret';
+    this.clientId = config.oauth2ClientId ?? 'dataforge-client';
+    this.clientSecret = config.oauth2ClientSecret ?? 'dataforge-secret';
     const baseRequest = config.request ?? fetch.bind(globalThis);
     this.requestFn = (url, opts = {}) =>
       baseRequest(url, { ...opts, credentials: (opts.credentials as RequestCredentials) ?? 'include' });

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getPlatform } from '@lrenyi/platform-headless/vue';
-import type { AuthUser, LoginRequest } from '@lrenyi/platform-headless';
+import { getDataforge } from '@lrenyi/dataforge-headless/vue';
+import type { AuthUser, LoginRequest } from '@lrenyi/dataforge-headless';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null);
@@ -11,7 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Access authClient lazily
   const getAuthClient = () => {
-    const { authClient } = getPlatform();
+    const { authClient } = getDataforge();
     if (!authClient) throw new Error('AuthClient not initialized');
     return authClient;
   };

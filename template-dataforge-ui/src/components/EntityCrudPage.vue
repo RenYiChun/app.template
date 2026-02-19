@@ -113,14 +113,14 @@ import { Plus, Delete, Refresh, Download, Search, Setting, Edit } from '@element
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
 import {
-  usePlatform,
+  useDataforge,
   useEntityMeta,
   useEntityCrud,
   resolveColumns,
   getEntityConfig,
-} from '@lrenyi/platform-headless/vue';
-import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
-import type { FilterCondition, SearchRequest } from '@lrenyi/platform-headless';
+} from '@lrenyi/dataforge-headless/vue';
+import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
+import type { FilterCondition, SearchRequest } from '@lrenyi/dataforge-headless';
 
 const props = withDefaults(
   defineProps<{
@@ -145,6 +145,7 @@ const props = withDefaults(
         reset?: string;
         export?: string;
         batchDelete?: string;
+        batchUpdate?: string;
         selectedCount?: string;
         batchDeleteConfirm?: string;
         tips?: string;
@@ -200,7 +201,7 @@ const emit = defineEmits<{
   (e: 'action', action: string, row: Record<string, unknown>): void;
 }>();
 
-const { client, meta } = usePlatform();
+const { client, meta } = useDataforge();
 const { meta: entityMeta, loading: metaLoading, refresh: refreshMeta } = useEntityMeta(meta, props.entity);
 
 // 强制触发一次 meta 加载检查
@@ -349,8 +350,8 @@ const displayColumns = computed(() => {
   return allColumns.value.filter(col => visibleColumnProps.value.includes(col.prop));
 });
 
-const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/platform-headless').Op; value: unknown }>) => {
-  filters.value = v as import('@lrenyi/platform-headless').FilterCondition[];
+const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/dataforge-headless').Op; value: unknown }>) => {
+  filters.value = v as import('@lrenyi/dataforge-headless').FilterCondition[];
 };
 
 const pageOneBased = computed({

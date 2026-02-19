@@ -3,7 +3,7 @@
  */
 
 import {ref, type Ref} from 'vue';
-import {usePlatform} from '../createPlatform.js';
+import {useDataforge} from '../createDataforge.js';
 import type {AuthUser, LoginRequest} from '../../core';
 
 export interface UseAuthReturn {
@@ -23,10 +23,10 @@ const captchaKey = ref('');
 const captchaImage = ref('');
 
 export function useAuth(): UseAuthReturn {
-    const {authClient} = usePlatform();
+    const {authClient} = useDataforge();
 
     if (!authClient) {
-        throw new Error('Platform 未初始化或未配置 auth，请先调用 createPlatform({ auth: {...} })');
+        throw new Error('Dataforge 未初始化或未配置 auth，请先调用 createDataforge({ auth: {...} })');
     }
 
     async function fetchCaptcha(): Promise<void> {

@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { computed, useSlots } from 'vue';
-import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
+import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
 
 const slots = useSlots();
 

@@ -3,9 +3,9 @@ server:
 
 spring:
   application:
-    name: template-platform-sample-backend
+    name: template-dataforge-sample-backend
   datasource:
-    url: jdbc:h2:mem:platform
+    url: jdbc:h2:mem:dataforge
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -20,10 +20,10 @@ spring:
     oauth2:
       authorizationserver:
         client:
-          platform-client:
+          dataforge-client:
             registration:
-              client-id: platform-client
-              client-secret: "{noop}platform-secret"
+              client-id: dataforge-client
+              client-secret: "{noop}dataforge-secret"
               client-authentication-methods:
                 - client_secret_post
               authorization-grant-types:
@@ -36,9 +36,9 @@ spring:
               refresh-token-time-to-live: 7d
 
 app:
-  platform:
+  dataforge:
     api-prefix: /api
-    scan-packages: com.lrenyi.template.platform.backend,com.lrenyi.template.platform.domain
+    scan-packages: com.lrenyi.template.dataforge.backend,com.lrenyi.template.dataforge.domain
     permission-enabled: false
   template:
     enabled: true
@@ -48,7 +48,7 @@ app:
       enabled: true
       local-jwt-public-key: true
       permit-urls:
-        template-platform-sample-backend:
+        template-dataforge-sample-backend:
           - /api/auth/_action/captcha
           - /docs
           - /api/docs

@@ -1,7 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2;
 
 import java.io.IOException;
-import com.lrenyi.template.platform.audit.service.AuditLogService;
+import com.lrenyi.template.dataforge.audit.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;

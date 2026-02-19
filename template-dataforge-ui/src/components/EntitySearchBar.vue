@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue';
 import { Search, Refresh } from '@element-plus/icons-vue';
-import type { FilterCondition, Op, EntityMeta } from '@lrenyi/platform-headless';
+import type { FilterCondition, Op, EntityMeta } from '@lrenyi/dataforge-headless';
 
 const props = withDefaults(
   defineProps<{

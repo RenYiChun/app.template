@@ -4,7 +4,7 @@
       <div class="sidebar-header">
         <el-input
           v-model="filterText"
-          :placeholder="t('platformUi.search.inputPlaceholder', { label: t('menu.metadata', 'Entity') })"
+          :placeholder="t('dataforgeUi.search.inputPlaceholder', { label: t('menu.metadata', 'Entity') })"
           clearable
         >
           <template #prefix>
@@ -144,14 +144,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { Search } from '@element-plus/icons-vue';
-import { usePlatform } from '@lrenyi/platform-headless/vue';
-import type { EntityMeta, OperationMeta } from '@lrenyi/platform-headless';
+import { useDataforge } from '@lrenyi/dataforge-headless/vue';
+import type { EntityMeta, OperationMeta } from '@lrenyi/dataforge-headless';
 
 const props = defineProps<{
   locale?: Record<string, any>;
 }>();
 
-const { meta } = usePlatform();
+const { meta } = useDataforge();
 const entities = ref<EntityMeta[]>([]);
 const selectedEntity = ref<EntityMeta | null>(null);
 const filterText = ref('');

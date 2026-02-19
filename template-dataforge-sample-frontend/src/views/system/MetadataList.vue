@@ -1,10 +1,10 @@
 <template>
-  <EntityMetadataPage :locale="platformUiLocale" />
+  <EntityMetadataPage :locale="dataforgeUiLocale" />
 </template>
 
 <script setup lang="ts">
-import { EntityMetadataPage } from '@lrenyi/platform-ui';
-import { usePlatformUiLocale } from '@/i18n';
+import { EntityMetadataPage } from '@lrenyi/dataforge-ui';
+import { useDataforgeUiLocale } from '@/i18n';
 
-const platformUiLocale = usePlatformUiLocale();
+const dataforgeUiLocale = useDataforgeUiLocale();
 </script>

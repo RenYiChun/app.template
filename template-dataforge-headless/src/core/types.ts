@@ -1,5 +1,5 @@
 /**
- * 与 template-platform 后端一一对应的类型定义
+ * 与 template-dataforge 后端一一对应的类型定义
  */
 
 /** 过滤操作符 */

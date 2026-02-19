@@ -166,7 +166,7 @@ export default {
     searchPlaceholder: '搜索实体...',
     selectEntity: '请选择一个实体查看详情',
   },
-  platformUi: {
+  dataforgeUi: {
     search: {
       inputPlaceholder: '请输入{label}',
       selectPlaceholder: '请选择{label}',

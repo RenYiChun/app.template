@@ -2,15 +2,15 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import ElementPlus, { ElMessage } from 'element-plus';
 import 'element-plus/dist/index.css';
-import '@lrenyi/platform-ui/dist/index.css';
+import '@lrenyi/dataforge-ui/dist/index.css';
 import './styles/main.css';
-import './styles/platform-ui-overrides.css';
+import './styles/dataforge-ui-overrides.css';
 import App from './App.vue';
 import router from './router';
 import i18n from './i18n';
-import { createPlatform, PlatformError, NetworkError, BusinessError } from '@lrenyi/platform-headless/vue';
+import { createDataforge, DataforgeError, NetworkError, BusinessError } from '@lrenyi/dataforge-headless/vue';
 
-const platform = createPlatform({
+const dataforge = createDataforge({
   client: { baseURL: '', apiPrefix: '/api' },
   auth: {
     onUnauthorized: () => {
@@ -28,7 +28,7 @@ app.config.errorHandler = (err, instance, info) => {
     ElMessage.error('网络连接失败，请检查您的网络设置');
   } else if (err instanceof BusinessError) {
     ElMessage.error(`操作失败: ${err.message}`);
-  } else if (err instanceof PlatformError) {
+  } else if (err instanceof DataforgeError) {
     ElMessage.error(err.message);
   } else {
     // 其他未知错误，开发环境下打印，生产环境可能只提示“系统错误”
@@ -38,7 +38,7 @@ app.config.errorHandler = (err, instance, info) => {
 
 app.use(createPinia());
 app.use(i18n);
-app.use(platform);
+app.use(dataforge);
 app.use(ElementPlus);
 app.use(router);
 app.mount('#app');

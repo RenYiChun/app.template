@@ -1,8 +1,8 @@
 /**
- * template-platform 前端 Vue 层
+ * template-dataforge 前端 Vue 层
  */
 
-export { AuthClient, EntityClient, MetaService, PlatformError, NetworkError, HttpError, BusinessError, AuthError } from '../core/index.js';
+export { AuthClient, EntityClient, MetaService, DataforgeError, NetworkError, HttpError, BusinessError, AuthError } from '../core/index.js';
 export type {
   AuthClientConfig,
   EntityClientConfig,
@@ -17,7 +17,7 @@ export type {
   Result,
   StorageProvider,
 } from '../core/index.js';
-export { createPlatform, getPlatform, usePlatform } from './createPlatform.js';
+export { createDataforge, getDataforge, useDataforge } from './createDataforge.js';
 export { useAuth } from './composables/useAuth.js';
 export { useEntityCrud } from './composables/useEntityCrud.js';
 export { useEntityMeta } from './composables/useEntityMeta.js';

@@ -8,6 +8,6 @@ export {
   registerEntityConfig,
   getEntityConfig,
   resolveColumns,
-} from '@lrenyi/platform-headless/vue';
+} from '@lrenyi/dataforge-headless/vue';
 
-export type { EntityConfig, ColumnConfig } from '@lrenyi/platform-headless/vue';
+export type { EntityConfig, ColumnConfig } from '@lrenyi/dataforge-headless/vue';

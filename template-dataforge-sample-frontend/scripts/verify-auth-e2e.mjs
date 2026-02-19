@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * 登录接口端到端验证脚本（OAuth2 Password Grant + JWT）。
- * 需先启动 template-platform-sample-backend（mvnw.cmd spring-boot:run -pl template-platform-sample-backend）。
+ * 需先启动 template-dataforge-sample-backend（mvnw.cmd spring-boot:run -pl template-dataforge-sample-backend）。
  * 用法: node scripts/verify-auth-e2e.mjs [baseUrl]
  */
 
 const BASE = process.argv[2] || 'http://localhost:8080';
-const CLIENT_ID = 'platform-client';
-const CLIENT_SECRET = 'platform-secret';
+const CLIENT_ID = 'dataforge-client';
+const CLIENT_SECRET = 'dataforge-secret';
 
 async function main() {
   console.log('=== 登录接口 E2E 验证 (OAuth2 + JWT) ===');
@@ -91,7 +91,7 @@ async function main() {
 main().catch((e) => {
   console.error('Error:', e.message);
   if (e.cause?.code === 'ECONNREFUSED') {
-    console.error('请先启动后端: mvnw.cmd spring-boot:run -pl template-platform-sample-backend');
+    console.error('请先启动后端: mvnw.cmd spring-boot:run -pl template-dataforge-sample-backend');
   }
   process.exit(1);
 });

@@ -5,7 +5,7 @@
       entity="roles"
       :columns="columns"
       :search-fields="['roleCode', 'roleName']"
-      :locale="platformUiLocale"
+      :locale="dataforgeUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
       @delete="handleDelete"
@@ -63,15 +63,15 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { usePlatform, BusinessError } from '@lrenyi/platform-headless/vue';
-import { EntityCrudPage } from '@lrenyi/platform-ui';
+import { useDataforge, BusinessError } from '@lrenyi/dataforge-headless/vue';
+import { EntityCrudPage } from '@lrenyi/dataforge-ui';
 import { useI18n } from 'vue-i18n';
-import { usePlatformUiLocale } from '@/i18n';
+import { useDataforgeUiLocale } from '@/i18n';
 
 const { t } = useI18n();
-const { client } = usePlatform();
+const { client } = useDataforge();
 
-const platformUiLocale = usePlatformUiLocale();
+const dataforgeUiLocale = useDataforgeUiLocale();
 
 interface Role {
   id: number;

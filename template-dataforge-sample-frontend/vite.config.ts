@@ -7,16 +7,16 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@lrenyi\/platform-headless\/vue$/,
-        replacement: resolve(__dirname, '../template-platform-headless/src/vue/index.ts'),
+        find: /^@lrenyi\/dataforge-headless\/vue$/,
+        replacement: resolve(__dirname, '../template-dataforge-headless/src/vue/index.ts'),
       },
       {
-        find: /^@lrenyi\/platform-headless$/,
-        replacement: resolve(__dirname, '../template-platform-headless/src/core/index.ts'),
+        find: /^@lrenyi\/dataforge-headless$/,
+        replacement: resolve(__dirname, '../template-dataforge-headless/src/core/index.ts'),
       },
       {
-        find: /^@lrenyi\/platform-ui$/,
-        replacement: resolve(__dirname, '../template-platform-ui/src/index.ts'),
+        find: /^@lrenyi\/dataforge-ui$/,
+        replacement: resolve(__dirname, '../template-dataforge-ui/src/index.ts'),
       },
       {
         find: /^@\//,

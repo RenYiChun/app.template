@@ -10,8 +10,8 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@lrenyi/platform-headless": "file:../template-dataforge-headless",
-    "@lrenyi/platform-ui": "file:../template-dataforge-ui",
+    "@lrenyi/dataforge-headless": "file:../template-dataforge-headless",
+    "@lrenyi/dataforge-ui": "file:../template-dataforge-ui",
     "element-plus": "^2.9.4",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"

@@ -148,7 +148,7 @@ export default {
     settings: 'Settings',
     logout: 'Log Out',
   },
-  platformUi: {
+  dataforgeUi: {
     search: {
       inputPlaceholder: 'Please enter {label}',
       selectPlaceholder: 'Please select {label}',

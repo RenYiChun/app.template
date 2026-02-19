@@ -15,7 +15,7 @@
     "dev": "vite build --watch"
   },
   "peerDependencies": {
-    "@lrenyi/platform-headless": "file:../template-dataforge-headless",
+    "@lrenyi/dataforge-headless": "file:../template-dataforge-headless",
     "element-plus": ">=2.0.0",
     "vue": ">=3.0.0"
   },

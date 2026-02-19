@@ -15,17 +15,17 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'PlatformUI',
+      name: 'DataforgeUI',
       fileName: 'index',
       formats: ['es', 'umd'],
     },
     rollupOptions: {
-      external: ['vue', 'element-plus', '@lrenyi/platform-headless'],
+      external: ['vue', 'element-plus', '@lrenyi/dataforge-headless'],
       output: {
         globals: {
           vue: 'Vue',
           'element-plus': 'ElementPlus',
-          '@lrenyi/platform-headless': 'PlatformHeadless',
+          '@lrenyi/dataforge-headless': 'DataforgeHeadless',
         },
       },
     },

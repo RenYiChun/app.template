@@ -1,6 +1,6 @@
 /* Global CSS Resets and Style Overrides */
 :root {
-  --platform-bg: #f8fafc;
+  --dataforge-bg: #f8fafc;
   --sidebar-bg: #0f172a;
   --primary-color: #6366f1;
 }
@@ -10,7 +10,7 @@ html, body {
   padding: 0;
   height: 100%;
   width: 100%;
-  background-color: var(--platform-bg);
+  background-color: var(--dataforge-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

@@ -114,7 +114,7 @@
                         <!-- 然后处理自定义的 DTO 生成 -->
                         <path>
                             <groupId>com.lrenyi</groupId>
-                            <artifactId>template-platform-processor</artifactId>
+                            <artifactId>template-dataforge-processor</artifactId>
                             <version>${project.version}</version>
                         </path>
                     </annotationProcessorPaths>

@@ -10,11 +10,11 @@
               <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="brand-name">Platform</span>
+            <span class="brand-name">Dataforge</span>
           </div>
           <div class="brand-slogan">
             <h1>Create.<br>Evole.<br>Succed.</h1>
-            <p>Empowering your business with intelligent platform solutions.</p>
+            <p>Empowering your business with intelligent dataforge solutions.</p>
           </div>
           <div class="brand-footer">
             © {{ new Date().getFullYear() }} LRenYi Template

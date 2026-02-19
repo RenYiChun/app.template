@@ -8,7 +8,7 @@
       :enable-create="false"
       :row-actions="['view']"
       :columns="columns"
-      :locale="platformUiLocale"
+      :locale="dataforgeUiLocale"
       shadow="never"
       @view="handleView"
     >
@@ -77,15 +77,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { EntityCrudPage } from '@lrenyi/platform-ui';
-import type { ColumnConfig } from '@lrenyi/platform-ui';
+import { EntityCrudPage } from '@lrenyi/dataforge-ui';
+import type { ColumnConfig } from '@lrenyi/dataforge-ui';
 import dayjs from 'dayjs';
 import { useI18n } from 'vue-i18n';
-import { usePlatformUiLocale } from '@/i18n';
+import { useDataforgeUiLocale } from '@/i18n';
 
 const { t } = useI18n();
 
-const platformUiLocale = usePlatformUiLocale();
+const dataforgeUiLocale = useDataforgeUiLocale();
 
 interface OperationLog {
   id: number;
@@ -107,7 +107,7 @@ interface OperationLog {
   extra?: string;
 }
 
-// const { client } = usePlatform();
+// const { client } = useDataforge();
 // const logClient = client.define<OperationLog>('sys_operation_log');
 
 // 自定义列配置：控制宽度、标题、顺序

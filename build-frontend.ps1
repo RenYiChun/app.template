@@ -39,12 +39,12 @@ function Build-Project {
 $root = $PSScriptRoot
 
 # 1. Build Headless (Base Library)
-Build-Project -Path "$root\template-platform-headless" -Name "template-platform-headless"
+Build-Project -Path "$root\template-dataforge-headless" -Name "template-dataforge-headless"
 
 # 2. Build UI Component Library (Depends on Headless)
-Build-Project -Path "$root\template-platform-ui" -Name "template-platform-ui"
+Build-Project -Path "$root\template-dataforge-ui" -Name "template-dataforge-ui"
 
 # 3. Build Sample UI App (Depends on Headless and UI)
-Build-Project -Path "$root\template-platform-sample-frontend" -Name "template-platform-sample-frontend"
+Build-Project -Path "$root\template-dataforge-sample-frontend" -Name "template-dataforge-sample-frontend"
 
 Write-Host "All frontend projects built successfully!" -ForegroundColor Green

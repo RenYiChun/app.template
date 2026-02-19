@@ -10,7 +10,7 @@
     </parent>
     <artifactId>template-dataforge-sample-backend</artifactId>
     <name>Template Dataforge Sample Backend</name>
-    <description>template-platform-headless 对应的后端示例：实体 CRUD、Action、OpenAPI 文档</description>
+    <description>template-dataforge-headless 对应的后端示例：实体 CRUD、Action、OpenAPI 文档</description>
     <packaging>jar</packaging>
 
     <properties>
@@ -82,7 +82,7 @@
                         <!-- DTO processor -->
                         <path>
                             <groupId>com.lrenyi</groupId>
-                            <artifactId>template-platform-processor</artifactId>
+                            <artifactId>template-dataforge-processor</artifactId>
                             <version>${project.version}</version>
                         </path>
                     </annotationProcessorPaths>

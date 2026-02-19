@@ -7,7 +7,7 @@
           ref="dictCrudRef"
           entity="sys_dicts"
           :search-fields="['dictCode', 'dictName']"
-          :locale="platformUiLocale"
+          :locale="dataforgeUiLocale"
           @create="handleAddDict"
           @edit="handleEditDict"
           @delete="handleDeleteDict"
@@ -29,7 +29,7 @@
           :immediate="false"
           :enable-create="!!currentDict"
           :search-fields="['itemText', 'itemValue']"
-          :locale="platformUiLocale"
+          :locale="dataforgeUiLocale"
           @create="handleAddItem"
           @edit="handleEditItem"
           @delete="handleDeleteItem"
@@ -112,15 +112,15 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { usePlatform, type FilterCondition, BusinessError } from '@lrenyi/platform-headless/vue';
-import { EntityCrudPage } from '@lrenyi/platform-ui';
+import { useDataforge, type FilterCondition, BusinessError } from '@lrenyi/dataforge-headless/vue';
+import { EntityCrudPage } from '@lrenyi/dataforge-ui';
 import { useI18n } from 'vue-i18n';
-import { usePlatformUiLocale } from '@/i18n';
+import { useDataforgeUiLocale } from '@/i18n';
 
 const { t } = useI18n();
-const { client } = usePlatform();
+const { client } = useDataforge();
 
-const platformUiLocale = usePlatformUiLocale();
+const dataforgeUiLocale = useDataforgeUiLocale();
 
 interface Dict {
   id: number;

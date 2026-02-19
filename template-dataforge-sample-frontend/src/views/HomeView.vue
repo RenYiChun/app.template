@@ -11,7 +11,7 @@
             <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <span class="logo-text" v-show="!isCollapsed">Platform</span>
+        <span class="logo-text" v-show="!isCollapsed">Dataforge</span>
       </div>
 
       <!-- Menu Items -->
@@ -95,7 +95,7 @@
               <el-dropdown-menu class="user-dropdown">
                 <div class="dropdown-header">
                   <p class="dh-name">{{ user?.username || 'Administrator' }}</p>
-                  <p class="dh-email">admin@platform.com</p>
+                  <p class="dh-email">admin@dataforge.com</p>
                 </div>
                 <el-dropdown-item divided command="profile">
                     <el-icon><User /></el-icon> {{ $t('menu.profile') }}
@@ -123,7 +123,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { usePlatform } from '@lrenyi/platform-headless/vue';
+import { useDataforge } from '@lrenyi/dataforge-headless/vue';
 import { useAuthStore } from '../stores/auth';
 import { storeToRefs } from 'pinia';
 import { 
@@ -135,7 +135,7 @@ import { ElMessage } from 'element-plus';
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { logout, refreshMe } = authStore;
-const { authClient } = usePlatform();
+const { authClient } = useDataforge();
 const router = useRouter();
 
 const isCollapsed = ref(false);

@@ -3,15 +3,15 @@
  */
 
 /** 基础错误类 */
-export class PlatformError extends Error {
+export class DataforgeError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'PlatformError';
+    this.name = 'DataforgeError';
   }
 }
 
 /** 网络错误（如断网、DNS 解析失败） */
-export class NetworkError extends PlatformError {
+export class NetworkError extends DataforgeError {
   constructor(message: string = '网络连接失败') {
     super(message);
     this.name = 'NetworkError';
@@ -19,7 +19,7 @@ export class NetworkError extends PlatformError {
 }
 
 /** HTTP 状态码错误 (非 2xx) */
-export class HttpError extends PlatformError {
+export class HttpError extends DataforgeError {
   status: number;
   statusText: string;
   response: Response;
@@ -34,7 +34,7 @@ export class HttpError extends PlatformError {
 }
 
 /** 业务逻辑错误 (code !== 0) */
-export class BusinessError extends PlatformError {
+export class BusinessError extends DataforgeError {
   code: number;
   data?: any;
 
