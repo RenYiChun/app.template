@@ -1,7 +1,7 @@
 {
-  "name": "@lrenyi/platform-ui",
+  "name": "@lrenyi/dataforge-ui",
   "version": "1.0.0",
-  "description": "template-platform UI 组件库 (Element Plus)",
+  "description": "template-dataforge UI 组件库 (Element Plus)",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,7 +15,7 @@
     "dev": "vite build --watch"
   },
   "peerDependencies": {
-    "@lrenyi/platform-headless": "file:../template-platform-headless",
+    "@lrenyi/platform-headless": "file:../template-dataforge-headless",
     "element-plus": ">=2.0.0",
     "vue": ">=3.0.0"
   },

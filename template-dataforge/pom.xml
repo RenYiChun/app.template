@@ -9,7 +9,7 @@
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
     <artifactId>template-dataforge</artifactId>
-    <name>Template Platform</name>
+    <name>Template Dataforge</name>
     <description>实体驱动业务平台内核：统一 Controller、Action 扩展、权限/日志/OpenAPI</description>
 
     <properties>
@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-platform-processor</artifactId>
+            <artifactId>template-dataforge-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>

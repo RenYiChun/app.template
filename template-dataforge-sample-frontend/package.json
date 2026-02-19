@@ -1,5 +1,5 @@
 {
-  "name": "template-platform-sample-frontend",
+  "name": "template-dataforge-sample-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@lrenyi/platform-headless": "file:../template-platform-headless",
-    "@lrenyi/platform-ui": "file:../template-platform-ui",
+    "@lrenyi/platform-headless": "file:../template-dataforge-headless",
+    "@lrenyi/platform-ui": "file:../template-dataforge-ui",
     "element-plus": "^2.9.4",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"

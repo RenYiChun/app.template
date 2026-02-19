@@ -53,9 +53,9 @@
         <module>template-flow-sources</module>
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
-        <module>template-platform-processor</module>
-        <module>template-platform</module>
-        <module>template-platform-sample-backend</module>
+        <module>template-dataforge-processor</module>
+        <module>template-dataforge</module>
+        <module>template-dataforge-sample-backend</module>
     </modules>
 
     <dependencies>

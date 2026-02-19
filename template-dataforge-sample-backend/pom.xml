@@ -9,7 +9,7 @@
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
     <artifactId>template-dataforge-sample-backend</artifactId>
-    <name>Template Platform Sample Backend</name>
+    <name>Template Dataforge Sample Backend</name>
     <description>template-platform-headless 对应的后端示例：实体 CRUD、Action、OpenAPI 文档</description>
     <packaging>jar</packaging>
 

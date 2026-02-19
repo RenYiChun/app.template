@@ -179,7 +179,7 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-platform</artifactId>
+                <artifactId>template-dataforge</artifactId>
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>
