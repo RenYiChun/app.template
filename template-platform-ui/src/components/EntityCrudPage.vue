@@ -1,13 +1,7 @@
 <template>
   <div class="entity-crud-page">
-    <el-card v-loading="metaLoading" :shadow="shadow">
-      <template #header>
-        <div class="card-header">
-          <span>{{ displayName }}{{ manageSuffix }}</span>
-          <el-button v-if="enableCreate" type="primary" @click="emit('create')">{{ createText }}</el-button>
-        </div>
-      </template>
-
+    <!-- 顶部卡片：搜索区域 -->
+    <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
       <EntitySearchBar
         :entity-meta="entityMeta"
         :fields="searchFieldsConfig"
@@ -23,50 +17,81 @@
           <slot name="search" v-bind="slotProps" />
         </template>
       </EntitySearchBar>
+    </div>
 
-      <div v-if="selectable && selectedIds.length" class="batch-actions">
-        <span class="batch-actions__hint">{{ selectedCountText }}</span>
-        <el-button type="danger" size="small" @click="handleBatchDelete">{{ batchDeleteText }}</el-button>
+    <!-- 底部卡片：操作和表格区域 -->
+    <div class="crud-table-card">
+      <!-- 工具栏 -->
+      <div class="crud-toolbar">
+        <div class="toolbar-left">
+          <el-button v-if="enableCreate" type="primary" @click="emit('create')">
+            <el-icon class="el-icon--left"><Plus /></el-icon>{{ createText }}
+          </el-button>
+          <el-button v-if="selectable && selectedIds.length" type="danger" plain @click="handleBatchDelete">
+            <el-icon class="el-icon--left"><Delete /></el-icon>{{ batchDeleteText }}
+          </el-button>
+          <!-- 导出按钮 -->
+          <el-button v-if="enableExport" :loading="exportLoading" @click="handleExport">
+            <el-icon class="el-icon--left"><Download /></el-icon>{{ exportText }}
+          </el-button>
+          <slot name="toolbar-left" />
+        </div>
+        <div class="toolbar-right">
+          <slot name="toolbar-right" />
+          <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
+            <el-button circle :icon="Search" @click="showSearch = !showSearch" />
+          </el-tooltip>
+          <el-tooltip :content="refreshText" placement="top">
+            <el-button circle :icon="Refresh" @click="onSearch" />
+          </el-tooltip>
+        </div>
       </div>
 
-      <EntityTable
-        :columns="columns"
-        :items="items"
-        :loading="loading"
-        :row-actions="rowActions"
-        :selectable="selectable"
-        :row-key="rowKey"
-        :locale="locale"
-        @selection-change="onSelectionChange"
-        @view="(row) => emit('view', row)"
-        @edit="(row) => emit('edit', row)"
-        @delete="(row) => emit('delete', row)"
-        @action="(act, row) => emit('action', act, row)"
-      >
-        <template v-if="$slots['row-actions']" #row-actions="scope">
-          <slot name="row-actions" v-bind="scope" />
-        </template>
-        <template v-if="$slots.empty" #empty>
-          <slot name="empty" />
-        </template>
-      </EntityTable>
+      <!-- 表格 -->
+      <div class="crud-table" v-loading="loading">
+        <EntityTable
+          :columns="columns"
+          :items="items"
+          :loading="loading"
+          :row-actions="rowActions"
+          :selectable="selectable"
+          :row-key="rowKey"
+          :locale="locale"
+          @selection-change="onSelectionChange"
+          @view="(row) => emit('view', row)"
+          @edit="(row) => emit('edit', row)"
+          @delete="(row) => emit('delete', row)"
+          @action="(act, row) => emit('action', act, row)"
+        >
+          <template v-if="$slots['row-actions']" #row-actions="scope">
+            <slot name="row-actions" v-bind="scope" />
+          </template>
+          <template v-if="$slots.empty" #empty>
+            <slot name="empty" />
+          </template>
+        </EntityTable>
+      </div>
 
-      <el-pagination
-        v-model:current-page="pageOneBased"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="onSizeChange"
-        @current-change="onPageChange"
-      />
-    </el-card>
+      <!-- 分页 -->
+      <div class="crud-pagination">
+        <el-pagination
+          v-model:current-page="pageOneBased"
+          v-model:page-size="size"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="onSizeChange"
+          @current-change="onPageChange"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus, Delete, Refresh, Download, Search } from '@element-plus/icons-vue';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
 import { usePlatform, useEntityMeta, useEntityCrud, resolveColumns, getEntityConfig } from '@lrenyi/platform-headless/vue';
@@ -82,10 +107,12 @@ const props = withDefaults(
     selectable?: boolean;
     rowKey?: string;
     enableCreate?: boolean;
+    enableExport?: boolean;
     confirmBatchDelete?: boolean;
     shadow?: 'always' | 'hover' | 'never';
     baseFilters?: FilterCondition[];
     immediate?: boolean;
+    defaultPageSize?: number;
     locale?: {
       common?: {
         manageSuffix?: string;
@@ -102,6 +129,8 @@ const props = withDefaults(
         edit?: string;
         delete?: string;
         noData?: string;
+        refresh?: string;
+        paginationInfo?: string;
       };
       search?: {
         inputPlaceholder?: string;
@@ -129,10 +158,12 @@ const props = withDefaults(
     selectable: false,
     rowKey: 'id',
     enableCreate: true,
+    enableExport: true,
     confirmBatchDelete: true,
     shadow: 'always',
     baseFilters: () => [],
     immediate: true,
+    defaultPageSize: 10,
   }
 );
 
@@ -160,6 +191,7 @@ onMounted(async () => {
 
 const crud = useEntityCrud(client, props.entity, {
   onError: (e) => console.error(e),
+  initialPageSize: props.defaultPageSize,
 });
 
 const {
@@ -177,6 +209,8 @@ const {
   exportExcel,
 } = crud;
 
+const showSearch = ref(true);
+
 const exportLoading = ref(false);
 
 const formatText = (template: string, vars?: Record<string, string | number>) => {
@@ -187,9 +221,17 @@ const formatText = (template: string, vars?: Record<string, string | number>) =>
 const manageSuffix = computed(() => props.locale?.common?.manageSuffix ?? '管理');
 const createText = computed(() => props.locale?.common?.add ?? '新增');
 const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '批量删除');
+const exportText = computed(() => props.locale?.common?.export ?? '导出');
+const refreshText = computed(() => props.locale?.common?.refresh ?? '刷新');
 const selectedCountText = computed(() =>
   formatText(props.locale?.common?.selectedCount ?? '已选 {count} 项', { count: selectedIds.value.length })
 );
+const paginationInfoText = computed(() => {
+  const start = total.value === 0 ? 0 : (pageOneBased.value - 1) * size.value + 1;
+  const end = Math.min(pageOneBased.value * size.value, total.value);
+  const template = props.locale?.common?.paginationInfo ?? '显示第 {start} 到第 {end} 条记录，总共 {total} 条记录';
+  return formatText(template, { start, end, total: total.value });
+});
 
 const handleExport = async () => {
   exportLoading.value = true;
@@ -325,25 +367,88 @@ defineExpose({
 </script>
 
 <style>
-.entity-crud-page .card-header {
+/* 整体页面容器 */
+.entity-crud-page {
+  padding: 10px;
+  background-color: var(--el-fill-color-light);
+  min-height: 100%;
+}
+
+/* 顶部搜索卡片 */
+.entity-crud-page .crud-search-card {
+  background-color: var(--el-bg-color-overlay);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-lighter);
+  padding: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  max-height: 500px;
+  transition: all 0.3s ease-in-out;
+}
+
+.entity-crud-page .crud-search-card.is-hidden {
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  max-height: 0;
+  opacity: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* 底部表格操作卡片 */
+.entity-crud-page .crud-table-card {
+  background-color: var(--el-bg-color-overlay);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-lighter);
+  padding: 12px;
+}
+
+/* 工具栏区域 */
+.entity-crud-page .crud-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 16px;
 }
 
-.entity-crud-page .batch-actions {
-  margin-bottom: 12px;
+.entity-crud-page .toolbar-left {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+}
+
+/* 工具栏按钮组 */
+.entity-crud-page .toolbar-right {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
-.entity-crud-page .batch-actions__hint {
-  color: var(--el-text-color-regular);
+.entity-crud-page .toolbar-right .el-button {
+  margin-left: 0;
 }
 
-.entity-crud-page .el-pagination {
-  margin-top: 16px;
+/* 表格区域 */
+.entity-crud-page .crud-table {
+  margin-bottom: 16px;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* 分页区域：右对齐 */
+.entity-crud-page .crud-pagination {
+  display: flex;
   justify-content: flex-end;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* 覆盖表格默认样式，使其更美观 */
+.entity-crud-page .el-table {
+  --el-table-header-bg-color: var(--el-fill-color-light);
+  --el-table-header-text-color: var(--el-text-color-primary);
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>

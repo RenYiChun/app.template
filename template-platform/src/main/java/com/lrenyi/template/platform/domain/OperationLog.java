@@ -18,7 +18,10 @@ import lombok.Setter;
 @Getter
 @Entity
 @Table(name = "sys_operation_log")
-@PlatformEntity(pathSegment = "sys_operation_log", displayName = "操作日志", table = "sys_operation_log", generateDtos = false)
+@PlatformEntity(
+        pathSegment = "sys_operation_log", displayName = "操作日志", table = "sys_operation_log", generateDtos = false,
+        enableDelete = false, enableDeleteBatch = false, enableUpdate = false, enableUpdateBatch = false
+)
 public class OperationLog extends BaseEntity<Long> {
     
     @Searchable(label = "用户名", order = 1)

@@ -1,9 +1,9 @@
 <template>
   <div class="entity-search-bar">
     <slot v-if="$slots.default" :meta="entityMeta" :on-search="handleSearch" :on-reset="handleReset" :on-export="handleExport" />
-    <el-form v-else :inline="true" :model="formModel" class="search-form">
+    <el-form v-else :inline="true" :model="formModel" class="search-form" label-width="80px">
       <template v-for="f in searchFields" :key="f.field">
-        <el-form-item :label="f.label">
+        <el-form-item :label="f.label" :class="{ 'is-range': isDateField(f) }">
           <el-input
             v-if="f.type === 'string' || f.type === 'String'"
             v-model="formModel[f.field]"
@@ -22,7 +22,7 @@
             <el-option :label="noText" :value="false" />
           </el-select>
           <el-date-picker
-            v-else-if="['date', 'localdate', 'localdatetime', 'datetime', 'instant'].includes(f.type.toLowerCase())"
+          v-else-if="isDateField(f)"
             v-model="formModel[f.field]"
             type="datetimerange"
             :placeholder="formatText(rangePlaceholder, { label: f.label })"
@@ -41,17 +41,9 @@
           />
         </el-form-item>
       </template>
-      <el-form-item>
+      <el-form-item class="search-actions">
         <el-button type="primary" @click="handleSearch">{{ searchText }}</el-button>
         <el-button @click="handleReset">{{ resetText }}</el-button>
-        <el-button 
-          v-if="entityMeta?.exportEnabled" 
-          type="success" 
-          :loading="exportLoading"
-          @click="handleExport"
-        >
-          {{ exportText }}
-        </el-button>
       </el-form-item>
     </el-form>
   </div>
@@ -120,6 +112,9 @@ const endPlaceholder = computed(() => props.locale?.search?.end ?? '结束时间
 const allText = computed(() => props.locale?.search?.all ?? '全部');
 const yesText = computed(() => props.locale?.search?.yes ?? '是');
 const noText = computed(() => props.locale?.search?.no ?? '否');
+
+const isDateField = (f: SearchField) =>
+  ['date', 'localdate', 'localdatetime', 'datetime', 'instant'].includes(f.type.toLowerCase());
 
 const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;
@@ -215,3 +210,81 @@ const handleExport = () => {
   emit('export');
 };
 </script>
+
+<style>
+.entity-search-bar .search-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: center;
+}
+
+.entity-search-bar .search-form .el-form-item {
+  margin-bottom: 0;
+  margin-right: 0;
+  width: 100%;
+}
+
+.entity-search-bar .search-form .el-form-item__label {
+  line-height: 28px;
+  /* Ensure label doesn't take too much space but stays aligned */
+  white-space: nowrap; 
+}
+
+.entity-search-bar .search-form .el-form-item__content {
+  min-width: 0;
+}
+
+.entity-search-bar .search-form .el-input,
+.entity-search-bar .search-form .el-select,
+.entity-search-bar .search-form .el-date-editor {
+  width: 100%;
+}
+
+/* Date range spans 2 columns */
+.entity-search-bar .search-form .el-form-item.is-range {
+  grid-column: span 2;
+}
+
+/* Actions group styling */
+.entity-search-bar .search-actions {
+  /* Allow natural flow */
+  grid-column: auto; 
+  display: flex;
+  justify-content: flex-start;
+  min-width: auto;
+}
+
+.entity-search-bar .search-actions .el-form-item__content {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1400px) {
+  .entity-search-bar .search-form {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 992px) {
+  .entity-search-bar .search-form {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .entity-search-bar .search-form {
+    grid-template-columns: 1fr;
+  }
+  .entity-search-bar .search-form .el-form-item.is-range {
+    grid-column: span 1;
+  }
+  .entity-search-bar .search-actions {
+    justify-content: flex-start;
+  }
+  .entity-search-bar .search-actions .el-form-item__content {
+    justify-content: flex-start;
+  }
+}
+</style>

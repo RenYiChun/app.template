@@ -399,7 +399,7 @@ onMounted(() => {
 .content-wrapper {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
 }
