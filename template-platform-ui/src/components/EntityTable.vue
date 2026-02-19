@@ -38,7 +38,7 @@
       </el-table-column>
       <el-table-column
         v-if="rowActions?.length || $slots['row-actions']"
-        label="操作"
+        :label="actionsText"
         fixed="right"
         :width="rowActionsWidth"
       >
@@ -61,11 +61,12 @@
     <el-empty v-if="!loading && items.length === 0 && $slots.empty" description="">
       <slot name="empty" />
     </el-empty>
-    <el-empty v-else-if="!loading && items.length === 0" description="暂无数据" />
+    <el-empty v-else-if="!loading && items.length === 0" :description="noDataText" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { ColumnConfig } from '@lrenyi/platform-headless/vue';
 
 const props = withDefaults(
@@ -84,6 +85,15 @@ const props = withDefaults(
     rowKey?: string;
     /** 操作列宽度 */
     rowActionsWidth?: number;
+    locale?: {
+      common?: {
+        actions?: string;
+        view?: string;
+        edit?: string;
+        delete?: string;
+        noData?: string;
+      };
+    };
   }>(),
   {
     loading: false,
@@ -103,7 +113,14 @@ const emit = defineEmits<{
 }>();
 
 const actionLabel = (act: string) =>
-  ({ view: '查看', edit: '编辑', delete: '删除' }[act] ?? act);
+  ({
+    view: props.locale?.common?.view ?? '查看',
+    edit: props.locale?.common?.edit ?? '编辑',
+    delete: props.locale?.common?.delete ?? '删除',
+  }[act] ?? act);
+
+const actionsText = computed(() => props.locale?.common?.actions ?? '操作');
+const noDataText = computed(() => props.locale?.common?.noData ?? '暂无数据');
 
 const actionProps = (act: string) =>
   act === 'delete' ? { type: 'danger' as const } : act === 'view' ? {} : { type: 'primary' as const };

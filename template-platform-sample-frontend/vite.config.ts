@@ -18,6 +18,10 @@ export default defineConfig({
         find: /^@lrenyi\/platform-ui$/,
         replacement: resolve(__dirname, '../template-platform-ui/src/index.ts'),
       },
+      {
+        find: /^@\//,
+        replacement: `${resolve(__dirname, 'src')}/`,
+      },
     ],
   },
   server: {

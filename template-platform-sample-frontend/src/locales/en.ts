@@ -13,6 +13,12 @@ export default {
     tips: 'Tips',
     success: 'Success',
     error: 'Error',
+    view: 'View',
+    noData: 'No data',
+    submit: 'Submit',
+    manageSuffix: ' Management',
+    selectedCount: 'Selected {count} items',
+    batchDeleteConfirm: 'Are you sure to delete selected {count} records?',
   },
   login: {
     title: 'Sign In',
@@ -142,8 +148,27 @@ export default {
     settings: 'Settings',
     logout: 'Log Out',
   },
+  platformUi: {
+    search: {
+      inputPlaceholder: 'Please enter {label}',
+      selectPlaceholder: 'Please select {label}',
+      rangePlaceholder: 'Select {label} range',
+      start: 'Start',
+      end: 'End',
+      all: 'All',
+      yes: 'Yes',
+      no: 'No',
+    },
+    form: {
+      inputPlaceholder: 'Please enter {label}',
+      selectPlaceholder: 'Please select {label}',
+      required: 'Please enter {label}',
+      email: 'Please enter a valid {label}',
+    },
+  },
   error: {
     network: 'Network connection failed, please check your settings',
     unknown: 'An unknown error occurred',
+    exportFailed: 'Export failed',
   }
 }

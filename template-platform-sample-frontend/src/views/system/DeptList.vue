@@ -6,6 +6,7 @@
       :columns="columns"
       :search-fields="['name']"
       :show-create="true"
+      :locale="platformUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
       @delete="handleDelete"
@@ -75,9 +76,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { usePlatform, BusinessError } from '@lrenyi/platform-headless/vue';
 import { EntityCrudPage } from '@lrenyi/platform-ui';
 import { useI18n } from 'vue-i18n';
+import { usePlatformUiLocale } from '@/i18n';
 
 const { t } = useI18n();
 const { client } = usePlatform();
+
+const platformUiLocale = usePlatformUiLocale();
 
 interface Department {
   id: number;

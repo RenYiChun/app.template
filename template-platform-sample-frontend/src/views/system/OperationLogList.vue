@@ -8,6 +8,7 @@
       :enable-create="false"
       :row-actions="['view']"
       :columns="columns"
+      :locale="platformUiLocale"
       shadow="never"
       @view="handleView"
     >
@@ -80,8 +81,11 @@ import { EntityCrudPage } from '@lrenyi/platform-ui';
 import type { ColumnConfig } from '@lrenyi/platform-ui';
 import dayjs from 'dayjs';
 import { useI18n } from 'vue-i18n';
+import { usePlatformUiLocale } from '@/i18n';
 
 const { t } = useI18n();
+
+const platformUiLocale = usePlatformUiLocale();
 
 interface OperationLog {
   id: number;

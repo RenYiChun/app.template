@@ -45,6 +45,6 @@ Build-Project -Path "$root\template-platform-headless" -Name "template-platform-
 Build-Project -Path "$root\template-platform-ui" -Name "template-platform-ui"
 
 # 3. Build Sample UI App (Depends on Headless and UI)
-Build-Project -Path "$root\template-platform-sample-ui" -Name "template-platform-sample-ui"
+Build-Project -Path "$root\template-platform-sample-frontend" -Name "template-platform-sample-frontend"
 
 Write-Host "All frontend projects built successfully!" -ForegroundColor Green

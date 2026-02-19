@@ -7,27 +7,27 @@
           <el-input
             v-if="f.type === 'string' || f.type === 'String'"
             v-model="formModel[f.field]"
-            :placeholder="`请输入${f.label}`"
+            :placeholder="formatText(inputPlaceholder, { label: f.label })"
             clearable
             @keyup.enter="handleSearch"
           />
           <el-select
             v-else-if="f.type === 'boolean' || f.type === 'Boolean'"
             v-model="formModel[f.field]"
-            placeholder="全部"
+            :placeholder="formatText(selectPlaceholder, { label: f.label })"
             clearable
           >
-            <el-option label="全部" :value="undefined" />
-            <el-option label="是" :value="true" />
-            <el-option label="否" :value="false" />
+            <el-option :label="allText" :value="undefined" />
+            <el-option :label="yesText" :value="true" />
+            <el-option :label="noText" :value="false" />
           </el-select>
           <el-date-picker
             v-else-if="['date', 'localdate', 'localdatetime', 'datetime', 'instant'].includes(f.type.toLowerCase())"
             v-model="formModel[f.field]"
             type="datetimerange"
-            :placeholder="`选择${f.label}范围`"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            :placeholder="formatText(rangePlaceholder, { label: f.label })"
+            :start-placeholder="startPlaceholder"
+            :end-placeholder="endPlaceholder"
             value-format="YYYY-MM-DD HH:mm:ss"
             clearable
             @change="handleSearch"
@@ -35,22 +35,22 @@
           <el-input
             v-else
             v-model="formModel[f.field]"
-            :placeholder="`请输入${f.label}`"
+            :placeholder="formatText(inputPlaceholder, { label: f.label })"
             clearable
             @keyup.enter="handleSearch"
           />
         </el-form-item>
       </template>
       <el-form-item>
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
+        <el-button type="primary" @click="handleSearch">{{ searchText }}</el-button>
+        <el-button @click="handleReset">{{ resetText }}</el-button>
         <el-button 
           v-if="entityMeta?.exportEnabled" 
           type="success" 
           :loading="exportLoading"
           @click="handleExport"
         >
-          导出
+          {{ exportText }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -68,6 +68,23 @@ const props = withDefaults(
     fields?: string[] | any[];
     modelValue?: FilterCondition[];
     exportLoading?: boolean;
+    locale?: {
+      common?: {
+        search?: string;
+        reset?: string;
+        export?: string;
+      };
+      search?: {
+        inputPlaceholder?: string;
+        selectPlaceholder?: string;
+        rangePlaceholder?: string;
+        start?: string;
+        end?: string;
+        all?: string;
+        yes?: string;
+        no?: string;
+      };
+    };
   }>(),
   { modelValue: () => [] }
 );
@@ -86,6 +103,23 @@ interface SearchField {
   operators: Op[];
   order: number;
 }
+
+const formatText = (template: string, vars?: Record<string, string | number>) => {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+};
+
+const searchText = computed(() => props.locale?.common?.search ?? '查询');
+const resetText = computed(() => props.locale?.common?.reset ?? '重置');
+const exportText = computed(() => props.locale?.common?.export ?? '导出');
+const inputPlaceholder = computed(() => props.locale?.search?.inputPlaceholder ?? '请输入{label}');
+const selectPlaceholder = computed(() => props.locale?.search?.selectPlaceholder ?? '请选择{label}');
+const rangePlaceholder = computed(() => props.locale?.search?.rangePlaceholder ?? '选择{label}范围');
+const startPlaceholder = computed(() => props.locale?.search?.start ?? '开始时间');
+const endPlaceholder = computed(() => props.locale?.search?.end ?? '结束时间');
+const allText = computed(() => props.locale?.search?.all ?? '全部');
+const yesText = computed(() => props.locale?.search?.yes ?? '是');
+const noText = computed(() => props.locale?.search?.no ?? '否');
 
 const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;

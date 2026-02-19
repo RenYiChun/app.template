@@ -9,19 +9,19 @@
             v-model="formData[key]"
             type="textarea"
             :rows="3"
-            :placeholder="`请输入${key}`"
+            :placeholder="formatText(inputPlaceholder, { label: key })"
           />
           <el-input
             v-else-if="inferInputType(schema) === 'password'"
             v-model="formData[key]"
             type="password"
             show-password
-            :placeholder="`请输入${key}`"
+            :placeholder="formatText(inputPlaceholder, { label: key })"
           />
           <el-select
             v-else-if="schema.enum"
             v-model="formData[key]"
-            :placeholder="`请选择${key}`"
+            :placeholder="formatText(selectPlaceholder, { label: key })"
             clearable
           >
             <el-option
@@ -37,12 +37,12 @@
             v-model="formData[key]"
             type="datetime"
             value-format="YYYY-MM-DD HH:mm:ss"
-            :placeholder="`请选择${key}`"
+            :placeholder="formatText(selectPlaceholder, { label: key })"
           />
           <el-input
             v-else
             v-model="formData[key]"
-            :placeholder="`请输入${key}`"
+            :placeholder="formatText(inputPlaceholder, { label: key })"
             clearable
           />
         </el-form-item>
@@ -50,8 +50,8 @@
       <slot name="extra" />
       <el-form-item>
         <slot name="footer">
-          <el-button type="primary" @click="handleSubmit">提交</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSubmit">{{ submitText }}</el-button>
+          <el-button @click="handleReset">{{ resetText }}</el-button>
         </slot>
       </el-form-item>
     </el-form>
@@ -75,6 +75,18 @@ const props = withDefaults(
     rulesOverride?: FormRules;
     /** 规则覆盖模式：merge=追加，replace=完全替换 */
     rulesMode?: 'merge' | 'replace';
+    locale?: {
+      common?: {
+        submit?: string;
+        reset?: string;
+      };
+      form?: {
+        inputPlaceholder?: string;
+        selectPlaceholder?: string;
+        required?: string;
+        email?: string;
+      };
+    };
   }>(),
   { readonlyFields: () => [], rulesMode: 'merge' }
 );
@@ -88,6 +100,18 @@ const formData = reactive<Record<string, unknown>>({});
 const rules = reactive<FormRules>({});
 
 const formFields = computed(() => props.schema ?? {});
+
+const formatText = (template: string, vars?: Record<string, string | number>) => {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+};
+
+const inputPlaceholder = computed(() => props.locale?.form?.inputPlaceholder ?? '请输入{label}');
+const selectPlaceholder = computed(() => props.locale?.form?.selectPlaceholder ?? '请选择{label}');
+const requiredText = computed(() => props.locale?.form?.required ?? '请输入{label}');
+const emailText = computed(() => props.locale?.form?.email ?? '请输入正确的{label}');
+const submitText = computed(() => props.locale?.common?.submit ?? '提交');
+const resetText = computed(() => props.locale?.common?.reset ?? '重置');
 
 watch(
   () => props.initial,
@@ -112,11 +136,11 @@ watch(
         const rs: any[] = [];
         const trigger = prop.enum || prop.type === 'boolean' || isDateType(prop) ? 'change' : 'blur';
         if (prop.required) {
-          rs.push({ required: true, message: `请输入${key}`, trigger });
+          rs.push({ required: true, message: formatText(requiredText.value, { label: key }), trigger });
         }
         const fmt = (prop.format ?? '').toLowerCase();
         if (fmt === 'email') {
-          rs.push({ type: 'email', message: `请输入正确的${key}`, trigger: 'blur' });
+          rs.push({ type: 'email', message: formatText(emailText.value, { label: key }), trigger: 'blur' });
         }
         const ov = props.rulesOverride?.[key] as any[] | undefined;
         if (props.rulesMode === 'replace') {

@@ -7,6 +7,7 @@
           ref="dictCrudRef"
           entity="sys_dicts"
           :search-fields="['dictCode', 'dictName']"
+          :locale="platformUiLocale"
           @create="handleAddDict"
           @edit="handleEditDict"
           @delete="handleDeleteDict"
@@ -28,6 +29,7 @@
           :immediate="false"
           :enable-create="!!currentDict"
           :search-fields="['itemText', 'itemValue']"
+          :locale="platformUiLocale"
           @create="handleAddItem"
           @edit="handleEditItem"
           @delete="handleDeleteItem"
@@ -113,9 +115,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { usePlatform, type FilterCondition, BusinessError } from '@lrenyi/platform-headless/vue';
 import { EntityCrudPage } from '@lrenyi/platform-ui';
 import { useI18n } from 'vue-i18n';
+import { usePlatformUiLocale } from '@/i18n';
 
 const { t } = useI18n();
 const { client } = usePlatform();
+
+const platformUiLocale = usePlatformUiLocale();
 
 interface Dict {
   id: number;

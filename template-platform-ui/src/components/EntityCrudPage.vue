@@ -3,8 +3,8 @@
     <el-card v-loading="metaLoading" :shadow="shadow">
       <template #header>
         <div class="card-header">
-          <span>{{ displayName }}管理</span>
-          <el-button v-if="enableCreate" type="primary" @click="emit('create')">新增</el-button>
+          <span>{{ displayName }}{{ manageSuffix }}</span>
+          <el-button v-if="enableCreate" type="primary" @click="emit('create')">{{ createText }}</el-button>
         </div>
       </template>
 
@@ -13,6 +13,7 @@
         :fields="searchFieldsConfig"
         :model-value="filters"
         :export-loading="exportLoading"
+        :locale="locale"
         @update:model-value="onFiltersChange"
         @search="onSearch"
         @reset="onReset"
@@ -24,8 +25,8 @@
       </EntitySearchBar>
 
       <div v-if="selectable && selectedIds.length" class="batch-actions">
-        <span class="batch-actions__hint">已选 {{ selectedIds.length }} 项</span>
-        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+        <span class="batch-actions__hint">{{ selectedCountText }}</span>
+        <el-button type="danger" size="small" @click="handleBatchDelete">{{ batchDeleteText }}</el-button>
       </div>
 
       <EntityTable
@@ -35,6 +36,7 @@
         :row-actions="rowActions"
         :selectable="selectable"
         :row-key="rowKey"
+        :locale="locale"
         @selection-change="onSelectionChange"
         @view="(row) => emit('view', row)"
         @edit="(row) => emit('edit', row)"
@@ -64,7 +66,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import EntitySearchBar from './EntitySearchBar.vue';
 import EntityTable from './EntityTable.vue';
 import { usePlatform, useEntityMeta, useEntityCrud, resolveColumns, getEntityConfig } from '@lrenyi/platform-headless/vue';
@@ -84,6 +86,43 @@ const props = withDefaults(
     shadow?: 'always' | 'hover' | 'never';
     baseFilters?: FilterCondition[];
     immediate?: boolean;
+    locale?: {
+      common?: {
+        manageSuffix?: string;
+        add?: string;
+        search?: string;
+        reset?: string;
+        export?: string;
+        batchDelete?: string;
+        selectedCount?: string;
+        batchDeleteConfirm?: string;
+        tips?: string;
+        actions?: string;
+        view?: string;
+        edit?: string;
+        delete?: string;
+        noData?: string;
+      };
+      search?: {
+        inputPlaceholder?: string;
+        selectPlaceholder?: string;
+        rangePlaceholder?: string;
+        start?: string;
+        end?: string;
+        all?: string;
+        yes?: string;
+        no?: string;
+      };
+      form?: {
+        inputPlaceholder?: string;
+        selectPlaceholder?: string;
+        required?: string;
+        email?: string;
+      };
+      errors?: {
+        exportFailed?: string;
+      };
+    };
   }>(),
   {
     rowActions: () => ['view', 'edit', 'delete'],
@@ -140,6 +179,18 @@ const {
 
 const exportLoading = ref(false);
 
+const formatText = (template: string, vars?: Record<string, string | number>) => {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+};
+
+const manageSuffix = computed(() => props.locale?.common?.manageSuffix ?? '管理');
+const createText = computed(() => props.locale?.common?.add ?? '新增');
+const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '批量删除');
+const selectedCountText = computed(() =>
+  formatText(props.locale?.common?.selectedCount ?? '已选 {count} 项', { count: selectedIds.value.length })
+);
+
 const handleExport = async () => {
   exportLoading.value = true;
   try {
@@ -154,6 +205,7 @@ const handleExport = async () => {
     document.body.removeChild(a);
   } catch (e) {
     console.error('Export failed', e);
+    ElMessage.error(props.locale?.errors?.exportFailed ?? '导出失败');
   } finally {
     exportLoading.value = false;
   }
@@ -237,7 +289,11 @@ const handleBatchDelete = async () => {
   if (selectedIds.value.length === 0) return;
   if (props.confirmBatchDelete) {
     try {
-      await ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条记录吗？`, '提示', { type: 'warning' });
+      const message = formatText(
+        props.locale?.common?.batchDeleteConfirm ?? '确定删除选中的 {count} 条记录吗？',
+        { count: selectedIds.value.length }
+      );
+      await ElMessageBox.confirm(message, props.locale?.common?.tips ?? '提示', { type: 'warning' });
     } catch (e) {
       return;
     }

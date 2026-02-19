@@ -1,12 +1,13 @@
 {
-  "name": "template-platform-sample-ui",
+  "name": "template-platform-sample-frontend",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@lrenyi/platform-headless": "file:../template-platform-headless",
@@ -21,9 +22,14 @@
     "@vue/eslint-config-typescript": "^14.7.0",
     "eslint": "^10.0.0",
     "eslint-plugin-vue": "^10.8.0",
+    "patch-package": "^8.0.0",
     "pinia": "^3.0.4",
     "prettier": "^3.8.1",
     "vite": "^6.1.0",
     "vue-i18n": "^9.14.5"
+  },
+  "overrides": {
+    "ajv": "^8.18.0",
+    "minimatch": "^10.2.1"
   }
 }

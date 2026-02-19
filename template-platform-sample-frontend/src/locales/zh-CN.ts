@@ -13,6 +13,12 @@ export default {
     tips: '提示',
     success: '成功',
     error: '错误',
+    view: '查看',
+    noData: '暂无数据',
+    submit: '提交',
+    manageSuffix: '管理',
+    selectedCount: '已选 {count} 项',
+    batchDeleteConfirm: '确定删除选中的 {count} 条记录吗？',
   },
   login: {
     title: '登录',
@@ -142,8 +148,27 @@ export default {
     settings: '账号设置',
     logout: '退出登录',
   },
+  platformUi: {
+    search: {
+      inputPlaceholder: '请输入{label}',
+      selectPlaceholder: '请选择{label}',
+      rangePlaceholder: '选择{label}范围',
+      start: '开始时间',
+      end: '结束时间',
+      all: '全部',
+      yes: '是',
+      no: '否',
+    },
+    form: {
+      inputPlaceholder: '请输入{label}',
+      selectPlaceholder: '请选择{label}',
+      required: '请输入{label}',
+      email: '请输入正确的{label}',
+    },
+  },
   error: {
     network: '网络连接失败，请检查您的网络设置',
     unknown: '发生未知错误',
+    exportFailed: '导出失败',
   }
 }
