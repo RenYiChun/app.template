@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import ElementPlus, { ElMessage } from 'element-plus';
 import 'element-plus/dist/index.css';
-import '@lrenyi/platform-ui/dist/style.css';
+import '@lrenyi/platform-ui/dist/index.css';
 import './styles/main.css';
 import './styles/platform-ui-overrides.css';
 import App from './App.vue';
