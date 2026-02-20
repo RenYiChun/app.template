@@ -8,9 +8,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
+ * @deprecated 已废弃，请使用 {@link DataforgeExport} 注解的 {@code converter} 属性。
+ * 例如：{@code @DataforgeExport(converter = MyConverter.class)}
+ * 
  * 标注在实体字段上，指定该字段导出到 Excel 时的值转换策略。
  * 转换器实现需为无参可实例化类。
  */
+@Deprecated(since = "2.4.3", forRemoval = true)
 @Documented
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

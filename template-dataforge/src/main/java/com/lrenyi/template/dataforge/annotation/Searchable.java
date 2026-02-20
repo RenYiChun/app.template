@@ -5,6 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * @deprecated 已废弃，请使用 {@link DataforgeField} 注解的 {@code searchable} 属性。
+ * 例如：{@code @DataforgeField(searchable = true)}
+ */
+@Deprecated(since = "2.4.3", forRemoval = true)
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Searchable {
