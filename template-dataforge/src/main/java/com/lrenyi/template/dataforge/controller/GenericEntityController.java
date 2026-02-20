@@ -249,7 +249,7 @@ public class GenericEntityController {
 
     /**
      * 导出 Excel。请求体与 search 相同（filters、sort、page、size），仅 size
-     * 默认更大；仅导出未标注 @ExportExclude 的字段。
+     * 默认更大；仅导出未标注 @DataforgeExport(enabled=false) 的字段。
      */
     @PostMapping("/{entity}/export")
     public ResponseEntity<byte[]> export(@PathVariable("entity") String entity,

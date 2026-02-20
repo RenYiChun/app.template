@@ -2,7 +2,7 @@ package com.lrenyi.oauth2.service.config;
 
 import java.util.List;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.dataforge.audit.service.AuditLogService;
+import com.lrenyi.template.dataforge.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

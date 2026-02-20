@@ -20,11 +20,6 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-dataforge-model</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.lrenyi</groupId>
             <artifactId>template-api</artifactId>
         </dependency>
         <dependency>

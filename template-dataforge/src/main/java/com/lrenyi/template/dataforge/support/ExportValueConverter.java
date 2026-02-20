@@ -2,7 +2,7 @@ package com.lrenyi.template.dataforge.support;
 
 /**
  * 导出时对字段值的转换策略。可用于将枚举转为文案、日期格式化、布尔转「是/否」等。
- * 在实体字段上通过 {@link com.lrenyi.template.dataforge.annotation.ExportConverter} 指定实现类。
+ * 在实体字段上通过 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(converter=XXX.class) 指定实现类。
  */
 @FunctionalInterface
 public interface ExportValueConverter {

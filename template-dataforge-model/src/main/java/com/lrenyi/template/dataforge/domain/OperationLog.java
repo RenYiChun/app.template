@@ -2,7 +2,7 @@ package com.lrenyi.template.dataforge.domain;
 
 import java.util.Date;
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
-import com.lrenyi.template.dataforge.annotation.Searchable;
+import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -24,32 +24,32 @@ import lombok.Setter;
 )
 public class OperationLog extends BaseEntity<Long> {
     
-    @Searchable(label = "用户名", order = 1)
+    @DataforgeField(label = "用户名", order = 1, searchable = true)
     @Column(length = 128)
     private String userName;
     
-    @Searchable(label = "操作描述", order = 5)
+    @DataforgeField(label = "操作描述", order = 5, searchable = true)
     @Column(length = 512)
     private String description;
 
     @Column(nullable = false)
-    @Searchable(label = "操作时间", order = 6)
+    @DataforgeField(label = "操作时间", order = 6, searchable = true)
     private Date operationTime;
 
     private Long executionTimeMs;
     
-    @Searchable(label = "请求IP", order = 2)
+    @DataforgeField(label = "请求IP", order = 2, searchable = true)
     @Column(length = 64)
     private String requestIp;
     
-    @Searchable(label = "请求路径", order = 3)
+    @DataforgeField(label = "请求路径", order = 3, searchable = true)
     @Column(length = 512)
     private String requestUri;
 
     @Column(length = 16)
     private String requestMethod;
     
-    @Searchable(label = "是否成功", order = 4)
+    @DataforgeField(label = "是否成功", order = 4, searchable = true)
     private boolean success;
     @Column(length = 2048)
     private String exceptionDetails;

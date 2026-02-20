@@ -19,9 +19,6 @@ import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import com.lrenyi.template.dataforge.annotation.DataforgeImport;
 import com.lrenyi.template.dataforge.annotation.DtoType;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
-import com.lrenyi.template.dataforge.annotation.ExportConverter;
-import com.lrenyi.template.dataforge.annotation.ExportExclude;
-import com.lrenyi.template.dataforge.annotation.Searchable;
 import com.lrenyi.template.dataforge.domain.BaseEntity;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
@@ -297,12 +294,11 @@ public class MetaScanner {
         }
         Collections.reverse(hierarchy);
         
-        // 第一步：收集所有被 @Searchable 或 @DataforgeField(searchable=true) 标注的字段名
+        // 第一步：收集所有被 @DataforgeField(searchable=true) 标注的字段名
         for (Class<?> c : hierarchy) {
             for (Field f : c.getDeclaredFields()) {
-                Searchable searchable = f.getAnnotation(Searchable.class);
                 DataforgeField dataforgeField = f.getAnnotation(DataforgeField.class);
-                if (searchable != null || (dataforgeField != null && dataforgeField.searchable())) {
+                if (dataforgeField != null && dataforgeField.searchable()) {
                     annotated.add(f.getName());
                 }
             }
@@ -321,20 +317,7 @@ public class MetaScanner {
                                 || fieldType == String.class || fieldType == UUID.class || fieldType == Integer.class
                                 || fieldType == int.class));
                 fm.setRequired(fm.isPrimaryKey());
-                
-                // ==================== 处理旧注解（向后兼容） ====================
-                Searchable searchable = f.getAnnotation(Searchable.class);
                 fm.setQueryable(annotated.contains(f.getName()));
-                if (searchable != null) {
-                    String label = searchable.label();
-                    fm.setSearchLabel(label);
-                    fm.setSearchOrder(searchable.order());
-                }
-                fm.setExportExcluded(f.getAnnotation(ExportExclude.class) != null);
-                ExportConverter exportConverter = f.getAnnotation(ExportConverter.class);
-                if (exportConverter != null) {
-                    fm.setExportConverterClassName(exportConverter.value().getName());
-                }
                 
                 // ==================== 处理新注解 @DataforgeField ====================
                 DataforgeField dataforgeField = f.getAnnotation(DataforgeField.class);
@@ -389,6 +372,11 @@ public class MetaScanner {
                     fm.setSearchRequired(dataforgeField.searchRequired());
                     fm.setSearchPlaceholder(dataforgeField.searchPlaceholder());
                     fm.setSearchRangeFields(dataforgeField.searchRangeFields());
+                    // 设置搜索标签和顺序（使用DataforgeField的label和order）
+                    if (dataforgeField.searchable()) {
+                        fm.setSearchLabel(StringUtils.hasText(dataforgeField.label()) ? dataforgeField.label() : f.getName());
+                        fm.setSearchOrder(dataforgeField.order());
+                    }
                     
                     // 数据转换与显示
                     fm.setFormat(dataforgeField.format());
@@ -440,10 +428,8 @@ public class MetaScanner {
                     fm.setExportDataValidation(dataforgeExport.dataValidation());
                     fm.setExportHyperlinkFormula(dataforgeExport.hyperlinkFormula());
                     
-                    // 兼容旧注解 @ExportExclude
-                    if (!dataforgeExport.enabled()) {
-                        fm.setExportExcluded(true);
-                    }
+                    // 设置导出排除状态
+                    fm.setExportExcluded(!dataforgeExport.enabled());
                 }
                 
                 // ==================== 处理新注解 @DataforgeImport ====================

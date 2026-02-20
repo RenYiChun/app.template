@@ -10,7 +10,7 @@ import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
 
 /**
- * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.ExportExclude}）导出为 Excel（.xlsx）。
+ * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled=false)）导出为 Excel（.xlsx）。
  * 通过反射使用 Apache POI，避免编译期强依赖，运行时需 classpath 存在 poi-ooxml。
  */
 public final class ExcelExportSupport {
