@@ -50,7 +50,7 @@ public class AuditLogInfo implements Serializable {
     private String targetType;
     /** 操作对象 ID（What 结构化），多个用逗号分隔 */
     private String targetId;
-    /** 影响数量（How much 业务量），如批量删除条数、导出行数 */
+    /** 影响数量（How much 业务量），如删除条数、导出行数 */
     private Long affectedCount;
     /** 扩展信息 JSON（How much 等），便于后续加金额等不改表结构 */
     private String extra;

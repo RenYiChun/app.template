@@ -35,6 +35,6 @@ public enum DtoType {
     /** 批量创建请求 DTO */
     BATCH_CREATE,
     
-    /** 批量更新请求 DTO */
+    /** 更新请求 DTO */
     BATCH_UPDATE
 }

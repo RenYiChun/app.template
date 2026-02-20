@@ -3,7 +3,7 @@ export default {
     add: '新增',
     edit: '编辑',
     delete: '删除',
-    batchDelete: '批量删除',
+    batchDelete: '删除',
     search: '搜索',
     reset: '重置',
     export: '导出',

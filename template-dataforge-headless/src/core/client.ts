@@ -156,7 +156,7 @@ export class EntityClient {
         await this.handleResult<null>(res);
     }
 
-    /** 批量删除 */
+    /** 删除 */
     async deleteBatch(entity: string, ids: (string | number)[]): Promise<void> {
         if (!ids.length) return;
         const res = await this.requestFn(this.url(`${entity}/batch`), {
@@ -167,7 +167,7 @@ export class EntityClient {
         await this.handleResult<null>(res);
     }
 
-    /** 批量更新 */
+    /** 更新 */
     async updateBatch<T = Record<string, unknown>>(
         entity: string,
         items: Array<{ id: string | number } & Partial<T>>

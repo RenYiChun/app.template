@@ -178,7 +178,7 @@ public class GenericEntityController {
     }
 
     /**
-     * 批量删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
+     * 删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
      */
     @DeleteMapping("/{entity}/batch")
     public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<Object> ids) {
@@ -202,7 +202,7 @@ public class GenericEntityController {
     }
 
     /**
-     * 批量更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
+     * 更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
     @PutMapping("/{entity}/batch")
     public Result<?> updateBatch(@PathVariable("entity") String entity, @RequestBody List<Map<String, Object>> body) {

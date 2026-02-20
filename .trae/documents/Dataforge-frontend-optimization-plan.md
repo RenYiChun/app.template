@@ -35,7 +35,7 @@ const meta = await metaService.getEntityMeta('user');
 - **表单校验灵活**：支持`rulesOverride`和`rulesMode`控制校验行为
 
 ### 6. **生产级功能闭环**
-- **批量操作**：批量选择、[批量删除（含二次确认）](file:///d:/github.com/app.template/template-platform-ui/src/components/EntityCrudPage.vue#L26-L29)、批量导出
+- **批量操作**：批量选择、[删除（含二次确认）](file:///d:/github.com/app.template/template-platform-ui/src/components/EntityCrudPage.vue#L26-L29)、批量导出
 - **权限集成**：通过`x-permissions`扩展支持操作级权限控制
 - **错误处理**：统一的错误处理和认证拦截
 - **多实例管理**：`createPlatform()`支持多应用场景，`allowGlobalFallback`控制回退策略
@@ -122,7 +122,7 @@ const meta = await metaService.getEntityMeta('user');
 
 1. **批量操作闭环**、**配置统一**、**错误处理完善**等基础功能上
 2. **元数据解析的健壮性**显著提升，能够应对更多OpenAPI变化
-3. **用户体验增强**，如表单校验灵活性、批量删除确认等
+3. **用户体验增强**，如表单校验灵活性、删除确认等
 
 **主要优势**在于其**元数据驱动**和**headless架构**带来的灵活性，特别适合需要快速生成管理后台且希望保持UI定制能力的场景。
 

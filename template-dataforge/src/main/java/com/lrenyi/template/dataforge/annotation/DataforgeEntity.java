@@ -60,12 +60,12 @@ public @interface DataforgeEntity {
     boolean enableDelete() default true;
 
     /**
-     * 是否启用批量删除（DELETE /{entity}/batch）。仅当 crudEnabled=true 时生效。
+     * 是否启用删除（DELETE /{entity}/batch）。仅当 crudEnabled=true 时生效。
      */
     boolean enableDeleteBatch() default true;
 
     /**
-     * 是否启用批量更新（PUT /{entity}/batch）。仅当 crudEnabled=true 时生效。
+     * 是否启用更新（PUT /{entity}/batch）。仅当 crudEnabled=true 时生效。
      */
     boolean enableUpdateBatch() default true;
 

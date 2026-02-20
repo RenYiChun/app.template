@@ -268,8 +268,8 @@ const isSelectable = computed(() => {
 
 const manageSuffix = computed(() => props.locale?.common?.manageSuffix ?? '管理');
 const createText = computed(() => props.locale?.common?.add ?? '新增');
-const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '批量删除');
-const batchUpdateText = computed(() => props.locale?.common?.batchUpdate ?? '批量更新');
+const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '删除');
+const batchUpdateText = computed(() => props.locale?.common?.batchUpdate ?? '更新');
 const exportText = computed(() => props.locale?.common?.export ?? '导出');
 const refreshText = computed(() => props.locale?.common?.refresh ?? '刷新');
 const selectedCountText = computed(() =>

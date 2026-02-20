@@ -18,10 +18,18 @@ import lombok.Setter;
 @Getter
 @Entity
 @Table(name = "sys_operation_log")
+//@formatter:off
 @DataforgeEntity(
-        pathSegment = "sys_operation_log", displayName = "操作日志", table = "sys_operation_log", generateDtos = false,
-        enableDelete = false, enableDeleteBatch = false, enableUpdate = false, enableUpdateBatch = false
+        pathSegment = "operation_log",
+        displayName = "操作日志",
+        table = "sys_operation_log",
+        generateDtos = false,
+        enableDelete = false,
+        enableDeleteBatch = false,
+        enableUpdate = false,
+        enableUpdateBatch = false
 )
+//formatter:on
 public class OperationLog extends BaseEntity<Long> {
     
     @DataforgeField(label = "用户名", order = 1, searchable = true)

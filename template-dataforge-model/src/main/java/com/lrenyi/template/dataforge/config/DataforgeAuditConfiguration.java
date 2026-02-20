@@ -144,8 +144,8 @@ public class DataforgeAuditConfiguration {
                 }
                 yield "删除 " + entity;
             }
-            case "deleteBatch" -> "批量删除 " + entity;
-            case "updateBatch" -> "批量更新 " + entity;
+            case "deleteBatch" -> "删除 " + entity;
+            case "updateBatch" -> "更新 " + entity;
             case "export" -> "导出 Excel " + entity;
             case "executeAction" -> {
                 if (args.length > 3 && args[2] != null && args[3] instanceof String actionName) {

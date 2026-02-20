@@ -27,12 +27,12 @@ public interface EntityCrudService {
     void delete(EntityMeta entityMeta, Object id);
 
     /**
-     * 批量删除：按主键 ID 列表删除多条记录。
+     * 删除：按主键 ID 列表删除多条记录。
      */
     void deleteBatch(EntityMeta entityMeta, List<?> ids);
 
     /**
-     * 批量更新：按传入的实体列表（每条需带 id）执行更新，返回更新后的实体列表。
+     * 更新：按传入的实体列表（每条需带 id）执行更新，返回更新后的实体列表。
      */
     List<?> updateBatch(EntityMeta entityMeta, List<Object> entities);
 }

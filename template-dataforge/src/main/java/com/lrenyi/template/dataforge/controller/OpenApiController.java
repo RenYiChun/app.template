@@ -577,8 +577,8 @@ public class OpenApiController {
             case "create" -> "创建";
             case "update" -> "更新";
             case "delete" -> "删除";
-            case "deleteBatch" -> "批量删除";
-            case "updateBatch" -> "批量更新";
+            case "deleteBatch" -> "删除";
+            case "updateBatch" -> "更新";
             case "export" -> "导出 Excel";
             default -> methodName;
         };
