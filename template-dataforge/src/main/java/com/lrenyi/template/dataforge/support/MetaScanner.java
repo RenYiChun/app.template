@@ -12,10 +12,15 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.lrenyi.template.dataforge.action.EntityActionExecutor;
+import com.lrenyi.template.dataforge.annotation.DataforgeDto;
+import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
+import com.lrenyi.template.dataforge.annotation.DataforgeExport;
+import com.lrenyi.template.dataforge.annotation.DataforgeField;
+import com.lrenyi.template.dataforge.annotation.DataforgeImport;
+import com.lrenyi.template.dataforge.annotation.DtoType;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.annotation.ExportConverter;
 import com.lrenyi.template.dataforge.annotation.ExportExclude;
-import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
 import com.lrenyi.template.dataforge.annotation.Searchable;
 import com.lrenyi.template.dataforge.domain.BaseEntity;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
@@ -203,6 +208,49 @@ public class MetaScanner {
                 ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
         Class<?> pkType = ann.primaryKeyType() != void.class ? ann.primaryKeyType() : inferPrimaryKeyType(clazz);
         meta.setPrimaryKeyType(pkType);
+        
+        // ==================== 新增生产级属性设置 ====================
+        meta.setDescription(ann.description());
+        meta.setDefaultSortField(ann.defaultSortField());
+        meta.setDefaultSortDirection(ann.defaultSortDirection());
+        meta.setDefaultPageSize(ann.defaultPageSize());
+        meta.setPageSizeOptions(ann.pageSizeOptions());
+        meta.setEnableVirtualScroll(ann.enableVirtualScroll());
+        meta.setVirtualScrollRowHeight(ann.virtualScrollRowHeight());
+        meta.setTreeEntity(ann.treeEntity());
+        meta.setTreeParentField(ann.treeParentField());
+        meta.setTreeChildrenField(ann.treeChildrenField());
+        meta.setTreeNameField(ann.treeNameField());
+        meta.setTreeCodeField(ann.treeCodeField());
+        meta.setTreeMaxDepth(ann.treeMaxDepth());
+        meta.setSoftDelete(ann.softDelete());
+        meta.setDeleteFlagField(ann.deleteFlagField());
+        meta.setDeleteTimeField(ann.deleteTimeField());
+        meta.setDeleteFlagType(ann.deleteFlagType());
+        meta.setEnableCreateAudit(ann.enableCreateAudit());
+        meta.setEnableUpdateAudit(ann.enableUpdateAudit());
+        meta.setEnableDeleteAudit(ann.enableDeleteAudit());
+        meta.setCreateUserField(ann.createUserField());
+        meta.setUpdateUserField(ann.updateUserField());
+        meta.setEnableCache(ann.enableCache());
+        meta.setCacheExpireSeconds(ann.cacheExpireSeconds());
+        meta.setCacheRegion(ann.cacheRegion());
+        meta.setEnableQueryOptimization(ann.enableQueryOptimization());
+        meta.setMaxBatchSize(ann.maxBatchSize());
+        meta.setTags(ann.tags());
+        meta.setIcon(ann.icon());
+        meta.setColor(ann.color());
+        meta.setShowInMenu(ann.showInMenu());
+        meta.setMenuOrder(ann.menuOrder());
+        meta.setEnableOperationLog(ann.enableOperationLog());
+        meta.setEnableVersionControl(ann.enableVersionControl());
+        meta.setVersionField(ann.versionField());
+        meta.setEnableDataPermission(ann.enableDataPermission());
+        meta.setDataPermissionType(ann.dataPermissionType());
+        meta.setEnableImport(ann.enableImport());
+        meta.setImportTemplate(ann.importTemplate());
+        meta.setExportTemplate(ann.exportTemplate());
+        
         meta.setFields(buildFieldMetas(clazz));
         return meta;
     }
@@ -248,13 +296,19 @@ public class MetaScanner {
             hierarchy.add(c);
         }
         Collections.reverse(hierarchy);
+        
+        // 第一步：收集所有被 @Searchable 或 @DataforgeField(searchable=true) 标注的字段名
         for (Class<?> c : hierarchy) {
             for (Field f : c.getDeclaredFields()) {
-                if (f.getAnnotation(Searchable.class) != null) {
+                Searchable searchable = f.getAnnotation(Searchable.class);
+                DataforgeField dataforgeField = f.getAnnotation(DataforgeField.class);
+                if (searchable != null || (dataforgeField != null && dataforgeField.searchable())) {
                     annotated.add(f.getName());
                 }
             }
         }
+        
+        // 第二步：处理每个字段
         for (Class<?> c : hierarchy) {
             for (Field f : c.getDeclaredFields()) {
                 FieldMeta fm = new FieldMeta();
@@ -267,6 +321,8 @@ public class MetaScanner {
                                 || fieldType == String.class || fieldType == UUID.class || fieldType == Integer.class
                                 || fieldType == int.class));
                 fm.setRequired(fm.isPrimaryKey());
+                
+                // ==================== 处理旧注解（向后兼容） ====================
                 Searchable searchable = f.getAnnotation(Searchable.class);
                 fm.setQueryable(annotated.contains(f.getName()));
                 if (searchable != null) {
@@ -279,6 +335,175 @@ public class MetaScanner {
                 if (exportConverter != null) {
                     fm.setExportConverterClassName(exportConverter.value().getName());
                 }
+                
+                // ==================== 处理新注解 @DataforgeField ====================
+                DataforgeField dataforgeField = f.getAnnotation(DataforgeField.class);
+                if (dataforgeField != null) {
+                    // 基础信息
+                    fm.setLabel(StringUtils.hasText(dataforgeField.label()) ? dataforgeField.label() : f.getName());
+                    fm.setDescription(dataforgeField.description());
+                    fm.setOrder(dataforgeField.order());
+                    fm.setGroup(dataforgeField.group());
+                    fm.setGroupOrder(dataforgeField.groupOrder());
+                    
+                    // 表格列配置
+                    fm.setColumnVisible(dataforgeField.columnVisible());
+                    fm.setColumnResizable(dataforgeField.columnResizable());
+                    fm.setColumnSortable(dataforgeField.columnSortable());  // 用户特别关注的属性
+                    fm.setColumnFilterable(dataforgeField.columnFilterable());
+                    fm.setColumnAlign(dataforgeField.columnAlign());
+                    fm.setColumnWidth(dataforgeField.columnWidth());
+                    fm.setColumnMinWidth(dataforgeField.columnMinWidth());
+                    fm.setColumnFixed(dataforgeField.columnFixed());
+                    fm.setColumnEllipsis(dataforgeField.columnEllipsis());
+                    fm.setColumnClassName(dataforgeField.columnClassName());
+                    
+                    // 表单控件配置
+                    fm.setComponent(dataforgeField.component());
+                    fm.setPlaceholder(dataforgeField.placeholder());
+                    fm.setTips(dataforgeField.tips());
+                    fm.setUiRequired(dataforgeField.required());
+                    fm.setReadonly(dataforgeField.readonly());
+                    fm.setDisabled(dataforgeField.disabled());
+                    fm.setHidden(dataforgeField.hidden());
+                    
+                    // 验证规则
+                    fm.setRegex(dataforgeField.regex());
+                    fm.setRegexMessage(dataforgeField.regexMessage());
+                    fm.setMinLength(dataforgeField.minLength());
+                    fm.setMaxLength(dataforgeField.maxLength());
+                    fm.setMinValue(dataforgeField.minValue());
+                    fm.setMaxValue(dataforgeField.maxValue());
+                    fm.setAllowedValues(dataforgeField.allowedValues());
+                    
+                    // 数据字典/枚举
+                    fm.setDictCode(dataforgeField.dictCode());
+                    fm.setEnumOptions(dataforgeField.enumOptions());
+                    fm.setEnumLabels(dataforgeField.enumLabels());
+                    
+                    // 搜索配置
+                    fm.setSearchable(dataforgeField.searchable());
+                    fm.setSearchType(dataforgeField.searchType());
+                    fm.setSearchComponent(dataforgeField.searchComponent());
+                    fm.setSearchDefaultValue(dataforgeField.searchDefaultValue());
+                    fm.setSearchRequired(dataforgeField.searchRequired());
+                    fm.setSearchPlaceholder(dataforgeField.searchPlaceholder());
+                    fm.setSearchRangeFields(dataforgeField.searchRangeFields());
+                    
+                    // 数据转换与显示
+                    fm.setFormat(dataforgeField.format());
+                    fm.setMaskPattern(dataforgeField.maskPattern());
+                    fm.setMaskType(dataforgeField.maskType());
+                    fm.setSensitive(dataforgeField.sensitive());
+                    fm.setDefaultValue(dataforgeField.defaultValue());
+                    fm.setDefaultValueExpression(dataforgeField.defaultValueExpression());
+                    
+                    // 关联关系
+                    fm.setForeignKey(dataforgeField.foreignKey());
+                    fm.setReferencedEntity(dataforgeField.referencedEntity());
+                    fm.setReferencedField(dataforgeField.referencedField());
+                    fm.setDisplayField(dataforgeField.displayField());
+                    fm.setValueField(dataforgeField.valueField());
+                    fm.setLazyLoad(dataforgeField.lazyLoad());
+                    
+                    // 如果 @DataforgeField 设置了 searchable=true，更新查询相关属性
+                    if (dataforgeField.searchable()) {
+                        fm.setQueryable(true);
+                        if (!StringUtils.hasText(fm.getSearchLabel())) {
+                            fm.setSearchLabel(fm.getLabel());
+                        }
+                        if (fm.getSearchOrder() == 0) {
+                            fm.setSearchOrder(fm.getOrder());
+                        }
+                    }
+                }
+                
+                // ==================== 处理新注解 @DataforgeExport ====================
+                DataforgeExport dataforgeExport = f.getAnnotation(DataforgeExport.class);
+                if (dataforgeExport != null) {
+                    fm.setExportEnabled(dataforgeExport.enabled());
+                    fm.setExportHeader(dataforgeExport.header());
+                    fm.setExportOrder(dataforgeExport.order());
+                    fm.setExportFormat(dataforgeExport.format());
+                    if (dataforgeExport.converter() != null && dataforgeExport.converter()
+                            != com.lrenyi.template.dataforge.support.ExportValueConverter.class) {
+                        fm.setExportConverterClassName(dataforgeExport.converter().getName());
+                    }
+                    fm.setExportWidth(dataforgeExport.width());
+                    fm.setExportCellStyle(dataforgeExport.cellStyle());
+                    fm.setExportWrapText(dataforgeExport.wrapText());
+                    fm.setExportColumnType(dataforgeExport.columnType());
+                    fm.setExportComment(dataforgeExport.comment());
+                    fm.setExportHidden(dataforgeExport.hidden());
+                    fm.setExportGroup(dataforgeExport.group());
+                    fm.setExportFrozen(dataforgeExport.frozen());
+                    fm.setExportDataValidation(dataforgeExport.dataValidation());
+                    fm.setExportHyperlinkFormula(dataforgeExport.hyperlinkFormula());
+                    
+                    // 兼容旧注解 @ExportExclude
+                    if (!dataforgeExport.enabled()) {
+                        fm.setExportExcluded(true);
+                    }
+                }
+                
+                // ==================== 处理新注解 @DataforgeImport ====================
+                DataforgeImport dataforgeImport = f.getAnnotation(DataforgeImport.class);
+                if (dataforgeImport != null) {
+                    fm.setImportEnabled(dataforgeImport.enabled());
+                    fm.setImportRequired(dataforgeImport.required());
+                    fm.setImportSample(dataforgeImport.sample());
+                    if (dataforgeImport.converter() != null && dataforgeImport.converter()
+                            != com.lrenyi.template.dataforge.support.ImportValueConverter.class) {
+                        fm.setImportConverterClassName(dataforgeImport.converter().getName());
+                    }
+                    fm.setImportValidationRegex(dataforgeImport.validationRegex());
+                    fm.setImportValidationMessage(dataforgeImport.validationMessage());
+                    fm.setImportDefaultValue(dataforgeImport.defaultValue());
+                    fm.setImportUnique(dataforgeImport.unique());
+                    fm.setImportDuplicateMessage(dataforgeImport.duplicateMessage());
+                    fm.setImportDictCode(dataforgeImport.dictCode());
+                    fm.setImportAllowedValues(dataforgeImport.allowedValues());
+                    fm.setImportMinValue(dataforgeImport.minValue());
+                    fm.setImportMaxValue(dataforgeImport.maxValue());
+                    fm.setImportMinLength(dataforgeImport.minLength());
+                    fm.setImportMaxLength(dataforgeImport.maxLength());
+                    fm.setImportDateFormat(dataforgeImport.dateFormat());
+                    fm.setImportIgnoreCase(dataforgeImport.ignoreCase());
+                    fm.setImportTrim(dataforgeImport.trim());
+                    fm.setImportErrorPolicy(dataforgeImport.errorPolicy().name());
+                }
+                
+                // ==================== 处理新注解 @DataforgeDto ====================
+                DataforgeDto dataforgeDto = f.getAnnotation(DataforgeDto.class);
+                if (dataforgeDto != null) {
+                    // 转换 DtoType 枚举为字符串数组
+                    if (dataforgeDto.include().length > 0) {
+                        fm.setDtoIncludeTypes(Arrays.stream(dataforgeDto.include())
+                                                    .map(DtoType::name)
+                                                    .toArray(String[]::new));
+                    }
+                    if (dataforgeDto.exclude().length > 0) {
+                        fm.setDtoExcludeTypes(Arrays.stream(dataforgeDto.exclude())
+                                                    .map(DtoType::name)
+                                                    .toArray(String[]::new));
+                    }
+                    fm.setDtoFieldName(dataforgeDto.fieldName());
+                    fm.setDtoFieldType(dataforgeDto.fieldType());
+                    if (dataforgeDto.converter() != null && dataforgeDto.converter() != void.class) {
+                        fm.setDtoConverterClassName(dataforgeDto.converter().getName());
+                    }
+                    fm.setDtoFormat(dataforgeDto.format());
+                    fm.setDtoValidationGroups(dataforgeDto.validationGroups());
+                    fm.setDtoReadOnly(dataforgeDto.readOnly());
+                    fm.setDtoWriteOnly(dataforgeDto.writeOnly());
+                    fm.setDtoCreateOnly(dataforgeDto.createOnly());
+                    fm.setDtoUpdateOnly(dataforgeDto.updateOnly());
+                    fm.setDtoQueryOnly(dataforgeDto.queryOnly());
+                }
+                
+                // ==================== 处理类级别的 @DataforgeDto parentOverrides ====================
+                // 注意：这需要在后续步骤中处理，因为需要类级别的注解信息
+                
                 list.add(fm);
             }
         }

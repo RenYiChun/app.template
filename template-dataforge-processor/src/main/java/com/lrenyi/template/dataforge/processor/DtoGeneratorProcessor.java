@@ -23,6 +23,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 import com.lrenyi.template.dataforge.annotation.DtoExcludeFrom;
 import com.lrenyi.template.dataforge.annotation.DtoType;
+import com.lrenyi.template.dataforge.annotation.DataforgeDto;
 
 /**
  * 编译期根据 @DataforgeEntity 生成 CRUD 用 DTO：CreateDTO（请求-创建）、UpdateDTO（请求-更新）、ResponseDTO（响应 data）。
@@ -73,15 +74,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         String simpleName = entityType.getSimpleName().toString();
         List<FieldSpec> allFields = collectFields(entityType);
         List<FieldSpec> createFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name)
-                                                        && !f.excludeFrom.contains(DtoType.CREATE))
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, DtoType.CREATE))
                                                 .collect(Collectors.toList());
         List<FieldSpec> updateFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name)
-                                                        && !f.excludeFrom.contains(DtoType.UPDATE))
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, DtoType.UPDATE))
                                                 .collect(Collectors.toList());
-        List<FieldSpec> responseFields =
-                allFields.stream().filter(f -> !f.excludeFrom.contains(DtoType.RESPONSE)).collect(Collectors.toList());
+        List<FieldSpec> responseFields = allFields.stream()
+                                                .filter(f -> shouldInclude(f, DtoType.RESPONSE))
+                                                .collect(Collectors.toList());
         
         String dtoPackage = pkg + ".dto";
         try {
@@ -94,9 +94,16 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
     }
     
-    private List<FieldSpec> collectFields(TypeElement type) {
+    private boolean shouldInclude(FieldSpec f, DtoType dtoType) {
+        if (!f.includeTypes().isEmpty()) {
+            return f.includeTypes().contains(dtoType);
+        }
+        return !f.excludeFrom().contains(dtoType);
+    }
+    
+    private List<FieldSpec> collectFields(TypeElement entityType) {
         List<FieldSpec> list = new ArrayList<>();
-        collectFieldsRecursive(type, list);
+        collectFieldsRecursive(entityType, list);
         return list;
     }
 
@@ -118,14 +125,33 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 }
                 String typeName = toSourceTypeName(field.asType());
                 String name = field.getSimpleName().toString();
-                Set<DtoType> excludeFrom = new HashSet<>();
-                DtoExcludeFrom ann = field.getAnnotation(DtoExcludeFrom.class);
-                if (ann != null && ann.value() != null && ann.value().length > 0) {
-                    Collections.addAll(excludeFrom, ann.value());
+                
+                // 处理旧注解 @DtoExcludeFrom
+                Set<DtoType> legacyExcludeFrom = new HashSet<>();
+                DtoExcludeFrom dtoExcludeFrom = field.getAnnotation(DtoExcludeFrom.class);
+                if (dtoExcludeFrom != null && dtoExcludeFrom.value() != null && dtoExcludeFrom.value().length > 0) {
+                    Collections.addAll(legacyExcludeFrom, dtoExcludeFrom.value());
                 }
+                
+                // 处理新注解 @DataforgeDto
+                Set<DtoType> includeTypes = new HashSet<>();
+                Set<DtoType> excludeTypes = new HashSet<>();
+                DataforgeDto dataforgeDto = field.getAnnotation(DataforgeDto.class);
+                if (dataforgeDto != null) {
+                    if (dataforgeDto.include() != null && dataforgeDto.include().length > 0) {
+                        Collections.addAll(includeTypes, dataforgeDto.include());
+                    }
+                    if (dataforgeDto.exclude() != null && dataforgeDto.exclude().length > 0) {
+                        Collections.addAll(excludeTypes, dataforgeDto.exclude());
+                    }
+                }
+                
+                // 合并排除集合：新注解的excludeTypes优先，旧注解作为后备
+                Set<DtoType> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
+                
                 boolean notNull = hasColumnNullableFalse(field);
                 int maxSize = getColumnLength(field);
-                list.add(new FieldSpec(typeName, name, excludeFrom, notNull, maxSize));
+                list.add(new FieldSpec(typeName, name, includeTypes, finalExcludeTypes, notNull, maxSize));
             }
         }
     }
@@ -212,13 +238,19 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
     
-    private record FieldSpec(String typeName, String name, Set<DtoType> excludeFrom, boolean notNull, int maxSize) {
-        private FieldSpec(String typeName, String name, Set<DtoType> excludeFrom, boolean notNull, int maxSize) {
+    private record FieldSpec(String typeName, String name, Set<DtoType> includeTypes, Set<DtoType> excludeTypes, boolean notNull, int maxSize) {
+        private FieldSpec(String typeName, String name, Set<DtoType> includeTypes, Set<DtoType> excludeTypes, boolean notNull, int maxSize) {
             this.typeName = typeName;
             this.name = name;
-            this.excludeFrom = excludeFrom != null ? excludeFrom : Set.of();
+            this.includeTypes = includeTypes != null ? includeTypes : Set.of();
+            this.excludeTypes = excludeTypes != null ? excludeTypes : Set.of();
             this.notNull = notNull;
             this.maxSize = maxSize > 0 ? maxSize : 0;
+        }
+        
+        /** 向后兼容：获取排除的DTO类型集合（合并旧注解的excludeFrom） */
+        public Set<DtoType> excludeFrom() {
+            return excludeTypes;
         }
     }
 }

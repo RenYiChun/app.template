@@ -1,9 +1,9 @@
 package com.lrenyi.template.dataforge.backend.domain;
 
-import com.lrenyi.template.dataforge.annotation.DtoExcludeFrom;
 import com.lrenyi.template.dataforge.annotation.DtoType;
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
-import com.lrenyi.template.dataforge.annotation.Searchable;
+import com.lrenyi.template.dataforge.annotation.DataforgeDto;
+import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import com.lrenyi.template.dataforge.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,34 +18,34 @@ import lombok.Setter;
 @DataforgeEntity(pathSegment = "users", displayName = "用户")
 public class User extends BaseEntity<Long> {
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(nullable = false, length = 64)
     private String username;
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(length = 64)
     private String nickname;
 
     @Column(nullable = false, length = 128)
-    @DtoExcludeFrom(DtoType.RESPONSE)
+    @DataforgeDto(exclude = {DtoType.RESPONSE})
     private String password;
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(length = 128)
     private String email;
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(length = 20)
     private String phone;
 
     @Column(name = "department_id")
     private Long departmentId;
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(length = 1)
     private String status; // 0-停用 1-正常
     
-    @Searchable
+    @DataforgeField(searchable = true)
     @Column(length = 256)
     private String avatar;
 }

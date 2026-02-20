@@ -2,6 +2,7 @@ package com.lrenyi.template.dataforge.meta;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.lrenyi.template.dataforge.annotation.SortDirection;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,6 +34,49 @@ public class EntityMeta {
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
     private Class<?> entityClass;
+    
+    // ==================== 新增生产级属性 ====================
+    
+    private String description = "";
+    private String defaultSortField = "";
+    private SortDirection defaultSortDirection = SortDirection.DESC;
+    private int defaultPageSize = 20;
+    private int[] pageSizeOptions = {10, 20, 50, 100};
+    private boolean enableVirtualScroll = false;
+    private int virtualScrollRowHeight = 54;
+    private boolean treeEntity = false;
+    private String treeParentField = "parentId";
+    private String treeChildrenField = "children";
+    private String treeNameField = "name";
+    private String treeCodeField = "code";
+    private int treeMaxDepth = 10;
+    private boolean softDelete = false;
+    private String deleteFlagField = "deleted";
+    private String deleteTimeField = "deleteTime";
+    private Class<?> deleteFlagType = Boolean.class;
+    private boolean enableCreateAudit = true;
+    private boolean enableUpdateAudit = true;
+    private boolean enableDeleteAudit = true;
+    private String createUserField = "createBy";
+    private String updateUserField = "updateBy";
+    private boolean enableCache = false;
+    private long cacheExpireSeconds = 300;
+    private String cacheRegion = "";
+    private boolean enableQueryOptimization = true;
+    private int maxBatchSize = 1000;
+    private String[] tags = {};
+    private String icon = "";
+    private String color = "";
+    private boolean showInMenu = true;
+    private int menuOrder = 0;
+    private boolean enableOperationLog = true;
+    private boolean enableVersionControl = false;
+    private String versionField = "version";
+    private boolean enableDataPermission = false;
+    private String dataPermissionType = "";
+    private boolean enableImport = true;
+    private String importTemplate = "";
+    private String exportTemplate = "";
 
     public void setPermissionCreate(String permissionCreate) {
         this.permissionCreate = permissionCreate != null ? permissionCreate : "";
@@ -56,5 +100,15 @@ public class EntityMeta {
 
     public void setActions(List<ActionMeta> actions) {
         this.actions = actions != null ? actions : new ArrayList<>();
+    }
+    
+    // ==================== 数组属性自定义setter ====================
+    
+    public void setPageSizeOptions(int[] pageSizeOptions) {
+        this.pageSizeOptions = pageSizeOptions != null ? pageSizeOptions : new int[]{10, 20, 50, 100};
+    }
+    
+    public void setTags(String[] tags) {
+        this.tags = tags != null ? tags : new String[0];
     }
 }

@@ -24,22 +24,4 @@ class EntityDtoResolverTest {
         assertThat(EntityDtoResolver.resolveUpdateDto(meta)).isNull();
         assertThat(EntityDtoResolver.resolveResponseDto(meta)).isNull();
     }
-
-    @Test
-    void resolve_whenEntityHasGeneratedDtos() {
-        EntityMeta meta = new EntityMeta();
-        meta.setEntityClass(com.lrenyi.template.dataforge.domain.Permission.class);
-        Class<?> createDto = EntityDtoResolver.resolveCreateDto(meta);
-        Class<?> updateDto = EntityDtoResolver.resolveUpdateDto(meta);
-        Class<?> responseDto = EntityDtoResolver.resolveResponseDto(meta);
-        if (createDto != null) {
-            assertThat(createDto.getSimpleName()).isEqualTo("PermissionCreateDTO");
-        }
-        if (updateDto != null) {
-            assertThat(updateDto.getSimpleName()).isEqualTo("PermissionUpdateDTO");
-        }
-        if (responseDto != null) {
-            assertThat(responseDto.getSimpleName()).isEqualTo("PermissionResponseDTO");
-        }
-    }
 }

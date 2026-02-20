@@ -1,4 +1,4 @@
-package com.lrenyi.template.dataforge.audit.processor;
+package com.lrenyi.template.dataforge.processor;
 
 import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
 

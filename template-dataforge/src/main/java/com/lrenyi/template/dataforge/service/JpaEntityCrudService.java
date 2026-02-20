@@ -44,7 +44,7 @@ public class JpaEntityCrudService implements EntityCrudService {
         StringBuilder whereClause = new StringBuilder();
         List<Object> params = new ArrayList<>();
         buildWhere(whereClause, params, c.getFilters(), "e");
-        String where = whereClause.length() > 0 ? " WHERE " + whereClause : "";
+        String where = !whereClause.isEmpty() ? " WHERE " + whereClause : "";
         long total = countWithWhere(entityName, where, params);
         Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
         String orderBy = buildOrderBy(sort, "e");
@@ -60,12 +60,11 @@ public class JpaEntityCrudService implements EntityCrudService {
     }
 
     private void buildWhere(StringBuilder sb, List<Object> params, List<FilterCondition> filters, String entityAlias) {
-        for (int i = 0; i < filters.size(); i++) {
-            FilterCondition fc = filters.get(i);
+        for (FilterCondition fc : filters) {
             if (fc == null || fc.op() == null) {
                 continue;
             }
-            if (sb.length() > 0) {
+            if (!sb.isEmpty()) {
                 sb.append(" AND ");
             }
             String attr = fc.field();
@@ -105,7 +104,8 @@ public class JpaEntityCrudService implements EntityCrudService {
                     params.add(fc.value());
                 }
                 default -> {
-                    /* skip */ }
+                    /* skip */
+                }
             }
         }
     }

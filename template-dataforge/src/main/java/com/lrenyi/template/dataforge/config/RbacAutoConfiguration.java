@@ -3,20 +3,16 @@ package com.lrenyi.template.dataforge.config;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.permission.RbacPermissionChecker;
 import com.lrenyi.template.dataforge.permission.UserPermissionResolver;
-import com.lrenyi.template.dataforge.rbac.init.PermissionInitializer;
 import com.lrenyi.template.dataforge.rbac.resolver.DefaultUserPermissionResolver;
 import com.lrenyi.template.dataforge.rbac.service.RbacQueryService;
 import com.lrenyi.template.dataforge.rbac.service.impl.RbacQueryServiceImpl;
-import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * RBAC 动态权限校验自动配置：当 JPA 存在时注册 RbacQueryService 与 DefaultUserPermissionResolver，
@@ -45,14 +41,5 @@ public class RbacAutoConfiguration {
     @ConditionalOnBean(UserPermissionResolver.class)
     public DataforgePermissionChecker rbacPermissionChecker(UserPermissionResolver userPermissionResolver) {
         return new RbacPermissionChecker(userPermissionResolver);
-    }
-
-    @Bean
-    @ConditionalOnClass(EntityManager.class)
-    public PermissionInitializer permissionInitializer(EntityRegistry entityRegistry,
-                                                      EntityManager entityManager,
-                                                      DataforgeProperties properties,
-                                                      ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
-        return new PermissionInitializer(entityRegistry, entityManager, properties, transactionTemplateProvider);
     }
 }

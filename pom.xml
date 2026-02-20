@@ -55,6 +55,7 @@
         <module>template-cloud</module>
         <module>template-dataforge-processor</module>
         <module>template-dataforge</module>
+        <module>template-dataforge-model</module>
         <module>template-dataforge-sample-backend</module>
     </modules>
 

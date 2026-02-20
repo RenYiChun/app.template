@@ -1,9 +1,8 @@
-package com.lrenyi.template.dataforge.backend.init;
+package com.lrenyi.template.dataforge.config;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import com.lrenyi.template.dataforge.domain.Permission;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;

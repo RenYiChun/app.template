@@ -1,4 +1,4 @@
-package com.lrenyi.template.dataforge.audit.service;
+package com.lrenyi.template.dataforge.service;
 
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -8,8 +8,8 @@ import java.util.Map;
 import com.lrenyi.template.dataforge.audit.annotation.AuditLog;
 import com.lrenyi.template.dataforge.audit.enricher.AuditLogEnricher;
 import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
-import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.resolver.AuditDescriptionResolver;
+import com.lrenyi.template.dataforge.processor.AuditLogProcessor;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;

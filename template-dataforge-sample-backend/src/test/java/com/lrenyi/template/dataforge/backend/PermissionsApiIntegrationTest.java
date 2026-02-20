@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.lrenyi.template.dataforge.config.RbacAutoConfiguration;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
-import com.lrenyi.template.dataforge.rbac.init.PermissionInitializer;
+import com.lrenyi.template.dataforge.backend.init.PermissionInitializer;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

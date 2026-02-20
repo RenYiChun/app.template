@@ -42,12 +42,12 @@ public @interface DataforgeDto {
     /**
      * DTO中的字段类型（默认同实体字段类型）。
      */
-    Class<?> fieldType() default void.class;
+    Class<?> fieldType() default Object.class;
 
     /**
      * 字段值转换器。
      */
-    Class<?> converter() default void.class;
+    Class<?> converter() default Object.class;
 
     /**
      * 格式化模式（用于DTO序列化）。
@@ -93,12 +93,6 @@ public @interface DataforgeDto {
      * 当标注在类上时，用于指定要覆盖的父类字段。
      */
     String parentFieldName() default "";
-
-    /**
-     * 父类字段覆盖配置（仅在类级别使用）。
-     * 复用自身注解配置父类字段的DTO策略。
-     */
-    DataforgeDto[] parentOverrides() default {};
 
     /**
      * 全局忽略的字段列表（仅在类级别使用）。

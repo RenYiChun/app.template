@@ -176,11 +176,6 @@ public @interface DataforgeField {
     String dictCode() default "";
 
     /**
-     * 枚举类。
-     */
-    Class<? extends Enum<?>> enumClass() default Enum.class;
-
-    /**
      * 枚举选项值（当没有Enum类时使用）。
      */
     String[] enumOptions() default {};

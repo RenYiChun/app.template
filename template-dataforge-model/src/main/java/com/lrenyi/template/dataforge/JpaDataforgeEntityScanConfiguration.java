@@ -1,4 +1,4 @@
-package com.lrenyi.template.dataforge.config;
+package com.lrenyi.template.dataforge;
 
 import com.lrenyi.template.dataforge.domain.Permission;
 import jakarta.persistence.EntityManager;

@@ -1,7 +1,7 @@
 package com.lrenyi.template.dataforge.controller;
 
-import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import java.nio.charset.StandardCharsets;
+import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

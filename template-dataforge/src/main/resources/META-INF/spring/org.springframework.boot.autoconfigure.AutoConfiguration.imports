@@ -1,4 +1,4 @@
-com.lrenyi.template.dataforge.config.JpaDataforgeEntityScanConfiguration
+com.lrenyi.template.dataforge.JpaDataforgeEntityScanConfiguration
 com.lrenyi.template.dataforge.config.JpaEntityCrudServiceAutoConfiguration
 com.lrenyi.template.dataforge.config.RbacAutoConfiguration
 com.lrenyi.template.dataforge.config.DataforgeAutoConfiguration

@@ -1,14 +1,14 @@
 package com.lrenyi.template.dataforge.config;
 
-import com.lrenyi.template.dataforge.audit.aspect.AuditLogAspect;
+import com.lrenyi.template.dataforge.aspect.AuditLogAspect;
 import com.lrenyi.template.dataforge.audit.enricher.AuditLogEnricher;
 import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
-import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
-import com.lrenyi.template.dataforge.audit.processor.DataforgeAuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.resolver.AuditDescriptionResolver;
-import com.lrenyi.template.dataforge.audit.service.AuditLogService;
 import com.lrenyi.template.dataforge.controller.GenericEntityController;
+import com.lrenyi.template.dataforge.processor.AuditLogProcessor;
+import com.lrenyi.template.dataforge.processor.DataforgeAuditLogProcessor;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
+import com.lrenyi.template.dataforge.service.AuditLogService;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;

@@ -1,7 +1,7 @@
-package com.lrenyi.template.dataforge.audit.aspect;
+package com.lrenyi.template.dataforge.aspect;
 
 import com.lrenyi.template.core.util.TemplateConstant;
-import com.lrenyi.template.dataforge.audit.service.AuditLogService;
+import com.lrenyi.template.dataforge.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;

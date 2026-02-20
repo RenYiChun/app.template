@@ -16,11 +16,11 @@ import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
+import com.lrenyi.template.dataforge.support.DataforgeServices;
 import com.lrenyi.template.dataforge.support.EntityDtoResolver;
 import com.lrenyi.template.dataforge.support.ExcelExportSupport;
 import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.PagedResult;
-import com.lrenyi.template.dataforge.support.DataforgeServices;
 import com.lrenyi.template.dataforge.support.SearchRequest;
 import com.lrenyi.template.dataforge.support.SortOrder;
 import jakarta.validation.ConstraintViolation;
@@ -63,14 +63,14 @@ public class GenericEntityController {
     private final ConversionService conversionService;
 
     public GenericEntityController(DataforgeServices services) {
-        this.entityRegistry = services.getEntityRegistry();
-        this.actionRegistry = services.getActionRegistry();
-        this.crudService = services.getCrudService();
-        this.properties = services.getProperties();
-        this.permissionChecker = services.getPermissionChecker();
-        this.objectMapper = services.getObjectMapper();
-        this.validatorProvider = services.getValidatorProvider();
-        this.conversionService = services.getConversionService();
+        this.entityRegistry = services.entityRegistry();
+        this.actionRegistry = services.actionRegistry();
+        this.crudService = services.crudService();
+        this.properties = services.properties();
+        this.permissionChecker = services.permissionChecker();
+        this.objectMapper = services.objectMapper();
+        this.validatorProvider = services.validatorProvider();
+        this.conversionService = services.conversionService();
     }
 
     /**
