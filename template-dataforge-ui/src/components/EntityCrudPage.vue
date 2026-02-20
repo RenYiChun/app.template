@@ -27,20 +27,19 @@
           <el-button v-if="canCreate" type="primary" @click="emit('create')" size="default">
             <el-icon class="el-icon--left"><Plus /></el-icon>{{ createText }}
           </el-button>
-          <el-button v-if="canBatchDelete && isSelectable" type="danger" plain :disabled="!selectedIds.length" @click="handleBatchDelete" size="default">
+          <el-button v-if="canBatchDelete && isSelectable && selectedIds.length > 0" type="danger" plain @click="handleBatchDelete" size="default">
             <el-icon class="el-icon--left"><Delete /></el-icon>{{ batchDeleteText }}
           </el-button>
-          <el-button v-if="canBatchUpdate && isSelectable" type="primary" plain :disabled="!selectedIds.length" @click="handleBatchUpdate" size="default">
+          <el-button v-if="canBatchUpdate && isSelectable && selectedIds.length > 0" type="primary" plain @click="handleBatchUpdate" size="default">
             <el-icon class="el-icon--left"><Edit /></el-icon>{{ batchUpdateText }}
-          </el-button>
-          <!-- 导出按钮 -->
-          <el-button v-if="canExport" type="primary" plain :loading="exportLoading" @click="handleExport" size="default">
-            <el-icon class="el-icon--left"><Download /></el-icon>{{ exportText }}
           </el-button>
           <slot name="toolbar-left" />
         </div>
         <div class="toolbar-right">
           <slot name="toolbar-right" />
+          <el-tooltip v-if="canExport" :content="exportText" placement="top">
+            <el-button circle :icon="Download" :loading="exportLoading" @click="handleExport" size="default" />
+          </el-tooltip>
           <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
             <el-button circle :icon="Search" @click="showSearch = !showSearch" size="default" />
           </el-tooltip>
