@@ -4,7 +4,6 @@
       ref="crudRef"
       entity="roles"
       :columns="columns"
-      :search-fields="['roleCode', 'roleName']"
       :locale="dataforgeUiLocale"
       @create="handleAdd"
       @edit="handleEdit"

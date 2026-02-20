@@ -4,7 +4,7 @@
       通过 Config 和 Slot，让自动生成组件达到手写级的精细度
     -->
     <EntityCrudPage 
-      entity="sys_operation_log" 
+      entity="operation_log" 
       :enable-create="false"
       :row-actions="['view']"
       :columns="columns"
