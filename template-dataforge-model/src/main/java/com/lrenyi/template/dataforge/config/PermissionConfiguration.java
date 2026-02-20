@@ -17,7 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Configuration
 @AutoConfigureAfter(name = "org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration")
 @AutoConfigureBefore(DataforgeAutoConfiguration.class)
-public class RbacAutoConfiguration {
+public class PermissionConfiguration {
     
     @Bean
     @ConditionalOnClass(EntityManager.class)

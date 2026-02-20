@@ -3,9 +3,9 @@ package com.lrenyi.template.dataforge.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.lrenyi.template.dataforge.config.RbacAutoConfiguration;
+import com.lrenyi.template.dataforge.config.PermissionConfiguration;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
-import com.lrenyi.template.dataforge.backend.init.PermissionInitializer;
+import com.lrenyi.template.dataforge.config.PermissionInitializer;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +25,7 @@ import org.springframework.http.ResponseEntity;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         classes = DataforgeSampleApplication.class
 )
-@Import(RbacAutoConfiguration.class)
+@Import(PermissionConfiguration.class)
 class PermissionsApiIntegrationTest {
 
     @LocalServerPort
@@ -46,7 +46,7 @@ class PermissionsApiIntegrationTest {
     @Test
     void permissionsListShouldNotBeEmptyAfterRbacInit() {
         assertThat(permissionInitializer)
-                .as("PermissionInitializer 应由 RbacAutoConfiguration 注册（需 JPA）")
+                .as("PermissionInitializer 应由 PermissionConfiguration 注册（需 JPA）")
                 .isNotNull();
         assertThat(entityRegistry.getAll())
                 .as("实体应由 scan-packages 注册，请确认 app.dataforge.scan-packages 含 dataforge.domain")
