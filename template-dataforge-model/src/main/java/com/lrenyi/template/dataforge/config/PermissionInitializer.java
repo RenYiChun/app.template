@@ -1,4 +1,4 @@
-package com.lrenyi.template.dataforge.rbac.init;
+package com.lrenyi.template.dataforge.backend.init;
 
 import java.util.LinkedHashMap;
 import java.util.List;
