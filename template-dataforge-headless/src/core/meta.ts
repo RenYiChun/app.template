@@ -313,6 +313,14 @@ export class MetaService {
             if (Object.keys(meta.properties).length === 0 && meta.schemas?.response && typeof meta.schemas.response === 'object') {
                 meta.properties = { ...meta.schemas.response } as Record<string, SchemaProperty>;
             }
+            if (Object.keys(meta.properties).length === 0) {
+                console.warn(
+                    '[MetaService] entity pathSegment=%s has empty properties → list columns will be empty. ' +
+                    'Cause: backend GET /api/docs returned empty schema for list item (PageResponseDTO not found at runtime). ' +
+                    'Fix: mvn clean compile -pl template-dataforge-sample-backend so annotation processor generates *PageResponseDTO.',
+                    meta.pathSegment
+                );
+            }
         }
 
         return Array.from(entityBySegment.values());

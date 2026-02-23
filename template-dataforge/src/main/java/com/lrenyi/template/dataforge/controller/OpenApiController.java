@@ -284,6 +284,11 @@ public class OpenApiController {
             if (pageResponseDto != null) {
                 schemas.put(pageResponseDto.getSimpleName(), buildDtoSchema(pageResponseDto));
             } else {
+                org.slf4j.LoggerFactory.getLogger(OpenApiController.class).warn(
+                    "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. " +
+                    "List columns will be empty. Fix: run 'mvn clean compile -pl template-dataforge-sample-backend' " +
+                    "so the annotation processor generates the DTO in {}.dto package.",
+                    simpleName, entity.getPathSegment(), simpleName);
                 schemas.put(simpleName + "PageResponseDTO", emptySchema());
             }
             schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));

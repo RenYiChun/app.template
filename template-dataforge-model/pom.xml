@@ -40,9 +40,7 @@
         <!-- Dataforge注解依赖（provided scope避免循环依赖） -->
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-dataforge</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
+            <artifactId>template-dataforge-processor</artifactId>
         </dependency>
         <!-- Validation API依赖（实体类可能需要@NotNull、@Size等注解） -->
         <dependency>

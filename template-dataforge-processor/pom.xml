@@ -25,9 +25,6 @@
         <dependency>
             <groupId>com.lrenyi</groupId>
             <artifactId>template-dataforge</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-            <optional>true</optional>
         </dependency>
     </dependencies>
 
