@@ -116,8 +116,8 @@
                 <el-empty v-else :description="t('common.noData', 'No Data')" />
               </el-tab-pane>
               <el-tab-pane label="Response" name="response">
-                <div v-if="selectedEntity?.schemas?.response">
-                    <el-table :data="getSchemaData(selectedEntity.schemas.response)" border stripe>
+                <div v-if="selectedEntity?.schemas?.pageResponse">
+                    <el-table :data="getSchemaData(selectedEntity.schemas.pageResponse)" border stripe>
                         <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
                         <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
                         <el-table-column :label="t('metadata.required', 'Required')" width="100">

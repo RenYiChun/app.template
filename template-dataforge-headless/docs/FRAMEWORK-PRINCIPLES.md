@@ -34,10 +34,11 @@
 
 - **主数据源是后端**：`MetaService` 请求 **GET /api/docs** 拿到 OpenAPI 文档，解析出各实体的 **EntityMeta**。
 - **EntityMeta** 里与列相关：
-  - **schemas.response**：从 OpenAPI 里该实体「查询/列表」接口的 200 响应 schema 解析得到（`meta.schemas.response` = schema.properties）。
-  - **properties**：从 `components.schemas` 里与该实体同名的 schema 解析得到（如 User、users 等）。
+  - **schemas.pageResponse**：从 OpenAPI 里该实体 **search** 接口的 200 响应解析得到（PagedResult 的 list item schema，如 `UserPageResponseDTO`），用于表格列。
+  - **schemas.detail**：从 **get**（GET by id）接口的 200 响应 schema 解析得到，用于单条详情/表单回显。
+  - **properties**：若为空则由 `schemas.pageResponse` 填充，便于列解析与元数据页展示。
 - **resolveColumns(pathSegment, meta)** 的约定：
-  - **列从 meta 来**：列集合与默认展示来自 `meta.schemas.response ?? meta.properties`（后端提供的结构）。
+  - **列从 meta 来**：列集合与默认展示来自 `meta.schemas.pageResponse ?? meta.properties`（后端提供的结构）。
   - **registerEntityConfig 只做覆盖**：注册表里的 `config.columns` 只用于按 `prop` 覆盖某几列的 label、width、formatter 等，**不**用 config 决定「有哪些列」；列有哪些、顺序如何，以 meta 为准。
 
 因此：**列数据是由后端接口提供的元数据解析出来的**；前端只在需要时用 `registerEntityConfig` 做展示层面的覆盖（如中文标签、formatter）。
@@ -114,7 +115,7 @@ registerEntityConfig('users', {
 ## 五、与 UI 包的衔接
 
 - UI 包的 **useEntityCrud(entity)** 内部：创建 EntityCrudManager、订阅 state、在 onMounted 时调用 **refreshMeta()** 和 **init()** 拉取 meta，再用 **resolveColumns(entityName, crudState.entityMeta)** 得到 allColumns/displayColumns。
-- 只要后端 **GET /api/docs** 返回的 OpenAPI 里，该实体的 search/get 等接口有正确的 200 response schema（或 components.schemas 中有对应 schema），meta 就会带上 **schemas.response** 或 **properties**，resolveColumns 就能解析出列；表格收到 `:columns="displayColumns"` 即可正常展示。
+- 只要后端 **GET /api/docs** 返回的 OpenAPI 里，该实体的 search 接口有正确的 200 response schema（PagedResult 的 list item），meta 就会带上 **schemas.pageResponse** 或 **properties**，resolveColumns 就能解析出列；表格收到 `:columns="displayColumns"` 即可正常展示。get 接口的 200 响应会写入 **schemas.detail**，供详情/表单回显使用。
 
 ---
 

@@ -5,7 +5,7 @@
 ## 1. 前端：列从哪里来
 
 - **`resolveColumns(pathSegment, meta)`**（`@lrenyi/dataforge-headless/vue`）
-  - `props = meta?.properties ?? meta?.schemas?.response`
+  - `props = meta?.properties ?? meta?.schemas?.pageResponse`
   - `Object.keys(props)` 为空 → 列配置为 `[]` → 表格无数据列
 
 - **meta 来源**
@@ -13,16 +13,17 @@
   - `meta`：`EntityCrudManager.init()` → `MetaService.getEntity(entityName)` 写入
   - `entityMeta`：`refreshMeta()` → 同样 `meta.getEntity(entityName)`
 
-- **结论**：列为空 ⇒ 当前实体的 `meta.properties` 和 `meta.schemas.response` 都为空。
+- **结论**：列为空 ⇒ 当前实体的 `meta.properties` 和 `meta.schemas.pageResponse` 都为空。
 
 ## 2. 前端：meta 如何被填
 
 - **MetaService.getEntity()** → `getEntities()` → **parseEntities(doc)**（`core/meta.ts`）
   - 请求 **GET /api/docs** 拿到 OpenAPI 的 `paths`、`components.schemas`。
   - 对每个 path 的 operation：
-    - 若是 **search** 且 200 响应为 PagedResult（`content.items.$ref`），则用 **item 的 schema** 填 `meta.schemas.response`。
+    - 若是 **search** 且 200 响应为 PagedResult（`content.items.$ref`），则用 **item 的 schema** 填 `meta.schemas.pageResponse`。
     - item 即列表行类型，例如 `UserPageResponseDTO`。
-  - 若某实体 `meta.properties` 仍为空，会用 `meta.schemas.response` 拷到 `meta.properties`。
+    - 若是 **get**（GET by id），则用 200 响应的 schema 填 `meta.schemas.detail`（单条详情/表单回显）。
+  - 若某实体 `meta.properties` 仍为空，会用 `meta.schemas.pageResponse` 拷到 `meta.properties`。
 
 - **结论**：列为空 ⇒ 要么 **/api/docs** 里该实体的 **list item schema**（如 `UserPageResponseDTO`）的 **properties 为空**，要么前端没正确解析到该 schema（例如 path/operation 不匹配）。
 

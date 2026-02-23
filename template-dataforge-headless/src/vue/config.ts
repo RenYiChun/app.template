@@ -34,7 +34,7 @@ export function resolveColumns(
   pathSegment: string,
   meta: EntityMeta | null
 ): ColumnConfig[] {
-  const props = meta?.properties ?? meta?.schemas?.response;
+  const props = meta?.properties ?? meta?.schemas?.pageResponse;
   if (!props || typeof props !== 'object') return [];
 
   const config = registry.get(pathSegment);

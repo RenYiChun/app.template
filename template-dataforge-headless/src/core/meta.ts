@@ -277,22 +277,27 @@ export class MetaService {
             } | undefined;
             const respSchema = resp?.content?.['application/json']?.schema;
             const respRef = respSchema?.$ref;
-            const shouldSetResponse = (respRef || respSchema?.properties) &&
-                (last === 'search' || !meta.schemas!.response);
-            if (shouldSetResponse) {
+            if (respRef || respSchema?.properties) {
                 const schemaName = respRef?.replace('#/components/schemas/', '');
                 const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
                 const props = schema?.properties;
-                // 若为 PagedResult（content.items.$ref），用 content 的 item schema 作为表格列来源
-                const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
-                    ? (props.content as { items?: { $ref?: string } })?.items?.$ref
-                    : undefined;
-                const itemRef = contentSchema?.replace('#/components/schemas/', '');
-                const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
-                if (itemSchema?.properties) {
-                    meta.schemas!.response = itemSchema.properties as Record<string, SchemaProperty>;
-                } else if (props && typeof props === 'object') {
-                    meta.schemas!.response = props as Record<string, SchemaProperty>;
+                if (last === 'search') {
+                    // 列表接口：若为 PagedResult，用 content.items 的 schema 作为 pageResponse（表格列）
+                    const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
+                        ? (props.content as { items?: { $ref?: string } })?.items?.$ref
+                        : undefined;
+                    const itemRef = contentSchema?.replace('#/components/schemas/', '');
+                    const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
+                    if (itemSchema?.properties) {
+                        meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;
+                    } else if (props && typeof props === 'object') {
+                        meta.schemas!.pageResponse = props as Record<string, SchemaProperty>;
+                    }
+                } else if (last === 'get') {
+                    // 详情接口：200 响应 schema 作为 detail（单条展示/表单回显）
+                    if (props && typeof props === 'object') {
+                        meta.schemas!.detail = props as Record<string, SchemaProperty>;
+                    }
                 }
             }
             }
@@ -308,10 +313,10 @@ export class MetaService {
             }
         }
 
-        // 若 properties 为空但有 schemas.response（如仅暴露了 PageResponseDTO），用其填充 properties，便于列解析与元数据页展示
+        // 若 properties 为空但有 schemas.pageResponse，用其填充 properties，便于列解析与元数据页展示
         for (const meta of entityBySegment.values()) {
-            if (Object.keys(meta.properties).length === 0 && meta.schemas?.response && typeof meta.schemas.response === 'object') {
-                meta.properties = { ...meta.schemas.response } as Record<string, SchemaProperty>;
+            if (Object.keys(meta.properties).length === 0 && meta.schemas?.pageResponse && typeof meta.schemas.pageResponse === 'object') {
+                meta.properties = { ...meta.schemas.pageResponse } as Record<string, SchemaProperty>;
             }
             if (Object.keys(meta.properties).length === 0) {
                 console.warn(

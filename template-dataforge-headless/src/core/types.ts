@@ -63,7 +63,8 @@ export type EntityMeta = {
   description?: string;
   properties: { [key: string]: any };
   operations?: { [key: string]: any };
-  schemas?: { [key: string]: any };
+  /** create/update: 表单；pageResponse: 列表项（表格列）；detail: 单条详情（GET by id） */
+  schemas?: { create?: any; update?: any; pageResponse?: Record<string, any>; detail?: Record<string, any>; [key: string]: any };
   queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
   actions?: ActionMeta[];
   exportEnabled?: boolean;
