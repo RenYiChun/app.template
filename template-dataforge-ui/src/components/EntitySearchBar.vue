@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue';
 import { Search, Refresh } from '@element-plus/icons-vue';
-import type { FilterCondition, Op, EntityMeta } from '@lrenyi/dataforge-headless';
+import { FilterCondition, Op, EntityMeta } from '@lrenyi/dataforge-headless';
 
 const props = withDefaults(
   defineProps<{
@@ -128,7 +128,7 @@ const searchFields = computed<SearchField[]>(() => {
     return props.fields.map((f) => {
       // 兼容传入的是字符串还是对象
       const fieldName = typeof f === 'string' ? f : f.field;
-      const info = qf[fieldName] ?? { type: 'string', operators: ['eq', 'ne', 'like'] as Op[] };
+      const info = qf[fieldName] ?? { type: 'string', operators: [Op.EQ, Op.NE, Op.LIKE] };
       
       // 如果传入的是对象且有 label/type 等配置，优先使用
       const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
@@ -137,7 +137,7 @@ const searchFields = computed<SearchField[]>(() => {
         field: fieldName,
         label: label,
         type: (typeof f === 'object' && f.type) ? f.type : (info.type ?? 'string'),
-        operators: info.operators ?? (['eq', 'ne', 'like'] as Op[]),
+        operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
         order: 0,
       };
     });
@@ -152,7 +152,7 @@ const searchFields = computed<SearchField[]>(() => {
         field: f,
         label: (info as any).label || f,
         type: info.type ?? 'string',
-        operators: info.operators ?? (['eq', 'ne', 'like'] as Op[]),
+        operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
         order: (info as any).order ?? 0,
       };
     })
@@ -179,12 +179,12 @@ const toFilters = (): FilterCondition[] => {
 
     if (Array.isArray(v) && ['date', 'localdate', 'localdatetime', 'datetime', 'instant'].includes(f.type.toLowerCase())) {
       // 日期范围处理：拆分为 gte 和 lte
-      if (v[0]) result.push({ field: f.field, op: 'gte', value: v[0] });
-      if (v[1]) result.push({ field: f.field, op: 'lte', value: v[1] });
+      if (v[0]) result.push({ field: f.field, op: Op.GE, value: v[0] });
+      if (v[1]) result.push({ field: f.field, op: Op.LE, value: v[1] });
       continue;
     }
 
-    const op = f.operators.includes('like') ? ('like' as Op) : ('eq' as Op);
+    const op = f.operators.includes(Op.LIKE) ? Op.LIKE : Op.EQ;
     result.push({ field: f.field, op, value: v });
   }
   return result;

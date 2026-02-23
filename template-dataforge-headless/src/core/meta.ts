@@ -2,7 +2,7 @@
  * MetaService：拉取并解析 GET /api/docs 的 OpenAPI 文档
  */
 
-import type {Op} from './types.js';
+import {Op, EntityMeta} from './types.js';
 import type {EntityClient} from './client.js';
 
 /** OpenAPI Schema 属性 */
@@ -32,26 +32,14 @@ export interface ActionMeta {
     permissions?: string[];
 }
 
-/** 实体元数据（前端解析后的结构） */
-export interface EntityMeta {
-    pathSegment: string;
-    displayName: string;
-    exportEnabled?: boolean;
-    operations: Record<string, OperationMeta>;
-    actions: ActionMeta[];
-    schemas: {
-        create?: Record<string, SchemaProperty>;
-        update?: Record<string, SchemaProperty>;
-        response?: Record<string, SchemaProperty>;
-    };
-    queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
-}
 
-const OP_LIST: Op[] = ['eq', 'ne', 'like', 'gt', 'gte', 'lt', 'lte', 'in'];
-const STRING_OPS: Op[] = ['eq', 'ne', 'like'];
-const NUM_OPS: Op[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in'];
-const BOOL_OPS: Op[] = ['eq', 'ne'];
-const DATE_OPS: Op[] = ['eq', 'gt', 'gte', 'lt', 'lte'];
+
+
+const OP_LIST: Op[] = [Op.EQ, Op.NE, Op.LIKE, Op.GT, Op.GE, Op.LT, Op.LE, Op.IN];
+const STRING_OPS: Op[] = [Op.EQ, Op.NE, Op.LIKE];
+const NUM_OPS: Op[] = [Op.EQ, Op.NE, Op.GT, Op.GE, Op.LT, Op.LE, Op.IN];
+const BOOL_OPS: Op[] = [Op.EQ, Op.NE];
+const DATE_OPS: Op[] = [Op.EQ, Op.GT, Op.GE, Op.LT, Op.LE];
 
 function opsForType(type: string): Op[] {
     const t = (type ?? 'string').toLowerCase();
@@ -59,7 +47,7 @@ function opsForType(type: string): Op[] {
     if (t.includes('int') || t.includes('long') || t.includes('number')) return NUM_OPS;
     if (t.includes('bool')) return BOOL_OPS;
     if (t.includes('date') || t.includes('time') || t.includes('instant')) return DATE_OPS;
-    return ['eq', 'ne', 'in'];
+    return [Op.EQ, Op.NE, Op.IN];
 }
 
 export interface MetaServiceConfig {
@@ -144,17 +132,42 @@ export class MetaService {
                 }
                 const pathSeg = (tag ? tagToPathSegment.get(tag) : undefined) ?? segment;
 
-                let meta = entityBySegment.get(pathSeg);
-                if (!meta) {
+                let meta: EntityMeta;
+                const existingMeta = entityBySegment.get(pathSeg);
+                if (existingMeta) {
+                    meta = existingMeta;
+                } else {
+                    const pluralName = displayName.endsWith('s') ? displayName : displayName + 's';
                     meta = {
-                        pathSegment: pathSeg,
+                        name: pathSeg,
                         displayName,
+                        pluralName,
+                        pathSegment: pathSeg, // Add pathSegment here
+                        properties: {},
                         operations: {},
                         actions: [],
                         schemas: {},
                         queryableFields: undefined,
                     };
                     entityBySegment.set(pathSeg, meta);
+                }
+
+                // 尝试从 schemas 中找到对应的实体定义，填充 properties
+                if (Object.keys(meta.properties).length === 0) {
+                    const possibleSchemaNames = [displayName, pathSeg, tag].filter(Boolean) as string[];
+                    for (const schemaName of possibleSchemaNames) {
+                        const schema = schemas[schemaName];
+                        if (schema?.properties) {
+                            const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                            const props = schema.properties as Record<string, SchemaProperty>;
+                            const enriched: Record<string, SchemaProperty> = {};
+                            for (const [k, v] of Object.entries(props)) {
+                                enriched[k] = {...v, required: requiredSet.has(k)};
+                            }
+                            meta.properties = enriched;
+                            break;
+                        }
+                    }
                 }
 
                 const operationId = operation.operationId ?? `${pathSeg}_${method}`;
@@ -172,8 +185,8 @@ export class MetaService {
                     (actionFromPath && !actionFromPath.startsWith('{') ? actionFromPath : undefined) ?? last;
 
                 if (isAction) {
-                    if (!meta.actions.some((a) => a.actionName === actionName)) {
-                        meta.actions.push({
+                    if (!meta.actions!.some((a) => a.actionName === actionName)) {
+                        meta.actions!.push({
                             actionName,
                             summary: operation.summary,
                             permissions: (operation as OpenApiOperation & {
@@ -214,60 +227,60 @@ export class MetaService {
                     // 如果是 export 操作，且有 queryableFields，则尝试将其复制给 search 操作
                     if (last === 'export' && opMeta.queryableFields) {
                         // 查找对应的 search 操作
-                        let searchOp = meta.operations['search'];
-                        if (!searchOp) {
-                            // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
-                            // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
-                            // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
-                            // 如果我们找不到 'search' key，可能是 operationId 解析问题
-                            // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
-                        }
-
-                        if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
-                            searchOp.queryableFields = {...opMeta.queryableFields};
-                            // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
-                            meta.queryableFields = searchOp.queryableFields;
-                        }
-
-                        // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
-                        if (!meta.queryableFields) {
-                            meta.queryableFields = {...opMeta.queryableFields};
-                        }
+                    let searchOp = meta.operations!['search'];
+                    if (!searchOp) {
+                        // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
+                        // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
+                        // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
+                        // 如果我们找不到 'search' key，可能是 operationId 解析问题
+                        // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
                     }
 
-                    meta.operations[last] = opMeta;
-                    if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
-                    if (last === 'export') meta.exportEnabled = true;
-                }
+                    if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
+                        searchOp.queryableFields = {...opMeta.queryableFields};
+                        // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
+                        meta.queryableFields = searchOp.queryableFields;
+                    }
 
-                // 解析 schema 引用
-                const reqBody = operation.requestBody as {
-                    content?: { 'application/json'?: { schema?: { $ref?: string } } }
-                } | undefined;
-                const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
-                if (schemaRef) {
-                    const schemaName = schemaRef.replace('#/components/schemas/', '');
-                    const schema = schemas[schemaName];
-                    if (schema?.properties) {
-                        const requiredSet = new Set<string>((schema.required ?? []) as string[]);
-                        const props = schema.properties as Record<string, SchemaProperty>;
-                        const enriched: Record<string, SchemaProperty> = {};
-                        for (const [k, v] of Object.entries(props)) {
-                            enriched[k] = {...v, required: requiredSet.has(k)};
-                        }
-                        meta.schemas[last === 'create' ? 'create' : last === 'update' || last === 'updateBatch' ? 'update' : 'response'] = enriched;
+                    // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
+                    if (!meta.queryableFields) {
+                        meta.queryableFields = {...opMeta.queryableFields};
                     }
                 }
 
-                const resp = operation.responses?.['200'] as {
-                    content?: { 'application/json'?: { schema?: { $ref?: string } } }
-                } | undefined;
-                const respRef = resp?.content?.['application/json']?.schema?.$ref;
-                if (respRef && !meta.schemas.response) {
-                    const schemaName = respRef.replace('#/components/schemas/', '');
-                    const schema = schemas[schemaName];
-                    if (schema?.properties) meta.schemas.response = schema.properties as Record<string, SchemaProperty>;
+                meta.operations![last] = opMeta;
+                if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
+                if (last === 'export') meta.exportEnabled = true;
+            }
+
+            // 解析 schema 引用
+            const reqBody = operation.requestBody as {
+                content?: { 'application/json'?: { schema?: { $ref?: string } } }
+            } | undefined;
+            const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
+            if (schemaRef) {
+                const schemaName = schemaRef.replace('#/components/schemas/', '');
+                const schema = schemas[schemaName];
+                if (schema?.properties) {
+                    const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                    const props = schema.properties as Record<string, SchemaProperty>;
+                    const enriched: Record<string, SchemaProperty> = {};
+                    for (const [k, v] of Object.entries(props)) {
+                        enriched[k] = {...v, required: requiredSet.has(k)};
+                    }
+                    meta.schemas![last === 'create' ? 'create' : last === 'update' || last === 'updateBatch' ? 'update' : 'response'] = enriched;
                 }
+            }
+
+            const resp = operation.responses?.['200'] as {
+                content?: { 'application/json'?: { schema?: { $ref?: string } } }
+            } | undefined;
+            const respRef = resp?.content?.['application/json']?.schema?.$ref;
+            if (respRef && !meta.schemas!.response) {
+                const schemaName = respRef.replace('#/components/schemas/', '');
+                const schema = schemas[schemaName];
+                if (schema?.properties) meta.schemas!.response = schema.properties as Record<string, SchemaProperty>;
+            }
             }
         }
 
@@ -275,7 +288,8 @@ export class MetaService {
         for (const meta of entityBySegment.values()) {
             if (meta.queryableFields) {
                 for (const [f, v] of Object.entries(meta.queryableFields)) {
-                    if (!v.operators?.length) v.operators = opsForType(v.type);
+                    const fieldMeta = v as { type: string; operators: Op[]; label?: string; order?: number };
+                    if (!fieldMeta.operators?.length) fieldMeta.operators = opsForType(fieldMeta.type);
                 }
             }
         }

@@ -1,29 +1,80 @@
 <template>
   <div class="operation-log-auto-container">
-    <!-- 
-      通过 Config 和 Slot，让自动生成组件达到手写级的精细度
-    -->
-    <EntityCrudPage 
-      entity="operation_log" 
+    <EntityCrudPage
+      entity="operation_log"
       :enable-create="false"
       :row-actions="['view']"
       :columns="columns"
       :locale="dataforgeUiLocale"
-      shadow="never"
       @view="handleView"
     >
-      <!-- 自定义状态列 -->
-      <template #column-success="{ value }">
-        <el-tag :type="value ? 'success' : 'danger'">
-          {{ value ? $t('common.success') : $t('common.failed') }}
-        </el-tag>
+      <template #alert="{ error }">
+        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
       </template>
 
-      <!-- 自定义时间列 -->
-      <template #column-operationTime="{ value }">
-        {{ formatDate(value) }}
-      </template>
-    </EntityCrudPage>
+      <template #toolbar="scope">
+          <EntityToolbar
+            :selected-ids="scope.selectedIds"
+            :can-create="false"
+            :can-batch-delete="false"
+            :can-export="true"
+            :export-text="$t('common.export')"
+            :show-search="scope.showSearch"
+            :all-columns="scope.allColumns"
+            :display-columns="scope.displayColumns"
+            :visible-column-props="scope.visibleColumnProps"
+            :set-visible-column-props="scope.setVisibleColumnProps"
+            @export="scope.handleExport"
+            @toggle-search="scope.toggleSearch"
+            @refresh="scope.handleSearch"
+          />
+        </template>
+
+        <template #search="{ filters, handleSearch, showSearch }">
+          <EntitySearchBar
+            v-if="showSearch"
+            :filters="filters"
+            :handle-search="handleSearch"
+          />
+        </template>
+
+        <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+          <EntityTable
+            :items="items"
+            :loading="loading"
+            :display-columns="displayColumns"
+            :sort="sort"
+            :handle-sort-change="handleSortChange"
+            :handle-selection-change="handleSelectionChange"
+          >
+            <!-- 自定义状态列 -->
+            <template #column-success="{ value }">
+              <el-tag :type="value ? 'success' : 'danger'">
+                {{ value ? $t('common.success') : $t('common.failed') }}
+              </el-tag>
+            </template>
+
+            <!-- 自定义时间列 -->
+            <template #column-operationTime="{ value }">
+              {{ formatDate(value) }}
+            </template>
+          </EntityTable>
+        </template>
+
+        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+          <el-pagination
+            class="mt-4"
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :current-page="page"
+            :page-size="size"
+            :page-sizes="[10, 20, 50, 100]"
+            @update:current-page="handlePageChange"
+            @update:page-size="handleSizeChange"
+          />
+        </template>
+      </EntityCrudPage>
 
     <!-- 详情对话框 (直接复用手写逻辑) -->
     <el-dialog v-model="detailDialogVisible" :title="$t('system.log.detailTitle')" width="700px">
@@ -107,8 +158,16 @@ interface OperationLog {
   extra?: string;
 }
 
-// const { client } = useDataforge();
-// const logClient = client.define<OperationLog>('sys_operation_log');
+const handleExport = async () => {
+  try {
+    // 导出逻辑需要根据实际后端API调整
+    // const blob = await deptClient.exportExcel();
+    // download(blob, 'departments.xlsx');
+    ElMessage.success('导出功能待实现');
+  } catch {
+    ElMessage.error(t('system.dept.deleteFailed').replace('删除', '导出'));
+  }
+};
 
 // 自定义列配置：控制宽度、标题、顺序
 const columns = computed<ColumnConfig[]>(() => [

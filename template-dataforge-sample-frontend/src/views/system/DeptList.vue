@@ -1,7 +1,6 @@
 <template>
   <div class="dept-list-container">
     <EntityCrudPage
-      ref="crudRef"
       entity="departments"
       :columns="columns"
       :search-fields="['name']"
@@ -10,18 +9,78 @@
       @create="handleAdd"
       @edit="handleEdit"
       @delete="handleDelete"
+      @export="handleExport"
     >
-      <template #header-actions>
-        <el-button type="primary" @click="handleAdd(null)">{{ $t('system.dept.addTop') }}</el-button>
-        <el-button type="success" @click="handleExport">{{ $t('common.export') }}</el-button>
+      <template #alert="{ error }">
+        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
       </template>
 
-      <template #row-actions="{ row }">
-        <el-button link type="primary" @click="handleAdd(row)">{{ $t('system.dept.addChild') }}</el-button>
-        <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-        <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
-      </template>
-    </EntityCrudPage>
+      <template #toolbar="scope">
+          <EntityToolbar
+            :selected-ids="scope.selectedIds"
+            :can-create="true"
+            :create-text="$t('system.dept.addTop')"
+            :can-batch-delete="true"
+            :batch-delete-text="$t('common.batchDelete')"
+            :can-export="true"
+            :export-text="$t('common.export')"
+            :show-search="scope.showSearch"
+            :all-columns="scope.allColumns"
+            :display-columns="scope.displayColumns"
+            :visible-column-props="scope.visibleColumnProps"
+            :set-visible-column-props="scope.setVisibleColumnProps"
+            @create="handleAdd"
+            @batch-delete="scope.handleDelete"
+            @export="scope.handleExport"
+            @toggle-search="scope.toggleSearch"
+            @refresh="scope.handleSearch"
+          />
+        </template>
+
+        <template #search="{ filters, handleSearch, showSearch }">
+          <EntitySearchBar
+            v-if="showSearch"
+            :filters="filters"
+            :handle-search="handleSearch"
+          />
+        </template>
+
+        <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+          <EntityTable
+            :items="items"
+            :loading="loading"
+            :display-columns="displayColumns"
+            :sort="sort"
+            :handle-sort-change="handleSortChange"
+            :handle-selection-change="handleSelectionChange"
+          >
+            <template #column-status="{ value }">
+              <el-tag :type="value === '1' ? 'success' : 'danger'">
+                {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
+              </el-tag>
+            </template>
+            <template #row-actions="{ row }">
+              <el-button link type="primary" @click="handleAdd(row)">{{ $t('system.dept.addChild') }}</el-button>
+              <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+              <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+            </template>
+          </EntityTable>
+        </template>
+
+        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+          <el-pagination
+            class="mt-4"
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :current-page="page"
+            :page-size="size"
+            :page-sizes="[10, 20, 50, 100]"
+            @update:current-page="handlePageChange"
+            @update:page-size="handleSizeChange"
+          />
+        </template>
+      </EntityCrudPage>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
@@ -72,14 +131,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { useDataforge, BusinessError } from '@lrenyi/dataforge-headless/vue';
-import { EntityCrudPage } from '@lrenyi/dataforge-ui';
+import { ElMessage, ElMessageBox, ElCard, ElAlert, ElPagination, ElButton, ElInput, ElSelect, ElOption, ElDatePicker, ElTable, ElTableColumn, ElTag, ElIcon, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElCheckboxGroup, ElCheckbox, ElInputNumber, ElRadioGroup, ElRadio, ElTreeSelect } from 'element-plus';
+import { useDataforge, BusinessError, useEntityCrud } from '@lrenyi/dataforge-headless/vue';
+import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar, EntityColumnConfigurator } from '@lrenyi/dataforge-ui';
 import { useI18n } from 'vue-i18n';
 import { useDataforgeUiLocale } from '@/i18n';
 
 const { t } = useI18n();
 const { client } = useDataforge();
+const { search } = useEntityCrud('departments');
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -96,7 +156,7 @@ interface Department {
 }
 
 const deptClient = client.define<Department>('departments');
-const crudRef = ref();
+
 const submitting = ref(false);
 const dialogVisible = ref(false);
 const dialogTitle = ref(t('system.dept.addTop'));
@@ -176,7 +236,7 @@ const handleSubmit = async () => {
       ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
-    crudRef.value?.refresh();
+    search();
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -194,7 +254,7 @@ const handleDelete = async (row: any) => {
   try {
     await deptClient.delete(row.id);
     ElMessage.success(t('system.dept.deleteSuccess'));
-    crudRef.value?.refresh();
+    search();
   } catch (error: any) {
     if (error === 'cancel') return;
     ElMessage.error(error instanceof Error ? error.message : t('system.dept.deleteFailed'));

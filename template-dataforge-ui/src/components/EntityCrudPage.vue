@@ -1,451 +1,149 @@
-<template>
-  <div class="entity-crud-page">
-    <!-- 顶部卡片：搜索区域 -->
-    <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
-      <EntitySearchBar
-        :entity-meta="entityMeta"
-        :fields="searchFieldsConfig"
-        :model-value="filters"
-        :export-loading="exportLoading"
-        :locale="locale"
-        @update:model-value="onFiltersChange"
-        @search="onSearch"
-        @reset="onReset"
-        @export="handleExport"
-      >
-        <template v-if="$slots.search" #default="slotProps">
-          <slot name="search" v-bind="slotProps" />
-        </template>
-      </EntitySearchBar>
-    </div>
-
-    <!-- 底部卡片：操作和表格区域 -->
-    <div class="crud-table-card">
-      <!-- 工具栏 -->
-      <div class="crud-toolbar">
-        <div class="toolbar-left">
-          <el-button v-if="canCreate" type="primary" @click="emit('create')" size="default">
-            <el-icon class="el-icon--left"><Plus /></el-icon>{{ createText }}
-          </el-button>
-          <el-button v-if="canBatchDelete && isSelectable && selectedIds.length > 0" type="danger" plain @click="handleBatchDelete" size="default">
-            <el-icon class="el-icon--left"><Delete /></el-icon>{{ batchDeleteText }}
-          </el-button>
-          <el-button v-if="canBatchUpdate && isSelectable && selectedIds.length > 0" type="primary" plain @click="handleBatchUpdate" size="default">
-            <el-icon class="el-icon--left"><Edit /></el-icon>{{ batchUpdateText }}
-          </el-button>
-          <slot name="toolbar-left" />
-        </div>
-        <div class="toolbar-right">
-          <slot name="toolbar-right" />
-          <el-tooltip v-if="canExport" :content="exportText" placement="top">
-            <el-button circle :icon="Download" :loading="exportLoading" @click="handleExport" size="default" />
-          </el-tooltip>
-          <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
-            <el-button circle :icon="Search" @click="showSearch = !showSearch" size="default" />
-          </el-tooltip>
-          <el-tooltip :content="refreshText" placement="top">
-            <el-button circle :icon="Refresh" @click="onSearch" size="default" />
-          </el-tooltip>
-          <el-popover placement="bottom" :width="200" trigger="click">
-            <template #reference>
-              <el-button circle :icon="Setting" size="default" />
-            </template>
-            <div class="column-setting-popover">
-              <div class="popover-title">列设置</div>
-              <el-checkbox-group v-model="visibleColumnProps" direction="vertical">
-                <div v-for="col in allColumns" :key="col.prop" class="column-checkbox-item">
-                  <el-checkbox :value="col.prop">
-                    {{ col.label || col.prop }}
-                  </el-checkbox>
-                </div>
-              </el-checkbox-group>
-            </div>
-          </el-popover>
-        </div>
-      </div>
-
-      <!-- 表格 -->
-      <div class="crud-table" v-loading="loading">
-        <EntityTable
-          :columns="displayColumns"
-          :items="items"
-          :loading="loading"
-          :row-actions="rowActions"
-          :selectable="isSelectable"
-          :row-key="rowKey"
-          :locale="locale"
-          @selection-change="onSelectionChange"
-          @view="(row) => emit('view', row)"
-          @edit="(row) => emit('edit', row)"
-          @delete="(row) => emit('delete', row)"
-          @action="(act, row) => emit('action', act, row)"
-        >
-          <template v-if="$slots['row-actions']" #row-actions="scope">
-            <slot name="row-actions" v-bind="scope" />
-          </template>
-          <template v-if="$slots.empty" #empty>
-            <slot name="empty" />
-          </template>
-        </EntityTable>
-      </div>
-
-      <!-- 分页 -->
-      <div class="crud-pagination">
-        <el-pagination
-          v-model:current-page="pageOneBased"
-          v-model:page-size="size"
-          :total="total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="onSizeChange"
-          @current-change="onPageChange"
-        />
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Delete, Refresh, Download, Search, Setting, Edit } from '@element-plus/icons-vue';
-import EntitySearchBar from './EntitySearchBar.vue';
-import EntityTable from './EntityTable.vue';
-import {
-  useDataforge,
-  useEntityMeta,
-  useEntityCrud,
-  resolveColumns,
-  getEntityConfig,
-} from '@lrenyi/dataforge-headless/vue';
-import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
-import type { FilterCondition, SearchRequest } from '@lrenyi/dataforge-headless';
+import { ref, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useEntityCrud } from '../composables/useEntityCrud';
+import type { FilterCondition, ColumnConfig, SortOrder } from '@lrenyi/dataforge-headless/vue';
 
-const props = withDefaults(
-  defineProps<{
-    entity: string;
-    columns?: ColumnConfig[];
-    searchFields?: string[];
-    rowActions?: string[];
-    selectable?: boolean;
-    rowKey?: string;
-    enableCreate?: boolean;
-    enableExport?: boolean;
-    confirmBatchDelete?: boolean;
-    shadow?: 'always' | 'hover' | 'never';
-    baseFilters?: FilterCondition[];
-    immediate?: boolean;
-    defaultPageSize?: number;
-    locale?: {
-      common?: {
-        manageSuffix?: string;
-        add?: string;
-        search?: string;
-        reset?: string;
-        export?: string;
-        batchDelete?: string;
-        batchUpdate?: string;
-        selectedCount?: string;
-        batchDeleteConfirm?: string;
-        tips?: string;
-        actions?: string;
-        view?: string;
-        edit?: string;
-        delete?: string;
-        noData?: string;
-        refresh?: string;
-        paginationInfo?: string;
-      };
-      search?: {
-        inputPlaceholder?: string;
-        selectPlaceholder?: string;
-        rangePlaceholder?: string;
-        start?: string;
-        end?: string;
-        all?: string;
-        yes?: string;
-        no?: string;
-      };
-      form?: {
-        inputPlaceholder?: string;
-        selectPlaceholder?: string;
-        required?: string;
-        email?: string;
-      };
-      errors?: {
-        exportFailed?: string;
-      };
-    };
-  }>(),
-  {
-    rowActions: () => ['view', 'edit', 'delete'],
-    selectable: false,
-    rowKey: 'id',
-    enableCreate: undefined,
-    enableExport: undefined,
-    confirmBatchDelete: true,
-    shadow: 'always',
-    baseFilters: () => [],
-    immediate: true,
-    defaultPageSize: 10,
-  },
-);
+interface CrudEntity extends Record<string, unknown> {
+  id: string | number;
+}
 
-const emit = defineEmits<{
-  (e: 'create'): void;
-  (e: 'view', row: Record<string, unknown>): void;
-  (e: 'edit', row: Record<string, unknown>): void;
-  (e: 'delete', row: Record<string, unknown>): void;
-  (e: 'batch-update', ids: (string | number)[]): void;
-  (e: 'action', action: string, row: Record<string, unknown>): void;
+const props = defineProps<{
+  entity: string;
 }>();
 
-const { client, meta } = useDataforge();
-const { meta: entityMeta, loading: metaLoading, refresh: refreshMeta } = useEntityMeta(meta, props.entity);
-
-// 强制触发一次 meta 加载检查
-onMounted(async () => {
-  if (!entityMeta.value) {
-    try {
-      await refreshMeta();
-    } catch (e) {
-      console.error('[EntityCrudPage] meta refresh failed:', e);
-    }
-  }
-});
-
-const crud = useEntityCrud(client, props.entity, {
-  onError: (e) => console.error(e),
-  initialPageSize: props.defaultPageSize,
-});
+const route = useRoute();
+const router = useRouter();
 
 const {
   items,
-  total,
+  pagedResult,
   loading,
   filters,
   sort,
   page,
   size,
+  selectedIds,
+  setFilters,
+  setPage,
+  setSize,
+  setSelectedIds,
   search,
-  resetFilters,
-  remove,
-  removeBatch,
+  init,
+  delete: deleteOne,
+  delete: deleteEntities,
+  entityMeta,
+  metaLoading,
+  refreshMeta,
+  allColumns,
+  displayColumns,
+  visibleColumnProps,
+  setVisibleColumnProps,
   exportExcel,
-} = crud;
+  error,
+} = useEntityCrud<CrudEntity>(props.entity);
 
 const showSearch = ref(true);
-
-const exportLoading = ref(false);
-
-const formatText = (template: string, vars?: Record<string, string | number>) => {
-  if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+const toggleSearch = () => {
+  showSearch.value = !showSearch.value;
 };
 
-const canCreate = computed(() => {
-  if (props.enableCreate !== undefined) return props.enableCreate;
-  return entityMeta.value ? !!entityMeta.value.operations?.create : true;
-});
+// Initialize from route query
+const initFromRoute = () => {
+  const query = route.query;
+  const initialFilters: FilterCondition[] = query.filters
+    ? JSON.parse(query.filters as string)
+    : [];
+  const initialSort: SortOrder[] = query.sort
+    ? JSON.parse(query.sort as string)
+    : [];
+  const initialPage = query.page ? parseInt(query.page as string) : 1;
+  const initialSize = query.size ? parseInt(query.size as string) : 10;
 
-const canBatchDelete = computed(() => {
-  return !!entityMeta.value?.operations?.deleteBatch;
-});
+  setFilters(initialFilters);
+  sort.value = initialSort;
+  setPage(initialPage);
+  setSize(initialSize);
+  init();
+};
 
-const canBatchUpdate = computed(() => {
-  return !!entityMeta.value?.operations?.updateBatch;
-});
-
-const canExport = computed(() => {
-  if (props.enableExport !== undefined) return props.enableExport;
-  return entityMeta.value ? (!!entityMeta.value.operations?.export || !!entityMeta.value.exportEnabled) : true;
-});
-
-const isSelectable = computed(() => {
-  if (props.selectable) return true;
-  return canBatchDelete.value || canBatchUpdate.value;
-});
-
-const manageSuffix = computed(() => props.locale?.common?.manageSuffix ?? '管理');
-const createText = computed(() => props.locale?.common?.add ?? '新增');
-const batchDeleteText = computed(() => props.locale?.common?.batchDelete ?? '删除');
-const batchUpdateText = computed(() => props.locale?.common?.batchUpdate ?? '更新');
-const exportText = computed(() => props.locale?.common?.export ?? '导出');
-const refreshText = computed(() => props.locale?.common?.refresh ?? '刷新');
-const selectedCountText = computed(() =>
-  formatText(props.locale?.common?.selectedCount ?? '已选 {count} 项', { count: selectedIds.value.length }),
+// Watch for route changes to re-initialize
+watch(
+  () => route.query,
+  () => {
+    initFromRoute();
+  },
+  { immediate: true }
 );
-const paginationInfoText = computed(() => {
-  const start = total.value === 0 ? 0 : (pageOneBased.value - 1) * size.value + 1;
-  const end = Math.min(pageOneBased.value * size.value, total.value);
-  const template = props.locale?.common?.paginationInfo ?? '显示第 {start} 到第 {end} 条记录，总共 {total} 条记录';
-  return formatText(template, { start, end, total: total.value });
-});
+
+// Update route query when filters, sort, page, or size change
+watch(
+  [filters, sort, page, size],
+  () => {
+    router.push({
+      query: {
+        ...route.query,
+        filters: JSON.stringify(filters.value),
+        sort: JSON.stringify(sort.value),
+        page: page.value.toString(),
+        size: size.value.toString(),
+      },
+    });
+  },
+  { deep: true }
+);
+
+const handleSearch = () => {
+  setPage(1);
+  search();
+};
 
 const handleExport = async () => {
-  exportLoading.value = true;
-  try {
-    const blob = await exportExcel();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${props.entity}-export.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  } catch (e) {
-    console.error('Export failed', e);
-    ElMessage.error(props.locale?.errors?.exportFailed ?? '导出失败');
-  } finally {
-    exportLoading.value = false;
+  await exportExcel();
+};
+
+const handleDelete = async () => {
+  if (selectedIds.value.length > 0) {
+    await deleteEntities();
+    setSelectedIds([]);
+    search();
   }
 };
 
-const displayName = computed(() => entityMeta.value?.displayName ?? props.entity);
-const searchFieldsConfig = computed(() => {
-  // 优先使用 props.searchFields
-  if (props.searchFields && props.searchFields.length > 0) {
-    return props.searchFields;
-  }
-
-  // 其次尝试从 entityConfig 获取
-  const config = getEntityConfig(props.entity);
-  if (config?.searchFields && config.searchFields.length > 0) {
-    return config.searchFields;
-  }
-
-  // 最后尝试从 meta.queryableFields 自动生成
-  if (entityMeta.value?.queryableFields) {
-    // 这里不需要手动转换，EntitySearchBar 会自动处理 meta.queryableFields
-    // 但为了让 EntitySearchBar 正确渲染，我们需要确保传递了 entityMeta
-    return []; // 返回空数组，让 EntitySearchBar 内部基于 meta 自动生成
-  }
-
-  return [];
-});
-
-// 调试日志：监控 entityMeta 的变化
-watch(() => entityMeta.value, (newVal) => {
-  // meta changed
-}, { immediate: true });
-
-watch(() => metaLoading.value, (newVal) => {
-  // loading changed
-});
-
-const allColumns = computed(() => props.columns?.length ? props.columns : resolveColumns(props.entity, entityMeta.value) || []);
-
-const visibleColumnProps = ref<string[]>([]);
-
-watch(() => allColumns.value, (newVal) => {
-  if (newVal && newVal.length > 0) {
-    visibleColumnProps.value = newVal.map(col => col.prop);
-  }
-}, { immediate: true });
-
-const displayColumns = computed(() => {
-  if (!allColumns.value) return [];
-  return allColumns.value.filter(col => visibleColumnProps.value.includes(col.prop));
-});
-
-const onFiltersChange = (v: Array<{ field: string; op: import('@lrenyi/dataforge-headless').Op; value: unknown }>) => {
-  filters.value = v as import('@lrenyi/dataforge-headless').FilterCondition[];
+const handlePageChange = (currentPage: number) => {
+  setPage(currentPage);
+  search();
 };
 
-const pageOneBased = computed({
-  get: () => page.value + 1,
-  set: (v) => {
-    page.value = Math.max(0, v - 1);
-  },
-});
-
-const selectedIds = ref<(string | number)[]>([]);
-
-const onSearch = async () => {
-  page.value = 0;
-  await doSearch();
+const handleSizeChange = (currentPageSize: number) => {
+  setSize(currentPageSize);
+  setPage(1);
+  search();
 };
 
-const onReset = async () => {
-  resetFilters();
-  await doSearch();
+const handleSortChange = (newSort: SortOrder[]) => {
+  sort.value = newSort;
+  search();
 };
 
-const onSizeChange = async () => {
-  page.value = 0;
-  await doSearch();
+const handleSelectionChange = (_: unknown, ids: (string | number)[]) => {
+  setSelectedIds(ids);
 };
 
-const onPageChange = async () => {
-  await doSearch();
-};
-
-const doSearch = async (overrides?: Partial<SearchRequest>) => {
-  selectedIds.value = [];
-  const userFilters = overrides?.filters ?? filters.value;
-  const finalFilters = [...(props.baseFilters || []), ...userFilters];
-  await search({ ...overrides, filters: finalFilters });
-};
-
-const onSelectionChange = (_rows: Record<string, unknown>[], ids: Array<string | number>) => {
-  selectedIds.value = ids;
-};
-
-const handleBatchDelete = async () => {
-  if (selectedIds.value.length === 0) return;
-  if (props.confirmBatchDelete) {
-    try {
-      const message = formatText(
-        props.locale?.common?.batchDeleteConfirm ?? '确定删除选中的 {count} 条记录吗？',
-        { count: selectedIds.value.length },
-      );
-      await ElMessageBox.confirm(message, props.locale?.common?.tips ?? '提示', { type: 'warning' });
-    } catch (e) {
-      return;
-    }
-  }
-  await removeBatch(selectedIds.value);
-  selectedIds.value = [];
-  await doSearch();
-};
-
-const handleBatchUpdate = () => {
-  if (selectedIds.value.length === 0) return;
-  emit('batch-update', selectedIds.value);
-};
-
-// Watch baseFilters change to trigger search if immediate or already loaded
-watch(() => props.baseFilters, () => {
-  if (props.immediate || items.value.length > 0) {
-    page.value = 0;
-    doSearch();
-  }
-}, { deep: true });
-
-onMounted(async () => {
-  await refreshMeta();
-  if (props.immediate) {
-    await doSearch();
-  }
-});
-
-defineExpose({
-  refresh: doSearch,
-  reset: onReset,
-});
+const total = computed(() => pagedResult.value?.totalElements ?? 0);
 </script>
 
-<style>
-/* 整体页面容器 */
+<style scoped>
+/* 与 git 历史 d214830 中 EntityCrudPage 的布局与样式保持一致 */
+
+/* 历史版本：无底层背景 */
 .entity-crud-page {
   padding: 10px;
-  background-color: var(--el-fill-color-light);
   min-height: 100%;
 }
 
 /* 顶部搜索卡片 */
-.entity-crud-page .crud-search-card {
+.crud-search-card {
   background-color: var(--el-bg-color-overlay);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
@@ -457,7 +155,7 @@ defineExpose({
   border-top: 2px solid var(--el-color-primary);
 }
 
-.entity-crud-page .crud-search-card.is-hidden {
+.crud-search-card.is-hidden {
   margin-bottom: 0;
   padding-top: 0;
   padding-bottom: 0;
@@ -468,7 +166,7 @@ defineExpose({
 }
 
 /* 底部表格操作卡片 */
-.entity-crud-page .crud-table-card {
+.crud-table-card {
   background-color: var(--el-bg-color-overlay);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
@@ -476,31 +174,40 @@ defineExpose({
   border-top: 2px solid var(--el-color-primary);
 }
 
-/* 工具栏区域 */
-.entity-crud-page .crud-toolbar {
+/* 工具栏区域（slot 内为 EntityToolbar，保持与历史一致的左右布局） */
+.crud-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
 
-.entity-crud-page .toolbar-left {
+.crud-toolbar :deep(.entity-toolbar) {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0;
 }
 
-/* 工具栏按钮组 */
-.entity-crud-page .toolbar-right {
+.crud-toolbar :deep(.toolbar-left) {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.crud-toolbar :deep(.toolbar-right) {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-.entity-crud-page .toolbar-right .el-button {
+.crud-toolbar :deep(.toolbar-right .el-button) {
   margin-left: 0;
 }
 
 /* 表格区域 */
-.entity-crud-page .crud-table {
+.crud-table {
   margin-bottom: 16px;
   background-color: transparent;
   border: none;
@@ -508,7 +215,7 @@ defineExpose({
 }
 
 /* 分页区域：右对齐 */
-.entity-crud-page .crud-pagination {
+.crud-pagination {
   display: flex;
   justify-content: flex-end;
   padding-top: 0;
@@ -516,21 +223,77 @@ defineExpose({
 }
 
 /* 覆盖表格默认样式，使其更美观 */
-.entity-crud-page .el-table {
+.entity-crud-page :deep(.el-table) {
   --el-table-header-bg-color: var(--el-color-primary-light-9);
   --el-table-header-text-color: var(--el-text-color-primary);
   border-radius: 4px;
   overflow: hidden;
 }
 
-.column-setting-popover .popover-title {
+.entity-crud-page :deep(.column-setting-popover .popover-title) {
   font-weight: bold;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   padding-bottom: 8px;
 }
 
-.column-setting-popover .column-checkbox-item {
+.entity-crud-page :deep(.column-setting-popover .column-checkbox-item) {
   margin-bottom: 4px;
 }
 </style>
+
+<template>
+  <div class="entity-crud-page">
+    <slot name="alert" :error="error" />
+
+    <!-- 顶部卡片：搜索区域（历史版本无 header） -->
+    <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
+      <slot name="search" :filters="filters" :handleSearch="handleSearch" :showSearch="showSearch" />
+    </div>
+
+    <!-- 底部卡片：操作和表格区域 -->
+    <div class="crud-table-card">
+      <!-- 工具栏 -->
+      <div class="crud-toolbar">
+        <slot
+          name="toolbar"
+          :selectedIds="selectedIds"
+          :handleDelete="handleDelete"
+          :handleExport="handleExport"
+          :handleSearch="handleSearch"
+          :toggleSearch="toggleSearch"
+          :showSearch="showSearch"
+          :allColumns="allColumns"
+          :displayColumns="displayColumns"
+          :visibleColumnProps="visibleColumnProps"
+          :setVisibleColumnProps="setVisibleColumnProps"
+        />
+      </div>
+
+      <!-- 表格 -->
+      <div class="crud-table">
+        <slot
+          name="table"
+          :items="items"
+          :loading="loading"
+          :displayColumns="displayColumns"
+          :sort="sort"
+          :handleSortChange="handleSortChange"
+          :handleSelectionChange="handleSelectionChange"
+        />
+      </div>
+
+      <!-- 分页 -->
+      <div class="crud-pagination">
+        <slot
+          name="pagination"
+          :total="total"
+          :page="page"
+          :size="size"
+          :handlePageChange="handlePageChange"
+          :handleSizeChange="handleSizeChange"
+        />
+      </div>
+    </div>
+  </div>
+</template>

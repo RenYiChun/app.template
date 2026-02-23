@@ -82,7 +82,7 @@
           <el-tab-pane :label="t('metadata.schemas', 'Schemas')" name="schemas">
             <el-tabs v-model="activeSchemaTab" type="card">
               <el-tab-pane label="Create" name="create">
-                <div v-if="selectedEntity.schemas.create">
+                <div v-if="selectedEntity?.schemas?.create">
                     <el-table :data="getSchemaData(selectedEntity.schemas.create)" border stripe>
                         <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
                         <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
@@ -99,7 +99,7 @@
                 <el-empty v-else :description="t('common.noData', 'No Data')" />
               </el-tab-pane>
               <el-tab-pane label="Update" name="update">
-                <div v-if="selectedEntity.schemas.update">
+                <div v-if="selectedEntity?.schemas?.update">
                     <el-table :data="getSchemaData(selectedEntity.schemas.update)" border stripe>
                         <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
                         <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
@@ -116,7 +116,7 @@
                 <el-empty v-else :description="t('common.noData', 'No Data')" />
               </el-tab-pane>
               <el-tab-pane label="Response" name="response">
-                <div v-if="selectedEntity.schemas.response">
+                <div v-if="selectedEntity?.schemas?.response">
                     <el-table :data="getSchemaData(selectedEntity.schemas.response)" border stripe>
                         <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
                         <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
@@ -197,7 +197,7 @@ const filteredEntities = computed(() => {
 // Convert operations object to list for table
 const operationsList = computed(() => {
   if (!selectedEntity.value) return [];
-  return Object.values(selectedEntity.value.operations);
+  return Object.values(selectedEntity.value?.operations || {});
 });
 
 // Convert queryable fields object to list for table

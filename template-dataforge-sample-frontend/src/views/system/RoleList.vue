@@ -1,7 +1,6 @@
 <template>
   <div class="role-list-container">
     <EntityCrudPage
-      ref="crudRef"
       entity="roles"
       :columns="columns"
       :locale="dataforgeUiLocale"
@@ -9,12 +8,71 @@
       @edit="handleEdit"
       @delete="handleDelete"
     >
-      <template #row-actions="{ row }">
-        <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-        <el-button link type="warning" @click="handleAssignPermissions(row)">{{ $t('system.role.assignPerms') }}</el-button>
-        <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+      <template #alert="{ error }">
+        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
       </template>
-    </EntityCrudPage>
+
+      <template #toolbar="scope">
+          <EntityToolbar
+            :selected-ids="scope.selectedIds"
+            :can-create="true"
+            :create-text="$t('common.add')"
+            :can-batch-delete="true"
+            :batch-delete-text="$t('common.batchDelete')"
+            :can-export="true"
+            :export-text="$t('common.export')"
+            :show-search="scope.showSearch"
+            :all-columns="scope.allColumns"
+            :display-columns="scope.displayColumns"
+            :visible-column-props="scope.visibleColumnProps"
+            :set-visible-column-props="scope.setVisibleColumnProps"
+            @create="handleAdd"
+            @batch-delete="scope.handleDelete"
+            @export="scope.handleExport"
+            @toggle-search="scope.toggleSearch"
+            @refresh="scope.handleSearch"
+          />
+        </template>
+
+        <template #search="{ filters, handleSearch, showSearch }">
+          <EntitySearchBar
+            v-if="showSearch"
+            :filters="filters"
+            :handle-search="handleSearch"
+          />
+        </template>
+
+        <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+          <EntityTable
+            :items="items"
+            :loading="loading"
+            :display-columns="displayColumns"
+            :sort="sort"
+            :handle-sort-change="handleSortChange"
+            :handle-selection-change="handleSelectionChange"
+          >
+            <template #row-actions="{ row }">
+              <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+              <el-button link type="warning" @click="handleAssignPermissions(row)">{{ $t('system.role.assignPerms') }}</el-button>
+              <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+            </template>
+          </EntityTable>
+        </template>
+
+        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+          <el-pagination
+            class="mt-4"
+            background
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            :current-page="page"
+            :page-size="size"
+            :page-sizes="[10, 20, 50, 100]"
+            @update:current-page="handlePageChange"
+            @update:page-size="handleSizeChange"
+          />
+        </template>
+      </EntityCrudPage>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
@@ -61,9 +119,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { useDataforge, BusinessError } from '@lrenyi/dataforge-headless/vue';
-import { EntityCrudPage } from '@lrenyi/dataforge-ui';
+import { ElMessage, ElMessageBox, ElCard, ElAlert, ElPagination, ElButton, ElInput, ElSelect, ElOption, ElDatePicker, ElTable, ElTableColumn, ElTag, ElIcon, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElCheckboxGroup, ElCheckbox } from 'element-plus';
+import { useDataforge, BusinessError, useEntityCrud } from '@lrenyi/dataforge-headless/vue';
+import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar, EntityColumnConfigurator } from '@lrenyi/dataforge-ui';
 import { useI18n } from 'vue-i18n';
 import { useDataforgeUiLocale } from '@/i18n';
 
@@ -84,7 +142,9 @@ const roleClient = client.define<Role>('roles');
 const permClient = client.define<any>('permissions');
 const rolePermClient = client.define<any>('role_permissions');
 
-const crudRef = ref();
+const { search } = useEntityCrud<Role>('roles');
+
+
 const submitting = ref(false);
 const permsLoading = ref(false);
 const permTreeData = ref<any[]>([]);
@@ -152,7 +212,7 @@ const handleSubmit = async () => {
       ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
-    crudRef.value?.refresh();
+    search();
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -170,7 +230,7 @@ const handleDelete = async (row: any) => {
   try {
     await roleClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
-    crudRef.value?.refresh();
+    search();
   } catch (error: any) {
     if (error === 'cancel') return;
     ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));

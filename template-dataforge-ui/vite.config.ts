@@ -9,7 +9,8 @@ export default defineConfig({
     dts({
       include: ['src/**/*'],
       outDir: 'dist',
-      rollupTypes: true,
+      rollupTypes: false,
+      tsconfigPath: resolve(__dirname, './tsconfig.json'),
     }),
   ],
   build: {
@@ -20,12 +21,13 @@ export default defineConfig({
       formats: ['es', 'umd'],
     },
     rollupOptions: {
-      external: ['vue', 'element-plus', '@lrenyi/dataforge-headless'],
+      external: ['vue', 'element-plus', '@lrenyi/dataforge-headless', 'vue-router'],
       output: {
         globals: {
           vue: 'Vue',
           'element-plus': 'ElementPlus',
           '@lrenyi/dataforge-headless': 'DataforgeHeadless',
+          'vue-router': 'VueRouter',
         },
       },
     },
