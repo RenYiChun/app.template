@@ -2,7 +2,6 @@
   <div class="user-list-container">
     <EntityCrudPage
       entity="users"
-      :columns="columns"
       :locale="dataforgeUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
@@ -35,9 +34,10 @@
           />
         </template>
 
-        <template #search="{ filters, handleSearch, showSearch }">
+        <template #search="{ filters, handleSearch, showSearch, entityMeta }">
           <EntitySearchBar
             v-if="showSearch"
+            :entity-meta="entityMeta"
             :filters="filters"
             :handle-search="handleSearch"
           />
@@ -47,7 +47,7 @@
           <EntityTable
             :items="items"
             :loading="loading"
-            :display-columns="displayColumns"
+            :columns="displayColumns"
             :sort="sort"
             :handle-sort-change="handleSortChange"
             :handle-selection-change="handleSelectionChange"
@@ -186,16 +186,6 @@ const allRoles = ref<any[]>([]);
 const selectedRoles = ref<number[]>([]);
 const currentUser = ref<any>(null);
 const deptTreeData = ref<any[]>([]);
-
-const columns = computed(() => [
-  { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'username', label: t('system.user.username') },
-  { prop: 'nickname', label: t('system.user.nickname') },
-  { prop: 'email', label: t('system.user.email') },
-  { prop: 'phone', label: t('system.user.phone') },
-  { prop: 'status', label: t('system.user.status'), width: 80 },
-  { prop: 'createTime', label: t('system.user.createTime'), width: 180 },
-]);
 
 const dialogVisible = ref(false);
 const roleDialogVisible = ref(false);

@@ -253,12 +253,12 @@ export class MetaService {
                 if (last === 'export') meta.exportEnabled = true;
             }
 
-            // 解析 schema 引用
+            // 解析请求体 schema：仅 create/update 的 requestBody 写入 schemas，避免把 search 的请求体（filters/sort/page/size）误当作 response 列
             const reqBody = operation.requestBody as {
                 content?: { 'application/json'?: { schema?: { $ref?: string } } }
             } | undefined;
             const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
-            if (schemaRef) {
+            if (schemaRef && (last === 'create' || last === 'update' || last === 'updateBatch')) {
                 const schemaName = schemaRef.replace('#/components/schemas/', '');
                 const schema = schemas[schemaName];
                 if (schema?.properties) {
@@ -268,18 +268,32 @@ export class MetaService {
                     for (const [k, v] of Object.entries(props)) {
                         enriched[k] = {...v, required: requiredSet.has(k)};
                     }
-                    meta.schemas![last === 'create' ? 'create' : last === 'update' || last === 'updateBatch' ? 'update' : 'response'] = enriched;
+                    meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
                 }
             }
 
             const resp = operation.responses?.['200'] as {
-                content?: { 'application/json'?: { schema?: { $ref?: string } } }
+                content?: { 'application/json'?: { schema?: { $ref?: string; properties?: Record<string, unknown> } } }
             } | undefined;
-            const respRef = resp?.content?.['application/json']?.schema?.$ref;
-            if (respRef && !meta.schemas!.response) {
-                const schemaName = respRef.replace('#/components/schemas/', '');
-                const schema = schemas[schemaName];
-                if (schema?.properties) meta.schemas!.response = schema.properties as Record<string, SchemaProperty>;
+            const respSchema = resp?.content?.['application/json']?.schema;
+            const respRef = respSchema?.$ref;
+            const shouldSetResponse = (respRef || respSchema?.properties) &&
+                (last === 'search' || !meta.schemas!.response);
+            if (shouldSetResponse) {
+                const schemaName = respRef?.replace('#/components/schemas/', '');
+                const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
+                const props = schema?.properties;
+                // 若为 PagedResult（content.items.$ref），用 content 的 item schema 作为表格列来源
+                const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
+                    ? (props.content as { items?: { $ref?: string } })?.items?.$ref
+                    : undefined;
+                const itemRef = contentSchema?.replace('#/components/schemas/', '');
+                const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
+                if (itemSchema?.properties) {
+                    meta.schemas!.response = itemSchema.properties as Record<string, SchemaProperty>;
+                } else if (props && typeof props === 'object') {
+                    meta.schemas!.response = props as Record<string, SchemaProperty>;
+                }
             }
             }
         }
@@ -291,6 +305,13 @@ export class MetaService {
                     const fieldMeta = v as { type: string; operators: Op[]; label?: string; order?: number };
                     if (!fieldMeta.operators?.length) fieldMeta.operators = opsForType(fieldMeta.type);
                 }
+            }
+        }
+
+        // 若 properties 为空但有 schemas.response（如仅暴露了 PageResponseDTO），用其填充 properties，便于列解析与元数据页展示
+        for (const meta of entityBySegment.values()) {
+            if (Object.keys(meta.properties).length === 0 && meta.schemas?.response && typeof meta.schemas.response === 'object') {
+                meta.properties = { ...meta.schemas.response } as Record<string, SchemaProperty>;
             }
         }
 

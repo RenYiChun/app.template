@@ -12,6 +12,7 @@ const router = createRouter({
       children: [
         {
           path: '',
+          name: 'HomeDefault',
           redirect: '/system/users',
         },
         {

@@ -2,7 +2,6 @@
   <div class="role-list-container">
     <EntityCrudPage
       entity="roles"
-      :columns="columns"
       :locale="dataforgeUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
@@ -34,9 +33,10 @@
           />
         </template>
 
-        <template #search="{ filters, handleSearch, showSearch }">
+        <template #search="{ filters, handleSearch, showSearch, entityMeta }">
           <EntitySearchBar
             v-if="showSearch"
+            :entity-meta="entityMeta"
             :filters="filters"
             :handle-search="handleSearch"
           />
@@ -46,7 +46,7 @@
           <EntityTable
             :items="items"
             :loading="loading"
-            :display-columns="displayColumns"
+            :columns="displayColumns"
             :sort="sort"
             :handle-sort-change="handleSortChange"
             :handle-selection-change="handleSelectionChange"
@@ -156,14 +156,6 @@ const dialogVisible = ref(false);
 const permDialogVisible = ref(false);
 const dialogTitle = ref(t('system.role.add'));
 const formRef = ref();
-
-const columns = computed(() => [
-  { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'roleCode', label: t('system.role.code') },
-  { prop: 'roleName', label: t('system.role.name') },
-  { prop: 'remark', label: t('system.role.remark') },
-  { prop: 'createTime', label: t('system.role.createTime'), width: 180 },
-]);
 
 const form = reactive({
   id: null as number | null,

@@ -79,8 +79,13 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         List<FieldSpec> updateFields = allFields.stream()
                                                 .filter(f -> !"id".equals(f.name) && shouldInclude(f, DtoType.UPDATE))
                                                 .collect(Collectors.toList());
+        // ResponseDTO 包含 RESPONSE 与 PAGE_RESPONSE 字段，使列表项与详情响应均能展示 @DataforgeDto(include = PAGE_RESPONSE) 的字段
         List<FieldSpec> responseFields = allFields.stream()
                                                 .filter(f -> shouldInclude(f, DtoType.RESPONSE))
+                                                .collect(Collectors.toList());
+        // 列表列只展示显式标注 PAGE_RESPONSE 的字段；仅额外保留 id 作为行标识
+        List<FieldSpec> pageResponseFields = allFields.stream()
+                                                .filter(f -> "id".equals(f.name) || f.includeTypes().contains(DtoType.PAGE_RESPONSE))
                                                 .collect(Collectors.toList());
         
         String dtoPackage = pkg + ".dto";
@@ -88,6 +93,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             writeClass(dtoPackage, simpleName + "CreateDTO", createFields);
             writeClass(dtoPackage, simpleName + "UpdateDTO", updateFields);
             writeClass(dtoPackage, simpleName + "ResponseDTO", responseFields);
+            writeClass(dtoPackage, simpleName + "PageResponseDTO", pageResponseFields);
         } catch (IOException e) {
             processingEnv.getMessager()
                          .printMessage(javax.tools.Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());

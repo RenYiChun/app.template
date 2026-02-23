@@ -9,8 +9,7 @@
             </div>
           </template>
           <EntityCrudPage
-            entity="dicts"
-            :columns="dictColumns"
+            entity="sys_dicts"
             :locale="dataforgeUiLocale"
             @create="handleAddDict"
             @edit="handleEditDict"
@@ -43,9 +42,10 @@
               />
             </template>
 
-            <template #search="{ filters, handleSearch, showSearch }">
+            <template #search="{ filters, handleSearch, showSearch, entityMeta }">
               <EntitySearchBar
                 v-if="showSearch"
+                :entity-meta="entityMeta"
                 :filters="filters"
                 :handle-search="handleSearch"
               />
@@ -55,7 +55,7 @@
               <EntityTable
                 :items="items"
                 :loading="loading"
-                :display-columns="displayColumns"
+                :columns="displayColumns"
                 :sort="sort"
                 :handle-sort-change="handleSortChange"
                 :handle-selection-change="handleSelectionChange"
@@ -94,9 +94,7 @@
           </template>
           <EntityCrudPage
             entity="sys_dict_items"
-            :columns="itemColumns"
             :locale="dataforgeUiLocale"
-            :filters="itemFilters"
             :enable-create="!!currentDict"
             @create="handleAddDictItem"
             @edit="handleEditDictItem"
@@ -130,9 +128,10 @@
               />
             </template>
 
-            <template #search="{ filters, handleSearch, showSearch }">
+            <template #search="{ filters, handleSearch, showSearch, entityMeta }">
               <EntitySearchBar
                 v-if="showSearch"
+                :entity-meta="entityMeta"
                 :filters="filters"
                 :handle-search="handleSearch"
               />
@@ -142,7 +141,7 @@
               <EntityTable
                 :items="items"
                 :loading="loading"
-                :display-columns="displayColumns"
+                :columns="displayColumns"
                 :sort="sort"
                 :handle-sort-change="handleSortChange"
                 :handle-selection-change="handleSelectionChange"
@@ -258,26 +257,11 @@ interface DictItem {
 const dictClient = client.define<Dict>('dicts');
 const dictItemClient = client.define<DictItem>('sys_dict_items');
 
-const { search: dictSearch } = useEntityCrud<Dict>('dicts');
-const { search: itemSearch } = useEntityCrud<DictItem>('sys_dict_items');
+const { search: dictSearch } = useEntityCrud<Dict>(client, 'dicts');
+const { search: itemSearch } = useEntityCrud<DictItem>(client, 'sys_dict_items');
 
 const submitting = ref(false);
 const currentDict = ref<Dict | null>(null);
-
-const dictColumns = computed(() => [
-  { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'name', label: t('system.dict.name') },
-  { prop: 'code', label: t('system.dict.code') },
-  { prop: 'description', label: t('system.dict.description') },
-]);
-
-const itemColumns = computed(() => [
-  { prop: 'id', label: 'ID', width: 80 },
-  { prop: 'label', label: t('system.dict.itemLabel') },
-  { prop: 'value', label: t('system.dict.itemValue') },
-  { prop: 'sort', label: t('system.dict.itemSort'), width: 80 },
-  { prop: 'description', label: t('system.dict.itemDescription') },
-]);
 
 const dictDialogVisible = ref(false);
 const dictDialogTitle = ref(t('system.dict.add'));
@@ -341,7 +325,7 @@ const handleSubmitDict = async () => {
   await dictFormRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...dictForm };
+    const submitData = { ...dictForm } as Partial<Dict>;
     if (dictForm.id) {
       await dictClient.update(dictForm.id, submitData);
       ElMessage.success(t('common.updateSuccess'));
@@ -426,7 +410,7 @@ const handleSubmitItem = async () => {
   await itemFormRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...itemForm };
+    const submitData = { ...itemForm } as Partial<DictItem>;
     if (itemForm.id) {
       await dictItemClient.update(itemForm.id, submitData);
       ElMessage.success(t('common.updateSuccess'));

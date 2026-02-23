@@ -409,13 +409,18 @@ public class GenericEntityController {
         return entity;
     }
 
+    /** 分页列表项使用 PageResponseDTO，与单条详情的 ResponseDTO 独立。 */
     private List<?> toResponseList(EntityMeta meta, List<?> list) {
         if (list == null || list.isEmpty()) {
             return list;
         }
-        Class<?> responseDtoClass = EntityDtoResolver.resolveResponseDto(meta);
-        if (responseDtoClass != null) {
-            return list.stream().map(e -> objectMapper.convertValue(e, responseDtoClass)).collect(Collectors.toList());
+        Class<?> dtoClass = EntityDtoResolver.resolvePageResponseDto(meta);
+        if (dtoClass == null) {
+            dtoClass = EntityDtoResolver.resolveResponseDto(meta);
+        }
+        if (dtoClass != null) {
+            Class<?> finalDtoClass = dtoClass;
+            return list.stream().map(e -> objectMapper.convertValue(e, finalDtoClass)).collect(Collectors.toList());
         }
         return list;
     }

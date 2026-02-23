@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ElButton, ElPopover, ElCheckboxGroup, ElCheckbox, ElTooltip } from 'element-plus';
+import { ElButton, ElPopover, ElCheckboxGroup, ElCheckbox } from 'element-plus';
 import { Setting } from '@element-plus/icons-vue';
 import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
 
@@ -23,23 +23,23 @@ const selectedProps = computed({
 </script>
 
 <template>
-  <ElPopover placement="bottom" :width="200" trigger="click">
-    <template #reference>
-      <ElTooltip content="列设置" placement="top">
-        <ElButton circle :icon="Setting" />
-      </ElTooltip>
-    </template>
-    <div class="column-setting-popover">
-      <div class="popover-title">列设置</div>
-      <ElCheckboxGroup v-model="selectedProps" direction="vertical">
-        <div v-for="col in allColumns" :key="col.prop" class="column-checkbox-item">
-          <ElCheckbox :value="col.prop">
-            {{ col.label || col.prop }}
-          </ElCheckbox>
-        </div>
-      </ElCheckboxGroup>
-    </div>
-  </ElPopover>
+  <span class="entity-column-configurator">
+    <ElPopover placement="bottom" :width="200" trigger="click">
+      <template #reference>
+        <ElButton circle :icon="Setting" title="列设置" />
+      </template>
+      <div class="column-setting-popover">
+        <div class="popover-title">列设置</div>
+        <ElCheckboxGroup v-model="selectedProps" direction="vertical">
+          <div v-for="col in allColumns" :key="col.prop" class="column-checkbox-item">
+            <ElCheckbox :value="col.prop">
+              {{ col.label || col.prop }}
+            </ElCheckbox>
+          </div>
+        </ElCheckboxGroup>
+      </div>
+    </ElPopover>
+  </span>
 </template>
 
 <style scoped>

@@ -29,19 +29,18 @@ export function getEntityConfig(pathSegment: string): EntityConfig | undefined {
   return registry.get(pathSegment);
 }
 
-/** 合并 meta 与 config，生成最终列配置 */
+/** 列配置由后端元数据解析；注册表仅作覆盖（如 label、formatter）。表格列用实体字段：优先 meta.properties（实体 schema），避免用列表响应的 PagedResult 或 search 请求体 */
 export function resolveColumns(
   pathSegment: string,
   meta: EntityMeta | null
 ): ColumnConfig[] {
-  const config = registry.get(pathSegment);
-  if (config?.columns?.length) return config.columns;
+  const props = meta?.properties ?? meta?.schemas?.response;
+  if (!props || typeof props !== 'object') return [];
 
-  if (!meta?.schemas?.response) return [];
-  const props = meta.schemas.response;
+  const config = registry.get(pathSegment);
   return Object.keys(props).map((prop) => ({
     prop,
-    label: prop,
+    label: config?.columns?.find((c) => c.prop === prop)?.label ?? prop,
     ...config?.columns?.find((c) => c.prop === prop),
   }));
 }

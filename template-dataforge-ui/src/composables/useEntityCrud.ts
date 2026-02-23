@@ -1,7 +1,7 @@
 import { ref, reactive, onMounted, onUnmounted, toRefs, computed, watch } from 'vue';
 import { EntityCrudManager, CrudState, EntityClient, MetaService, EntityMeta } from '@lrenyi/dataforge-headless';
 import { useDataforge } from '@lrenyi/dataforge-headless/vue';
-import { getEntityConfig, resolveColumns, ColumnConfig } from '../../../template-dataforge-headless/src/vue/config.js';
+import { resolveColumns, ColumnConfig } from '@lrenyi/dataforge-headless/vue';
 
 export function useEntityCrud<T extends { id: string | number }>(entityName: string) {
   const { client, meta } = useDataforge();
@@ -50,12 +50,10 @@ export function useEntityCrud<T extends { id: string | number }>(entityName: str
     crudState.visibleColumnProps = props;
   };
 
-  // Computed properties for columns
+  // 列配置：仅由后端 meta 解析（manager.init() 写入 crudState.meta），resolveColumns 以 meta 为主、config 仅覆盖
   const allColumns = computed<ColumnConfig[]>(() => {
-    // Use props.columns if provided, otherwise resolve from meta
-    // For now, we'll assume props.columns is handled by the consuming component
-    // and use resolveColumns here.
-    return resolveColumns(entityName, crudState.entityMeta) || [];
+    const meta = crudState.meta ?? crudState.entityMeta;
+    return resolveColumns(entityName, meta) || [];
   });
 
   const displayColumns = computed<ColumnConfig[]>(() => {
@@ -102,9 +100,9 @@ export function useEntityCrud<T extends { id: string | number }>(entityName: str
     init: entityCrudManager.init.bind(entityCrudManager),
     exportExcel: entityCrudManager.exportExcel.bind(entityCrudManager),
     resetFilters: entityCrudManager.resetFilters.bind(entityCrudManager),
-    refreshMeta, // Expose refreshMeta
-    setVisibleColumnProps, // Expose setVisibleColumnProps
-    allColumns: computed(() => crudState.allColumns), // Expose as computed ref
-    displayColumns: computed(() => crudState.displayColumns), // Expose as computed ref
+    refreshMeta,
+    setVisibleColumnProps,
+    allColumns,
+    displayColumns,
   };
 }

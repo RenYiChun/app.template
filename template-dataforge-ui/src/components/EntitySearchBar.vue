@@ -17,7 +17,7 @@
             :placeholder="formatText(selectPlaceholder, { label: f.label })"
             clearable
           >
-            <el-option :label="allText" :value="undefined" />
+            <el-option :label="allText" value="" />
             <el-option :label="yesText" :value="true" />
             <el-option :label="noText" :value="false" />
           </el-select>

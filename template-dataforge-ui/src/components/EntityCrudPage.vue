@@ -248,7 +248,7 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
 
     <!-- 顶部卡片：搜索区域（历史版本无 header） -->
     <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
-      <slot name="search" :filters="filters" :handleSearch="handleSearch" :showSearch="showSearch" />
+      <slot name="search" :filters="filters" :handleSearch="handleSearch" :showSearch="showSearch" :entityMeta="entityMeta" />
     </div>
 
     <!-- 底部卡片：操作和表格区域 -->

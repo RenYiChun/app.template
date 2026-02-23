@@ -2,9 +2,6 @@
   <div class="dept-list-container">
     <EntityCrudPage
       entity="departments"
-      :columns="columns"
-      :search-fields="['name']"
-      :show-create="true"
       :locale="dataforgeUiLocale"
       @create="handleAdd"
       @edit="handleEdit"
@@ -37,9 +34,10 @@
           />
         </template>
 
-        <template #search="{ filters, handleSearch, showSearch }">
+        <template #search="{ filters, handleSearch, showSearch, entityMeta }">
           <EntitySearchBar
             v-if="showSearch"
+            :entity-meta="entityMeta"
             :filters="filters"
             :handle-search="handleSearch"
           />
@@ -49,7 +47,7 @@
           <EntityTable
             :items="items"
             :loading="loading"
-            :display-columns="displayColumns"
+            :columns="displayColumns"
             :sort="sort"
             :handle-sort-change="handleSortChange"
             :handle-selection-change="handleSelectionChange"
@@ -162,20 +160,6 @@ const dialogVisible = ref(false);
 const dialogTitle = ref(t('system.dept.addTop'));
 const formRef = ref();
 const deptTreeData = ref<Department[]>([]);
-
-const columns = computed(() => [
-  { prop: 'name', label: t('system.dept.name'), width: 200 },
-  { prop: 'leader', label: t('system.dept.leader') },
-  { prop: 'phone', label: t('system.dept.phone') },
-  { prop: 'email', label: t('system.dept.email') },
-  { prop: 'sort', label: t('system.dept.sort'), width: 80 },
-  { 
-    prop: 'status', 
-    label: t('system.dept.status'), 
-    width: 80,
-    formatter: (row: any) => row.status === '1' ? t('common.enable') : t('common.disable')
-  },
-]);
 
 const form = reactive({
   id: null as number | null,

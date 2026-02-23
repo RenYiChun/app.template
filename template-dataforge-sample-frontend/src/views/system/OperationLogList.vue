@@ -2,9 +2,6 @@
   <div class="operation-log-auto-container">
     <EntityCrudPage
       entity="operation_log"
-      :enable-create="false"
-      :row-actions="['view']"
-      :columns="columns"
       :locale="dataforgeUiLocale"
       @view="handleView"
     >
@@ -30,9 +27,10 @@
           />
         </template>
 
-        <template #search="{ filters, handleSearch, showSearch }">
+        <template #search="{ filters, handleSearch, showSearch, entityMeta }">
           <EntitySearchBar
             v-if="showSearch"
+            :entity-meta="entityMeta"
             :filters="filters"
             :handle-search="handleSearch"
           />
@@ -42,7 +40,7 @@
           <EntityTable
             :items="items"
             :loading="loading"
-            :display-columns="displayColumns"
+            :columns="displayColumns"
             :sort="sort"
             :handle-sort-change="handleSortChange"
             :handle-selection-change="handleSelectionChange"
@@ -128,8 +126,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { EntityCrudPage } from '@lrenyi/dataforge-ui';
-import type { ColumnConfig } from '@lrenyi/dataforge-ui';
+import { ElMessage } from 'element-plus';
+import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar } from '@lrenyi/dataforge-ui';
 import dayjs from 'dayjs';
 import { useI18n } from 'vue-i18n';
 import { useDataforgeUiLocale } from '@/i18n';
@@ -169,19 +167,6 @@ const handleExport = async () => {
   }
 };
 
-// 自定义列配置：控制宽度、标题、顺序
-const columns = computed<ColumnConfig[]>(() => [
-  { prop: 'id', width: 80, label: t('system.log.id') },
-  { prop: 'userName', width: 120, label: t('system.log.username') },
-  { prop: 'description', width: 200, label: t('system.log.description') }, // TODO: tooltip supported? Need to check EntityTable
-  { prop: 'serviceName', width: 120, label: t('system.log.serviceName') },
-  { prop: 'requestMethod', width: 100, label: t('system.log.requestMethod') },
-  { prop: 'requestIp', width: 140, label: t('system.log.requestIp') },
-  { prop: 'success', width: 80, label: t('system.log.status') },
-  { prop: 'executionTimeMs', width: 120, label: t('system.log.executionTime') },
-  { prop: 'operationTime', width: 180, label: t('system.log.operationTime') },
-]);
-
 const detailDialogVisible = ref(false);
 const currentLog = ref<OperationLog | null>(null);
 
@@ -197,7 +182,5 @@ const formatDate = (val: string | number | Date | undefined) => {
 </script>
 
 <style scoped>
-.operation-log-list-container {
-  /* padding: 20px; HomeView has global padding */
-}
+/* 布局由 HomeView 全局 padding 控制 */
 </style>

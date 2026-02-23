@@ -262,30 +262,29 @@ public class OpenApiController {
             if (simpleName == null) {
                 continue;
             }
-            try {
-                Class<?> createDto = EntityDtoResolver.resolveCreateDto(entity);
-                Class<?> updateDto = EntityDtoResolver.resolveUpdateDto(entity);
-                Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
-                if (createDto != null) {
-                    schemas.put(createDto.getSimpleName(), buildDtoSchema(createDto));
-                } else {
-                    schemas.put(simpleName + "CreateDTO", buildSchemaFromEntityFields(entity, false));
-                }
-                if (updateDto != null) {
-                    schemas.put(updateDto.getSimpleName(), buildDtoSchema(updateDto));
-                } else {
-                    schemas.put(simpleName + "UpdateDTO", buildSchemaFromEntityFields(entity, true));
-                }
-                if (responseDto != null) {
-                    schemas.put(responseDto.getSimpleName(), buildDtoSchema(responseDto));
-                } else {
-                    schemas.put(simpleName + "ResponseDTO", buildSchemaFromEntityFields(entity, true));
-                }
-            } catch (Exception e) {
-                // 回退：仅按实体字段生成 schema
-                schemas.put(simpleName + "CreateDTO", buildSchemaFromEntityFields(entity, false));
-                schemas.put(simpleName + "UpdateDTO", buildSchemaFromEntityFields(entity, true));
-                schemas.put(simpleName + "ResponseDTO", buildSchemaFromEntityFields(entity, true));
+            Class<?> createDto = EntityDtoResolver.resolveCreateDto(entity);
+            Class<?> updateDto = EntityDtoResolver.resolveUpdateDto(entity);
+            Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
+            Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
+            if (createDto != null) {
+                schemas.put(createDto.getSimpleName(), buildDtoSchema(createDto));
+            } else {
+                schemas.put(simpleName + "CreateDTO", emptySchema());
+            }
+            if (updateDto != null) {
+                schemas.put(updateDto.getSimpleName(), buildDtoSchema(updateDto));
+            } else {
+                schemas.put(simpleName + "UpdateDTO", emptySchema());
+            }
+            if (responseDto != null) {
+                schemas.put(responseDto.getSimpleName(), buildDtoSchema(responseDto));
+            } else {
+                schemas.put(simpleName + "ResponseDTO", emptySchema());
+            }
+            if (pageResponseDto != null) {
+                schemas.put(pageResponseDto.getSimpleName(), buildDtoSchema(pageResponseDto));
+            } else {
+                schemas.put(simpleName + "PageResponseDTO", emptySchema());
             }
             schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));
         }
@@ -294,9 +293,12 @@ public class OpenApiController {
 
     private Map<String, Object> buildPagedResultSchema(EntityMeta entity) {
         String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
-        String itemRef = simpleName != null ? (EntityDtoResolver.resolveResponseDto(entity) != null
-                ? EntityDtoResolver.resolveResponseDto(entity).getSimpleName()
-                : simpleName + "ResponseDTO") : "object";
+        // 分页列表项使用 PageResponseDTO（PAGE_RESPONSE），与单条详情的 ResponseDTO（RESPONSE）独立
+        Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
+        Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
+        String itemRef = simpleName != null ? (pageResponseDto != null
+                ? pageResponseDto.getSimpleName()
+                : (responseDto != null ? responseDto.getSimpleName() : simpleName + "PageResponseDTO")) : "object";
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         Map<String, Object> properties = new LinkedHashMap<>();
@@ -311,34 +313,12 @@ public class OpenApiController {
         return schema;
     }
 
-    /** 当 DTO 类不可用时，根据实体字段元数据生成 schema，保证文档始终有请求/响应参数说明。 */
-    private Map<String, Object> buildSchemaFromEntityFields(EntityMeta entity, boolean includeId) {
+    /** DTO 类不存在时占位用，不按实体字段生成 schema，避免泄露或列过多；约定由编译期处理器生成 DTO。 */
+    private Map<String, Object> emptySchema() {
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
-        Map<String, Object> properties = new LinkedHashMap<>();
-        for (FieldMeta fm : entity.getFields()) {
-            if (!includeId && fm.isPrimaryKey()) {
-                continue;
-            }
-            properties.put(fm.getName(), fieldMetaTypeToSchema(fm.getType()));
-        }
-        schema.put("properties", properties);
+        schema.put("properties", new LinkedHashMap<String, Object>());
         return schema;
-    }
-
-    private Map<String, Object> fieldMetaTypeToSchema(String simpleTypeName) {
-        if (simpleTypeName == null) {
-            return Map.of("type", "string");
-        }
-        return switch (simpleTypeName) {
-            case "String" -> Map.of("type", "string");
-            case "Integer", "int" -> Map.of("type", "integer", "format", "int32");
-            case "Long", "long" -> Map.of("type", "integer", "format", "int64");
-            case "Boolean", "boolean" -> Map.of("type", "boolean");
-            case "Double", "double" -> Map.of("type", "number", "format", "double");
-            case "Float", "float" -> Map.of("type", "number", "format", "float");
-            default -> Map.of("type", "object");
-        };
     }
 
     private Map<String, Object> buildDtoSchema(Class<?> dtoClass) {
