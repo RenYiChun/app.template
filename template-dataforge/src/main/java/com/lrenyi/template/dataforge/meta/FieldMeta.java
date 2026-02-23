@@ -23,8 +23,6 @@ public class FieldMeta {
     private boolean required;
     private boolean nullable = true;
     private boolean queryable = false;
-    /** 搜索栏显示标签（由 @DataforgeField 注解设置） */
-    private String searchLabel;
     /** 搜索栏排序权重（由 @DataforgeField 注解设置） */
     private int searchOrder;
     /** 是否从导出中排除（由 @DataforgeExport(enabled=false) 设置） */

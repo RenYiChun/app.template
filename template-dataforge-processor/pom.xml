@@ -40,7 +40,7 @@
                             <outputDirectory>${project.build.outputDirectory}</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/processor-spi</directory>
+                                    <directory>${project.parent.basedir}/template-dataforge-processor-spi</directory>
                                     <filtering>false</filtering>
                                 </resource>
                             </resources>

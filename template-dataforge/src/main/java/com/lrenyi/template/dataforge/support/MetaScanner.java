@@ -372,12 +372,10 @@ public class MetaScanner {
                     fm.setSearchRequired(dataforgeField.searchRequired());
                     fm.setSearchPlaceholder(dataforgeField.searchPlaceholder());
                     fm.setSearchRangeFields(dataforgeField.searchRangeFields());
-                    // 设置搜索标签和顺序（使用DataforgeField的label和order）
                     if (dataforgeField.searchable()) {
-                        fm.setSearchLabel(StringUtils.hasText(dataforgeField.label()) ? dataforgeField.label() : f.getName());
                         fm.setSearchOrder(dataforgeField.order());
                     }
-                    
+
                     // 数据转换与显示
                     fm.setFormat(dataforgeField.format());
                     fm.setMaskPattern(dataforgeField.maskPattern());
@@ -394,12 +392,8 @@ public class MetaScanner {
                     fm.setValueField(dataforgeField.valueField());
                     fm.setLazyLoad(dataforgeField.lazyLoad());
                     
-                    // 如果 @DataforgeField 设置了 searchable=true，更新查询相关属性
                     if (dataforgeField.searchable()) {
                         fm.setQueryable(true);
-                        if (!StringUtils.hasText(fm.getSearchLabel())) {
-                            fm.setSearchLabel(fm.getLabel());
-                        }
                         if (fm.getSearchOrder() == 0) {
                             fm.setSearchOrder(fm.getOrder());
                         }

@@ -38,9 +38,13 @@ export function resolveColumns(
   if (!props || typeof props !== 'object') return [];
 
   const config = registry.get(pathSegment);
-  return Object.keys(props).map((prop) => ({
-    prop,
-    label: config?.columns?.find((c) => c.prop === prop)?.label ?? prop,
-    ...config?.columns?.find((c) => c.prop === prop),
-  }));
+  return Object.keys(props).map((prop) => {
+    const configCol = config?.columns?.find((c) => c.prop === prop);
+    const metaLabel = (props as Record<string, { description?: string }>)[prop]?.description;
+    return {
+      prop,
+      label: configCol?.label ?? metaLabel ?? prop,
+      ...configCol,
+    };
+  });
 }

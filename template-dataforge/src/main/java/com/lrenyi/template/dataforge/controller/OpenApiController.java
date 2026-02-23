@@ -267,22 +267,22 @@ public class OpenApiController {
             Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
             Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
             if (createDto != null) {
-                schemas.put(createDto.getSimpleName(), buildDtoSchema(createDto));
+                schemas.put(createDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(createDto), entity));
             } else {
                 schemas.put(simpleName + "CreateDTO", emptySchema());
             }
             if (updateDto != null) {
-                schemas.put(updateDto.getSimpleName(), buildDtoSchema(updateDto));
+                schemas.put(updateDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(updateDto), entity));
             } else {
                 schemas.put(simpleName + "UpdateDTO", emptySchema());
             }
             if (responseDto != null) {
-                schemas.put(responseDto.getSimpleName(), buildDtoSchema(responseDto));
+                schemas.put(responseDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(responseDto), entity));
             } else {
                 schemas.put(simpleName + "ResponseDTO", emptySchema());
             }
             if (pageResponseDto != null) {
-                schemas.put(pageResponseDto.getSimpleName(), buildDtoSchema(pageResponseDto));
+                schemas.put(pageResponseDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity));
             } else {
                 org.slf4j.LoggerFactory.getLogger(OpenApiController.class).warn(
                     "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. " +
@@ -334,6 +334,34 @@ public class OpenApiController {
             properties.put(field.getName(), buildFieldSchema(field.getType()));
         }
         schema.put("properties", properties);
+        return schema;
+    }
+
+    /** 用实体的 FieldMeta（@DataforgeField.label）为 schema 各属性补充 description，供前端表格列标题等展示 */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> enrichDtoSchemaWithFieldLabels(Map<String, Object> schema, EntityMeta entity) {
+        if (entity == null || entity.getFields() == null) {
+            return schema;
+        }
+        Map<String, String> labelByField = new HashMap<>();
+        for (FieldMeta fm : entity.getFields()) {
+            if (fm.getName() != null && !fm.getName().isBlank()) {
+                String label = fm.getLabel() != null && !fm.getLabel().isBlank() ? fm.getLabel() : null;
+                if (label != null) {
+                    labelByField.put(fm.getName(), label);
+                }
+            }
+        }
+        Object propsObj = schema.get("properties");
+        if (propsObj instanceof Map) {
+            Map<String, Object> properties = (Map<String, Object>) propsObj;
+            for (Map.Entry<String, Object> e : properties.entrySet()) {
+                String label = labelByField.get(e.getKey());
+                if (label != null && e.getValue() instanceof Map) {
+                    ((Map<String, Object>) e.getValue()).put("description", label);
+                }
+            }
+        }
         return schema;
     }
 
@@ -468,10 +496,10 @@ public class OpenApiController {
             Map<String, Object> fieldInfo = new LinkedHashMap<>();
             fieldInfo.put("type", type);
             fieldInfo.put("operators", operators);
-            if (fm.getSearchLabel() != null) {
-                fieldInfo.put("label", fm.getSearchLabel());
+            if (fm.getLabel() != null && !fm.getLabel().isBlank()) {
+                fieldInfo.put("label", fm.getLabel());
             }
-            fieldInfo.put("order", fm.getSearchOrder());
+            fieldInfo.put("order", fm.getOrder());
             result.put(fm.getName(), fieldInfo);
         }
         // 按 order 排序
