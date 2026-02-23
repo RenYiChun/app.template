@@ -3,7 +3,6 @@ package com.lrenyi.template.dataforge.processor;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -20,15 +19,14 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
+import javax.lang.model.util.Types;
+import javax.lang.model.element.AnnotationValue;
 import javax.tools.JavaFileObject;
-import com.lrenyi.template.dataforge.annotation.DtoExcludeFrom;
-import com.lrenyi.template.dataforge.annotation.DtoType;
-import com.lrenyi.template.dataforge.annotation.DataforgeDto;
 
 /**
- * 编译期根据 @DataforgeEntity 生成 CRUD 用 DTO：CreateDTO（请求-创建）、UpdateDTO（请求-更新）、ResponseDTO（响应 data）。
- * 生成到实体所在包的 dto 子包下。
- * 注意：DataforgeEntity 注解定义在 template-dataforge 模块，运行时也需要。
+ * 编译期根据 @DataforgeEntity 生成 CRUD 用 DTO：CreateDTO、UpdateDTO、ResponseDTO、PageResponseDTO。
+ * 生成到实体所在包的 dto 子包下。不依赖 template-dataforge 类，仅通过注解镜像按名读取，便于 IDE/Maven 加载。
  */
 @SupportedAnnotationTypes("com.lrenyi.template.dataforge.annotation.DataforgeEntity")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
@@ -74,18 +72,16 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         String simpleName = entityType.getSimpleName().toString();
         List<FieldSpec> allFields = collectFields(entityType);
         List<FieldSpec> createFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, DtoType.CREATE))
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, "CREATE"))
                                                 .collect(Collectors.toList());
         List<FieldSpec> updateFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, DtoType.UPDATE))
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE"))
                                                 .collect(Collectors.toList());
-        // ResponseDTO 包含 RESPONSE 与 PAGE_RESPONSE 字段，使列表项与详情响应均能展示 @DataforgeDto(include = PAGE_RESPONSE) 的字段
         List<FieldSpec> responseFields = allFields.stream()
-                                                .filter(f -> shouldInclude(f, DtoType.RESPONSE))
+                                                .filter(f -> shouldInclude(f, "RESPONSE"))
                                                 .collect(Collectors.toList());
-        // 列表列只展示显式标注 PAGE_RESPONSE 的字段；仅额外保留 id 作为行标识
         List<FieldSpec> pageResponseFields = allFields.stream()
-                                                .filter(f -> "id".equals(f.name) || f.includeTypes().contains(DtoType.PAGE_RESPONSE))
+                                                .filter(f -> "id".equals(f.name) || f.includeTypes().contains("PAGE_RESPONSE"))
                                                 .collect(Collectors.toList());
         
         String dtoPackage = pkg + ".dto";
@@ -100,61 +96,54 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
     }
     
-    private boolean shouldInclude(FieldSpec f, DtoType dtoType) {
+    private boolean shouldInclude(FieldSpec f, String dtoTypeName) {
         if (!f.includeTypes().isEmpty()) {
-            return f.includeTypes().contains(dtoType);
+            return f.includeTypes().contains(dtoTypeName);
         }
-        return !f.excludeFrom().contains(dtoType);
+        return !f.excludeFrom().contains(dtoTypeName);
     }
     
     private List<FieldSpec> collectFields(TypeElement entityType) {
         List<FieldSpec> list = new ArrayList<>();
-        collectFieldsRecursive(entityType, list);
+        TypeMirror entityTypeMirror = entityType.asType();
+        if (entityTypeMirror.getKind() == TypeKind.DECLARED) {
+            collectFieldsRecursive(entityType, (DeclaredType) entityTypeMirror, list);
+        } else {
+            collectFieldsRecursive(entityType, null, list);
+        }
         return list;
     }
 
-    private void collectFieldsRecursive(TypeElement type, List<FieldSpec> list) {
+    /**
+     * 在 typeInContext 上下文中收集字段，使基类泛型（如 BaseEntity 的 ID）解析为实际类型（如 Long）。
+     */
+    private void collectFieldsRecursive(TypeElement type, DeclaredType typeInContext, List<FieldSpec> list) {
         TypeMirror superType = type.getSuperclass();
         if (superType.getKind() == TypeKind.DECLARED) {
-            Element superEl = ((DeclaredType) superType).asElement();
+            DeclaredType superDeclared = (DeclaredType) superType;
+            Element superEl = superDeclared.asElement();
             if (superEl instanceof TypeElement superTe) {
                 String superName = superTe.getQualifiedName().toString();
                 if (!"java.lang.Object".equals(superName)) {
-                    collectFieldsRecursive(superTe, list);
+                    collectFieldsRecursive(superTe, superDeclared, list);
                 }
             }
         }
+        Types typeUtils = processingEnv.getTypeUtils();
         for (Element member : type.getEnclosedElements()) {
             if (member instanceof VariableElement field && member.getKind().isField()) {
                 if (field.getModifiers().contains(Modifier.STATIC) || field.getModifiers().contains(Modifier.FINAL)) {
                     continue;
                 }
-                String typeName = toSourceTypeName(field.asType());
+                TypeMirror fieldType = typeInContext != null
+                    ? typeUtils.asMemberOf(typeInContext, field)
+                    : field.asType();
+                String typeName = toSourceTypeName(fieldType);
                 String name = field.getSimpleName().toString();
-                
-                // 处理旧注解 @DtoExcludeFrom
-                Set<DtoType> legacyExcludeFrom = new HashSet<>();
-                DtoExcludeFrom dtoExcludeFrom = field.getAnnotation(DtoExcludeFrom.class);
-                if (dtoExcludeFrom != null && dtoExcludeFrom.value() != null && dtoExcludeFrom.value().length > 0) {
-                    Collections.addAll(legacyExcludeFrom, dtoExcludeFrom.value());
-                }
-                
-                // 处理新注解 @DataforgeDto
-                Set<DtoType> includeTypes = new HashSet<>();
-                Set<DtoType> excludeTypes = new HashSet<>();
-                DataforgeDto dataforgeDto = field.getAnnotation(DataforgeDto.class);
-                if (dataforgeDto != null) {
-                    if (dataforgeDto.include() != null && dataforgeDto.include().length > 0) {
-                        Collections.addAll(includeTypes, dataforgeDto.include());
-                    }
-                    if (dataforgeDto.exclude() != null && dataforgeDto.exclude().length > 0) {
-                        Collections.addAll(excludeTypes, dataforgeDto.exclude());
-                    }
-                }
-                
-                // 合并排除集合：新注解的excludeTypes优先，旧注解作为后备
-                Set<DtoType> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
-                
+                Set<String> includeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "include");
+                Set<String> excludeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "exclude");
+                Set<String> legacyExcludeFrom = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom", "value");
+                Set<String> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
                 boolean notNull = hasColumnNullableFalse(field);
                 int maxSize = getColumnLength(field);
                 list.add(new FieldSpec(typeName, name, includeTypes, finalExcludeTypes, notNull, maxSize));
@@ -201,6 +190,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         if (mirror.getKind() == TypeKind.BOOLEAN) {
             return "Boolean";
         }
+        if (mirror.getKind() == TypeKind.TYPEVAR) {
+            TypeMirror upper = ((TypeVariable) mirror).getUpperBound();
+            if (upper.getKind() == TypeKind.DECLARED
+                && "java.io.Serializable".equals(upper.toString())) {
+                return "Long";
+            }
+            return toSourceTypeName(upper);
+        }
         if (mirror.getKind() == TypeKind.DECLARED) {
             String q = mirror.toString();
             if (q.startsWith("java.lang.")) {
@@ -244,18 +241,46 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
     
-    private record FieldSpec(String typeName, String name, Set<DtoType> includeTypes, Set<DtoType> excludeTypes, boolean notNull, int maxSize) {
-        private FieldSpec(String typeName, String name, Set<DtoType> includeTypes, Set<DtoType> excludeTypes, boolean notNull, int maxSize) {
+    /** 从字段的注解镜像中读取某注解的某属性（枚举数组），返回枚举常量名集合，如 "CREATE","PAGE_RESPONSE"。 */
+    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field, String annotationFqn, String elementName) {
+        Set<String> out = new HashSet<>();
+        for (var mirror : field.getAnnotationMirrors()) {
+            if (!annotationFqn.equals(mirror.getAnnotationType().toString())) {
+                continue;
+            }
+            for (var entry : mirror.getElementValues().entrySet()) {
+                if (!elementName.equals(entry.getKey().getSimpleName().toString())) {
+                    continue;
+                }
+                Object val = entry.getValue().getValue();
+                if (val instanceof List<?> list) {
+                    for (Object item : list) {
+                        if (item instanceof AnnotationValue av) {
+                            Object ev = av.getValue();
+                            if (ev instanceof Element el) {
+                                out.add(el.getSimpleName().toString());
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            break;
+        }
+        return out;
+    }
+
+    private record FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes, boolean notNull, int maxSize) {
+        private FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes, boolean notNull, int maxSize) {
             this.typeName = typeName;
             this.name = name;
             this.includeTypes = includeTypes != null ? includeTypes : Set.of();
             this.excludeTypes = excludeTypes != null ? excludeTypes : Set.of();
             this.notNull = notNull;
-            this.maxSize = maxSize > 0 ? maxSize : 0;
+            this.maxSize = Math.max(maxSize, 0);
         }
-        
-        /** 向后兼容：获取排除的DTO类型集合（合并旧注解的excludeFrom） */
-        public Set<DtoType> excludeFrom() {
+
+        Set<String> excludeFrom() {
             return excludeTypes;
         }
     }

@@ -42,6 +42,10 @@
             <groupId>com.lrenyi</groupId>
             <artifactId>template-dataforge-processor</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-dataforge</artifactId>
+        </dependency>
         <!-- Validation API依赖（实体类可能需要@NotNull、@Size等注解） -->
         <dependency>
             <groupId>jakarta.validation</groupId>
@@ -61,8 +65,32 @@
                             <artifactId>lombok</artifactId>
                             <version>1.18.38</version>
                         </path>
+                        <path>
+                            <groupId>com.lrenyi</groupId>
+                            <artifactId>template-dataforge-processor</artifactId>
+                            <version>${project.version}</version>
+                        </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/annotations</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

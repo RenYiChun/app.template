@@ -16,27 +16,37 @@
         <checker.root.dir>${project.parent.basedir}</checker.root.dir>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>jakarta.validation</groupId>
-            <artifactId>jakarta.validation-api</artifactId>
-        </dependency>
-        <!-- Dataforge注解依赖（provided scope） -->
-        <dependency>
-            <groupId>com.lrenyi</groupId>
-            <artifactId>template-dataforge</artifactId>
-        </dependency>
-    </dependencies>
-
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <!-- processor 本身不需要 annotation processing -->
                     <proc>none</proc>
                 </configuration>
+            </plugin>
+            <!-- SPI 仅打包时加入 JAR，不放入 src/main/resources，避免 IDE 编译本模块时 ServiceLoader 报 Provider not found -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-spi-to-jar</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/processor-spi</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
