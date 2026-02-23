@@ -27,12 +27,13 @@
           />
         </template>
 
-        <template #search="{ filters, handleSearch, showSearch, entityMeta }">
+        <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
           <EntitySearchBar
             v-if="showSearch"
             :entity-meta="entityMeta"
-            :filters="filters"
-            :handle-search="handleSearch"
+            :model-value="filters"
+            @update:modelValue="setFilters"
+            @search="handleSearch"
           />
         </template>
 

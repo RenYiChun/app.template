@@ -87,19 +87,17 @@ export class EntityCrudManager<T extends { id: string | number }> {
     }
   }
 
+  /** 仅更新状态，不自动 search；由 UI 在合适时机调用 search()，避免一次操作多次请求 */
   setFilters(filters: FilterCondition[]): void {
     this.setState({ filters, page: 0 });
-    this.search();
   }
 
   setPage(page: number): void {
     this.setState({ page });
-    this.search();
   }
 
   setSize(size: number): void {
     this.setState({ size, page: 0 });
-    this.search();
   }
 
   setSelectedIds(selectedIds: (string | number)[]): void {

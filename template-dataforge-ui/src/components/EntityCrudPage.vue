@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
 import { useEntityCrud } from '../composables/useEntityCrud';
 import type { FilterCondition, ColumnConfig, SortOrder } from '@lrenyi/dataforge-headless/vue';
 
@@ -11,9 +10,6 @@ interface CrudEntity extends Record<string, unknown> {
 const props = defineProps<{
   entity: string;
 }>();
-
-const route = useRoute();
-const router = useRouter();
 
 const {
   items,
@@ -48,53 +44,10 @@ const toggleSearch = () => {
   showSearch.value = !showSearch.value;
 };
 
-// Initialize from route query
-const initFromRoute = () => {
-  const query = route.query;
-  const initialFilters: FilterCondition[] = query.filters
-    ? JSON.parse(query.filters as string)
-    : [];
-  const initialSort: SortOrder[] = query.sort
-    ? JSON.parse(query.sort as string)
-    : [];
-  const initialPage = query.page ? parseInt(query.page as string) : 1;
-  const initialSize = query.size ? parseInt(query.size as string) : 10;
-
-  setFilters(initialFilters);
-  sort.value = initialSort;
-  setPage(initialPage);
-  setSize(initialSize);
-  init();
-};
-
-// Watch for route changes to re-initialize
-watch(
-  () => route.query,
-  () => {
-    initFromRoute();
-  },
-  { immediate: true }
-);
-
-// Update route query when filters, sort, page, or size change
-watch(
-  [filters, sort, page, size],
-  () => {
-    router.push({
-      query: {
-        ...route.query,
-        filters: JSON.stringify(filters.value),
-        sort: JSON.stringify(sort.value),
-        page: page.value.toString(),
-        size: size.value.toString(),
-      },
-    });
-  },
-  { deep: true }
-);
-
+// 搜索为 POST 请求体，不再把 filters/sort/page/size 同步到 URL，避免冗余与 URL 过长
+// 分页为 0 基（page 0 = 第 1 页），点击查询重置到第 1 页
 const handleSearch = () => {
-  setPage(1);
+  setPage(0);
   search();
 };
 
@@ -117,7 +70,7 @@ const handlePageChange = (currentPage: number) => {
 
 const handleSizeChange = (currentPageSize: number) => {
   setSize(currentPageSize);
-  setPage(1);
+  setPage(0);
   search();
 };
 
@@ -248,7 +201,7 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
 
     <!-- 顶部卡片：搜索区域（历史版本无 header） -->
     <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
-      <slot name="search" :filters="filters" :handleSearch="handleSearch" :showSearch="showSearch" :entityMeta="entityMeta" />
+      <slot name="search" :filters="filters" :setFilters="setFilters" :handleSearch="handleSearch" :showSearch="showSearch" :entityMeta="entityMeta" />
     </div>
 
     <!-- 底部卡片：操作和表格区域 -->
