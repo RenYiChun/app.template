@@ -25,7 +25,7 @@
                     <proc>none</proc>
                 </configuration>
             </plugin>
-            <!-- SPI 仅打包时加入 JAR，不放入 src/main/resources，避免 IDE 编译本模块时 ServiceLoader 报 Provider not found -->
+            <!-- SPI 仅在打包时加入 JAR：prepare-package 拷到 target/classes，jar 打进去后立即从 target/classes 删掉，避免 IDE 下次编译本模块时 classpath 上出现 SPI 导致 ServiceLoader 报 Provider not found -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -44,6 +44,25 @@
                                     <filtering>false</filtering>
                                 </resource>
                             </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>remove-spi-from-classes</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete file="${project.build.outputDirectory}/META-INF/services/javax.annotation.processing.Processor" failonerror="false"/>
+                            </target>
                         </configuration>
                     </execution>
                 </executions>
