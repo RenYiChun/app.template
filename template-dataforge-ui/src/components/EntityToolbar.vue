@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElButton, ElSpace, ElTooltip, ElIcon } from 'element-plus';
 import { computed } from 'vue';
-import { Plus, Delete, Download, Search, Refresh } from '@element-plus/icons-vue';
+import { Plus, Delete, Edit, Download, Search, Refresh } from '@element-plus/icons-vue';
 import EntityColumnConfigurator from './EntityColumnConfigurator.vue';
 import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
 
@@ -12,6 +12,8 @@ const props = withDefaults(defineProps<{
   createText?: string;
   canBatchDelete?: boolean;
   batchDeleteText?: string;
+  canBatchUpdate?: boolean;
+  batchUpdateText?: string;
   canExport?: boolean;
   exportText?: string;
   refreshText?: string;
@@ -28,6 +30,8 @@ const props = withDefaults(defineProps<{
   createText: '新增',
   canBatchDelete: false,
   batchDeleteText: '批量删除',
+  canBatchUpdate: false,
+  batchUpdateText: '批量更新',
   canExport: true,
   exportText: '导出',
   refreshText: '刷新',
@@ -42,6 +46,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'create'): void;
   (e: 'batch-delete'): void;
+  (e: 'batch-update'): void;
   (e: 'export'): void;
   (e: 'toggle-search'): void;
   (e: 'refresh'): void;
@@ -68,6 +73,14 @@ const hasSelected = computed(() => props.selectedIds.length > 0);
         @click="emit('batch-delete')"
       >
         <ElIcon class="el-icon--left"><Delete /></ElIcon>{{ batchDeleteText }}
+      </ElButton>
+      <ElButton 
+        v-if="canBatchUpdate && hasSelected" 
+        type="primary" 
+        plain 
+        @click="emit('batch-update')"
+      >
+        <ElIcon class="el-icon--left"><Edit /></ElIcon>{{ batchUpdateText }}
       </ElButton>
       <slot name="left-actions"></slot>
     </div>

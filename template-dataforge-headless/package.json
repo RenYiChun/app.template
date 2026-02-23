@@ -1,6 +1,6 @@
 {
   "name": "@lrenyi/dataforge-headless",
-  "version": "2.4.2.1",
+  "version": "2.5.0",
   "description": "template-dataforge 前端配套：通用 EntityClient、元数据驱动、Vue CRUD 组件",
   "type": "module",
   "main": "./dist/core/index.js",

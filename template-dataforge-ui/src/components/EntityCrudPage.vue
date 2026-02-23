@@ -11,6 +11,8 @@ const props = defineProps<{
   entity: string;
 }>();
 
+const emit = defineEmits<{ (e: 'batch-update'): void }>();
+
 const {
   items,
   pagedResult,
@@ -26,7 +28,6 @@ const {
   setSelectedIds,
   search,
   init,
-  delete: deleteOne,
   delete: deleteEntities,
   entityMeta,
   metaLoading,
@@ -37,6 +38,9 @@ const {
   setVisibleColumnProps,
   exportExcel,
   error,
+  canBatchDelete,
+  canBatchUpdate,
+  selectable,
 } = useEntityCrud<CrudEntity>(props.entity);
 
 const showSearch = ref(true);
@@ -81,6 +85,11 @@ const handleSortChange = (newSort: SortOrder[]) => {
 
 const handleSelectionChange = (_: unknown, ids: (string | number)[]) => {
   setSelectedIds(ids);
+};
+
+/** 批量更新：由父组件监听 @batch-update 并打开弹窗或调用 API */
+const handleBatchUpdate = () => {
+  emit('batch-update');
 };
 
 const total = computed(() => pagedResult.value?.totalElements ?? 0);
@@ -211,7 +220,10 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
         <slot
           name="toolbar"
           :selectedIds="selectedIds"
+          :canBatchDelete="canBatchDelete"
+          :canBatchUpdate="canBatchUpdate"
           :handleDelete="handleDelete"
+          :handleBatchUpdate="handleBatchUpdate"
           :handleExport="handleExport"
           :handleSearch="handleSearch"
           :toggleSearch="toggleSearch"
@@ -231,6 +243,7 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
           :loading="loading"
           :displayColumns="displayColumns"
           :sort="sort"
+          :selectable="selectable"
           :handleSortChange="handleSortChange"
           :handleSelectionChange="handleSelectionChange"
         />

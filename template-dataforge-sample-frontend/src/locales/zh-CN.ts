@@ -4,6 +4,7 @@ export default {
     edit: '编辑',
     delete: '删除',
     batchDelete: '删除',
+    batchUpdate: '更新',
     search: '搜索',
     reset: '重置',
     export: '导出',
