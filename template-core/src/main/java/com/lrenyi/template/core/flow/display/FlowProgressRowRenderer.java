@@ -11,6 +11,7 @@ import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_LO
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_PROGRESS;
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_STAT;
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_SUCCESS;
+import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_PENDING;
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_SUCC;
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_TPS;
 import static com.lrenyi.template.core.flow.display.FlowProgressTableLayout.W_WAIT_Q;
@@ -58,6 +59,8 @@ public final class FlowProgressRowRenderer {
                 .append(fix(String.format("%.1f%%", s.getCompletionRate() * 100), W_PROGRESS))
                 .append(" | ")
                 .append(fix(String.format("%.1f%%", s.getSuccessRate() * 100), W_SUCCESS))
+                .append(" | ")
+                .append(fix(String.valueOf(s.getPendingConsumerCount()), W_PENDING))
                 .append(" |");
     }
 }

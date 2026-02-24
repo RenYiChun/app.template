@@ -25,8 +25,10 @@
                 :selected-ids="scope.selectedIds"
                 :can-create="true"
                 :create-text="$t('common.create')"
-                :can-batch-delete="true"
+                :can-batch-delete="scope.canBatchDelete"
                 :batch-delete-text="$t('common.batchDelete')"
+                :can-batch-update="scope.canBatchUpdate"
+                :batch-update-text="$t('common.batchUpdate')"
                 :can-export="true"
                 :export-text="$t('common.export')"
                 :show-search="scope.showSearch"
@@ -36,6 +38,7 @@
                 :set-visible-column-props="scope.setVisibleColumnProps"
                 @create="handleAddDict"
                 @batch-delete="scope.handleDelete"
+                @batch-update="scope.handleBatchUpdate"
                 @export="scope.handleExport"
                 @toggle-search="scope.toggleSearch"
                 @refresh="scope.handleSearch"
@@ -52,14 +55,15 @@
               />
             </template>
 
-            <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+            <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
               <EntityTable
                 :items="items"
                 :loading="loading"
                 :columns="displayColumns"
                 :sort="sort"
+                :selectable="selectable"
                 :handle-sort-change="handleSortChange"
-                :handle-selection-change="handleSelectionChange"
+                @selection-change="handleSelectionChange"
               >
                 <template #row-actions="{ row }">
                   <el-button link type="primary" @click="handleEditDict(row)">{{ $t('common.edit') }}</el-button>
@@ -112,8 +116,10 @@
                 :can-create="true"
                 :create-text="$t('common.create')"
                 :create-disabled="!currentDict"
-                :can-batch-delete="true"
+                :can-batch-delete="scope.canBatchDelete"
                 :batch-delete-text="$t('common.batchDelete')"
+                :can-batch-update="scope.canBatchUpdate"
+                :batch-update-text="$t('common.batchUpdate')"
                 :can-export="true"
                 :export-text="$t('common.export')"
                 :show-search="scope.showSearch"
@@ -123,6 +129,7 @@
                 :set-visible-column-props="scope.setVisibleColumnProps"
                 @create="handleAddDictItem"
                 @batch-delete="scope.handleDelete"
+                @batch-update="scope.handleBatchUpdate"
                 @export="scope.handleExport"
                 @toggle-search="scope.toggleSearch"
                 @refresh="scope.handleSearch"
@@ -139,14 +146,15 @@
               />
             </template>
 
-            <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+            <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
               <EntityTable
                 :items="items"
                 :loading="loading"
                 :columns="displayColumns"
                 :sort="sort"
+                :selectable="selectable"
                 :handle-sort-change="handleSortChange"
-                :handle-selection-change="handleSelectionChange"
+                @selection-change="handleSelectionChange"
               >
                 <template #row-actions="{ row }">
                   <el-button link type="primary" @click="handleEditDictItem(row)">{{ $t('common.edit') }}</el-button>

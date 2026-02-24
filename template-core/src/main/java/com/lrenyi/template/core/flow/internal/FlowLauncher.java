@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
@@ -15,7 +16,6 @@ import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.model.FailureReason;
-import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Getter;
 import lombok.Setter;
@@ -69,9 +69,29 @@ public class FlowLauncher<T> {
     public void launch(T data) {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
+        if (stopped) {
+            FlowMetrics.recordError("job_stopped", jobId);
+            return;
+        }
+
+        Semaphore inFlight = resourceContext.getInFlightProductionSemaphore();
+        if (inFlight != null) {
+            try {
+                inFlight.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+                FlowMetrics.recordError("inFlight_acquire_interrupted", jobId);
+                return;
+            }
+        }
+
         tracker.onProductionAcquired();
         if (stopped) {
             tracker.onProductionReleased();
+            if (inFlight != null) {
+                inFlight.release();
+            }
             FlowMetrics.recordError("job_stopped", jobId);
             return;
         }
@@ -80,11 +100,14 @@ public class FlowLauncher<T> {
             awaitBackpressure();
         } catch (InterruptedException e) {
             tracker.onProductionReleased();
+            if (inFlight != null) {
+                inFlight.release();
+            }
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             FlowMetrics.recordError("backpressure_interrupted", jobId);
             return;
         }
-        
+
         Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
@@ -105,6 +128,9 @@ public class FlowLauncher<T> {
                 FlowMetrics.recordError("deposit_failed", jobId);
             } finally {
                 tracker.onProductionReleased();
+                if (inFlight != null) {
+                    inFlight.release();
+                }
                 long totalLatency = System.currentTimeMillis() - startTime;
                 FlowMetrics.recordLatency("launch_total", totalLatency);
             }

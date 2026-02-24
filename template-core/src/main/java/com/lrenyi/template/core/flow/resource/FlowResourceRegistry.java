@@ -81,8 +81,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         FlowMetrics.recordResourceUsage("semaphore_max_limit", globalSemaphoreMaxLimit);
         FlowMetrics.recordResourceUsage("semaphore_available", globalSemaphoreMaxLimit);
         
-        // 委托 Provider 创建执行器（flowConsumerExecutor 使用 BoundedVirtualExecutor，与 globalSemaphore 合并）
-        this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore);
+        // 委托 Provider 创建执行器；cacheRemovalExecutor 用有界提交，使 Caffeine 在无消费许可时阻塞提交，实现向前背压
+        this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore, globalSemaphoreMaxLimit);
         this.flowConsumerExecutor = (BoundedVirtualExecutor) executorProvider.getFlowConsumerExecutor();
         this.storageEgressExecutor = executorProvider.getStorageEgressExecutor();
         this.cacheRemovalExecutor = executorProvider.getCacheRemovalExecutor();

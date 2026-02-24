@@ -61,6 +61,19 @@ export function useEntityCrud<T extends { id: string | number }>(entityName: str
     return allColumns.value.filter(col => crudState.visibleColumnProps.includes(col.prop));
   });
 
+  /** 元数据中是否暴露了批量删除：有则显示多选与批量删除按钮 */
+  const canBatchDelete = computed(() => {
+    const meta = crudState.meta ?? crudState.entityMeta;
+    return !!meta?.operations?.['deleteBatch'];
+  });
+  /** 元数据中是否暴露了批量更新：有则可显示多选与批量更新入口 */
+  const canBatchUpdate = computed(() => {
+    const meta = crudState.meta ?? crudState.entityMeta;
+    return !!meta?.operations?.['updateBatch'];
+  });
+  /** 是否启用表格多选（批量删除或批量更新任一存在即启用） */
+  const selectable = computed(() => canBatchDelete.value || canBatchUpdate.value);
+
   watch(allColumns, (newVal) => {
     if (newVal && newVal.length > 0) {
       crudState.visibleColumnProps = newVal.map(col => col.prop);
@@ -104,5 +117,8 @@ export function useEntityCrud<T extends { id: string | number }>(entityName: str
     setVisibleColumnProps,
     allColumns,
     displayColumns,
+    canBatchDelete,
+    canBatchUpdate,
+    selectable,
   };
 }

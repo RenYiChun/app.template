@@ -5,6 +5,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import com.lrenyi.template.core.flow.model.FlowConstants;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
@@ -15,25 +16,37 @@ public class BackpressureController {
     private final Lock lock = new ReentrantLock();
     private final Condition notFull = lock.newCondition();
     private final FlowStorage<?> flowStorage;
+    /** 可选：全局可用消费许可数；许可耗尽时即背压，避免持续填缓存导致大批 TTL 驱逐和 Pending 暴增 */
+    private final IntSupplier consumerAvailablePermitsSupplier;
 
     public BackpressureController(FlowStorage<?> flowStorage) {
-        this.flowStorage = flowStorage;
+        this(flowStorage, null);
     }
 
-    // 生产者调用：如果满了就挂起
+    /**
+     * @param consumerAvailablePermitsSupplier 可选；非 null 且许可≤0 时与「缓存满」一起触发背压，消费慢即停入库
+     */
+    public BackpressureController(FlowStorage<?> flowStorage, IntSupplier consumerAvailablePermitsSupplier) {
+        this.flowStorage = flowStorage;
+        this.consumerAvailablePermitsSupplier = consumerAvailablePermitsSupplier;
+    }
+
+    /** 生产者调用：缓存满或消费许可耗尽时阻塞，避免填满后大批驱逐导致 Pending 暴增。 */
     public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException {
         lock.lock();
         try {
             long waitStartTime = System.currentTimeMillis();
             int waitCount = 0;
 
-            // 只要缓存中的数据量（Active/In-Cache）超过阈值，就阻塞
-            while (flowStorage.size() >= flowStorage.maxCacheSize() && !stopCheck.getAsBoolean()) {
+            while (!stopCheck.getAsBoolean()) {
+                boolean cacheFull = flowStorage.size() >= flowStorage.maxCacheSize();
+                boolean consumerSaturated = consumerAvailablePermitsSupplier != null
+                        && consumerAvailablePermitsSupplier.getAsInt() <= 0;
+                if (!cacheFull && !consumerSaturated) {
+                    break;
+                }
                 waitCount++;
-                // 记录背压等待
                 FlowMetrics.incrementCounter("backpressure_wait");
-
-                // 增加超时兜底，即使信号丢失，超时后也会重新 check 一次 size
                 if (!notFull.await(
                         FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS,
                         TimeUnit.MILLISECONDS) && log.isTraceEnabled()) {
@@ -51,11 +64,10 @@ public class BackpressureController {
         }
     }
 
-    // 消费者调用：当数据处理完离场时调用
+    /** 消费者调用：当数据处理完离场时调用 */
     public void signalRelease() {
         lock.lock();
         try {
-            // 每次只唤醒一个等待者，减轻惊群、提升出缓存并发下的 TPS
             notFull.signal();
         } finally {
             lock.unlock();

@@ -13,7 +13,9 @@
           <EntityToolbar
             :selected-ids="scope.selectedIds"
             :can-create="false"
-            :can-batch-delete="false"
+            :can-batch-delete="scope.canBatchDelete"
+            :can-batch-update="scope.canBatchUpdate"
+            :batch-update-text="$t('common.batchUpdate')"
             :can-export="true"
             :export-text="$t('common.export')"
             :show-search="scope.showSearch"
@@ -21,6 +23,7 @@
             :display-columns="scope.displayColumns"
             :visible-column-props="scope.visibleColumnProps"
             :set-visible-column-props="scope.setVisibleColumnProps"
+            @batch-update="scope.handleBatchUpdate"
             @export="scope.handleExport"
             @toggle-search="scope.toggleSearch"
             @refresh="scope.handleSearch"
@@ -37,14 +40,15 @@
           />
         </template>
 
-        <template #table="{ items, loading, displayColumns, sort, handleSortChange, handleSelectionChange }">
+        <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
           <EntityTable
             :items="items"
             :loading="loading"
             :columns="displayColumns"
             :sort="sort"
+            :selectable="selectable"
             :handle-sort-change="handleSortChange"
-            :handle-selection-change="handleSelectionChange"
+            @selection-change="handleSelectionChange"
           >
             <!-- 自定义状态列 -->
             <template #column-success="{ value }">

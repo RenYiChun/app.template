@@ -1,6 +1,6 @@
 {
   "name": "@lrenyi/dataforge-ui",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "description": "template-dataforge UI 组件库 (Element Plus)",
   "type": "module",
   "main": "./dist/index.js",
