@@ -5,8 +5,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 import com.lrenyi.template.core.flow.model.FailureReason;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
     
     private final Map<String, AtomicLong> counters = new ConcurrentHashMap<>();
-    private final Map<String, List<Long>> latencies = new ConcurrentHashMap<>();
+    private final Map<String, BlockingDeque<Long>> latencies = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> resourceUsage = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> errorCounts = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> failureReasonCounts = new ConcurrentHashMap<>();
@@ -50,14 +52,10 @@ public class DefaultFlowMetricsCollector implements FlowMetricsCollector {
     
     @Override
     public void recordLatency(String operation, long latencyMs) {
-        List<Long> latencyList = latencies.computeIfAbsent(operation, k -> new CopyOnWriteArrayList<>());
-        
-        synchronized (latencyList) {
-            latencyList.add(latencyMs);
-            // 限制记录数量
-            if (latencyList.size() > MAX_LATENCY_RECORDS) {
-                latencyList.removeFirst();
-            }
+        BlockingDeque<Long> deque = latencies.computeIfAbsent(operation, k -> new LinkedBlockingDeque<>(MAX_LATENCY_RECORDS));
+        // 尝试放入，如果满了则移除旧的再放入
+        while (!deque.offer(latencyMs)) {
+            deque.poll();
         }
     }
     

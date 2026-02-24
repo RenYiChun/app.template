@@ -2,8 +2,11 @@ package com.lrenyi.template.core.flow.executor;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * FlowExecutorProvider 默认实现
@@ -20,13 +23,27 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     
     /**
      * @param globalSemaphore         全局消费许可
-     * @param removalSubmissionLimit  当前未使用。背压不在 removal executor 提交处做（会阻塞 Caffeine 导致 eviction lock 超时），
-     *                                 改为在生产者侧 BackpressureController 中当「消费许可耗尽」时阻塞，实现层层向上背压。
+     * @param removalSubmissionLimit  用于限制 Caffeine 驱逐回调的并发数。
+     *                                 改为使用 ThreadPoolExecutor + 有界队列 + CallerRunsPolicy，
+     *                                 彻底解决无界队列在极端高并发驱逐下的 Heap OOM 问题。
      */
     public DefaultFlowExecutorProvider(Semaphore globalSemaphore, int removalSubmissionLimit) {
         this.flowConsumerExecutor = new BoundedVirtualExecutor(globalSemaphore);
         this.storageEgressExecutor = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory());
-        this.cacheRemovalExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        
+        // 使用 ThreadPoolExecutor + Bounded Queue + CallerRunsPolicy：
+        // 1. 限制并发数 = limit
+        // 2. 有界队列 (capacity=10000) 防止任务堆积 OOM
+        // 3. CallerRunsPolicy 实现生产端背压：当队列满时，由驱逐触发线程（如 Caffeine 维护线程或 put 线程）执行回调
+        int limit = removalSubmissionLimit > 0 ? removalSubmissionLimit : 100;
+        this.cacheRemovalExecutor = new ThreadPoolExecutor(
+                limit,
+                limit,
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(limit * 10),
+                Thread.ofVirtual().name("flow-removal-", 0).factory(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
     }
     
     @Override
