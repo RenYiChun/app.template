@@ -18,7 +18,7 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     private final ExecutorService cacheRemovalExecutor;
     
     public DefaultFlowExecutorProvider(Semaphore globalSemaphore) {
-        this(globalSemaphore, Integer.MAX_VALUE);
+        this(globalSemaphore, 0);
     }
     
     /**
