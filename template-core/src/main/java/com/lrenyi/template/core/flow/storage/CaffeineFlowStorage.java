@@ -11,12 +11,13 @@ import com.github.benmanes.caffeine.cache.Scheduler;
 import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
+import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.internal.FlowFinalizer;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
-import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.Getter;
@@ -223,7 +224,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             return;
         }
         long matchStartTime = System.currentTimeMillis();
-        resourceRegistry.submitConsumerToGlobal(launcher.getTaskOrchestrator(), 2, () -> {
+        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
+        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, () -> {
             try {
                 executeMatchedPairLogicBody(partner, entry, launcher);
                 long matchLatency = System.currentTimeMillis() - matchStartTime;

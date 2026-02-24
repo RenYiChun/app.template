@@ -85,7 +85,7 @@ public class FlowLauncher<T> {
             return;
         }
 
-        resourceContext.getFlowConsumerExecutor().submit(() -> {
+        Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);

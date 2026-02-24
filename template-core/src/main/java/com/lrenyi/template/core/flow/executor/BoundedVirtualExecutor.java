@@ -122,14 +122,39 @@ public class BoundedVirtualExecutor implements ExecutorService {
     
     /**
      * 使用自定义策略提交任务（如公平 acquire 的消费任务）。
+     * 先在调用线程获取信号量，避免大量虚拟线程阻塞占用内存。
      */
     public void submitWithStrategy(@NonNull PermitStrategy strategy, @NonNull Runnable task) {
         if (shutdown) {
             throw new IllegalStateException("Executor 已关闭");
         }
-        delegate.execute(runWithStrategy(strategy, task));
+        // 在调用线程获取信号量
+        try {
+            strategy.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        // 提交任务时只负责释放（已在外部 acquire）
+        delegate.execute(runReleaseOnly(strategy, task));
     }
     
+    /**
+     * 只释放信号量，不获取（用于已在外部 acquire 的场景）
+     */
+    private static Runnable runReleaseOnly(PermitStrategy strategy, Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } finally {
+                strategy.release();
+            }
+        };
+    }
+    
+    /**
+     * 获取并释放信号量（用于 execute 等标准方法）
+     */
     private static Runnable runWithStrategy(PermitStrategy strategy, Runnable task) {
         return () -> {
             try {
