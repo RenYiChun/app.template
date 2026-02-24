@@ -20,14 +20,12 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * 所有 {@code @DataforgeEntity} 实体必须继承此类。
  * 主键类型支持：Long、Integer、UUID、String。
  * </p>
- * <p>
- * 创建人、更新人（createBy、updateBy）可：
+ * <p>创建人、更新人（createBy、updateBy）可：</p>
  * <ul>
  *   <li>由业务在创建/更新时显式赋值；</li>
  *   <li>或通过 JPA Auditing 自动填充：应用启用 {@code @EnableJpaAuditing} 并提供 {@code AuditorAware} Bean 后，
  *       {@link AuditingEntityListener} 会按当前审计员自动填充。</li>
  * </ul>
- * </p>
  *
  * @param <ID> 主键类型
  */

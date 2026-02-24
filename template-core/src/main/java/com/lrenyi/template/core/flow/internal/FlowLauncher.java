@@ -6,7 +6,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
-import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.FlowResourceContext;
 import com.lrenyi.template.core.flow.context.Orchestrator;
@@ -16,6 +15,7 @@ import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.model.FailureReason;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Getter;
 import lombok.Setter;
@@ -84,8 +84,8 @@ public class FlowLauncher<T> {
             FlowMetrics.recordError("backpressure_interrupted", jobId);
             return;
         }
-
-        resourceContext.getFlowConsumerExecutor().submit(() -> {
+        
+        Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
