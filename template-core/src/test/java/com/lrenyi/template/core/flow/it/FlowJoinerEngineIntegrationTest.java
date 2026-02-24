@@ -7,21 +7,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FailureReason;
-import com.lrenyi.template.core.flow.FlowJoinerEngine;
+import com.lrenyi.template.core.flow.model.FailureReason;
+import com.lrenyi.template.core.flow.engine.FlowJoinerEngine;
 import com.lrenyi.template.core.flow.MismatchPairingJoiner;
 import com.lrenyi.template.core.flow.OverwriteJoiner;
 import com.lrenyi.template.core.flow.PairItem;
 import com.lrenyi.template.core.flow.PairingJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.QueueJoiner;
 import com.lrenyi.template.core.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.core.flow.health.FlowHealth;
-import com.lrenyi.template.core.flow.impl.DefaultProgressTracker;
+import com.lrenyi.template.core.flow.internal.DefaultProgressTracker;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.core.flow.source.FlowSource;
-import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
+import com.lrenyi.template.core.flow.api.FlowSource;
+import com.lrenyi.template.core.flow.api.FlowSourceAdapters;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Flow 框架集成测试：拉取/推送、存储与失败原因、进度与指标、资源与生命周期。
  */
+@Slf4j
 class FlowJoinerEngineIntegrationTest {
 
     private static final int TIMEOUT_SEC = 30;
@@ -59,8 +62,8 @@ class FlowJoinerEngineIntegrationTest {
     void tearDown() {
         try {
             manager.stopAll(true);
-        } catch (Exception ignored) {
-            // ignore
+        } catch (Exception e) {
+            log.debug("tearDown stopAll completed with exception (may be expected)", e);
         }
         FlowManager.reset();
         FlowResourceRegistry.reset();
@@ -159,6 +162,19 @@ class FlowJoinerEngineIntegrationTest {
     }
 
     // ---------- 3.2 推送模式 ----------
+
+    @Test
+    void IT_FlowLauncher_getters() {
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        var inlet = engine.startPush("job-launcher-test", joiner, jobConfig);
+        FlowLauncher<?> launcher = manager.getActiveLauncher("job-launcher-test");
+        assertNotNull(launcher);
+        assertEquals("job-launcher-test", launcher.getJobId());
+        assertEquals(jobConfig.getMaxCacheSize(), launcher.getCacheCapacity());
+        assertFalse(launcher.isStopped());
+        inlet.markSourceFinished();
+        manager.stopAll(true);
+    }
 
     @Test
     void IT_PUSH_COMPLETION() throws Exception {

@@ -1,9 +1,10 @@
 package com.lrenyi.template.core.util;
 
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -19,57 +20,86 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
-import lombok.Getter;
 import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RsaUtils {
     private static final Logger logger = LoggerFactory.getLogger(RsaUtils.class);
-    @Getter
-    private static PrivateKey privateKey;
-    @Getter
-    private static PublicKey publicKey;
-    
-    static {
-        try {
-            publicKey = loadPublicKeyFromFile("rsa_public.pem");
-            privateKey = loadPrivateKeyFromFile("rsa_private.pem");
-        } catch (Throwable cause) {
-            logger.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
-            System.exit(1);
+    private static volatile PrivateKey privateKey;
+    private static volatile PublicKey publicKey;
+    private static volatile boolean keysLoaded;
+    private static final Object loadLock = new Object();
+
+    private static void ensureKeysLoaded() {
+        if (keysLoaded) {
+            return;
+        }
+        synchronized (loadLock) {
+            if (keysLoaded) {
+                return;
+            }
+            try {
+                publicKey = loadPublicKeyFromFile("rsa_public.pem");
+                privateKey = loadPrivateKeyFromFile("rsa_private.pem");
+                keysLoaded = true;
+            } catch (Throwable cause) {
+                logger.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
+                throw new IllegalStateException("Failed to load RSA keys", cause);
+            }
         }
     }
-    
+
+    public static PrivateKey getPrivateKey() {
+        ensureKeysLoaded();
+        return privateKey;
+    }
+
+    public static PublicKey getPublicKey() {
+        ensureKeysLoaded();
+        return publicKey;
+    }
+
+    /** RSA 使用 OAEP padding，避免 PKCS#1 v1.5 的 Bleichenbacher 攻击 */
+    private static final String RSA_OAEP = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+    /** 旧格式兼容（PKCS#1 v1.5），仅用于解密已有数据 */
+    private static final String RSA_LEGACY = "RSA";
+    private static final String OAEP_PREFIX = "OAEP:";
+
     public static String encryption(String data) {
+        ensureKeysLoaded();
         if (publicKey == null) {
             return data;
         }
         try {
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance(RSA_OAEP);
             cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-            byte[] decryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return Base64.encodeBase64String(decryptedBytes);
+            byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return OAEP_PREFIX + Base64.encodeBase64String(encrypted);
         } catch (Throwable cause) {
-            logger.error("", cause);
+            logger.error("RSA encryption failed", cause);
+            throw new IllegalStateException("RSA encryption failed", cause);
         }
-        return data;
     }
-    
+
     public static String decrypt(String data) {
+        ensureKeysLoaded();
         if (privateKey == null) {
             return data;
         }
-        byte[] decoded = Base64.decodeBase64(data);
+        boolean useOaep = data.startsWith(OAEP_PREFIX);
+        String base64 = useOaep ? data.substring(OAEP_PREFIX.length()) : data;
+        byte[] decoded = Base64.decodeBase64(base64);
+        String transformation = useOaep ? RSA_OAEP : RSA_LEGACY;
         try {
-            Cipher cipher = Cipher.getInstance("RSA");
+            Cipher cipher = Cipher.getInstance(transformation);
             cipher.init(Cipher.DECRYPT_MODE, privateKey);
-            byte[] decryptedBytes = cipher.doFinal(decoded);
-            return new String(decryptedBytes, StandardCharsets.UTF_8);
+            byte[] decrypted = cipher.doFinal(decoded);
+            return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
-            logger.error("", cause);
+            logger.error("RSA decryption failed", cause);
+            throw new IllegalStateException("RSA decryption failed", cause);
         }
-        return data;
     }
     
     public static String publicKeyString() {
@@ -79,13 +109,13 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(publicKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + publicKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            return new String(keyBytes);
+            return new String(keyBytes, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
-            logger.error("", cause);
-            return null;
+            logger.error("Failed to load public key from file: {}", publicKeyFileName, cause);
+            throw new IllegalStateException("Failed to load public key from file: " + publicKeyFileName, cause);
         }
     }
     
@@ -118,7 +148,7 @@ public class RsaUtils {
         String publicKeyPem = "-----BEGIN PUBLIC KEY-----\n";
         publicKeyPem += Base64.encodeBase64String(encodedPublicKey).replaceAll("(.{64})", "$1\n");
         publicKeyPem += "\n-----END PUBLIC KEY-----";
-        try (FileWriter writer = new FileWriter(pemFilename)) {
+        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
             writer.write(publicKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -131,7 +161,7 @@ public class RsaUtils {
         privateKeyPem += Base64.encodeBase64String(encodedPrivateKey).replaceAll("(.{64})", "$1\n");
         privateKeyPem += "\n-----END PRIVATE KEY-----";
         
-        try (FileWriter writer = new FileWriter(pemFilename)) {
+        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
             writer.write(privateKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -144,10 +174,10 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(publicKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + publicKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + publicKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            String publicKeyContent = new String(keyBytes);
+            String publicKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
             publicKeyContent = publicKeyContent.replaceAll("\\n", "")
                                                .replace("-----BEGIN PUBLIC KEY-----", "")
                                                .replace("-----END PUBLIC KEY-----", "");
@@ -169,10 +199,10 @@ public class RsaUtils {
         }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(privateKeyFileName)) {
             if (inputStream == null) {
-                throw new NullPointerException("loader file：" + privateKeyFileName + " faild");
+                throw new NullPointerException("loader file：" + privateKeyFileName + " failed");
             }
             byte[] keyBytes = inputStream.readAllBytes();
-            String privateKeyContent = new String(keyBytes);
+            String privateKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
             privateKeyContent = privateKeyContent.replaceAll("\\n", "")
                                                  .replace("-----BEGIN PRIVATE KEY-----", "")
                                                  .replace("-----END PRIVATE KEY-----", "");

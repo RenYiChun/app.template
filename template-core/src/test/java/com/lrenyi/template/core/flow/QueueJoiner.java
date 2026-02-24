@@ -6,9 +6,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.source.FlowSourceAdapters;
-import com.lrenyi.template.core.flow.source.FlowSourceProvider;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.core.flow.api.FlowSourceProvider;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
+import com.lrenyi.template.core.flow.model.FailureReason;
 
 /**
  * 测试用 Joiner：Queue 存储，FIFO 消费。

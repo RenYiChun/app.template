@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow;
 
+import com.lrenyi.template.core.flow.model.FlowConstants;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import org.junit.jupiter.api.Test;

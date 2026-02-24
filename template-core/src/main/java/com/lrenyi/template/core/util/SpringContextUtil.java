@@ -41,7 +41,7 @@ public class SpringContextUtil implements ApplicationContextAware {
                                   StandardCharsets.UTF_8
             );
         } catch (Exception e) {
-            log.error("", e);
+            log.error("Failed to get property for key: {}", key, e);
         }
         return property;
     }

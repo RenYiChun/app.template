@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.flow.config;
 
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

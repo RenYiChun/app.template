@@ -9,7 +9,11 @@
         <version>2.4.2.1-SNAPSHOT</version>
     </parent>
     <artifactId>template-api</artifactId>
-    <name>Template Aip</name>
+    <name>Template Api</name>
+
+    <properties>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
+    </properties>
 
     <dependencies>
         <dependency>
@@ -85,7 +89,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
                 <executions>
                     <execution>
                         <id>filter-resources</id>

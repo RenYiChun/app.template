@@ -11,10 +11,18 @@
     <artifactId>template-oauth2-service</artifactId>
     <name>Template Oauth2 Service</name>
 
+    <properties>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
             <artifactId>template-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-dataforge</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -40,6 +48,21 @@
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-dataforge-model</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 </project>

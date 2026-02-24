@@ -13,6 +13,7 @@
 
     <properties>
         <nimbus-jose-jwt.version>9.39.3</nimbus-jose-jwt.version>
+        <checker.root.dir>${project.parent.basedir}</checker.root.dir>
     </properties>
 
     <dependencies>

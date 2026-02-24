@@ -75,7 +75,7 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
             Long size = hashOperations.size(REGISTERED_CLIENT_ID_KEY);
             return size > 0;
         } catch (Exception e) {
-            log.warn("检查 Redis 中的客户端配置时发生异常: {}", e.getMessage());
+            log.warn("检查 Redis 中的客户端配置时发生异常", e);
             return false;
         }
     }
@@ -115,7 +115,7 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
                     save(registration);
                     log.debug("已初始化客户端: {}", registration.getClientId());
                 } catch (Exception e) {
-                    log.error("初始化客户端 {} 时发生异常: {}", registration.getClientId(), e.getMessage(), e);
+                    log.error("初始化客户端 {} 时发生异常", registration.getClientId(), e);
                 }
             }
         }

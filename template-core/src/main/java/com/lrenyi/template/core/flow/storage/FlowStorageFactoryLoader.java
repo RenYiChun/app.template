@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -40,6 +40,7 @@ public class FlowStorageFactoryLoader {
             log.info("共加载 {} 个存储工厂", list.size());
         } catch (Exception e) {
             log.error("加载存储工厂失败", e);
+            throw new IllegalStateException("Failed to load FlowStorageFactory", e);
         }
         return Collections.unmodifiableList(list);
     }

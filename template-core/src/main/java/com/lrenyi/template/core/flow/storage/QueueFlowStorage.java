@@ -6,15 +6,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.lrenyi.template.core.flow.FailureReason;
-import com.lrenyi.template.core.flow.ProgressTracker;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.context.FlowEntry;
-import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
-import com.lrenyi.template.core.flow.exception.FlowPhase;
-import com.lrenyi.template.core.flow.impl.FlowFinalizer;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
-import com.lrenyi.template.core.flow.manager.FlowManager;
+import com.lrenyi.template.core.flow.internal.FlowFinalizer;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
  * 基于阻塞队列的流式存储实现。
  * 与 Caffeine 不同，队列没有超时驱逐线程，消费由框架统一的
  * {@link com.lrenyi.template.core.flow.manager.FlowCacheManager} 中的 {@code storageEgressExecutor}（单物理线程）完成：
- * 在构造函数中按配置的 TTL 周期向该 executor 提交排空任务，从队列取数 → acquire → {@link FlowFinalizer#submitBodyOnly}，
+ * 在构造函数中按配置的 TTL 周期向该 executor 提交排空任务，从队列取数 → {@link FlowFinalizer#submitBodyOnly}（acquire 由 FlowGlobalExecutor 处理），
  * 与 Caffeine 驱逐路径共用同一离场线程，离场语义一致。
  * <p>
  * 适用于：顺序消费、削峰填谷。不支持按 Key 检索，{@link #remove(String)} 使用接口默认实现。
@@ -73,12 +71,12 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     }
     
     /**
-     * 在 storageEgressExecutor 单线程上执行：非阻塞取队直到空，每条 acquire → submitBodyOnly。
+     * 在 storageEgressExecutor 单线程上执行：非阻塞取队直到空，每条 submitBodyOnly（acquire 由 FlowGlobalExecutor 处理）。
      */
     private void drainLoop() {
-        FlowManager flowManager = resourceRegistry.getFlowManager();
-        if (flowManager == null) {
-            log.warn("FlowManager not available for drainLoop");
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        if (launcherLookup == null) {
+            log.warn("LauncherLookup not available for drainLoop");
             FlowMetrics.recordError("flow_manager_unavailable_drain", null);
             return;
         }
@@ -86,7 +84,8 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         int drainedCount = 0;
         while (!stopped.get() && (entry = queue.poll()) != null) {
             drainedCount++;
-            FlowLauncher<Object> launcher = flowManager.getActiveLauncher(entry.getJobId());
+            @SuppressWarnings("unchecked")
+            FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
@@ -96,19 +95,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
                 entry.close();
                 continue;
             }
-            try {
-                launcher.getTaskOrchestrator().acquire();
-                finalizer.submitBodyOnly(entry, launcher);
-            } catch (InterruptedException e) {
-                if (progressTracker != null) {
-                    progressTracker.onPassiveEgress(FailureReason.REJECT);
-                }
-                FlowMetrics.recordFailureReason(FailureReason.REJECT, entry.getJobId());
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
-                entry.close();
-                Thread.currentThread().interrupt();
-                break;
-            }
+            finalizer.submitBodyOnly(entry, launcher);
         }
         if (drainedCount > 0) {
             FlowMetrics.incrementCounter("queue_drain_count", drainedCount);

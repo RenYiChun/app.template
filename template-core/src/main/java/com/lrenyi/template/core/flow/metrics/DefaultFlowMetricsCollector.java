@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import com.lrenyi.template.core.flow.FailureReason;
+import com.lrenyi.template.core.flow.model.FailureReason;
 import lombok.extern.slf4j.Slf4j;
 
 /**

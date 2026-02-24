@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.context.annotation.Import;
 
 @ComponentScan
@@ -39,8 +40,8 @@ public class CoreAutoConfiguration {
             return new JsonService(jsonProcessor);
         }
         
-        @Bean
-        @ConditionalOnMissingBean
+        @Bean("passwordEncoder")
+        @ConditionalOnMissingBean(PasswordEncoder.class)
         public DefaultTemplateEncryptService defaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
             return new DefaultTemplateEncryptService(templateConfigProperties);
         }

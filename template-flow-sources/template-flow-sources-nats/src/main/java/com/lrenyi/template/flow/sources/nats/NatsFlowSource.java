@@ -2,8 +2,9 @@ package com.lrenyi.template.flow.sources.nats;
 
 import java.time.Duration;
 import java.util.NoSuchElementException;
-import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.api.FlowSource;
 import io.nats.client.Message;
+import lombok.extern.slf4j.Slf4j;
 import io.nats.client.Subscription;
 
 /**
@@ -15,6 +16,7 @@ import io.nats.client.Subscription;
  *
  * @param <T> 业务产出类型，由 mapper 从 {@link Message} 转换得到
  */
+@Slf4j
 public final class NatsFlowSource<T> implements FlowSource<T> {
 
     private final Subscription subscription;
@@ -93,8 +95,8 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         closed = true;
         try {
             subscription.unsubscribe();
-        } catch (Exception ignored) {
-            // 尽量释放
+        } catch (Exception e) {
+            log.debug("NATS subscription unsubscribe failed, ignoring for best-effort release", e);
         }
     }
 }

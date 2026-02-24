@@ -1,0 +1,39 @@
+{
+  "name": "@lrenyi/dataforge-ui",
+  "version": "1.0.0",
+  "description": "template-dataforge UI 组件库 (Element Plus)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "peerDependencies": {
+    "@lrenyi/dataforge-headless": "file:../template-dataforge-headless",
+    "element-plus": ">=2.0.0",
+    "vue": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "element-plus": "^2.9.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-dts": "^4.5.0",
+    "vue": "^3.5.13"
+  },
+  "overrides": {
+    "minimatch": "^10.0.0",
+    "ajv": "^8.18.0",
+    "@microsoft/api-extractor": "7.54.0"
+  },
+  "dependencies": {
+    "vue-router": "^5.0.3"
+  }
+}

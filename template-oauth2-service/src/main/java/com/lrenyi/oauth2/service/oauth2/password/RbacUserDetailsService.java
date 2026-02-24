@@ -1,11 +1,11 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
+import java.util.Collections;
 import java.util.List;
 import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.api.rbac.model.AppUser;
 import com.lrenyi.template.api.rbac.model.Role;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,13 +18,13 @@ public class RbacUserDetailsService implements UserDetailsService {
     
     private final IRbacService rbacService;
     
-    @Autowired
     public RbacUserDetailsService(ObjectProvider<IRbacService> rbacServiceObjectProvider) {
         this.rbacService = rbacServiceObjectProvider.getIfAvailable();
     }
     
     @Override
     @Cacheable(value = "userDetails", key = "#username")
+    @SuppressWarnings({"null", "unused"})
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         if (rbacService == null) {
             throw new UsernameNotFoundException("rbacService is null, please create it first");
@@ -41,7 +41,13 @@ public class RbacUserDetailsService implements UserDetailsService {
         }
         String identifier = parts[1];
         AppUser<?> user = rbacService.findUserByIdentifier(identifier, identifierType);
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found for identifier: " + identifier);
+        }
         List<Role> roles = rbacService.getRolesByUserId(user.getId());
+        if (roles == null) {
+            roles = Collections.emptyList();
+        }
         
         //@formatter:off
         List<SimpleGrantedAuthority> authorities = roles.stream()

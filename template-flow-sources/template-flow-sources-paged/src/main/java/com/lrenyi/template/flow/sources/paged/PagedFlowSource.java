@@ -2,7 +2,7 @@ package com.lrenyi.template.flow.sources.paged;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import com.lrenyi.template.core.flow.source.FlowSource;
+import com.lrenyi.template.core.flow.api.FlowSource;
 
 /**
  * 单子流分页数据源：包装 {@link PageFetcher}，按页拉取并顺序产出 T。

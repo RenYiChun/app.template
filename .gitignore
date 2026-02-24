@@ -33,3 +33,29 @@ build/
 ### VS Code ###
 .vscode/
 .flattened-pom.xml
+
+### 前端构建产物（复制到 Spring Boot 的 static，由 npm run build + copy-resources 生成）###
+**/src/main/resources/static/
+
+### Node / 前端 ###
+node_modules/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+### 本地 / 临时 ###
+*.log
+*.local
+.env.local
+.env.*.local
+cookies.txt
+
+### 操作系统 ###
+.DS_Store
+Thumbs.db
+
+### Cursor IDE ###
+.cursor/

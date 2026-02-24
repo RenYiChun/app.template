@@ -1,0 +1,56 @@
+{
+  "name": "@lrenyi/dataforge-headless",
+  "version": "2.4.2.1",
+  "description": "template-dataforge 前端配套：通用 EntityClient、元数据驱动、Vue CRUD 组件",
+  "type": "module",
+  "main": "./dist/core/index.js",
+  "module": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "keywords": [
+    "template-dataforge",
+    "vue",
+    "crud",
+    "admin",
+    "entity"
+  ],
+  "peerDependencies": {
+    "vue": ">=3.0.0",
+    "element-plus": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "element-plus": "^2.9.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-dts": "^4.5.0",
+    "vue": "^3.5.13"
+  },
+  "overrides": {
+    "minimatch": "^10.0.0",
+    "ajv": "^8.18.0",
+    "@microsoft/api-extractor": "7.54.0"
+  }
+}

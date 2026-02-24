@@ -3,16 +3,12 @@ package com.lrenyi.template.api;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import com.lrenyi.template.api.audit.aspect.AuditLogAspect;
-import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
-import com.lrenyi.template.api.audit.service.AuditLogService;
 import com.lrenyi.template.api.config.DefaultSecurityFilterChainBuilder;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,7 +18,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
@@ -41,7 +36,6 @@ import org.springframework.security.web.SecurityFilterChain;
  * <p>
  * 核心功能：
  * • Web安全认证授权 (Spring Security, OAuth2)
- * • 操作日志审计功能
  * • WebSocket实时通信
  * • 权限控制和访问管理
  * <p>
@@ -58,7 +52,6 @@ import org.springframework.security.web.SecurityFilterChain;
 //@formatter:off
 @Import({
         ApiAutoConfiguration.SecurityAutoConfiguration.class,
-        ApiAutoConfiguration.AuditLogConfiguration.class,
         ApiAutoConfiguration.MethodSecurityConfig.class
 })
 //@formatter:on
@@ -69,29 +62,6 @@ public class ApiAutoConfiguration {
     @ConditionalOnProperty(name = "app.template.authorize.enabled", havingValue = "true", matchIfMissing = true)
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
-    }
-    
-    @EnableAsync
-    @ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
-    static class AuditLogConfiguration {
-        
-        @Bean
-        @ConditionalOnMissingBean
-        public AuditLogProcessor auditLogProcessor() {
-            // 默认的日志处理器，打印到控制台
-            return System.out::println;
-        }
-        
-        @Bean
-        public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor,
-                                               @Value("${spring.application.name:unknown-service}") String serviceName) {
-            return new AuditLogService(auditLogProcessor, serviceName);
-        }
-        
-        @Bean
-        public AuditLogAspect auditLogAspect(AuditLogService auditLogService) {
-            return new AuditLogAspect(auditLogService);
-        }
     }
     
     public static class SecurityAutoConfiguration {

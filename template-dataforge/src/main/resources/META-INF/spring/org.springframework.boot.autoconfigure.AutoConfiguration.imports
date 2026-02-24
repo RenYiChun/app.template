@@ -1,0 +1,5 @@
+com.lrenyi.template.dataforge.JpaDataforgeEntityScanConfiguration
+com.lrenyi.template.dataforge.config.JpaEntityCrudServiceAutoConfiguration
+com.lrenyi.template.dataforge.config.PermissionConfiguration
+com.lrenyi.template.dataforge.config.DataforgeAutoConfiguration
+com.lrenyi.template.dataforge.config.DataforgeAuditConfiguration

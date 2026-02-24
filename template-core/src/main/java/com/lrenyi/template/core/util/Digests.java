@@ -10,16 +10,20 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 摘要工具类。MD5、SHA-1 仅适用于非安全场景（如校验和、缓存 key）。
+ * 密码存储应使用 {@code PasswordEncoder}（如 BCrypt、PBKDF2）。
+ */
 @Slf4j
 public class Digests {
-    
+
     private static final String SHA1 = "SHA-1";
     private static final String MD5 = "MD5";
-    
+
     private static final SecureRandom random = new SecureRandom();
-    
+
     /**
-     * 对输入字符串进行md5散列.
+     * 对输入进行 MD5 散列。仅用于非安全场景（如校验和），不用于密码等敏感数据。
      */
     public static byte[] md5(byte[] input) {
         return digest(input, MD5, null, 1);
@@ -30,7 +34,7 @@ public class Digests {
     }
     
     /**
-     * 对文件进行md5散列.
+     * 对文件进行 MD5 散列。仅用于非安全场景（如文件校验和）。
      */
     public static byte[] md5(InputStream input) throws IOException {
         return digest(input, MD5);
@@ -52,9 +56,9 @@ public class Digests {
             }
             return result;
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
     }
     
     private static byte[] digest(InputStream input, String algorithm) throws IOException {
@@ -71,13 +75,13 @@ public class Digests {
             
             return messageDigest.digest();
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for input stream, algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
     }
     
     /**
-     * 对输入字符串进行sha1散列.
+     * 对输入进行 SHA-1 散列。仅用于非安全场景（如缓存 key），不用于密码存储。
      */
     public static byte[] sha1(byte[] input) {
         return digest(input, SHA1, null, 1);
@@ -92,7 +96,7 @@ public class Digests {
     }
     
     /**
-     * 对文件进行sha1散列.
+     * 对文件进行 SHA-1 散列。仅用于非安全场景（如文件校验和）。
      */
     public static byte[] sha1(InputStream input) throws IOException {
         return digest(input, SHA1);

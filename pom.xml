@@ -43,6 +43,8 @@
         <jacoco.version>0.8.11</jacoco.version>
         <jacoco.check.skip>true</jacoco.check.skip>
         <spotbugs.check.skip>true</spotbugs.check.skip>
+        <checker.root.dir/>
+        <checker.root>${checker.root.dir}/checker</checker.root>
     </properties>
 
     <modules>
@@ -51,6 +53,10 @@
         <module>template-flow-sources</module>
         <module>template-oauth2-service</module>
         <module>template-cloud</module>
+        <module>template-dataforge-processor</module>
+        <module>template-dataforge</module>
+        <module>template-dataforge-model</module>
+        <module>template-dataforge-sample-backend</module>
     </modules>
 
     <dependencies>
@@ -65,7 +71,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
                 <configuration>
                     <propertiesEncoding>UTF-8</propertiesEncoding>
                 </configuration>
@@ -103,7 +108,7 @@
                 </executions>
                 <configuration>
                     <skip>${spotbugs.check.skip}</skip>
-                    <excludeFilterFile>${session.executionRootDirectory}/checker/spotbugs-exclude.xml</excludeFilterFile>
+                    <excludeFilterFile>${checker.root}/spotbugs-exclude.xml</excludeFilterFile>
                     <plugins>
                         <plugin>
                             <groupId>com.h3xstream.findsecbugs</groupId>
@@ -118,7 +123,7 @@
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${maven-checkstyle-plugin.version}</version>
                 <configuration>
-                    <configLocation>${session.executionRootDirectory}/checker/checkStyle.xml</configLocation>
+                    <configLocation>${checker.root}/checkStyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <includeTestSourceDirectory>false</includeTestSourceDirectory>
                     <failOnViolation>true</failOnViolation>

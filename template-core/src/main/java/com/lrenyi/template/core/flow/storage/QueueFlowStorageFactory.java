@@ -1,10 +1,10 @@
 package com.lrenyi.template.core.flow.storage;
 
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
-import com.lrenyi.template.core.flow.config.FlowStorageType;
-import com.lrenyi.template.core.flow.impl.FlowFinalizer;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
+import com.lrenyi.template.core.flow.model.FlowStorageType;
+import com.lrenyi.template.core.flow.internal.FlowFinalizer;
 
 /**
  * Queue 存储工厂实现

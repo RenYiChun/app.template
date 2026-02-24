@@ -3,25 +3,23 @@ package com.lrenyi.template.core.flow.manager;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.flow.FlowJoiner;
-import com.lrenyi.template.core.flow.ProgressTracker;
-import com.lrenyi.template.core.flow.context.FlowResourceContext;
+import com.lrenyi.template.core.flow.api.FlowJoiner;
+import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.context.Registration;
+import com.lrenyi.template.core.flow.display.FlowHealthReportRenderer;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.core.flow.health.HealthStatus;
-import com.lrenyi.template.core.flow.impl.BackpressureController;
-import com.lrenyi.template.core.flow.impl.FlowFinalizer;
-import com.lrenyi.template.core.flow.impl.FlowLauncher;
+import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.core.flow.storage.FlowStorage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 @Setter
-public class FlowManager {
+public class FlowManager implements ActiveLauncherLookup {
     private static volatile FlowManager instance;
     private static volatile TemplateConfigProperties.JobGlobal lastConfig;
     private final TemplateConfigProperties.JobGlobal globalConfig;
@@ -56,8 +54,8 @@ public class FlowManager {
         this.globalConfig = globalConfig;
         // 获取或创建全局资源注册表
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig);
-        // 设置 FlowManager 引用到 ResourceRegistry，用于解决循环依赖
-        this.resourceRegistry.setFlowManager(this);
+        // 注入 Launcher 查找能力，避免 Registry 依赖 FlowManager 类（打破循环依赖）
+        this.resourceRegistry.setLauncherLookup(this);
         log.info("FlowManager 启动");
     }
     
@@ -88,9 +86,9 @@ public class FlowManager {
      * @return FlowManager 实例
      */
     public static FlowManager getInstance(TemplateConfigProperties.JobGlobal globalConfig) {
-        if (instance == null || !configEquals(lastConfig, globalConfig)) {
+        if (instance == null || configChanged(lastConfig, globalConfig)) {
             synchronized (FlowManager.class) {
-                if (instance == null || !configEquals(lastConfig, globalConfig)) {
+                if (instance == null || configChanged(lastConfig, globalConfig)) {
                     if (instance != null) {
                         log.info("检测到配置变更，关闭旧实例并创建新实例");
                         try {
@@ -108,19 +106,18 @@ public class FlowManager {
     }
     
     /**
-     * 比较两个配置是否相等
-     * 用于检测配置变更
+     * 检测两个配置是否发生变更
      */
-    private static boolean configEquals(TemplateConfigProperties.JobGlobal config1,
+    private static boolean configChanged(TemplateConfigProperties.JobGlobal config1,
                                         TemplateConfigProperties.JobGlobal config2) {
         if (config1 == config2) {
-            return true;
-        }
-        if (config1 == null || config2 == null) {
             return false;
         }
-        return config1.getGlobalSemaphoreMaxLimit() == config2.getGlobalSemaphoreMaxLimit()
-                && config1.getProgressDisplaySecond() == config2.getProgressDisplaySecond();
+        if (config1 == null || config2 == null) {
+            return true;
+        }
+        return config1.getGlobalSemaphoreMaxLimit() != config2.getGlobalSemaphoreMaxLimit()
+                || config1.getProgressDisplaySecond() != config2.getProgressDisplaySecond();
     }
     
     /**
@@ -156,41 +153,13 @@ public class FlowManager {
         try {
             Registration registration = new Registration(jobId, jobConfig);
             registry.put(jobId, registration);
-            
-            // 创建Job级资源
-            Semaphore jobProducerSemaphore = new Semaphore(jobConfig.getJobProducerLimit());
-            
-            // 创建FlowFinalizer（需要resourceContext，先创建临时finalizer获取storage）
-            FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry);
-            FlowCacheManager cacheManager = resourceRegistry.getCacheManager();
-            FlowStorage<T> storage = cacheManager.getOrCreateStorage(jobId, flowJoiner, jobConfig, finalizer, tracker);
-            
-            BackpressureController backpressureController = new BackpressureController(storage);
-            
-            // 创建资源上下文
-            FlowResourceContext resourceContext = FlowResourceContext.builder()
-                                                                     .resourceRegistry(resourceRegistry)
-                                                                     .flowManager(this)
-                                                                     .jobProducerSemaphore(jobProducerSemaphore)
-                                                                     .storage(storage)
-                                                                     .backpressureController(backpressureController)
-                                                                     .build();
-            
-            // 创建Launcher，传递resourceContext
-            FlowLauncher<T> launcher = FlowLauncher.create(jobId,
-                                                           flowJoiner,
-                                                           this,
-                                                           tracker,
-                                                           registration,
-                                                           resourceContext
-            );
-            
+
+            FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
+
             activeLaunchers.put(jobId, launcher);
-            
-            // 记录指标
             FlowMetrics.incrementCounter("launcher_created");
             FlowMetrics.recordResourceUsage("active_launchers", activeLaunchers.size());
-            
+
             return launcher;
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
@@ -207,8 +176,14 @@ public class FlowManager {
      * 注销 Job
      */
     public void unregister(String jobId) {
+        FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
+        if (launcher != null) {
+            ExecutorService producerExecutor = launcher.getProducerExecutor();
+            if (producerExecutor != null && !producerExecutor.isShutdown()) {
+                producerExecutor.shutdown();
+            }
+        }
         registry.remove(jobId);
-        activeLaunchers.remove(jobId);
         log.info("Job [{}] 已从管理器中注销", jobId);
     }
     
@@ -251,13 +226,14 @@ public class FlowManager {
         return Collections.unmodifiableMap(activeLaunchers);
     }
     
-    @SuppressWarnings("unchecked")
-    public <T> FlowLauncher<T> getActiveLauncher(String jobId) {
-        return (FlowLauncher<T>) activeLaunchers.get(jobId);
+    @Override
+    public FlowLauncher<?> getActiveLauncher(String jobId) {
+        return activeLaunchers.get(jobId);
     }
     
     public ProgressTracker getProgressTracker(String jobId) {
-        FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
+        @SuppressWarnings("unchecked") FlowLauncher<Object> activeLauncher =
+                (FlowLauncher<Object>) getActiveLauncher(jobId);
         Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
         return taskOrchestrator.tracker();
     }
@@ -291,45 +267,7 @@ public class FlowManager {
     public void logHealthReport() {
         HealthStatus status = FlowHealth.checkHealth();
         Map<String, Object> healthDetails = FlowHealth.getHealthDetails();
-        
-        StringBuilder report = new StringBuilder("\n");
-        report.append("=".repeat(80)).append("\n");
-        report.append("Flow Framework Health Report\n");
-        report.append("=".repeat(80)).append("\n");
-        report.append(String.format("Overall Status: %s%n", status.name()));
-        report.append("-".repeat(80)).append("\n");
-        
-        @SuppressWarnings("unchecked")
-        java.util.List<Map<String, Object>> indicators = 
-            (java.util.List<Map<String, Object>>) healthDetails.get("indicators");
-        
-        if (indicators != null && !indicators.isEmpty()) {
-            for (Map<String, Object> indicator : indicators) {
-                String name = (String) indicator.get("name");
-                String indicatorStatus = (String) indicator.get("status");
-                report.append(String.format("\n[%s] Status: %s%n", name, indicatorStatus));
-                
-                @SuppressWarnings("unchecked")
-                Map<String, Object> details = (Map<String, Object>) indicator.get("details");
-                if (details != null) {
-                    details.forEach((key, value) -> {
-                        if (value != null) {
-                            report.append(String.format("  - %s: %s%n", key, value));
-                        }
-                    });
-                }
-            }
-        }
-        
-        report.append("=".repeat(80)).append("\n");
-        
-        if (status == HealthStatus.UNHEALTHY) {
-            log.error(report.toString());
-        } else if (status == HealthStatus.DEGRADED) {
-            log.warn(report.toString());
-        } else {
-            log.info(report.toString());
-        }
+        FlowHealthReportRenderer.renderAndLog(status, healthDetails);
     }
     
     /**
