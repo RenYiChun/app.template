@@ -224,7 +224,7 @@ public class GenericEntityController {
         for (Map<String, Object> map : body) {
             Object idObj = map.get("id");
             if (idObj == null) {
-                continue;
+                return badRequest("批量更新项缺少 id");
             }
             Object idParsed;
             try {
@@ -484,7 +484,16 @@ public class GenericEntityController {
         }
         boolean empty = requiredPermissions == null || requiredPermissions.isEmpty();
         if (empty) {
-            return properties.isDefaultAllowIfNoPermission() ? null : forbidden();
+            if (!properties.isDefaultAllowIfNoPermission()) {
+                return forbidden();
+            }
+            // Even when no specific permission is required, the user must be authenticated
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return forbidden();
+            }
+            return null;
         }
         return permissionChecker.hasAnyPermission(requiredPermissions) ? null : forbidden();
     }

@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Version;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -60,6 +61,10 @@ public abstract class BaseEntity<ID extends Serializable> implements Serializabl
 
     @Column(name = "remark", length = 512)
     private String remark;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     @PrePersist
     protected void onPrePersist() {

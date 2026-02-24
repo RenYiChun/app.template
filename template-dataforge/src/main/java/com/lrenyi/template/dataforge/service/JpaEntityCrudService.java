@@ -43,11 +43,11 @@ public class JpaEntityCrudService implements EntityCrudService {
         ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
         StringBuilder whereClause = new StringBuilder();
         List<Object> params = new ArrayList<>();
-        buildWhere(whereClause, params, c.getFilters(), "e");
+        buildWhere(whereClause, params, c.getFilters(), "e", entityClass);
         String where = !whereClause.isEmpty() ? " WHERE " + whereClause : "";
         long total = countWithWhere(entityName, where, params);
         Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
-        String orderBy = buildOrderBy(sort, "e");
+        String orderBy = buildOrderBy(sort, "e", entityClass);
         String jpql = "SELECT e FROM " + entityName + " e" + where + orderBy;
         TypedQuery<Object> q = (TypedQuery<Object>) entityManager.createQuery(jpql, entityClass);
         for (int i = 0; i < params.size(); i++) {
@@ -59,10 +59,29 @@ public class JpaEntityCrudService implements EntityCrudService {
         return new PageImpl<>(content, pageable, total);
     }
 
-    private void buildWhere(StringBuilder sb, List<Object> params, List<FilterCondition> filters, String entityAlias) {
+    private static java.util.Set<String> getEntityFieldNames(Class<?> entityClass) {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (Class<?> c = entityClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                names.add(f.getName());
+            }
+        }
+        return names;
+    }
+
+    private static boolean isValidFieldName(String field, java.util.Set<String> allowedFields) {
+        return field != null && !field.isBlank() && allowedFields.contains(field);
+    }
+
+    private void buildWhere(StringBuilder sb, List<Object> params, List<FilterCondition> filters, String entityAlias,
+            Class<?> entityClass) {
+        java.util.Set<String> allowedFields = getEntityFieldNames(entityClass);
         for (FilterCondition fc : filters) {
             if (fc == null || fc.op() == null) {
                 continue;
+            }
+            if (!isValidFieldName(fc.field(), allowedFields)) {
+                throw new IllegalArgumentException("Invalid filter field: " + fc.field());
             }
             if (!sb.isEmpty()) {
                 sb.append(" AND ");
@@ -134,12 +153,16 @@ public class JpaEntityCrudService implements EntityCrudService {
         return pageableSort;
     }
 
-    private String buildOrderBy(Sort sort, String entityAlias) {
+    private String buildOrderBy(Sort sort, String entityAlias, Class<?> entityClass) {
         if (sort == null || !sort.isSorted()) {
             return "";
         }
+        java.util.Set<String> allowedFields = getEntityFieldNames(entityClass);
         List<String> parts = new ArrayList<>();
         for (Sort.Order o : sort) {
+            if (!isValidFieldName(o.getProperty(), allowedFields)) {
+                throw new IllegalArgumentException("Invalid sort field: " + o.getProperty());
+            }
             parts.add(entityAlias + "." + o.getProperty() + " " + (o.isDescending() ? "DESC" : "ASC"));
         }
         return " ORDER BY " + String.join(", ", parts);
@@ -150,9 +173,13 @@ public class JpaEntityCrudService implements EntityCrudService {
     public Object get(EntityMeta entityMeta, Object id) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
-            return null;
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        return entityManager.find(entityClass, id);
+        Object entity = entityManager.find(entityClass, id);
+        if (entity == null) {
+            throw new IllegalArgumentException("Entity not found with id: " + id);
+        }
+        return entity;
     }
 
     @Override
@@ -172,12 +199,13 @@ public class JpaEntityCrudService implements EntityCrudService {
     public Object update(EntityMeta entityMeta, Object id, Object body) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
-            return null;
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        if (entityManager.find(entityClass, id) == null) {
-            return null;
+        Object entity = entityManager.find(entityClass, id);
+        if (entity == null) {
+            throw new IllegalArgumentException("Entity not found with id: " + id);
         }
-        Object entity = objectMapper.convertValue(body, entityClass);
+        entity = objectMapper.convertValue(body, entityClass);
         setEntityId(entity, id);
         return entityManager.merge(entity);
     }
@@ -185,9 +213,12 @@ public class JpaEntityCrudService implements EntityCrudService {
     @Override
     @Transactional
     public void delete(EntityMeta entityMeta, Object id) {
+        if (id == null) {
+            throw new IllegalArgumentException("ID cannot be null");
+        }
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
-            return;
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
         Object entity = entityManager.find(entityClass, id);
         if (entity != null) {
@@ -199,35 +230,48 @@ public class JpaEntityCrudService implements EntityCrudService {
     @Transactional
     public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
         if (ids == null || ids.isEmpty()) {
-            return;
+            throw new IllegalArgumentException("IDs cannot be null or empty");
+        }
+        for (Object id : ids) {
+            if (id == null) {
+                throw new IllegalArgumentException("批量删除项缺少 id");
+            }
         }
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
-            return;
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        for (Object id : ids) {
-            Object entity = entityManager.find(entityClass, id);
-            if (entity != null) {
-                entityManager.remove(entity);
-            }
-        }
+        String entityName = entityClass.getSimpleName();
+        entityManager.createQuery("DELETE FROM " + entityName + " e WHERE e.id IN :ids")
+                .setParameter("ids", ids)
+                .executeUpdate();
     }
 
     @Override
     @Transactional
     public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         if (entities == null || entities.isEmpty()) {
-            return List.of();
+            throw new IllegalArgumentException("Entities cannot be null or empty");
+        }
+        for (Object entity : entities) {
+            if (getEntityId(entity) == null) {
+                throw new IllegalArgumentException("批量更新项缺少 id");
+            }
         }
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
         List<Object> result = new java.util.ArrayList<>(entities.size());
+        int i = 0;
         for (Object entity : entities) {
             Object id = getEntityId(entity);
             if (id != null && entityManager.find(entityClass, id) != null) {
                 result.add(entityManager.merge(entity));
+            }
+            if (++i % 50 == 0) {
+                entityManager.flush();
+                entityManager.clear();
             }
         }
         return result;

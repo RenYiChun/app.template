@@ -31,5 +31,6 @@ public class UserRole extends BaseEntity<Long> {
     private String userId;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "role_id", nullable = false)
     private Role role;
 }
