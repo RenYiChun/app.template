@@ -81,6 +81,8 @@ public class TemplateConfigProperties implements InitializingBean {
         private long ttlMill = 10000;
         private int maxCacheSize = 80000;
         private boolean cacheEnabled = true;
+        /** 在途生产上限（Wait(Q) 上限），≤0 表示用 1 倍全局消费许可数；用于避免 Wait(Q) 过大导致 OOM 并向上背压 */
+        private int maxInFlightProduction = 0;
     }
     
     @Setter

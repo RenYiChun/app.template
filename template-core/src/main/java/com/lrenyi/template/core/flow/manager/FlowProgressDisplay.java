@@ -95,6 +95,7 @@ public class FlowProgressDisplay {
                 2. 处理阶段:
                    - Active(C) : 当前正在处理中的活跃数据（占用物理许可）。
                    - Cache     : 缓存利用率 (当前存储数 / 最大容量)。
+                   - Pending   : 已离库未终结数。已从缓存驱逐/配对离库并提交到消费管道，在等待或占用消费许可，尚未 onGlobalTerminated。
                 3. 离场阶段:
                    - Succ      : 主动离场(Active Egress)。业务正常匹配完成的数量。
                    - Loss      : 被动离场(Passive Egress)。因超时、被动驱逐等导致的损耗。

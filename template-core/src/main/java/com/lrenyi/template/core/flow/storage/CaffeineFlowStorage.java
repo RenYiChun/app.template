@@ -2,6 +2,7 @@ package com.lrenyi.template.core.flow.storage;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -52,6 +53,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final ProgressTracker progressTracker;
     private final long maxCacheSize;
     private final FlowResourceRegistry resourceRegistry;
+    /** 已提交到消费执行器的驱逐回调数（仅 wasEvicted 且 submitBodyOnly 的条数），用于诊断待消费积压 */
+    private final LongAdder removalSubmittedCount = new LongAdder();
     /**
      * 按 key 分片的锁数量，保证同一 key 的配对/放入原子性，同时减少对 Caffeine 驱逐锁的并发争用。
      * 256 为经验值，在锁粒度和内存占用之间取得平衡。
@@ -321,6 +324,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             if (!cause.wasEvicted() || launcher == null) {
                 return;
             }
+            removalSubmittedCount.increment();
             String evictionReason = cause.name().toLowerCase();
             FlowMetrics.recordError("entry_evicted_" + evictionReason, entry.getJobId());
             finalizer.submitBodyOnly(entry, launcher);
@@ -344,7 +348,12 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     public long maxCacheSize() {
         return maxCacheSize;
     }
-    
+
+    @Override
+    public long getRemovalSubmittedCount() {
+        return removalSubmittedCount.sum();
+    }
+
     /**
      * 关闭存储，清理所有资源
      *

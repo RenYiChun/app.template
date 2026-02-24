@@ -50,4 +50,11 @@ public interface FlowStorage<T> {
     default FlowEntry<T> remove(String key) {
         throw new UnsupportedOperationException("This storage does not support key-based retrieval.");
     }
+
+    /**
+     * 可选：已提交到消费执行器的移除回调数（仅 Caffeine 等有驱逐回调的实现有值，用于诊断「待消费」积压）。
+     */
+    default long getRemovalSubmittedCount() {
+        return 0L;
+    }
 }

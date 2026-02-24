@@ -17,6 +17,8 @@ public final class FlowProgressTableLayout {
     public static final int W_DURATION = 8;
     public static final int W_PROGRESS = 7;
     public static final int W_SUCCESS = 7;
+    /** 待消费数：已离库未终结（在 removal/消费队列中） */
+    public static final int W_PENDING = 10;
 
     public static final String LINE = renderLine();
     public static final int TOTAL_W = LINE.length();
@@ -49,6 +51,8 @@ public final class FlowProgressTableLayout {
                 + fix("-", W_PROGRESS)
                 + " + "
                 + fix("-", W_SUCCESS)
+                + " + "
+                + fix("-", W_PENDING)
                 + " +";
     }
 
@@ -77,6 +81,8 @@ public final class FlowProgressTableLayout {
                 .append(fix("Progress", W_PROGRESS))
                 .append(" | ")
                 .append(fix("Success", W_SUCCESS))
+                .append(" | ")
+                .append(fix("Pending", W_PENDING))
                 .append(" |\n");
     }
 

@@ -69,9 +69,29 @@ public class FlowLauncher<T> {
     public void launch(T data) {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
+        if (stopped) {
+            FlowMetrics.recordError("job_stopped", jobId);
+            return;
+        }
+
+        Semaphore inFlight = resourceContext.getInFlightProductionSemaphore();
+        if (inFlight != null) {
+            try {
+                inFlight.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
+                FlowMetrics.recordError("inFlight_acquire_interrupted", jobId);
+                return;
+            }
+        }
+
         tracker.onProductionAcquired();
         if (stopped) {
             tracker.onProductionReleased();
+            if (inFlight != null) {
+                inFlight.release();
+            }
             FlowMetrics.recordError("job_stopped", jobId);
             return;
         }
@@ -80,6 +100,9 @@ public class FlowLauncher<T> {
             awaitBackpressure();
         } catch (InterruptedException e) {
             tracker.onProductionReleased();
+            if (inFlight != null) {
+                inFlight.release();
+            }
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             FlowMetrics.recordError("backpressure_interrupted", jobId);
             return;
@@ -105,6 +128,9 @@ public class FlowLauncher<T> {
                 FlowMetrics.recordError("deposit_failed", jobId);
             } finally {
                 tracker.onProductionReleased();
+                if (inFlight != null) {
+                    inFlight.release();
+                }
                 long totalLatency = System.currentTimeMillis() - startTime;
                 FlowMetrics.recordLatency("launch_total", totalLatency);
             }

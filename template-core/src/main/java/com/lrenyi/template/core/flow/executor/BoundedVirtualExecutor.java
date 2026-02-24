@@ -47,13 +47,22 @@ public class BoundedVirtualExecutor implements ExecutorService {
     
     private final ExecutorService delegate;
     private final PermitStrategy defaultStrategy;
+    /** 为 true 时 execute() 在调用线程先 acquire 再提交，用于 Caffeine removal 等需在提交处背压的场景 */
+    private final boolean blockCallerOnExecute;
     private volatile boolean shutdown;
     
     public BoundedVirtualExecutor(Semaphore semaphore) {
-        this(semaphore, Executors.newVirtualThreadPerTaskExecutor());
+        this(semaphore, Executors.newVirtualThreadPerTaskExecutor(), false);
     }
     
     public BoundedVirtualExecutor(Semaphore semaphore, ExecutorService delegate) {
+        this(semaphore, delegate, false);
+    }
+    
+    /**
+     * @param blockCallerOnExecute true 时 execute() 在调用线程先 acquire 再提交，调用方会在无许可时阻塞（用于驱逐回调等背压）
+     */
+    public BoundedVirtualExecutor(Semaphore semaphore, ExecutorService delegate, boolean blockCallerOnExecute) {
         if (semaphore == null) {
             throw new IllegalArgumentException("semaphore 非 null");
         }
@@ -62,6 +71,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
         }
         this.delegate = delegate;
         this.defaultStrategy = defaultStrategy(semaphore);
+        this.blockCallerOnExecute = blockCallerOnExecute;
     }
     
     @Override
@@ -69,7 +79,17 @@ public class BoundedVirtualExecutor implements ExecutorService {
         if (shutdown) {
             throw new IllegalStateException("Executor 已关闭");
         }
-        delegate.execute(runWithStrategy(defaultStrategy, command));
+        if (blockCallerOnExecute) {
+            try {
+                defaultStrategy.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            delegate.execute(runReleaseOnly(defaultStrategy, command));
+        } else {
+            delegate.execute(runWithStrategy(defaultStrategy, command));
+        }
     }
     
     @Override
