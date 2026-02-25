@@ -27,16 +27,16 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowJoinerEngine {
     private final FlowManager flowManager;
 
-    public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.JobConfig jobConfig) {
+    public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        run(jobId, joiner, tracker, jobConfig);
+        run(jobId, joiner, tracker, flowConfig);
     }
 
     public <T> void run(String jobId,
-                        FlowJoiner<T> joiner,
-                        ProgressTracker tracker,
-                        TemplateConfigProperties.JobConfig jc) {
+            FlowJoiner<T> joiner,
+            ProgressTracker tracker,
+            TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
         long jobStartTime = System.currentTimeMillis();
         FlowMetrics.incrementCounter("job_started");
@@ -65,23 +65,24 @@ public class FlowJoinerEngine {
      * @param total 预期总条数，用于进度；若未知可传 -1
      */
     public <T> void run(String jobId,
-                        FlowJoiner<T> joiner,
-                        FlowSource<T> singleSource,
-                        long total,
-                        TemplateConfigProperties.JobConfig jobConfig) {
+            FlowJoiner<T> joiner,
+            FlowSource<T> singleSource,
+            long total,
+            TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        run(jobId, joiner, singleSource, tracker, jobConfig);
+        run(jobId, joiner, singleSource, tracker, flowConfig);
     }
 
     /**
-     * 单流 run（指定 ProgressTracker）：单条 FlowSource + 已有 tracker，引擎内部包装为一次性 Provider 并复用拉取逻辑。
+     * 单流 run（指定 ProgressTracker）：单条 FlowSource + 已有 tracker，引擎内部包装为一次性 Provider
+     * 并复用拉取逻辑。
      */
     public <T> void run(String jobId,
-                        FlowJoiner<T> joiner,
-                        FlowSource<T> singleSource,
-                        ProgressTracker tracker,
-                        TemplateConfigProperties.JobConfig jc) {
+            FlowJoiner<T> joiner,
+            FlowSource<T> singleSource,
+            ProgressTracker tracker,
+            TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始（单流）: {}", jobId);
 
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
@@ -92,8 +93,8 @@ public class FlowJoinerEngine {
     }
 
     private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider,
-                                              String jobId,
-                                              FlowLauncher<T> launcher) {
+            String jobId,
+            FlowLauncher<T> launcher) {
         while (tryRunNextSubSource(provider, jobId, launcher)) {
             Thread.onSpinWait();
         }
@@ -101,8 +102,8 @@ public class FlowJoinerEngine {
     }
 
     private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
-                                            String jobId,
-                                            FlowLauncher<T> launcher) {
+            String jobId,
+            FlowLauncher<T> launcher) {
         try {
             if (!provider.hasNextSubSource()) {
                 return false;
@@ -117,8 +118,8 @@ public class FlowJoinerEngine {
     }
 
     private <T> void runSubSourceInVirtualThread(FlowSourceProvider<T> provider,
-                                                 FlowLauncher<T> launcher,
-                                                 String jobId) {
+            FlowLauncher<T> launcher,
+            String jobId) {
         FlowSource<T> sub = provider.nextSubSource();
         try (sub) {
             drainSubSource(sub, launcher, jobId);
@@ -165,18 +166,18 @@ public class FlowJoinerEngine {
      * 通过 inlet.markSourceFinished() 声明输入结束。不调用 joiner.sourceProvider()。
      */
     public <T> FlowInlet<T> startPush(String jobId,
-                                      FlowJoiner<T> joiner,
-                                      TemplateConfigProperties.JobConfig jobConfig) {
-        return startPush(jobId, joiner, -1, jobConfig);
+            FlowJoiner<T> joiner,
+            TemplateConfigProperties.Flow flowConfig) {
+        return startPush(jobId, joiner, -1, flowConfig);
     }
 
     public <T> FlowInlet<T> startPush(String jobId,
             FlowJoiner<T> joiner,
             long total,
-            TemplateConfigProperties.JobConfig jobConfig) {
+            TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jobConfig);
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, flowConfig);
         return new FlowInletImpl<>(launcher);
     }
 

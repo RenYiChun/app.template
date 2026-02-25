@@ -21,9 +21,9 @@ class FlowResourceRegistryTest {
 
     @Test
     void testConstructor_createsInitializedInstance() {
-        TemplateConfigProperties.JobGlobal config = new TemplateConfigProperties.JobGlobal();
-        config.setGlobalSemaphoreMaxLimit(16);
-        config.setProgressDisplaySecond(0);
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getConsumer().setConcurrencyLimit(16);
+        config.getMonitor().setProgressDisplaySecond(0);
 
         FlowResourceRegistry registry = new FlowResourceRegistry(config, true);
 
@@ -46,9 +46,9 @@ class FlowResourceRegistryTest {
 
     @Test
     void testConstructor_shutdownStopsExecutors() throws ResourceShutdownException {
-        TemplateConfigProperties.JobGlobal config = new TemplateConfigProperties.JobGlobal();
-        config.setGlobalSemaphoreMaxLimit(8);
-        config.setProgressDisplaySecond(0);
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getConsumer().setConcurrencyLimit(8);
+        config.getMonitor().setProgressDisplaySecond(0);
 
         FlowResourceRegistry registry = new FlowResourceRegistry(config, false);
         assertFalse(registry.isShutdown());

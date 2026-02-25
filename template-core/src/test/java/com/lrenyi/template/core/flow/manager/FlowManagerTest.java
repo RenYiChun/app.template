@@ -18,16 +18,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class FlowManagerTest {
 
-    private TemplateConfigProperties.JobGlobal config;
+    private TemplateConfigProperties.Flow config;
 
     @BeforeEach
     void setUp() {
         FlowManager.reset();
         FlowResourceRegistry.reset();
         FlowHealth.clearIndicators();
-        config = new TemplateConfigProperties.JobGlobal();
-        config.setGlobalSemaphoreMaxLimit(100);
-        config.setProgressDisplaySecond(0);
+        config = new TemplateConfigProperties.Flow();
+        config.getConsumer().setConcurrencyLimit(100);
+        config.getMonitor().setProgressDisplaySecond(0);
     }
 
     @AfterEach
@@ -53,9 +53,9 @@ class FlowManagerTest {
     @Test
     void getInstance_differentConfig_recreatesInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
-        TemplateConfigProperties.JobGlobal config2 = new TemplateConfigProperties.JobGlobal();
-        config2.setGlobalSemaphoreMaxLimit(200);
-        config2.setProgressDisplaySecond(0);
+        TemplateConfigProperties.Flow config2 = new TemplateConfigProperties.Flow();
+        config2.getConsumer().setConcurrencyLimit(200);
+        config2.getMonitor().setProgressDisplaySecond(0);
         FlowManager m2 = FlowManager.getInstance(config2);
         assertNotNull(m2);
         assertNotSame(m1, m2);
@@ -86,7 +86,7 @@ class FlowManagerTest {
 
     @Test
     void reset_clearsInstance() {
-        FlowManager m1 = FlowManager.getInstance(config);
+        FlowManager.getInstance(config);
         FlowManager.reset();
         FlowManager m2 = FlowManager.getInstance(config);
         assertNotNull(m2);

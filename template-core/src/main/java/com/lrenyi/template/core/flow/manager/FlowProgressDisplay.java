@@ -74,7 +74,8 @@ public class FlowProgressDisplay {
     private String centerText() {
         String title = "Flow Monitoring Dashboard (Physical Model)";
         int side = (TOTAL_W - title.length() - 2) / 2;
-        return "=".repeat(Math.max(0, side)) + " " + title + " " + "=".repeat(Math.max(0, TOTAL_W - side - title.length() - 2));
+        return "=".repeat(Math.max(0, side)) + " " + title + " "
+                + "=".repeat(Math.max(0, TOTAL_W - side - title.length() - 2));
     }
 
     public void stop() {
@@ -91,7 +92,7 @@ public class FlowProgressDisplay {
                 1. 进场阶段:
                    - In(Total) : 累计已进入流水线的数据总量。
                    - Wait(Q)   : 挂起等待数。数据已到达但尚未进入缓存。
-                                 (数字大，通常意味着 JobConfig 中的 jobProducerLimit 配小了，导致生产过快被挂起)
+                                 (数字大，通常意味着 Flow 配置中的 parallelism 配小了，导致生产过快被挂起)
                 2. 处理阶段:
                    - Active(C) : 当前正在处理中的活跃数据（占用物理许可）。
                    - Cache     : 缓存利用率 (当前存储数 / 最大容量)。

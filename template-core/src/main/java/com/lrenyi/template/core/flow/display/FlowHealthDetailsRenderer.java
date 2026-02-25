@@ -37,10 +37,10 @@ public final class FlowHealthDetailsRenderer {
     }
 
     private static void appendSemaphoreUsage(StringBuilder sb, Map<String, Object> details) {
-        if (details.containsKey("semaphoreUsage")) {
-            Double usage = (Double) details.get("semaphoreUsage");
-            Integer used = (Integer) details.get("semaphoreUsed");
-            Integer maxLimit = (Integer) details.get("semaphoreMaxLimit");
+        if (details.containsKey("consumerConcurrencyUsage")) {
+            Double usage = (Double) details.get("consumerConcurrencyUsage");
+            Integer used = (Integer) details.get("consumerConcurrencyUsed");
+            Integer maxLimit = (Integer) details.get("consumerConcurrencyLimit");
             sb.append(String.format("  - Semaphore Usage: %.2f%% (%d/%d)%n", usage * 100, used, maxLimit));
         }
     }
@@ -57,7 +57,7 @@ public final class FlowHealthDetailsRenderer {
         if (details.containsKey("resourceLeakDetected")) {
             Boolean leakDetected = (Boolean) details.get("resourceLeakDetected");
             if (Boolean.TRUE.equals(leakDetected)) {
-                sb.append(String.format("  - ⚠️  Resource Leak Detected!%n"));
+                sb.append(String.format("  -Resource Leak Detected!%n"));
             }
         }
     }

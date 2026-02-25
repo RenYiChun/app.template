@@ -13,22 +13,22 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public record Orchestrator(String jobId, ProgressTracker tracker, Registration registration,
-                           FlowResourceContext resourceContext) {
+        FlowResourceContext resourceContext) {
     /**
      * 获取 FlowManager（用于Job状态查询等）
      */
     private FlowManager getManager() {
         return resourceContext.getFlowManager();
     }
-    
+
     /**
      * 还票：归还全局消费席位（显式调用）
      */
     public void release() {
         Semaphore semaphore = resourceContext.getGlobalSemaphore();
-        int maxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
+        int concurrencyLimit = getManager().getGlobalConfig().getConsumer().getConcurrencyLimit();
         try {
-            if (semaphore.availablePermits() < maxLimit) {
+            if (semaphore.availablePermits() < concurrencyLimit) {
                 semaphore.release();
                 registration.decrement();
             } else {
@@ -36,7 +36,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                     registration.decrement();
                 }
             }
-            recordSemaphoreMetrics(semaphore, maxLimit);
+            recordSemaphoreMetrics(semaphore, concurrencyLimit);
         } finally {
             runReleaseHooks();
         }
@@ -73,34 +73,34 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             fairLock.unlock();
         }
     }
-    
+
     /**
      * 获取许可：支持初次 launch 和后续 reacquire
      */
     public void acquire() throws InterruptedException {
         long acquireStartTime = System.currentTimeMillis();
-        
+
         if (getManager().isStopped(jobId)) {
             InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
             FlowMetrics.recordError("acquire_job_stopped", jobId);
             throw e;
         }
-        
-        int globalSemaphoreMaxLimit = getManager().getGlobalConfig().getGlobalSemaphoreMaxLimit();
+
+        int concurrencyLimit = getManager().getGlobalConfig().getConsumer().getConcurrencyLimit();
         Semaphore semaphore = resourceContext.getGlobalSemaphore();
-        
+
         // 记录信号量使用情况
         int available = semaphore.availablePermits();
-        int used = globalSemaphoreMaxLimit - available;
+        int used = concurrencyLimit - available;
         FlowMetrics.recordResourceUsage("semaphore_used", used);
         FlowMetrics.recordResourceUsage("semaphore_available", available);
-        
+
         // 软性公平退让逻辑（保持现状）
         int activeJobs = getManager().getActiveJobCount();
-        int fairShare = Math.max(1, globalSemaphoreMaxLimit / activeJobs);
+        int fairShare = Math.max(1, concurrencyLimit / activeJobs);
         int waitCount = 0;
-        
+
         while (registration.getActiveCount().get() >= fairShare && semaphore.availablePermits() == 0) {
             Lock fairLock = resourceContext.getFairLock();
             fairLock.lock();
@@ -112,9 +112,8 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                 // 挂起线程，等待信号。这比 sleep 精准得多
                 // 设置超时作为兜底，防止极端情况下的丢失信号
                 boolean signalled = resourceContext.getPermitReleased()
-                                                   .await(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS,
-                                                          TimeUnit.MILLISECONDS
-                                                   );
+                        .await(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS,
+                                TimeUnit.MILLISECONDS);
                 waitCount++;
                 if (!signalled) {
                     // 情况 A: 超时到了。
@@ -129,19 +128,19 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             } finally {
                 fairLock.unlock();
             }
-            
+
             if (getManager().isStopped(jobId)) {
                 InterruptedException e = new InterruptedException("Job stopped during acquire");
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
                 throw e;
             }
         }
-        
+
         semaphore.acquire();
         registration.increment();
-        //仅在成功持有物理许可后计入活跃消费，使 Active(C) 与信号量持证数一致（≤ globalSemaphoreMaxLimit）
+        // 仅在成功持有物理许可后计入活跃消费，使 Active(C) 与信号量持证数一致（≤ globalSemaphoreMaxLimit）
         tracker.onConsumerBegin();
-        
+
         // 记录获取许可的延迟
         long acquireLatency = System.currentTimeMillis() - acquireStartTime;
         FlowMetrics.recordLatency("acquire_permit", acquireLatency);

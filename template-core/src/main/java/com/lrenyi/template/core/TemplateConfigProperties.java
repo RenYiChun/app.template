@@ -24,74 +24,95 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "app.template")
 public class TemplateConfigProperties implements InitializingBean {
     private boolean enabled = true;
-    
+
     /**
      * OAuth2模块配置
      */
     @NestedConfigurationProperty
     private OAuth2Config oauth2 = new OAuth2Config();
-    
+
     @NestedConfigurationProperty
     private AuthorizeConfig authorize = new AuthorizeConfig();
-    
+
     @NestedConfigurationProperty
-    private Job job = new Job();
-    
+    private Flow flow = new Flow();
+
     /**
      * 安全配置
      */
     @NestedConfigurationProperty
     private SecurityProperties security = new SecurityProperties();
-    
+
     /**
      * Web模块配置
      */
     @NestedConfigurationProperty
     private WebProperties web = new WebProperties();
-    
+
     @NestedConfigurationProperty
     private FeignProperties feign = new FeignProperties();
-    
+
     private AuditLogProperties audit = new AuditLogProperties();
-    
+
     @Setter
     @Getter
     public static class AuthorizeConfig {
         private boolean enabled = true;
     }
-    
+
+    /**
+     * Flow 配置
+     */
     @Setter
     @Getter
-    public static class Job {
-        private JobGlobal global = new JobGlobal();
-        private JobConfig defaultConfig = new JobConfig();
+    public static class Flow {
+        /** 监控配置 */
+        @NestedConfigurationProperty
+        private Monitor monitor = new Monitor();
+        /** 生产端配置 */
+        @NestedConfigurationProperty
+        private Producer producer = new Producer();
+        /** 消费端配置 */
+        @NestedConfigurationProperty
+        private Consumer consumer = new Consumer();
     }
-    
+
     @Setter
     @Getter
-    public static class JobGlobal {
-        private int globalSemaphoreMaxLimit = 8000;
+    public static class Monitor {
+        /** 进度展示间隔（秒） */
         private int progressDisplaySecond = 5;
     }
-    
+
     @Setter
     @Getter
-    public static class JobConfig {
-        private int jobProducerLimit = 40;
-        private long ttlMill = 10000;
+    public static class Producer {
+        /** 子流并行拉取数 (控制同时执行拉取任务的任务数) */
+        private int parallelism = 40;
+        /** 在途数据上限阈值 (控制系统中允许存在的在途数据条目数，≤0 表示用 1 倍全局消费许可数) */
+        private int maxInFlightThreshold = 0;
+        /** 缓存最大容量 */
         private int maxCacheSize = 80000;
+        /** 是否开启缓存 */
         private boolean cacheEnabled = true;
-        /** 在途生产上限（Wait(Q) 上限），≤0 表示用 1 倍全局消费许可数；用于避免 Wait(Q) 过大导致 OOM 并向上背压 */
-        private int maxInFlightProduction = 0;
     }
-    
+
+    @Setter
+    @Getter
+    public static class Consumer {
+        /** 缓存数据存活时间（毫秒） */
+        private long ttlMill = 10000;
+        /** 全局并发消费许可数阈值 */
+        private int concurrencyLimit = 8000;
+    }
+
     @Setter
     @Getter
     public static class AuditLogProperties {
         private boolean enabled = false;
         private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
     }
-    
+
     @Setter
     @Getter
     public static class FeignProperties {
@@ -101,7 +122,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String oauthClientId;
         private String oauthClientSecret;
     }
-    
+
     /**
      * Web模块配置
      */
@@ -111,7 +132,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String jsonProcessorType;
         private boolean exportExceptionDetail;
     }
-    
+
     /**
      * OAuth2模块配置
      */
@@ -123,7 +144,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String tokenUrl;
         @NestedConfigurationProperty
         private OpaqueTokenConfig opaqueToken = new OpaqueTokenConfig();
-        
+
         @Setter
         @Getter
         public static class OpaqueTokenConfig {
@@ -133,7 +154,7 @@ public class TemplateConfigProperties implements InitializingBean {
             private String clientSecret = "app.template";
         }
     }
-    
+
     /**
      * 安全配置
      */
@@ -152,13 +173,13 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
         private Long tokenMaxLifetimeSeconds = 24 * 3600L;
-        
+
         /**
          * AuthorizationService的类型，目前支持两种，memory, redis
          */
         private String authorizationType = "memory";
     }
-    
+
     @Override
     public void afterPropertiesSet() {
         List<String> list = Arrays.asList("/jwt/public/key", "/favicon");
