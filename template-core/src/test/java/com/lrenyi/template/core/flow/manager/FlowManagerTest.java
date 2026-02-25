@@ -4,6 +4,7 @@ import java.util.Map;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.health.FlowHealth;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,9 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * FlowManager 单元测试
- */
 class FlowManagerTest {
 
     private TemplateConfigProperties.Flow config;
@@ -27,7 +25,6 @@ class FlowManagerTest {
         FlowHealth.clearIndicators();
         config = new TemplateConfigProperties.Flow();
         config.getConsumer().setConcurrencyLimit(100);
-        config.getMonitor().setProgressDisplaySecond(0);
     }
 
     @AfterEach
@@ -55,7 +52,6 @@ class FlowManagerTest {
         FlowManager m1 = FlowManager.getInstance(config);
         TemplateConfigProperties.Flow config2 = new TemplateConfigProperties.Flow();
         config2.getConsumer().setConcurrencyLimit(200);
-        config2.getMonitor().setProgressDisplaySecond(0);
         FlowManager m2 = FlowManager.getInstance(config2);
         assertNotNull(m2);
         assertNotSame(m1, m2);
@@ -63,7 +59,7 @@ class FlowManagerTest {
 
     @Test
     void packageConstructor_createsInstanceWithoutInit() {
-        FlowManager manager = new FlowManager(config, true);
+        FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true);
         assertNotNull(manager);
         assertNotNull(manager.getResourceRegistry());
         assertNotNull(manager.getRegistry());

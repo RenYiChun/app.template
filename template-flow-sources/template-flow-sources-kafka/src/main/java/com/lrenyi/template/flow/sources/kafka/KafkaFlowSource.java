@@ -3,7 +3,11 @@ package com.lrenyi.template.flow.sources.kafka;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.flow.api.FlowSource;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -12,37 +16,36 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 单子流 Kafka 数据源：包装一个 {@link KafkaConsumer}，按顺序产出 T。
- * 由引擎在虚拟线程中拉取（hasNext/next），适用于单 partition 或单 consumer 场景；
- * 多 partition 时可构造多个 KafkaFlowSource 或使用 {@link com.lrenyi.template.core.flow.api.FlowSourceProvider}。
- * <p>
- * 阻塞与中断：{@link #hasNext()} 内无数据时调用 {@code consumer.poll(Duration)}；
- * 若当前线程被中断则抛 {@link InterruptedException}；若 poll 抛 {@link WakeupException} 且线程已中断则转为 InterruptedException。
  *
- * @param <T> 业务产出类型，由 mapper 从 ConsumerRecord 转换得到
+ * @param <T> 业务产出类型
  */
 @Slf4j
 public final class KafkaFlowSource<T> implements FlowSource<T> {
-    
+
     private final KafkaConsumer<?, ?> consumer;
     private final java.util.function.Function<ConsumerRecord<?, ?>, T> mapper;
     private final Duration pollTimeout;
-    
+    private final MeterRegistry meterRegistry;
+
     private Iterator<? extends ConsumerRecord<?, ?>> currentBatch;
     private boolean closed;
-    
-    /**
-     * @param consumer    Kafka Consumer，调用方负责配置与 subscribe/assign；本类负责在 close() 时关闭
-     * @param mapper      ConsumerRecord 转 T，非 null
-     * @param pollTimeout 无数据时 poll 等待时长，非 null
-     */
+
     public KafkaFlowSource(KafkaConsumer<?, ?> consumer,
                            java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
                            Duration pollTimeout) {
+        this(consumer, mapper, pollTimeout, null);
+    }
+
+    public KafkaFlowSource(KafkaConsumer<?, ?> consumer,
+                           java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
+                           Duration pollTimeout,
+                           MeterRegistry meterRegistry) {
         this.consumer = consumer;
         this.mapper = mapper;
         this.pollTimeout = pollTimeout != null ? pollTimeout : Duration.ofMillis(1000);
+        this.meterRegistry = meterRegistry;
     }
-    
+
     @Override
     public boolean hasNext() throws InterruptedException {
         if (closed) {
@@ -57,21 +60,43 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         fetchNextBatch();
         return currentBatch != null && currentBatch.hasNext();
     }
-    
+
     private void fetchNextBatch() throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException();
         }
+        long start = System.currentTimeMillis();
         try {
             ConsumerRecords<?, ?> records = consumer.poll(pollTimeout);
             currentBatch = records.iterator();
+            if (meterRegistry != null) {
+                long elapsed = System.currentTimeMillis() - start;
+                Timer.builder("app.template.source.poll.duration")
+                     .tag("sourceType", "kafka")
+                     .register(meterRegistry)
+                     .record(elapsed, TimeUnit.MILLISECONDS);
+                int count = records.count();
+                if (count > 0) {
+                    Counter.builder("app.template.source.received")
+                           .tag("sourceType", "kafka")
+                           .register(meterRegistry).increment(count);
+                }
+            }
         } catch (WakeupException e) {
             closed = true;
             Thread.currentThread().interrupt();
             throw new InterruptedException("Kafka consumer woken up");
+        } catch (Exception e) {
+            if (meterRegistry != null) {
+                Counter.builder("app.template.source.errors")
+                       .tag("sourceType", "kafka")
+                       .tag("errorType", e.getClass().getSimpleName())
+                       .register(meterRegistry).increment();
+            }
+            throw e;
         }
     }
-    
+
     @Override
     public T next() {
         if (closed) {
@@ -83,7 +108,7 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         ConsumerRecord<?, ?> rd = currentBatch.next();
         return mapper.apply(rd);
     }
-    
+
     @Override
     public void close() {
         if (closed) {

@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.TokenBean;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,10 +25,16 @@ import org.springframework.util.StringUtils;
 public class TemplateAuthenticationFailureHandler implements AuthenticationFailureHandler {
     
     private JsonService jsonService;
-    
+    private MeterRegistry meterRegistry;
+
     @Autowired
     public void setJsonService(JsonService jsonService) {
         this.jsonService = jsonService;
+    }
+
+    @Autowired
+    public void setMeterRegistry(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
     }
     
     @Override
@@ -36,6 +44,10 @@ public class TemplateAuthenticationFailureHandler implements AuthenticationFailu
         if (exception instanceof OAuth2AuthenticationException authenticationException) {
             OAuth2Error error = authenticationException.getError();
             String errorCode = error.getErrorCode();
+            Counter.builder("app.template.oauth2.token.failed")
+                   .tag("grantType", "unknown")
+                   .tag("errorType", errorCode)
+                   .register(meterRegistry).increment();
             String description = error.getDescription();
             TokenBean result = new TokenBean();
             result.setError(errorCode);

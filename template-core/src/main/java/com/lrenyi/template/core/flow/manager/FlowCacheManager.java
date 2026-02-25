@@ -44,7 +44,8 @@ public class FlowCacheManager {
             if (factory == null) {
                 throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
             }
-            return factory.createStorage(jobId, joiner, config, finalizer, progressTracker);
+            return factory.createStorage(jobId, joiner, config, finalizer, progressTracker,
+                    resourceRegistry.getMeterRegistry());
         });
     }
 

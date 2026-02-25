@@ -2,6 +2,8 @@ package com.lrenyi.oauth2.service.oauth2;
 
 import java.io.IOException;
 import com.lrenyi.template.dataforge.service.AuditLogService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandler {
     private OAuth2AuthorizationService oAuth2AuthorizationService;
     private AuditLogService auditLogService;
+    private MeterRegistry meterRegistry;
     
     @Autowired(required = false)
     public void setAuditLogService(AuditLogService auditLogService) {
@@ -30,6 +33,11 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
     @Autowired
     public void setoAuth2AuthorizationService(OAuth2AuthorizationService oauth2AuthorizationService) {
         this.oAuth2AuthorizationService = oauth2AuthorizationService;
+    }
+
+    @Autowired
+    public void setMeterRegistry(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
     }
     
     @Override
@@ -52,6 +60,8 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
                 userName = authorization.getAttribute(OAuth2TokenIntrospectionClaimNames.USERNAME);
                 oAuth2AuthorizationService.remove(authorization);
                 success = true;
+                Counter.builder("app.template.oauth2.logout")
+                       .register(meterRegistry).increment();
                 log.info("User {} logout successfully", userName);
             }
         } catch (Exception e) {

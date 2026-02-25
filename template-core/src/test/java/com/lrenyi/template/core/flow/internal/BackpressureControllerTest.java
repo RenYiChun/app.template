@@ -4,41 +4,31 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.lrenyi.template.core.flow.context.FlowEntry;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
-import org.junit.jupiter.api.BeforeEach;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * BackpressureController 单元测试
- */
 class BackpressureControllerTest {
 
     private BackpressureController controller;
 
-    @BeforeEach
-    void setUp() {
-        FlowMetricsCollectorGuard.resetIfNeeded();
-    }
-
     @Test
     void awaitSpace_whenStorageNotFull_returnsImmediately() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 1);
-        controller = new BackpressureController(storage);
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
 
         controller.awaitSpace(() -> false);
 
-        // 不阻塞即成功
         assertTrue(storage.size() < storage.maxCacheSize());
     }
 
     @Test
     void awaitSpace_whenStopCheckReturnsTrue_exitsImmediately() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage);
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
         AtomicBoolean stopCheckCalled = new AtomicBoolean(false);
 
         long start = System.currentTimeMillis();
@@ -55,7 +45,7 @@ class BackpressureControllerTest {
     @Test
     void awaitSpace_whenFull_blocksUntilSignalRelease() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage);
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
         CountDownLatch producerBlocked = new CountDownLatch(1);
         CountDownLatch testDone = new CountDownLatch(1);
 
@@ -84,7 +74,7 @@ class BackpressureControllerTest {
     @Test
     void signalRelease_wakesOneWaiter() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage);
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
         AtomicBoolean released = new AtomicBoolean(false);
 
         Thread producer = new Thread(() -> {
@@ -107,9 +97,6 @@ class BackpressureControllerTest {
         assertTrue(released.get(), "Producer should have been released");
     }
 
-    /**
-     * Mock FlowStorage with controllable size for testing
-     */
     private static class MockFlowStorage implements FlowStorage<Object> {
         private volatile long currentSize;
         private final long max;
@@ -140,15 +127,6 @@ class BackpressureControllerTest {
 
         @Override
         public void shutdown() {
-        }
-    }
-
-    /**
-     * Avoid polluting FlowMetrics in tests - reset before each test if needed
-     */
-    private static class FlowMetricsCollectorGuard {
-        static void resetIfNeeded() {
-            FlowMetrics.getCollector().reset();
         }
     }
 }

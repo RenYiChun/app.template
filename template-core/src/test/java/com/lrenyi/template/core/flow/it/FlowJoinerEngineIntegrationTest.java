@@ -49,7 +49,6 @@ class FlowJoinerEngineIntegrationTest {
     void setUp() {
         globalConfig = new TemplateConfigProperties.Flow();
         globalConfig.getConsumer().setConcurrencyLimit(100);
-        globalConfig.getMonitor().setProgressDisplaySecond(0);
         flowConfig = new TemplateConfigProperties.Flow();
         flowConfig.getProducer().setParallelism(10);
         flowConfig.getConsumer().setTtlMill(5000);
@@ -347,10 +346,6 @@ class FlowJoinerEngineIntegrationTest {
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
 
-        java.util.Map<String, Object> metrics = manager.getMetrics();
-        assertNotNull(metrics);
-        assertTrue(metrics.containsKey("counters") || metrics.containsKey("errors") || !metrics.isEmpty());
-
         java.util.Map<String, Object> healthStatus = manager.getHealthStatus();
         assertNotNull(healthStatus);
         assertTrue(healthStatus.containsKey("overallStatus"));
@@ -418,7 +413,6 @@ class FlowJoinerEngineIntegrationTest {
 
         TemplateConfigProperties.Flow cfg2 = new TemplateConfigProperties.Flow();
         cfg2.getConsumer().setConcurrencyLimit(100);
-        cfg2.getMonitor().setProgressDisplaySecond(0);
         FlowManager manager2 = FlowManager.getInstance(cfg2);
         FlowJoinerEngine engine2 = new FlowJoinerEngine(manager2);
         OverwriteJoiner joiner2 = new OverwriteJoiner();

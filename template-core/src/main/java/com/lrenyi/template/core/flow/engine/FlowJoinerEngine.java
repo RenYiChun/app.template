@@ -15,7 +15,9 @@ import com.lrenyi.template.core.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.core.flow.internal.FlowInletImpl;
 import com.lrenyi.template.core.flow.internal.FlowLauncher;
 import com.lrenyi.template.core.flow.manager.FlowManager;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.metrics.FlowMetricNames;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,6 +28,10 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FlowJoinerEngine {
     private final FlowManager flowManager;
+
+    private MeterRegistry registry() {
+        return flowManager.getMeterRegistry();
+    }
 
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
@@ -38,8 +44,11 @@ public class FlowJoinerEngine {
             ProgressTracker tracker,
             TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
-        long jobStartTime = System.currentTimeMillis();
-        FlowMetrics.incrementCounter("job_started");
+
+        Counter.builder(FlowMetricNames.JOB_STARTED)
+               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+               .register(registry())
+               .increment();
 
         try {
             FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
@@ -48,21 +57,23 @@ public class FlowJoinerEngine {
                 runUntilNoMoreSubSources(provider, jobId, launcher);
             }
 
-            long jobDuration = System.currentTimeMillis() - jobStartTime;
-            FlowMetrics.recordLatency("job_total_duration", jobDuration);
-            FlowMetrics.incrementCounter("job_completed");
+            Counter.builder(FlowMetricNames.JOB_COMPLETED)
+                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                   .register(registry())
+                   .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            FlowMetrics.recordError("job_failed", jobId);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_failed")
+                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .register(registry())
+                   .increment();
             throw e;
         }
     }
 
     /**
-     * 单流 run：业务只有一条流时直接传入 FlowSource，引擎内部包装为「仅含一个子流」的 Provider 并复用拉取逻辑。
-     * 不调用 joiner.sourceProvider()。
-     *
-     * @param total 预期总条数，用于进度；若未知可传 -1
+     * 单流 run：业务只有一条流时直接传入 FlowSource
      */
     public <T> void run(String jobId,
             FlowJoiner<T> joiner,
@@ -74,10 +85,6 @@ public class FlowJoinerEngine {
         run(jobId, joiner, singleSource, tracker, flowConfig);
     }
 
-    /**
-     * 单流 run（指定 ProgressTracker）：单条 FlowSource + 已有 tracker，引擎内部包装为一次性 Provider
-     * 并复用拉取逻辑。
-     */
     public <T> void run(String jobId,
             FlowJoiner<T> joiner,
             FlowSource<T> singleSource,
@@ -125,26 +132,29 @@ public class FlowJoinerEngine {
             drainSubSource(sub, launcher, jobId);
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            FlowMetrics.recordError("subsource_failed", jobId);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "subsource_failed")
+                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .register(registry())
+                   .increment();
             log.error("子流消费异常 jobId={}", jobId, e);
         }
     }
 
     private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher, String jobId) {
-        int itemCount = 0;
         Optional<T> item = pollNext(sub);
         while (item.isPresent()) {
             if (launcher.isStopped()) {
                 launcher.getTaskOrchestrator().tracker().onProductionReleased();
-                FlowMetrics.recordError("job_stopped", jobId);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
+                       .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                       .register(registry())
+                       .increment();
                 return;
             }
             launcher.launch(item.get());
-            itemCount++;
             item = pollNext(sub);
-        }
-        if (itemCount > 0) {
-            FlowMetrics.incrementCounter("subsource_items_processed", itemCount);
         }
     }
 
@@ -162,8 +172,7 @@ public class FlowJoinerEngine {
     }
 
     /**
-     * 推送模式：注册任务并返回 FlowInlet，业务通过 inlet.push(item) 注入数据，
-     * 通过 inlet.markSourceFinished() 声明输入结束。不调用 joiner.sourceProvider()。
+     * 推送模式：注册任务并返回 FlowInlet
      */
     public <T> FlowInlet<T> startPush(String jobId,
             FlowJoiner<T> joiner,
@@ -185,33 +194,7 @@ public class FlowJoinerEngine {
         return flowManager.getActiveLauncher(jobId).getTaskOrchestrator().tracker();
     }
 
-    public void printProgressDisplay() {
-        flowManager.getFlowProgressDisplay().displayStatus(null);
-    }
-
-    /**
-     * 获取框架健康状态
-     *
-     * @return 健康状态详情
-     */
     public Map<String, Object> getHealthStatus() {
         return flowManager.getHealthStatus();
-    }
-
-    /**
-     * 获取框架指标
-     *
-     * @return 指标映射
-     */
-    public Map<String, Object> getMetrics() {
-        return flowManager.getMetrics();
-    }
-
-    /**
-     * 输出健康检查报告到日志
-     * 包含所有健康指标的详细信息
-     */
-    public void logHealthReport() {
-        flowManager.logHealthReport();
     }
 }
