@@ -32,10 +32,10 @@ public class FlowCacheManager {
 
     @SuppressWarnings("unchecked")
     public <T> FlowStorage<T> getOrCreateStorage(String jobId,
-                                                 FlowJoiner<T> joiner,
-                                                 TemplateConfigProperties.JobConfig config,
-                                                 FlowFinalizer<T> finalizer,
-                                                 ProgressTracker progressTracker) {
+            FlowJoiner<T> joiner,
+            TemplateConfigProperties.Flow config,
+            FlowFinalizer<T> finalizer,
+            ProgressTracker progressTracker) {
         FlowStorageType type = joiner.getStorageType();
         String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
@@ -59,7 +59,7 @@ public class FlowCacheManager {
             log.debug("FlowStorage invalidated for jobId={}, type={}", jobId, type);
         }
     }
-    
+
     /**
      * 系统停机清理
      */

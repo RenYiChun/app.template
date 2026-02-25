@@ -40,20 +40,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlowJoinerEngineIntegrationTest {
 
     private static final int TIMEOUT_SEC = 30;
-    private TemplateConfigProperties.JobGlobal globalConfig;
-    private TemplateConfigProperties.JobConfig jobConfig;
+    private TemplateConfigProperties.Flow globalConfig;
+    private TemplateConfigProperties.Flow flowConfig;
     private FlowManager manager;
     private FlowJoinerEngine engine;
 
     @BeforeEach
     void setUp() {
-        globalConfig = new TemplateConfigProperties.JobGlobal();
-        globalConfig.setGlobalSemaphoreMaxLimit(100);
-        globalConfig.setProgressDisplaySecond(0);
-        jobConfig = new TemplateConfigProperties.JobConfig();
-        jobConfig.setJobProducerLimit(10);
-        jobConfig.setTtlMill(5000);
-        jobConfig.setMaxCacheSize(1000);
+        globalConfig = new TemplateConfigProperties.Flow();
+        globalConfig.getConsumer().setConcurrencyLimit(100);
+        globalConfig.getMonitor().setProgressDisplaySecond(0);
+        flowConfig = new TemplateConfigProperties.Flow();
+        flowConfig.getProducer().setParallelism(10);
+        flowConfig.getConsumer().setTtlMill(5000);
+        flowConfig.getProducer().setMaxCacheSize(1000);
         manager = FlowManager.getInstance(globalConfig);
         engine = new FlowJoinerEngine(manager);
     }
@@ -71,7 +71,8 @@ class FlowJoinerEngineIntegrationTest {
     }
 
     /** 等待消费数或 terminated 达到预期（异步 deposit 可能晚于 completionFuture） */
-    private void awaitConsumedOrTerminated(Supplier<Long> consumedSupplier, ProgressTracker tracker, long expected) throws InterruptedException {
+    private void awaitConsumedOrTerminated(Supplier<Long> consumedSupplier, ProgressTracker tracker, long expected)
+            throws InterruptedException {
         for (int i = 0; i < 100; i++) {
             if (consumedSupplier.get() >= expected || tracker.getSnapshot().terminated() >= expected) {
                 return;
@@ -92,7 +93,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
         OverwriteJoiner joiner = new OverwriteJoiner();
 
-        engine.run("job-pull-single", joiner, singleSource, total, jobConfig);
+        engine.run("job-pull-single", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-single");
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
@@ -120,10 +121,11 @@ class FlowJoinerEngineIntegrationTest {
 
         DefaultProgressTracker tracker = new DefaultProgressTracker("job-pull-multi", manager);
         tracker.setTotalExpected("job-pull-multi", pairCount * 2);
-        engine.run("job-pull-multi", joiner, tracker, jobConfig);
+        engine.run("job-pull-multi", joiner, tracker, flowConfig);
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
-            if (joiner.getOnSuccessCount() >= pairCount) break;
+            if (joiner.getOnSuccessCount() >= pairCount)
+                break;
             Thread.sleep(100);
         }
 
@@ -144,7 +146,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
         QueueJoiner joiner = new QueueJoiner();
 
-        engine.run("job-pull-queue", joiner, singleSource, total, jobConfig);
+        engine.run("job-pull-queue", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-queue");
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitConsumedOrTerminated(() -> (long) joiner.getConsumedCount(), tracker, total);
@@ -153,7 +155,8 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(total, snapshot.terminated());
         assertEquals(total, joiner.getConsumedCount());
         List<PairItem> order = joiner.getConsumedOrder();
-        java.util.Set<String> consumedIds = order.stream().map(PairItem::getId).collect(java.util.stream.Collectors.toSet());
+        java.util.Set<String> consumedIds = order.stream().map(PairItem::getId)
+                .collect(java.util.stream.Collectors.toSet());
         java.util.Set<String> expectedIds = new java.util.HashSet<>();
         for (int i = 0; i < total; i++) {
             expectedIds.add("q" + i);
@@ -166,11 +169,11 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_FlowLauncher_getters() {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-launcher-test", joiner, jobConfig);
+        var inlet = engine.startPush("job-launcher-test", joiner, flowConfig);
         FlowLauncher<?> launcher = manager.getActiveLauncher("job-launcher-test");
         assertNotNull(launcher);
         assertEquals("job-launcher-test", launcher.getJobId());
-        assertEquals(jobConfig.getMaxCacheSize(), launcher.getCacheCapacity());
+        assertEquals(flowConfig.getProducer().getMaxCacheSize(), launcher.getCacheCapacity());
         assertFalse(launcher.isStopped());
         inlet.markSourceFinished();
         manager.stopAll(true);
@@ -180,7 +183,7 @@ class FlowJoinerEngineIntegrationTest {
     void IT_PUSH_COMPLETION() throws Exception {
         int count = 25;
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-push-complete", joiner, jobConfig);
+        var inlet = engine.startPush("job-push-complete", joiner, flowConfig);
 
         for (int i = 0; i < count; i++) {
             inlet.push(new PairItem("p" + i, "v" + i, null));
@@ -204,7 +207,7 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_PUSH_STOP_BEFORE_FINISH() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-push-stop", joiner, jobConfig);
+        var inlet = engine.startPush("job-push-stop", joiner, flowConfig);
         for (int i = 0; i < 5; i++) {
             inlet.push(new PairItem("s" + i, "v" + i, null));
         }
@@ -227,14 +230,15 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_CAFFEINE_REPLACE() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-replace", joiner, jobConfig);
+        var inlet = engine.startPush("job-replace", joiner, flowConfig);
         String sameKey = "sameKey";
         inlet.push(new PairItem(sameKey, "old", null));
         inlet.push(new PairItem(sameKey, "new", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
-            if (joiner.getOnFailedCount(FailureReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1) break;
+            if (joiner.getOnFailedCount(FailureReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1)
+                break;
             Thread.sleep(100);
         }
 
@@ -260,10 +264,11 @@ class FlowJoinerEngineIntegrationTest {
 
         DefaultProgressTracker tracker = new DefaultProgressTracker("job-mismatch", manager);
         tracker.setTotalExpected("job-mismatch", 4);
-        engine.run("job-mismatch", joiner, tracker, jobConfig);
+        engine.run("job-mismatch", joiner, tracker, flowConfig);
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
-            if (joiner.getOnFailedCount(FailureReason.MISMATCH) >= 2) break;
+            if (joiner.getOnFailedCount(FailureReason.MISMATCH) >= 2)
+                break;
             Thread.sleep(100);
         }
 
@@ -275,14 +280,15 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_FAILURE_REASON_IN_SNAPSHOT() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-snapshot-reason", joiner, jobConfig);
+        var inlet = engine.startPush("job-snapshot-reason", joiner, flowConfig);
         inlet.push(new PairItem("r1", "v1", null));
         inlet.push(new PairItem("r1", "v2", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
             FlowProgressSnapshot s = inlet.getProgressTracker().getSnapshot();
-            if (s.getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1) break;
+            if (s.getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1)
+                break;
             Thread.sleep(100);
         }
 
@@ -293,9 +299,9 @@ class FlowJoinerEngineIntegrationTest {
 
     @Test
     void IT_QUEUE_DRAIN_AFTER_STOP() throws Exception {
-        jobConfig.setMaxCacheSize(2);
+        flowConfig.getProducer().setMaxCacheSize(2);
         QueueJoiner joiner = new QueueJoiner();
-        var inlet = engine.startPush("job-queue-drain", joiner, jobConfig);
+        var inlet = engine.startPush("job-queue-drain", joiner, flowConfig);
         inlet.push(new PairItem("d1", "v1", null));
         inlet.push(new PairItem("d2", "v2", null));
         inlet.push(new PairItem("d3", "v3", null));
@@ -321,7 +327,7 @@ class FlowJoinerEngineIntegrationTest {
         }
         OverwriteJoiner joiner = new OverwriteJoiner();
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
-        engine.run("job-completion", joiner, singleSource, total, jobConfig);
+        engine.run("job-completion", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-completion");
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
@@ -336,7 +342,7 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_METRICS_AND_HEALTH() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-metrics", joiner, jobConfig);
+        var inlet = engine.startPush("job-metrics", joiner, flowConfig);
         inlet.push(new PairItem("m1", "v1", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
@@ -353,10 +359,9 @@ class FlowJoinerEngineIntegrationTest {
         var status = manager.checkHealth();
         assertNotNull(status);
         assertTrue(List.of(
-            com.lrenyi.template.core.flow.health.HealthStatus.HEALTHY,
-            com.lrenyi.template.core.flow.health.HealthStatus.DEGRADED,
-            com.lrenyi.template.core.flow.health.HealthStatus.UNHEALTHY
-        ).contains(status));
+                com.lrenyi.template.core.flow.health.HealthStatus.HEALTHY,
+                com.lrenyi.template.core.flow.health.HealthStatus.DEGRADED,
+                com.lrenyi.template.core.flow.health.HealthStatus.UNHEALTHY).contains(status));
     }
 
     // ---------- 3.5 资源与生命周期 ----------
@@ -365,8 +370,8 @@ class FlowJoinerEngineIntegrationTest {
     void IT_MULTI_JOB_ISOLATION() throws Exception {
         OverwriteJoiner joiner1 = new OverwriteJoiner();
         OverwriteJoiner joiner2 = new OverwriteJoiner();
-        var inlet1 = engine.startPush("job-isolation-1", joiner1, jobConfig);
-        var inlet2 = engine.startPush("job-isolation-2", joiner2, jobConfig);
+        var inlet1 = engine.startPush("job-isolation-1", joiner1, flowConfig);
+        var inlet2 = engine.startPush("job-isolation-2", joiner2, flowConfig);
         inlet1.push(new PairItem("a1", "v1", null));
         inlet2.push(new PairItem("b1", "v1", null));
         inlet1.markSourceFinished();
@@ -374,7 +379,8 @@ class FlowJoinerEngineIntegrationTest {
         inlet1.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         inlet2.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
-            if (joiner1.getOnConsumeCount() >= 1 && joiner2.getOnConsumeCount() >= 1) break;
+            if (joiner1.getOnConsumeCount() >= 1 && joiner2.getOnConsumeCount() >= 1)
+                break;
             Thread.sleep(100);
         }
 
@@ -386,7 +392,7 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_STOP_JOB_AND_RESET() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-stop-reset", joiner, jobConfig);
+        var inlet = engine.startPush("job-stop-reset", joiner, flowConfig);
         inlet.push(new PairItem("x1", "v1", null));
         manager.stopById("job-stop-reset", true);
         assertTrue(manager.isStopped("job-stop-reset"));
@@ -401,7 +407,7 @@ class FlowJoinerEngineIntegrationTest {
     @Test
     void IT_RESET_AFTER_COMPLETION() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-reset-after", joiner, jobConfig);
+        var inlet = engine.startPush("job-reset-after", joiner, flowConfig);
         inlet.push(new PairItem("z1", "v1", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
@@ -410,18 +416,19 @@ class FlowJoinerEngineIntegrationTest {
         FlowResourceRegistry.reset();
         FlowHealth.clearIndicators();
 
-        TemplateConfigProperties.JobGlobal cfg2 = new TemplateConfigProperties.JobGlobal();
-        cfg2.setGlobalSemaphoreMaxLimit(100);
-        cfg2.setProgressDisplaySecond(0);
+        TemplateConfigProperties.Flow cfg2 = new TemplateConfigProperties.Flow();
+        cfg2.getConsumer().setConcurrencyLimit(100);
+        cfg2.getMonitor().setProgressDisplaySecond(0);
         FlowManager manager2 = FlowManager.getInstance(cfg2);
         FlowJoinerEngine engine2 = new FlowJoinerEngine(manager2);
         OverwriteJoiner joiner2 = new OverwriteJoiner();
-        var inlet2 = engine2.startPush("job-new-after-reset", joiner2, jobConfig);
+        var inlet2 = engine2.startPush("job-new-after-reset", joiner2, flowConfig);
         inlet2.push(new PairItem("n1", "v1", null));
         inlet2.markSourceFinished();
         inlet2.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         for (int i = 0; i < 100; i++) {
-            if (joiner2.getOnConsumeCount() >= 1) break;
+            if (joiner2.getOnConsumeCount() >= 1)
+                break;
             Thread.sleep(100);
         }
         assertEquals(1, joiner2.getOnConsumeCount());

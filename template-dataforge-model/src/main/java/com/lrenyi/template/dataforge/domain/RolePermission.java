@@ -27,8 +27,10 @@ import lombok.Setter;
 public class RolePermission extends BaseEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "permission_id", nullable = false)
     private Permission permission;
 }

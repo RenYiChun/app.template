@@ -68,7 +68,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
                 "SELECT COUNT(ur) FROM com.lrenyi.template.dataforge.domain.UserRole ur " +
                 "WHERE ur.userId = :userId AND ur.role.id = :roleId",
                 Long.class);
-        q.setParameter("userId", ADMIN_USERNAME);
+        q.setParameter("userId", String.valueOf(userId));
         q.setParameter("roleId", roleId);
         Long count = q.getSingleResult();
         if (count != null && count > 0) {
@@ -79,7 +79,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
             return;
         }
         UserRole ur = new UserRole();
-        ur.setUserId(ADMIN_USERNAME);
+        ur.setUserId(String.valueOf(userId));
         ur.setRole(role);
         entityManager.persist(ur);
     }

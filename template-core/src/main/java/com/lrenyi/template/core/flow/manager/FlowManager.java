@@ -38,19 +38,20 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 public class FlowManager implements ActiveLauncherLookup {
     private static volatile FlowManager instance;
-    private static volatile TemplateConfigProperties.JobGlobal lastConfig;
-    private final TemplateConfigProperties.JobGlobal globalConfig;
+    private static int lastConcurrencyLimit = -1;
+    private static int lastProgressDisplaySecond = -1;
+    private final TemplateConfigProperties.Flow globalConfig;
     private final FlowResourceRegistry resourceRegistry;
-    
+
     // 维护 Job 注册信息，用于公平限流算法
     private final Map<String, Registration> registry = new ConcurrentHashMap<>();
     // 维护所有活跃的 Launcher 实例，用于监控和批量控制
     private final Map<String, FlowLauncher<?>> activeLaunchers = new ConcurrentHashMap<>();
-    
+
     private FlowProgressDisplay flowProgressDisplay;
     private boolean printProgressDisplay = true;
 
-    private FlowManager(TemplateConfigProperties.JobGlobal globalConfig) {
+    private FlowManager(TemplateConfigProperties.Flow globalConfig) {
         this.globalConfig = globalConfig;
         // 获取或创建全局资源注册表
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig);
@@ -58,25 +59,25 @@ public class FlowManager implements ActiveLauncherLookup {
         this.resourceRegistry.setLauncherLookup(this);
         log.info("FlowManager 启动");
     }
-    
+
     private FlowManager init() {
         this.flowProgressDisplay = new FlowProgressDisplay(this);
-        int second = globalConfig.getProgressDisplaySecond();
+        int second = globalConfig.getMonitor().getProgressDisplaySecond();
         if (second > 0) {
             this.flowProgressDisplay.start(1L, second, TimeUnit.SECONDS);
         }
-        
+
         // 注册健康检查指示器
         FlowResourceHealthIndicator healthIndicator = new FlowResourceHealthIndicator(resourceRegistry, this);
         FlowHealth.registerIndicator(healthIndicator);
-        
+
         return this;
     }
-    
-    private static FlowManager create(TemplateConfigProperties.JobGlobal globalConfig) {
+
+    private static FlowManager create(TemplateConfigProperties.Flow globalConfig) {
         return new FlowManager(globalConfig).init();
     }
-    
+
     /**
      * 获取 FlowManager 实例（单例模式）
      * 如果配置发生变化，会关闭旧实例并创建新实例
@@ -85,41 +86,39 @@ public class FlowManager implements ActiveLauncherLookup {
      *
      * @return FlowManager 实例
      */
-    public static FlowManager getInstance(TemplateConfigProperties.JobGlobal globalConfig) {
-        if (instance == null || configChanged(lastConfig, globalConfig)) {
+    public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
+        if (instance == null || configChanged(globalConfig)) {
             synchronized (FlowManager.class) {
-                if (instance == null || configChanged(lastConfig, globalConfig)) {
+                if (instance == null || configChanged(globalConfig)) {
                     if (instance != null) {
-                        log.info("检测到配置变更，关闭旧实例并创建新实例");
+                        log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
+                            lastConcurrencyLimit, globalConfig.getConsumer().getConcurrencyLimit());
                         try {
                             instance.shutdownAll();
                         } catch (Exception e) {
-                            log.error("关闭旧实例失败", e);
+                            log.error("关闭旧管理器失败", e);
                         }
                     }
                     instance = create(globalConfig);
-                    lastConfig = globalConfig;
+                    lastConcurrencyLimit = globalConfig.getConsumer().getConcurrencyLimit();
+                    lastProgressDisplaySecond = globalConfig.getMonitor().getProgressDisplaySecond();
                 }
             }
         }
         return instance;
     }
-    
+
     /**
      * 检测两个配置是否发生变更
      */
-    private static boolean configChanged(TemplateConfigProperties.JobGlobal config1,
-                                        TemplateConfigProperties.JobGlobal config2) {
-        if (config1 == config2) {
+    private static boolean configChanged(TemplateConfigProperties.Flow config) {
+        if (config == null) {
             return false;
         }
-        if (config1 == null || config2 == null) {
-            return true;
-        }
-        return config1.getGlobalSemaphoreMaxLimit() != config2.getGlobalSemaphoreMaxLimit()
-                || config1.getProgressDisplaySecond() != config2.getProgressDisplaySecond();
+        return config.getConsumer().getConcurrencyLimit() != lastConcurrencyLimit
+                || config.getMonitor().getProgressDisplaySecond() != lastProgressDisplaySecond;
     }
-    
+
     /**
      * 重置单例实例（用于测试）
      * 注意：此方法仅用于测试，生产环境不应调用
@@ -134,24 +133,23 @@ public class FlowManager implements ActiveLauncherLookup {
                 }
             }
             instance = null;
-            lastConfig = null;
         }
     }
-    
+
     /**
      * 包可见的构造函数，用于测试
      * 测试代码可以直接创建实例而不使用单例
      */
-    FlowManager(TemplateConfigProperties.JobGlobal globalConfig, boolean unused) {
+    FlowManager(TemplateConfigProperties.Flow globalConfig, boolean unused) {
         this(globalConfig);
     }
-    
+
     public <T> FlowLauncher<T> createLauncher(String jobId,
-                                              FlowJoiner<T> flowJoiner,
-                                              ProgressTracker tracker,
-                                              TemplateConfigProperties.JobConfig jobConfig) {
+            FlowJoiner<T> flowJoiner,
+            ProgressTracker tracker,
+            TemplateConfigProperties.Flow flowConfig) {
         try {
-            Registration registration = new Registration(jobId, jobConfig);
+            Registration registration = new Registration(jobId, flowConfig);
             registry.put(jobId, registration);
 
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
@@ -167,11 +165,11 @@ public class FlowManager implements ActiveLauncherLookup {
             throw e;
         }
     }
-    
+
     public boolean isStopped(String jobId) {
         return !activeLaunchers.containsKey(jobId);
     }
-    
+
     /**
      * 注销 Job
      */
@@ -186,7 +184,7 @@ public class FlowManager implements ActiveLauncherLookup {
         registry.remove(jobId);
         log.info("Job [{}] 已从管理器中注销", jobId);
     }
-    
+
     /**
      * 停止所有运行中的 Job
      *
@@ -198,7 +196,7 @@ public class FlowManager implements ActiveLauncherLookup {
         flowProgressDisplay.stop();
         FlowMetrics.incrementCounter("jobs_stopped_all");
     }
-    
+
     private void stopJob(boolean force, String key, FlowLauncher<?> launcher) {
         try {
             launcher.stop(force);
@@ -210,7 +208,7 @@ public class FlowManager implements ActiveLauncherLookup {
             log.error("停止 Job [{}] 时发生异常", launcher.getJobId(), e);
         }
     }
-    
+
     public void stopById(String jobId, boolean force) {
         for (Map.Entry<String, FlowLauncher<?>> entry : activeLaunchers.entrySet()) {
             String key = entry.getKey();
@@ -221,27 +219,27 @@ public class FlowManager implements ActiveLauncherLookup {
             }
         }
     }
-    
+
     public Map<String, FlowLauncher<?>> getActiveLaunchers() {
         return Collections.unmodifiableMap(activeLaunchers);
     }
-    
+
     @Override
     public FlowLauncher<?> getActiveLauncher(String jobId) {
         return activeLaunchers.get(jobId);
     }
-    
+
     public ProgressTracker getProgressTracker(String jobId) {
-        @SuppressWarnings("unchecked") FlowLauncher<Object> activeLauncher =
-                (FlowLauncher<Object>) getActiveLauncher(jobId);
+        @SuppressWarnings("unchecked")
+        FlowLauncher<Object> activeLauncher = (FlowLauncher<Object>) getActiveLauncher(jobId);
         Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
         return taskOrchestrator.tracker();
     }
-    
+
     public int getActiveJobCount() {
         return Math.max(1, registry.size());
     }
-    
+
     /**
      * 获取框架健康状态
      * 
@@ -250,7 +248,7 @@ public class FlowManager implements ActiveLauncherLookup {
     public Map<String, Object> getHealthStatus() {
         return FlowHealth.getHealthDetails();
     }
-    
+
     /**
      * 检查框架健康状态
      * 
@@ -259,7 +257,7 @@ public class FlowManager implements ActiveLauncherLookup {
     public HealthStatus checkHealth() {
         return FlowHealth.checkHealth();
     }
-    
+
     /**
      * 输出健康检查报告到日志
      * 包含所有健康指标的详细信息
@@ -269,7 +267,7 @@ public class FlowManager implements ActiveLauncherLookup {
         Map<String, Object> healthDetails = FlowHealth.getHealthDetails();
         FlowHealthReportRenderer.renderAndLog(status, healthDetails);
     }
-    
+
     /**
      * 获取框架指标
      *
@@ -278,7 +276,7 @@ public class FlowManager implements ActiveLauncherLookup {
     public Map<String, Object> getMetrics() {
         return FlowMetrics.getMetrics();
     }
-    
+
     /**
      * 关闭所有资源
      * 先停止所有 Job，然后关闭资源注册表

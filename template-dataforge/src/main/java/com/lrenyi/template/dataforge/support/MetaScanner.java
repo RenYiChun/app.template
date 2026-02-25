@@ -499,7 +499,6 @@ public class MetaScanner {
         meta.setResponseType(ann.responseType());
         meta.setSummary(ann.summary());
         meta.setDescription(ann.description());
-        meta.setDescription(ann.description());
         meta.setRequireId(ann.requireId());
         if (ann.permissions() != null && ann.permissions().length > 0) {
             meta.setPermissions(Arrays.stream(ann.permissions()).collect(Collectors.toList()));

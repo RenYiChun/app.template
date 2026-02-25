@@ -17,7 +17,7 @@ public class DefaultDataforgePermissionChecker implements DataforgePermissionChe
             return false;
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getAuthorities() == null) {
+        if (auth == null || !auth.isAuthenticated() || auth.getAuthorities() == null) {
             return false;
         }
         var userAuthorities = auth.getAuthorities().stream()

@@ -43,7 +43,7 @@ public final class FlowConstants {
      * 背压检查间隔（毫秒）
      * 当存储满时，生产者等待空间的时间间隔
      */
-    public static final long DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS = 2000;
+    public static final long DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS = 100;
 
     // ========== 重试策略 ==========
 

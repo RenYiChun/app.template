@@ -37,19 +37,19 @@ public class FlowLauncher<T> {
     private final FlowJoiner<T> flowJoiner;
     private volatile boolean stopped = false;
     private final Semaphore jobProducerSemaphore;
-    private final TemplateConfigProperties.JobConfig jobConfig;
+    private final TemplateConfigProperties.Flow flow;
     private final BackpressureController backpressureController;
     private final FlowResourceContext resourceContext;
 
     private FlowLauncher(String jobId,
-                         FlowManager flowManager,
-                         FlowJoiner<T> flowJoiner,
-                         ProgressTracker tracker, Registration registration, FlowResourceContext resourceContext) {
+            FlowManager flowManager,
+            FlowJoiner<T> flowJoiner,
+            ProgressTracker tracker, Registration registration, FlowResourceContext resourceContext) {
         this.jobId = jobId;
         this.flowManager = flowManager;
         this.flowJoiner = flowJoiner;
         this.resourceContext = resourceContext;
-        this.jobConfig = registration.getJobConfig();
+        this.flow = registration.getFlow();
         this.jobProducerSemaphore = resourceContext.getJobProducerSemaphore();
         this.storage = (FlowStorage<T>) resourceContext.getStorage();
         this.backpressureController = resourceContext.getBackpressureController();
@@ -57,11 +57,11 @@ public class FlowLauncher<T> {
     }
 
     public static <T> FlowLauncher<T> create(String jobId,
-                                             FlowJoiner<T> flowJoiner,
-                                             FlowManager flowManager,
-                                             ProgressTracker tracker,
-                                             Registration registration,
-                                             FlowResourceContext resourceContext) {
+            FlowJoiner<T> flowJoiner,
+            FlowManager flowManager,
+            ProgressTracker tracker,
+            Registration registration,
+            FlowResourceContext resourceContext) {
 
         return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
@@ -153,7 +153,7 @@ public class FlowLauncher<T> {
     }
 
     public long getCacheCapacity() {
-        return jobConfig.getMaxCacheSize();
+        return flow.getProducer().getMaxCacheSize();
     }
 
     /**
