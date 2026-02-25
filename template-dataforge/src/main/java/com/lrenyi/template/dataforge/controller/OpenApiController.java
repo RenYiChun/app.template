@@ -32,6 +32,7 @@ import org.springframework.web.util.pattern.PathPattern;
  * 文档（JSON），
  * 供 Swagger UI 等标准文档界面使用。
  */
+@lombok.extern.slf4j.Slf4j
 @RestController
 @RequestMapping("${app.dataforge.api-prefix:/api}")
 public class OpenApiController {
@@ -284,7 +285,7 @@ public class OpenApiController {
             if (pageResponseDto != null) {
                 schemas.put(pageResponseDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity));
             } else {
-                org.slf4j.LoggerFactory.getLogger(OpenApiController.class).warn(
+                log.warn(
                     "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. " +
                     "List columns will be empty. Fix: run 'mvn clean compile -pl template-dataforge-sample-backend' " +
                     "so the annotation processor generates the DTO in {}.dto package.",

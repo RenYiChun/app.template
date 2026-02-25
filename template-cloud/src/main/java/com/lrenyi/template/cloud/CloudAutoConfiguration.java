@@ -5,6 +5,7 @@ import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,6 +36,13 @@ public class CloudAutoConfiguration {
     @Bean
     public ErrorDecoder errorDecoder() {
         return new FeignClientErrorDecoder();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.template.feign.retry.enabled", havingValue = "true")
+    public Retryer feignRetryer(TemplateConfigProperties properties) {
+        TemplateConfigProperties.RetryConfig retry = properties.getFeign().getRetry();
+        return new Retryer.Default(retry.getPeriod(), retry.getMaxPeriod(), retry.getMaxAttempts());
     }
     
     @Bean

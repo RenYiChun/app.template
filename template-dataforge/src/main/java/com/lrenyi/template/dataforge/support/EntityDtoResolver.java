@@ -1,8 +1,7 @@
 package com.lrenyi.template.dataforge.support;
 
 import com.lrenyi.template.dataforge.meta.EntityMeta;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 按约定解析实体对应的生成 DTO 类（CreateDTO、UpdateDTO、ResponseDTO、PageResponseDTO）。
@@ -10,9 +9,8 @@ import org.slf4j.LoggerFactory;
  * RESPONSE 用于单条详情；PAGE_RESPONSE 用于分页列表项，二者独立。
  * 必须使用实体类所在 ClassLoader 加载，否则在 Spring Boot 可执行 JAR 或部分部署下会找不到生成的 DTO。
  */
+@Slf4j
 public final class EntityDtoResolver {
-
-    private static final Logger log = LoggerFactory.getLogger(EntityDtoResolver.class);
 
     private EntityDtoResolver() {
     }

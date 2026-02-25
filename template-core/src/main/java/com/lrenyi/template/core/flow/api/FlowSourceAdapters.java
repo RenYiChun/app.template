@@ -2,17 +2,15 @@ package com.lrenyi.template.core.flow.api;
 
 import java.util.Iterator;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 /**
  * Source 适配器：将 JDK Stream / Iterator 转为 FlowSource 或 FlowSourceProvider。
  */
+@Slf4j
 public final class FlowSourceAdapters {
-
-    private static final Logger log = LoggerFactory.getLogger(FlowSourceAdapters.class);
 
     private FlowSourceAdapters() {
     }

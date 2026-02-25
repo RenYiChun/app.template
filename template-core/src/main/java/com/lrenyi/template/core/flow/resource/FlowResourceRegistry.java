@@ -50,7 +50,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (instance != null && instance.isInitialized()) {
+            if (instance != null && instance.isInitialized() && !instance.isShutdown()) {
+                log.info("FlowResourceRegistry: JVM shutdown hook 触发兜底关闭");
                 try {
                     instance.shutdown();
                 } catch (Exception e) {

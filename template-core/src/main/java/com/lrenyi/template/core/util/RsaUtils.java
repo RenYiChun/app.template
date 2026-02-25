@@ -21,11 +21,10 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
 import org.apache.commons.codec.binary.Base64;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class RsaUtils {
-    private static final Logger logger = LoggerFactory.getLogger(RsaUtils.class);
     private static volatile PrivateKey privateKey;
     private static volatile PublicKey publicKey;
     private static volatile boolean keysLoaded;
@@ -44,7 +43,7 @@ public class RsaUtils {
                 privateKey = loadPrivateKeyFromFile("rsa_private.pem");
                 keysLoaded = true;
             } catch (Throwable cause) {
-                logger.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
+                log.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
                 throw new IllegalStateException("Failed to load RSA keys", cause);
             }
         }
@@ -77,7 +76,7 @@ public class RsaUtils {
             byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return OAEP_PREFIX + Base64.encodeBase64String(encrypted);
         } catch (Throwable cause) {
-            logger.error("RSA encryption failed", cause);
+            log.error("RSA encryption failed", cause);
             throw new IllegalStateException("RSA encryption failed", cause);
         }
     }
@@ -97,7 +96,7 @@ public class RsaUtils {
             byte[] decrypted = cipher.doFinal(decoded);
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
-            logger.error("RSA decryption failed", cause);
+            log.error("RSA decryption failed", cause);
             throw new IllegalStateException("RSA decryption failed", cause);
         }
     }
@@ -114,7 +113,7 @@ public class RsaUtils {
             byte[] keyBytes = inputStream.readAllBytes();
             return new String(keyBytes, StandardCharsets.UTF_8);
         } catch (Throwable cause) {
-            logger.error("Failed to load public key from file: {}", publicKeyFileName, cause);
+            log.error("Failed to load public key from file: {}", publicKeyFileName, cause);
             throw new IllegalStateException("Failed to load public key from file: " + publicKeyFileName, cause);
         }
     }

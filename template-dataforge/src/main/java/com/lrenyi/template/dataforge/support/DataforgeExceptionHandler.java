@@ -2,21 +2,22 @@ package com.lrenyi.template.dataforge.support;
 
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.dataforge.config.DataforgeProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 实体平台统一异常处理，直接返回 Result（与 Controller 一致，不再使用 ResponseEntity）。
+ * Dataforge 模块异常处理，优先级高于框架全局 Handler。
  * HttpStatusException 及其子类返回对应 HTTP 状态码。
  * 生产环境应配置 app.dataforge.expose-exception-message=false，避免向客户端泄露敏感信息。
  */
+@Slf4j
+@Order(Ordered.LOWEST_PRECEDENCE - 20)
 @RestControllerAdvice(basePackages = "com.lrenyi.template.dataforge.controller")
 public class DataforgeExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(DataforgeExceptionHandler.class);
 
     private static final String GENERIC_ERROR_MESSAGE = "服务器内部错误";
 

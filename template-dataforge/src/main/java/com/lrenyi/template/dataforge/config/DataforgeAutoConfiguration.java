@@ -150,9 +150,8 @@ public class DataforgeAutoConfiguration {
     /**
      * 在 ApplicationRunner 阶段执行实体扫描与 Action 注册（启动完成后执行，避免在 refresh 期间阻塞）。
      */
+    @lombok.extern.slf4j.Slf4j
     public static class DataforgeInitializer implements ApplicationRunner, Ordered {
-
-        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DataforgeInitializer.class);
 
         private final MetaScanner metaScanner;
         private final EntityRegistry entityRegistry;

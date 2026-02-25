@@ -27,8 +27,7 @@ import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -41,9 +40,8 @@ import org.springframework.util.StringUtils;
  * Auth）；
  * 否则若 JPA 可用则从 Metamodel 获取。
  */
+@Slf4j
 public class MetaScanner {
-
-    private static final Logger log = LoggerFactory.getLogger(MetaScanner.class);
 
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;

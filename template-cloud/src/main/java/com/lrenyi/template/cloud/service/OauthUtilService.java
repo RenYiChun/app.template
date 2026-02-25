@@ -1,10 +1,11 @@
 package com.lrenyi.template.cloud.service;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +24,10 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 @Component
 public class OauthUtilService {
-    public static final Map<String, String> tokenCacheMap = new ConcurrentHashMap<>();
-    private static final Map<String, LocalDateTime> expiresCacheMap = new ConcurrentHashMap<>();
+    private static final Cache<String, String> tokenCache = Caffeine.newBuilder()
+            .maximumSize(64)
+            .expireAfterWrite(50, TimeUnit.MINUTES)
+            .build();
     @Resource
     private TemplateConfigProperties templateConfigProperties;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -46,14 +49,8 @@ public class OauthUtilService {
     }
     
     private String fetchTokenFromCache(String host) {
-        String token = tokenCacheMap.get(host);
+        String token = tokenCache.getIfPresent(host);
         if (StringUtils.isBlank(token)) {
-            return null;
-        }
-        LocalDateTime localDateTime = expiresCacheMap.get(host);
-        if (LocalDateTime.now().isAfter(localDateTime)) {
-            tokenCacheMap.remove(host);
-            expiresCacheMap.remove(host);
             return null;
         }
         return token;
@@ -83,22 +80,9 @@ public class OauthUtilService {
             throw new IllegalStateException("获取 OAuth2 Token 失败，未返回 access_token");
         }
         String token = tokenObj.toString();
-        // 6. 解析 expires_in
-        long expiresInSeconds = 3600L; // default 1 hour
-        Object expiresObj = response.get("expires_in");
-        if (expiresObj != null) {
-            try {
-                expiresInSeconds = Long.parseLong(expiresObj.toString());
-            } catch (NumberFormatException e) {
-                log.warn("解析 expires_in 失败，将采用默认 3600 秒: {}", expiresObj);
-            }
-        }
-        // 7. 计算过期时间，预留 1 分钟
-        LocalDateTime expireTime = LocalDateTime.now().plusSeconds(expiresInSeconds - 60);
-        // 8. 写入缓存
-        tokenCacheMap.put(host, token);
-        expiresCacheMap.put(host, expireTime);
-        log.info("成功获取 OAuth2 token, host={}, expireAt={}", host, expireTime);
+        // 6. 写入缓存（过期由 Caffeine TTL 统一管理）
+        tokenCache.put(host, token);
+        log.info("成功获取 OAuth2 token, host={}", host);
         return token;
     }
     

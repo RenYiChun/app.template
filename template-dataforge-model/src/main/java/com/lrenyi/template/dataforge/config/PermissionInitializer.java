@@ -8,8 +8,7 @@ import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -21,9 +20,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 仅当启用 JPA 且 app.dataforge.rbac.init-permissions 为 true 时执行；若应用未扫描 dataforge.domain，
  * Permission 不在持久化单元内会记录 WARN 日志便于排查。
  */
+@Slf4j
 public class PermissionInitializer implements ApplicationRunner, Ordered {
-
-    private static final Logger log = LoggerFactory.getLogger(PermissionInitializer.class);
 
     private final EntityRegistry entityRegistry;
     private final EntityManager entityManager;

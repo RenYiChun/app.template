@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -19,6 +20,7 @@ import org.springframework.util.StringUtils;
  * Template框架统一配置属性
  * 集中管理所有模块的配置开关
  */
+@Slf4j
 @Setter
 @Getter
 @ConfigurationProperties(prefix = "app.template")
@@ -119,6 +121,22 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean notOauth = true;
         private String oauthClientId;
         private String oauthClientSecret;
+        /** 重试配置（默认关闭） */
+        @NestedConfigurationProperty
+        private RetryConfig retry = new RetryConfig();
+    }
+
+    @Setter
+    @Getter
+    public static class RetryConfig {
+        /** 是否启用 Feign 重试 */
+        private boolean enabled = false;
+        /** 最大重试次数（不含首次请求） */
+        private int maxAttempts = 3;
+        /** 初始重试间隔（毫秒） */
+        private long period = 100;
+        /** 最大重试间隔（毫秒） */
+        private long maxPeriod = 1000;
     }
 
     /**
@@ -190,5 +208,31 @@ public class TemplateConfigProperties implements InitializingBean {
         if (!security.resourcePermitUrls.isEmpty()) {
             security.allPermitUrls.addAll(security.resourcePermitUrls);
         }
+        validateConfig();
+    }
+
+    /**
+     * 配置合理性校验，防止远程配置源（如 Nacos）覆盖导致行为异常。
+     * 仅输出 WARN 日志，不阻断启动。
+     */
+    private void validateConfig() {
+        if (flow.getConsumer().getConcurrencyLimit() <= 0) {
+            log.warn("[配置校验] app.template.flow.consumer.concurrency-limit={} 不合法，" +
+                     "可能被远程配置覆盖，将导致 Flow 引擎无法正常工作",
+                     flow.getConsumer().getConcurrencyLimit());
+        }
+        if (flow.getConsumer().getTtlMill() <= 0) {
+            log.warn("[配置校验] app.template.flow.consumer.ttl-mill={} 不合法，" +
+                     "缓存数据将立即过期",
+                     flow.getConsumer().getTtlMill());
+        }
+        if (security.isEnabled() && !security.isLocalJwtPublicKey()
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
+            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式且未设置 net-jwt-public-key-domain");
+        }
+        log.info("[配置摘要] enabled={}, security.enabled={}, flow.concurrencyLimit={}, " +
+                 "feign.enabled={}, oauth2.enabled={}",
+                 enabled, security.isEnabled(), flow.getConsumer().getConcurrencyLimit(),
+                 feign.isEnabled(), oauth2.isEnabled());
     }
 }
