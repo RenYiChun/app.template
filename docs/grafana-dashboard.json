@@ -23,12 +23,302 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 200,
+      "title": "应用概览",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 201,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "运行时长",
+      "type": "stat",
+      "targets": [
+        { "expr": "process_uptime_seconds{job=\"gopr-audit\"}", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "reqps",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 202,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "HTTP QPS",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 203,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "HTTP 平均响应时间",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_sum{job=\"gopr-audit\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 204,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "JVM 堆内存使用率",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(jvm_memory_used_bytes{job=\"gopr-audit\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"gopr-audit\",area=\"heap\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 205,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "系统 CPU 使用率",
+      "type": "stat",
+      "targets": [
+        { "expr": "system_cpu_usage{job=\"gopr-audit\"}", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 200 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 206,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "活跃线程数",
+      "type": "stat",
+      "targets": [
+        { "expr": "jvm_threads_live_threads{job=\"gopr-audit\"}", "legendFormat": "", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 207,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "HTTP 请求速率 (按状态码)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 208,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "JVM 内存使用",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (area) (jvm_memory_used_bytes{job=\"gopr-audit\"})",
+          "legendFormat": "已使用 ({{area}})",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (area) (jvm_memory_max_bytes{job=\"gopr-audit\"})",
+          "legendFormat": "最大值 ({{area}})",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 209,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "CPU 使用率",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "system_cpu_usage{job=\"gopr-audit\"}", "legendFormat": "系统 CPU", "refId": "A" },
+        { "expr": "process_cpu_usage{job=\"gopr-audit\"}", "legendFormat": "进程 CPU", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 210,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "HTTP 响应时间 (P99/P95/P50)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "legendFormat": "P99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "legendFormat": "P50",
+          "refId": "C"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
       "id": 100,
       "title": "Flow 引擎概览",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -42,7 +332,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 22 },
       "id": 1,
       "options": {
         "colorMode": "background",
@@ -59,7 +349,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -67,7 +357,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 22 },
       "id": 2,
       "options": {
         "colorMode": "background",
@@ -84,7 +374,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -99,7 +389,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 22 },
       "id": 3,
       "options": {
         "colorMode": "background",
@@ -120,7 +410,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -135,7 +425,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 22 },
       "id": 4,
       "options": {
         "colorMode": "background",
@@ -156,7 +446,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -171,7 +461,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 22 },
       "id": 5,
       "options": {
         "colorMode": "background",
@@ -192,7 +482,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -205,7 +495,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 22 },
       "id": 6,
       "options": {
         "colorMode": "background",
@@ -222,7 +512,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
@@ -230,7 +520,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
       "id": 7,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "数据吞吐量",
@@ -243,7 +533,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
@@ -251,7 +541,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
       "id": 8,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "延迟分布 (P99)",
@@ -280,14 +570,14 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" }
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
       "id": 9,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "Storage 缓存量",
@@ -297,7 +587,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "normal" } },
@@ -305,7 +595,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
       "id": 10,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "被动出口按原因分布",
@@ -318,15 +608,16 @@
         }
       ]
     },
+
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
       "id": 101,
       "title": "HTTP 认证 & OAuth2",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "normal" } },
@@ -334,7 +625,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
       "id": 11,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "认证失败 (按原因)",
@@ -348,7 +639,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
@@ -356,7 +647,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "id": 12,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "OAuth2 Token 签发/失败",
@@ -374,15 +665,16 @@
         }
       ]
     },
+
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 },
       "id": 102,
       "title": "Dataforge & 数据源",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
@@ -390,7 +682,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
       "id": 13,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "Dataforge CRUD 延迟 (P99)",
@@ -404,7 +696,7 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "2O6e28KVz" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
@@ -412,7 +704,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
       "id": 14,
       "options": { "tooltip": { "mode": "multi" } },
       "title": "数据源接收速率",
