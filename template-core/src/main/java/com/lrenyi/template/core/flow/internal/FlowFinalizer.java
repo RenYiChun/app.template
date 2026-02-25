@@ -1,23 +1,20 @@
 package com.lrenyi.template.core.flow.internal;
 
+import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.flow.context.FlowEntry;
 import com.lrenyi.template.core.flow.context.Orchestrator;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.core.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry) {
+public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegistry meterRegistry) {
 
-    /**
-     * 提交 finalizer body 到全局执行器（带公平 acquire）。
-     * 用于 removal/drain 路径：acquire + body + releaseWithoutSemaphore 由 FlowGlobalExecutor 统一处理。
-     *
-     * @param entry    被驱逐的 entry
-     * @param launcher 当前 job 的 launcher（用于 release 与 signalRelease）
-     */
     public void submitBodyOnly(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
         String jobId = entry.getJobId();
@@ -27,25 +24,36 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry) {
             try (entry) {
                 if (entry.claimLogic()) {
                     taskOrchestrator.tracker().onActiveEgress();
+                    Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(meterRegistry).increment();
                     try {
                         launcher.getFlowJoiner().onConsume(entry.getData(), jobId);
-                        FlowMetrics.incrementCounter("consume_success");
                     } catch (Exception e) {
                         FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
-                        FlowMetrics.recordError("onConsume_failed", jobId);
+                        Counter.builder(FlowMetricNames.ERRORS)
+                               .tag(FlowMetricNames.TAG_ERROR_TYPE, "onConsume_failed")
+                               .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                               .register(meterRegistry).increment();
                     }
                 } else {
                     taskOrchestrator.tracker().onPassiveEgress();
                 }
             } catch (Throwable t) {
                 FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION);
-                FlowMetrics.recordError("finalizer_body_failed", jobId);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "finalizer_body_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                       .register(meterRegistry).increment();
             } finally {
                 if (launcher.getBackpressureController() != null) {
                     launcher.getBackpressureController().signalRelease();
                 }
                 long latency = System.currentTimeMillis() - startTime;
-                FlowMetrics.recordLatency("finalize", latency);
+                Timer.builder(FlowMetricNames.FINALIZE_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .register(meterRegistry)
+                     .record(latency, TimeUnit.MILLISECONDS);
             }
         });
     }

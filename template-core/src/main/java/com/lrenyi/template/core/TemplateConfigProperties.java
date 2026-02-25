@@ -80,8 +80,6 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class Monitor {
-        /** 进度展示间隔（秒） */
-        private int progressDisplaySecond = 5;
     }
 
     @Setter

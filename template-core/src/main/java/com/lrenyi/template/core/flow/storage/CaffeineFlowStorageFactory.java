@@ -5,6 +5,7 @@ import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.internal.FlowFinalizer;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * Caffeine 存储工厂实现
@@ -25,15 +26,17 @@ public class CaffeineFlowStorageFactory implements FlowStorageFactory {
     public <T> FlowStorage<T> createStorage(String jobId,
             FlowJoiner<T> joiner,
             TemplateConfigProperties.Flow config,
-            FlowFinalizer<T> finalizer, ProgressTracker progressTracker) {
+            FlowFinalizer<T> finalizer,
+            ProgressTracker progressTracker,
+            MeterRegistry meterRegistry) {
         return new CaffeineFlowStorage<>(config.getProducer().getMaxCacheSize(),
                 config.getConsumer().getTtlMill(),
                 joiner,
-                finalizer, progressTracker);
+                finalizer, progressTracker, meterRegistry, jobId);
     }
 
     @Override
     public int getPriority() {
-        return 10; // 默认实现，优先级较高
+        return 10;
     }
 }

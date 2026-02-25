@@ -2,19 +2,20 @@ package com.lrenyi.template.flow.sources.nats;
 
 import java.time.Duration;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.flow.api.FlowSource;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.nats.client.Message;
 import lombok.extern.slf4j.Slf4j;
 import io.nats.client.Subscription;
 
 /**
  * 单子流 NATS 数据源：包装一个 {@link Subscription}，按顺序产出 T。
- * 由引擎在虚拟线程中拉取（hasNext/next）；{@link #hasNext()} 内无消息时调用
- * {@code subscription.nextMessage(timeout)} 阻塞等待，可被 {@link #close()} 打断（unsubscribe 后 nextMessage 抛异常）。
- * <p>
- * 阻塞与中断：若当前线程被中断则抛 {@link InterruptedException}；close 后 nextMessage 可能抛 {@link IllegalStateException}，内部视为流结束。
  *
- * @param <T> 业务产出类型，由 mapper 从 {@link Message} 转换得到
+ * @param <T> 业务产出类型
  */
 @Slf4j
 public final class NatsFlowSource<T> implements FlowSource<T> {
@@ -22,18 +23,21 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
     private final Subscription subscription;
     private final java.util.function.Function<Message, T> mapper;
     private final Duration nextMessageTimeout;
+    private final MeterRegistry meterRegistry;
 
     private Message nextMessage;
     private boolean closed;
 
-    /**
-     * @param subscription       已 subscribe 的 NATS 订阅，调用方负责创建；本类负责在 close() 时 unsubscribe
-     * @param mapper             Message 转 T，非 null
-     * @param nextMessageTimeout 单次 nextMessage 等待时长，非 null
-     */
     public NatsFlowSource(Subscription subscription,
                           java.util.function.Function<Message, T> mapper,
                           Duration nextMessageTimeout) {
+        this(subscription, mapper, nextMessageTimeout, null);
+    }
+
+    public NatsFlowSource(Subscription subscription,
+                          java.util.function.Function<Message, T> mapper,
+                          Duration nextMessageTimeout,
+                          MeterRegistry meterRegistry) {
         if (subscription == null) {
             throw new IllegalArgumentException("subscription 非 null");
         }
@@ -43,6 +47,17 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         this.subscription = subscription;
         this.mapper = mapper;
         this.nextMessageTimeout = nextMessageTimeout != null ? nextMessageTimeout : Duration.ofSeconds(1);
+        this.meterRegistry = meterRegistry;
+
+        if (meterRegistry != null) {
+            Gauge.builder("app.template.source.nats.pending.messages", subscription,
+                         s -> {
+                             try { return s.getPendingMessageCount(); }
+                             catch (Exception e) { return 0; }
+                         })
+                 .description("NATS 订阅中待处理的消息数")
+                 .register(meterRegistry);
+        }
     }
 
     @Override
@@ -60,14 +75,33 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
             if (Thread.interrupted()) {
                 throw new InterruptedException();
             }
+            long start = System.currentTimeMillis();
             try {
                 Message msg = subscription.nextMessage(nextMessageTimeout);
+                if (meterRegistry != null) {
+                    long elapsed = System.currentTimeMillis() - start;
+                    Timer.builder("app.template.source.poll.duration")
+                         .tag("sourceType", "nats")
+                         .register(meterRegistry)
+                         .record(elapsed, TimeUnit.MILLISECONDS);
+                }
                 if (msg != null) {
                     nextMessage = msg;
+                    if (meterRegistry != null) {
+                        Counter.builder("app.template.source.received")
+                               .tag("sourceType", "nats")
+                               .register(meterRegistry).increment();
+                    }
                     return true;
                 }
             } catch (IllegalStateException e) {
                 closed = true;
+                if (meterRegistry != null) {
+                    Counter.builder("app.template.source.errors")
+                           .tag("sourceType", "nats")
+                           .tag("errorType", "IllegalStateException")
+                           .register(meterRegistry).increment();
+                }
                 return false;
             }
         }

@@ -5,6 +5,7 @@ import com.lrenyi.template.core.flow.api.FlowJoiner;
 import com.lrenyi.template.core.flow.api.ProgressTracker;
 import com.lrenyi.template.core.flow.model.FlowStorageType;
 import com.lrenyi.template.core.flow.internal.FlowFinalizer;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * Flow 存储工厂接口
@@ -46,7 +47,8 @@ public interface FlowStorageFactory {
             FlowJoiner<T> joiner,
             TemplateConfigProperties.Flow config,
             FlowFinalizer<T> finalizer,
-            ProgressTracker progressTracker);
+            ProgressTracker progressTracker,
+            MeterRegistry meterRegistry);
 
     /**
      * 获取工厂优先级

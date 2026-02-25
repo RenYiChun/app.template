@@ -11,6 +11,8 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.Result;
 import com.nimbusds.common.contenttype.ContentType;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletOutputStream;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ public class DefaultSecurityFilterChainBuilder {
     private ObjectProvider<JsonService> jsonServiceProvider;
     private JwtAuthenticationConverter jwtAuthenticationConverter;
     private OpaqueTokenIntrospector opaqueTokenIntrospector;
+    private MeterRegistry meterRegistry;
     
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
@@ -96,7 +99,27 @@ public class DefaultSecurityFilterChainBuilder {
             // @formatter:on
         }
         // @formatter:off
-        http.exceptionHandling((exceptionHandling) -> exceptionHandling.accessDeniedHandler((request, response, accessDeniedException) -> {
+        http.exceptionHandling((exceptionHandling) -> exceptionHandling
+            .authenticationEntryPoint((request, response, authException) -> {
+                String reason = "MISSING_TOKEN";
+                String msg = authException.getMessage();
+                if (msg != null) {
+                    String lower = msg.toLowerCase();
+                    if (lower.contains("expired")) {
+                        reason = "EXPIRED_TOKEN";
+                    } else if (lower.contains("invalid")) {
+                        reason = "INVALID_TOKEN";
+                    }
+                }
+                Counter.builder("app.template.http.auth.failure")
+                       .tag("reason", reason)
+                       .register(meterRegistry).increment();
+                response.sendError(401, authException.getMessage());
+            })
+            .accessDeniedHandler((request, response, accessDeniedException) -> {
+                Counter.builder("app.template.http.auth.failure")
+                       .tag("reason", "ACCESS_DENIED")
+                       .register(meterRegistry).increment();
             // @formatter:on
             Result<String> error = new Result<>();
             error.makeThrowable(accessDeniedException, "发生了未被处理的异常");
@@ -157,5 +180,10 @@ public class DefaultSecurityFilterChainBuilder {
     @Autowired
     public void setOpaqueTokenIntrospector(OpaqueTokenIntrospector opaqueTokenIntrospector) {
         this.opaqueTokenIntrospector = opaqueTokenIntrospector;
+    }
+
+    @Autowired
+    public void setMeterRegistry(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
     }
 }

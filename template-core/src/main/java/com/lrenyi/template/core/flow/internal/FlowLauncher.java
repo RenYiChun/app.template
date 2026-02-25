@@ -2,6 +2,7 @@ package com.lrenyi.template.core.flow.internal;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.flow.api.FlowJoiner;
@@ -14,16 +15,18 @@ import com.lrenyi.template.core.flow.context.Registration;
 import com.lrenyi.template.core.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.core.flow.exception.FlowPhase;
 import com.lrenyi.template.core.flow.manager.FlowManager;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.core.flow.model.FailureReason;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 流量发射器 - 动态配置版
- * 职责：使用流消费执行器，通过逻辑开关控制 Job 生命周期，实现精准限流与缓存托管
  */
 @Slf4j
 @Getter
@@ -66,11 +69,18 @@ public class FlowLauncher<T> {
         return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
 
+    private MeterRegistry registry() {
+        return flowManager.getMeterRegistry();
+    }
+
     public void launch(T data) {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
         if (stopped) {
-            FlowMetrics.recordError("job_stopped", jobId);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
+                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .register(registry()).increment();
             return;
         }
 
@@ -81,18 +91,28 @@ public class FlowLauncher<T> {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-                FlowMetrics.recordError("inFlight_acquire_interrupted", jobId);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
+                       .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                       .register(registry()).increment();
                 return;
             }
         }
 
         tracker.onProductionAcquired();
+        Counter.builder(FlowMetricNames.PRODUCTION_ACQUIRED)
+               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+               .register(registry()).increment();
+
         if (stopped) {
             tracker.onProductionReleased();
             if (inFlight != null) {
                 inFlight.release();
             }
-            FlowMetrics.recordError("job_stopped", jobId);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
+                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .register(registry()).increment();
             return;
         }
 
@@ -104,7 +124,10 @@ public class FlowLauncher<T> {
                 inFlight.release();
             }
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            FlowMetrics.recordError("backpressure_interrupted", jobId);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "backpressure_interrupted")
+                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .register(registry()).increment();
             return;
         }
 
@@ -113,40 +136,48 @@ public class FlowLauncher<T> {
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
                     flowJoiner.onFailed(data, jobId, FailureReason.SHUTDOWN);
-                    FlowMetrics.recordError("job_stopped_during_execution", jobId);
-                    FlowMetrics.recordFailureReason(FailureReason.SHUTDOWN, jobId);
+                    Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .tag(FlowMetricNames.TAG_REASON, "SHUTDOWN")
+                           .register(registry()).increment();
                     return;
                 }
 
                 long depositStartTime = System.currentTimeMillis();
                 getStorage().deposit(ctx);
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
-                FlowMetrics.recordLatency("deposit", depositLatency);
+
+                Counter.builder(FlowMetricNames.PRODUCTION_RELEASED)
+                       .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                       .register(registry()).increment();
+
+                Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .register(registry())
+                     .record(depositLatency, TimeUnit.MILLISECONDS);
 
             } catch (Throwable e) {
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
-                FlowMetrics.recordError("deposit_failed", jobId);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "deposit_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
+                       .register(registry()).increment();
             } finally {
                 tracker.onProductionReleased();
                 if (inFlight != null) {
                     inFlight.release();
                 }
-                long totalLatency = System.currentTimeMillis() - startTime;
-                FlowMetrics.recordLatency("launch_total", totalLatency);
             }
         });
     }
 
     private void awaitBackpressure() throws InterruptedException {
-        // 1. 快速失败：如果任务已经停止，直接抛出异常或返回
         if (stopped) {
             return;
         }
-        // 这里的 backpressureController 就是你刚才写的那个类
         try {
             backpressureController.awaitSpace(() -> stopped);
         } catch (InterruptedException e) {
-            // 虚拟线程被中断，通常意味着整个线程池或 Job 正在关闭
             Thread.currentThread().interrupt();
             throw e;
         }
@@ -156,28 +187,17 @@ public class FlowLauncher<T> {
         return flow.getProducer().getMaxCacheSize();
     }
 
-    /**
-     * 获取 Job 级生产者执行器（信号量受控）
-     */
     public ExecutorService getProducerExecutor() {
         return resourceContext.getProducerExecutor();
     }
 
-    /**
-     * 停止当前 Job
-     *
-     * @param force true: 强制清理缓存资源；false: 优雅停止，不再进新数据
-     */
     public void stop(boolean force) {
         if (stopped) {
             return;
         }
         log.info("停止 Job [{}], force={}", jobId, force);
-        this.stopped = true; // 开启拦截闸门
-        // 告诉 Tracker：生产端已关闭。
+        this.stopped = true;
         taskOrchestrator.tracker().markSourceFinished(jobId);
-        // Job 停止时始终按 jobId+storageType 失效并 shutdown 对应 Storage，避免 FlowCacheManager 与
-        // storageEgressExecutor 的调度任务无限累积导致 OOM（与 getOrCreateStorage 的 key 一致）
         try {
             FlowStorageType type = flowJoiner.getStorageType();
             resourceContext.getCacheManager()

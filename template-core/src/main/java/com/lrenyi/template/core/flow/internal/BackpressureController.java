@@ -8,8 +8,10 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import com.lrenyi.template.core.flow.model.FlowConstants;
-import com.lrenyi.template.core.flow.metrics.FlowMetrics;
+import com.lrenyi.template.core.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.core.flow.storage.FlowStorage;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -17,40 +19,36 @@ public class BackpressureController {
     private final Lock lock = new ReentrantLock();
     private final Condition notFull = lock.newCondition();
     private final FlowStorage<?> flowStorage;
-    /** 可选：全局可用消费许可数；许可耗尽时即背压，避免持续填缓存导致大批 TTL 驱逐和 Pending 暴增 */
     private final IntSupplier consumerAvailablePermitsSupplier;
-    /** 可选：当前 Pending 数（已离库未终结）；与 globalSemaphoreCapacitySupplier 同时非 null 时，Pending≥容量即背压，避免 OOM */
     private final LongSupplier pendingCountSupplier;
-    /** 可选：全局信号量容量（maxLimit）；与 pendingCountSupplier 同时非 null 时生效 */
     private final IntSupplier globalSemaphoreCapacitySupplier;
+    private final MeterRegistry meterRegistry;
+    private final String jobId;
 
-    public BackpressureController(FlowStorage<?> flowStorage) {
-        this(flowStorage, null, null, null);
+    public BackpressureController(FlowStorage<?> flowStorage, MeterRegistry meterRegistry, String jobId) {
+        this(flowStorage, null, null, null, meterRegistry, jobId);
     }
 
-    /**
-     * @param consumerAvailablePermitsSupplier 可选；非 null 且许可≤0 时与「缓存满」一起触发背压，消费慢即停入库
-     */
-    public BackpressureController(FlowStorage<?> flowStorage, IntSupplier consumerAvailablePermitsSupplier) {
-        this(flowStorage, consumerAvailablePermitsSupplier, null, null);
+    public BackpressureController(FlowStorage<?> flowStorage, IntSupplier consumerAvailablePermitsSupplier,
+            MeterRegistry meterRegistry, String jobId) {
+        this(flowStorage, consumerAvailablePermitsSupplier, null, null, meterRegistry, jobId);
     }
 
-    /**
-     * @param consumerAvailablePermitsSupplier 可选；非 null 且许可≤0 时触发背压
-     * @param pendingCountSupplier            可选；当前 Pending 数（已离库未终结），与 globalSemaphoreCapacitySupplier 成对使用
-     * @param globalSemaphoreCapacitySupplier 可选；全局信号量容量；当 Pending ≥ 容量时触发背压，避免积压导致 OOM
-     */
     public BackpressureController(FlowStorage<?> flowStorage,
                                   IntSupplier consumerAvailablePermitsSupplier,
                                   LongSupplier pendingCountSupplier,
-                                  IntSupplier globalSemaphoreCapacitySupplier) {
+                                  IntSupplier globalSemaphoreCapacitySupplier,
+                                  MeterRegistry meterRegistry,
+                                  String jobId) {
         this.flowStorage = flowStorage;
         this.consumerAvailablePermitsSupplier = consumerAvailablePermitsSupplier;
         this.pendingCountSupplier = pendingCountSupplier;
         this.globalSemaphoreCapacitySupplier = globalSemaphoreCapacitySupplier;
+        this.meterRegistry = meterRegistry;
+        this.jobId = jobId;
     }
 
-    /** 生产者调用：缓存满或消费许可耗尽时阻塞，避免填满后大批驱逐导致 Pending 暴增。 */
+    /** 生产者调用：缓存满或消费许可耗尽时阻塞 */
     public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException {
         lock.lock();
         try {
@@ -67,7 +65,6 @@ public class BackpressureController {
                     break;
                 }
                 waitCount++;
-                FlowMetrics.incrementCounter("backpressure_wait");
                 if (!notFull.await(
                         FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS,
                         TimeUnit.MILLISECONDS) && log.isTraceEnabled()) {
@@ -77,8 +74,10 @@ public class BackpressureController {
 
             if (waitCount > 0) {
                 long waitDuration = System.currentTimeMillis() - waitStartTime;
-                FlowMetrics.recordLatency("backpressure_wait", waitDuration);
-                FlowMetrics.incrementCounter("backpressure_wait_count", waitCount);
+                Timer.builder(FlowMetricNames.BACKPRESSURE_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .register(meterRegistry)
+                     .record(waitDuration, TimeUnit.MILLISECONDS);
             }
         } finally {
             lock.unlock();

@@ -18,6 +18,7 @@ import com.lrenyi.template.dataforge.service.EntityCrudServiceRouter;
 import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
 import com.lrenyi.template.dataforge.service.PathSegmentAwareCrudService;
 import com.lrenyi.template.dataforge.support.DataforgeAspect;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
 import com.lrenyi.template.dataforge.support.MetaScanner;
@@ -86,8 +87,8 @@ public class DataforgeAutoConfiguration {
     }
 
     @Bean
-    public DataforgeAspect dataforgeAspect() {
-        return new DataforgeAspect();
+    public DataforgeAspect dataforgeAspect(MeterRegistry meterRegistry) {
+        return new DataforgeAspect(meterRegistry);
     }
 
     @Bean
