@@ -90,9 +90,9 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 子流并行拉取数 (控制同时执行拉取任务的任务数) */
         private int parallelism = 40;
         /** 在途数据上限阈值 (控制系统中允许存在的在途数据条目数，≤0 表示用 1 倍全局消费许可数) */
-        private int maxInFlightThreshold = 0;
+        private int maxInFlightThreshold = 4000;
         /** 缓存最大容量 */
-        private int maxCacheSize = 80000;
+        private int maxCacheSize = 40000;
         /** 是否开启缓存 */
         private boolean cacheEnabled = true;
     }
@@ -103,7 +103,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 缓存数据存活时间（毫秒） */
         private long ttlMill = 10000;
         /** 全局并发消费许可数阈值 */
-        private int concurrencyLimit = 8000;
+        private int concurrencyLimit = 1000;
     }
 
     @Setter
