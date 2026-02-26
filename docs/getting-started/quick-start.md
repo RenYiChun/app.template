@@ -201,11 +201,11 @@ mvn spring-boot:run
 
 ### 获取访问令牌
 
-在目录的 `docs/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`来获取访问令牌。
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`来获取访问令牌。
 
 ### 访问受保护资源
 
-在目录的 `docs/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`来测试受保护的接口。
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`来测试受保护的接口。
 
 ## 常见问题
 
@@ -216,5 +216,5 @@ mvn spring-boot:run
 
 ## 下一步
 
-- 查看[详细配置教程文档](./详细配置教程.md)了解更多高级配置
-- 阅读[Spring Security 文档](../doc/spring_security.md)了解安全配置详情
+- 查看[配置参考](config-reference.md)了解更多高级配置
+- 查看[安全配置](config-reference.md#安全配置)了解安全相关配置

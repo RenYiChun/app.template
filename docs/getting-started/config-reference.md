@@ -373,7 +373,7 @@ public class AuthController {
 ## 数据加密配置
 
 框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用 `aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2 等）可插拔。  
-设计说明、与 Jasypt/Spring Cloud 的差异及优势详见 [加密与 Coder 设计说明](encryption-and-coder-design.md)。
+设计说明、与 Jasypt/Spring Cloud 的差异及优势详见 [加密与 Coder 设计说明](../design/encryption-and-coder.md)。
 
 ### 密码加密配置
 
@@ -805,7 +805,7 @@ public class MessageConverterConfig {
 
 ### JSON 处理器配置
 
-框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson 等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](json-processor-design.md)。
+框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson 等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
 
 ```yaml
 app:

@@ -25,7 +25,7 @@
 - **声明式放行**：`app.template.security.permit-urls.{appName}` 按应用名管理白名单，`/docs`、`/actuator/health` 等无需逐个写 `permitAll()`。
 - **双模认证可配置切换**：JWT（本地公钥/远程 JWK）和 Opaque Token 通过配置切换，改配置即可，无需改代码。
 - **RBAC 权限自动注册**：实体级 create/read/update/delete 权限自动注册到权限表，配合角色分配即用。
-- **统一 Coder（密码 + 配置解密）**：密码 encode/matches 与配置 `aENC(...)` 解密共用一套 `TemplateEncryptService`，格式与 Spring Security 的 `{id}...` 一致，支持 bcrypt、RSA2048、PBKDF2 等多算法 SPI 扩展；无需同时引入 Jasypt 与 PasswordEncoder，详见 [加密与 Coder 设计说明](encryption-and-coder-design.md)。
+- **统一 Coder（密码 + 配置解密）**：密码 encode/matches 与配置 `aENC(...)` 解密共用一套 `TemplateEncryptService`，格式与 Spring Security 的 `{id}...` 一致，支持 bcrypt、RSA2048、PBKDF2 等多算法 SPI 扩展；无需同时引入 Jasypt 与 PasswordEncoder，详见 [加密与 Coder 设计说明](encryption-and-coder.md)。
 
 ### 4. WebSocket 认证与实时通道
 
@@ -38,7 +38,7 @@
 ### 5. 配置集中且带校验
 
 - **类型安全**：所有配置通过 `@ConfigurationProperties` 绑定，IDE 自动补全。
-- **JSON 框架可全局切换**：通过 `JsonProcessor` 抽象与 `app.template.web.json-processor-type` 配置，可在 Jackson、Gson 等实现间切换；业务代码统一注入 `JsonService` 或 `JsonProcessor`，切换实现时无需改业务逻辑。详见 [JSON 处理器与框架切换能力](json-processor-design.md)。
+- **JSON 框架可全局切换**：通过 `JsonProcessor` 抽象与 `app.template.web.json-processor-type` 配置，可在 Jackson、Gson 等实现间切换；业务代码统一注入 `JsonService` 或 `JsonProcessor`，切换实现时无需改业务逻辑。详见 [JSON 处理器与框架切换能力](json-processor.md)。
 - **启动时校验**：`TemplateConfigProperties.validateConfig()` 会检测并发许可为 0、JWT 配置缺失等不合理配置，输出 WARN。
 - **配置摘要日志**：启动时打印关键配置值，便于排查远程配置覆盖问题。
 
@@ -143,8 +143,8 @@
 ## 七、相关文档
 
 - [框架设计优势](architecture-advantages.md) — 设计原则与九大设计优势
-- [加密与 Coder 设计说明](encryption-and-coder-design.md) — 加密方案与 Jasypt/Spring 的差异及设计优势
-- [JSON 处理器与框架切换能力](json-processor-design.md) — 全局切换 JSON 框架的设计与用法
-- [质量评分卡](quality-scorecard.md) — 各维度评分与改进建议
-- [Flow 流聚合使用指导](flow-usage-guide.md) — Flow 引擎使用示例
-- [指标监控指南](metrics-guide.md) — 指标接入与 PromQL 示例
+- [加密与 Coder 设计说明](encryption-and-coder.md) — 加密方案与 Jasypt/Spring 的差异及设计优势
+- [JSON 处理器与框架切换能力](json-processor.md) — 全局切换 JSON 框架的设计与用法
+- [质量评分卡](../reference/quality-scorecard.md) — 各维度评分与改进建议
+- [Flow 流聚合使用指导](../guides/flow-usage-guide.md) — Flow 引擎使用示例
+- [指标监控指南](../guides/metrics-guide.md) — 指标接入与 PromQL 示例

@@ -62,5 +62,5 @@ public class CustomJsonConfig {
 
 ## 四、相关文档
 
-- [详细配置教程 - JSON 处理器配置](详细配置教程.md#json-处理器配置) — 配置项与示例
+- [配置参考 - JSON 处理器配置](../getting-started/config-reference.md#json-处理器配置) — 配置项与示例
 - [框架收益 - 配置集中](framework-benefits.md) — JSON 框架可切换的收益说明

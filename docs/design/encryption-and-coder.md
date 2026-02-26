@@ -96,7 +96,7 @@ spring:
 
 ## 四、相关文档
 
-- [详细配置教程 - 数据加密配置](详细配置教程.md#数据加密配置) — aENC、security-key、RSA 配置示例
+- [配置参考 - 数据加密配置](../getting-started/config-reference.md#数据加密配置) — aENC、security-key、RSA 配置示例
 - [框架收益](framework-benefits.md) — 声明式安全与本 Coder 的集成
 - [框架设计优势 - 安全体系](architecture-advantages.md#六安全体系) — 安全能力一览
-- [质量评分卡](quality-scorecard.md) — 安全相关评分与建议
+- [质量评分卡](../reference/quality-scorecard.md) — 安全相关评分与建议
