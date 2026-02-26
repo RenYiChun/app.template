@@ -12,13 +12,13 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 public class RedisOauthServiceConfig {
     
     @Bean
-    @ConditionalOnProperty(value = "app.template.security.authorization-type", havingValue = "redis")
+    @ConditionalOnProperty(value = "app.template.security.authorization.store-type", havingValue = "redis")
     public OAuth2AuthorizationService redisOauth2AuthorizationService() {
         return new RedisOAuth2AuthorizationService();
     }
     
     @Bean
-    @ConditionalOnProperty(value = "app.template.security.authorization-type", havingValue = "redis")
+    @ConditionalOnProperty(value = "app.template.security.authorization.store-type", havingValue = "redis")
     public RegisteredClientRepository registerClientRepository(RedisTemplate<String, String> templateStringRedis,
                                                                OAuth2AuthorizationServerProperties properties) {
         return new RedisRegisteredClientRepository(templateStringRedis,

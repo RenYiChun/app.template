@@ -13,10 +13,11 @@ public class ConfigImportSelector implements ImportSelector {
     public String[] selectImports(@NonNull AnnotationMetadata importingClassMetadata) {
         ClassLoader loader = ConfigImportSelector.class.getClassLoader();
         List<String> imports = new ArrayList<>();
-        boolean present =
-                ClassUtils.isPresent("org.springframework.data.redis.core.RedisTemplate", loader);
-        if (present) {
+        if (ClassUtils.isPresent("org.springframework.data.redis.core.RedisTemplate", loader)) {
             imports.add(RedisOauthServiceConfig.class.getName());
+        }
+        if (ClassUtils.isPresent("org.springframework.jdbc.core.JdbcOperations", loader)) {
+            imports.add(JdbcOauthServiceConfig.class.getName());
         }
         return imports.toArray(new String[0]);
     }

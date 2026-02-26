@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -124,12 +123,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 需审计的 OAuth2 端点 URI 列表（与 oauth2AuditPathPrefix 二选一或同时生效） */
         private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
         /** 审计该路径前缀下的所有请求（如 /oauth2 表示 /oauth2/authorize、/oauth2/token、/oauth2/revoke 等全部审计），为空则仅按 oauth2Endpoints 列表 */
-        @Getter(AccessLevel.NONE)
         private String oauth2AuditPathPrefix = "/oauth2";
-
-        public String getOauth2AuditPathPrefix() {
-            return oauth2AuditPathPrefix;
-        }
     }
 
     @Setter
@@ -248,10 +242,13 @@ public class TemplateConfigProperties implements InitializingBean {
         private Long tokenMaxLifetimeSeconds = 24 * 3600L;
 
         /**
-         * AuthorizationService的类型，目前支持两种，memory, redis
+         * 授权信息存储方式：memory（默认）、redis、jdbc。
+         * 对应配置项 app.template.security.authorization.store-type。
+         * jdbc 时需配置数据源，启动时自动建表并从配置初始化客户端。
          */
-        private String authorizationType = "memory";
-        
+        @NestedConfigurationProperty
+        private AuthorizationProperties authorization = new AuthorizationProperties();
+
         /**
          * CORS 跨域配置。enabled=true 时由框架根据下方属性构建 CorsConfigurationSource 并注入 Security 链，
          * 无需再写 Java 代码；需完全自定义时可将 enabled 置为 false 并通过 httpConfigurerProvider 注入自己的 CORS。
@@ -261,13 +258,23 @@ public class TemplateConfigProperties implements InitializingBean {
     }
     
     /**
+     * 授权相关配置，对应 app.template.security.authorization.*
+     */
+    @Setter
+    @Getter
+    public static class AuthorizationProperties {
+        /** 存储类型：memory、redis、jdbc */
+        private String storeType = "memory";
+    }
+
+    /**
      * CORS 跨域配置项，对应 app.template.security.cors.*
      */
     @Setter
     @Getter
     public static class CorsProperties {
         private boolean enabled = false;
-        /** 允许的源模式，如 http://localhost:* ；默认本地开发常用值 */
+        /** 允许的源模式，如 <a href="http://localhost">localhost</a>:* ；默认本地开发常用值 */
         private List<String> allowedOriginPatterns =
                 new ArrayList<>(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
         private List<String> allowedMethods =
