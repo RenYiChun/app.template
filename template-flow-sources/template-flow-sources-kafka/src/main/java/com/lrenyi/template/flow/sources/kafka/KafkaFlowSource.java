@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
-import com.lrenyi.template.core.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSource;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;

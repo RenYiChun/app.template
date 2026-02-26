@@ -3,7 +3,7 @@ package com.lrenyi.template.flow.sources.nats;
 import java.time.Duration;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
-import com.lrenyi.template.core.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSource;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
