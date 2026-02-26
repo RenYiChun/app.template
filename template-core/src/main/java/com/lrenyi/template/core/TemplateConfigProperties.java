@@ -32,9 +32,12 @@ public class TemplateConfigProperties implements InitializingBean {
      */
     @NestedConfigurationProperty
     private OAuth2Config oauth2 = new OAuth2Config();
-
+    
+    /**
+     * 方法级安全配置（@PreAuthorize / @PostAuthorize / @Secured 等是否生效）
+     */
     @NestedConfigurationProperty
-    private AuthorizeConfig authorize = new AuthorizeConfig();
+    private MethodSecurityConfig methodSecurity = new MethodSecurityConfig();
 
     @NestedConfigurationProperty
     private Flow flow = new Flow();
@@ -64,7 +67,8 @@ public class TemplateConfigProperties implements InitializingBean {
 
     @Setter
     @Getter
-    public static class AuthorizeConfig {
+    public static class MethodSecurityConfig {
+        /** 是否启用方法级安全（@PreAuthorize 等注解生效） */
         private boolean enabled = true;
     }
 

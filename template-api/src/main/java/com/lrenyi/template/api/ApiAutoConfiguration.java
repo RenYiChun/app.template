@@ -59,7 +59,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApiAutoConfiguration {
     
     @EnableMethodSecurity()
-    @ConditionalOnProperty(name = "app.template.authorize.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "app.template.method-security.enabled", havingValue = "true", matchIfMissing = true)
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
     }
