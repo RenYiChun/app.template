@@ -38,6 +38,7 @@
 ### 5. 配置集中且带校验
 
 - **类型安全**：所有配置通过 `@ConfigurationProperties` 绑定，IDE 自动补全。
+- **JSON 框架可全局切换**：通过 `JsonProcessor` 抽象与 `app.template.web.json-processor-type` 配置，可在 Jackson、Gson 等实现间切换；业务代码统一注入 `JsonService` 或 `JsonProcessor`，切换实现时无需改业务逻辑。详见 [JSON 处理器与框架切换能力](json-processor-design.md)。
 - **启动时校验**：`TemplateConfigProperties.validateConfig()` 会检测并发许可为 0、JWT 配置缺失等不合理配置，输出 WARN。
 - **配置摘要日志**：启动时打印关键配置值，便于排查远程配置覆盖问题。
 
@@ -61,9 +62,8 @@
 
 ### 8. 线程与资源生命周期
 
-- **JVM 关闭时回收**：全局虚拟线程池、调度线程池注册 shutdown hook，避免进程退出时线程泄漏。
-- **线程命名规范**：`tpl-vt-`、`tpl-sched-` 等前缀，线程 dump 一眼定位来源。
 - **双重关闭保障**：Spring 容器关闭时主动 shutdown，JVM hook 兜底防遗漏。
+- **线程命名规范**：Flow 等模块的线程池均有统一前缀，线程 dump 一眼定位来源。
 - **Flow 移除执行器**：有界队列 + CallerRunsPolicy，防止任务堆积 OOM。
 
 ### 9. 可选 Feign 重试
@@ -144,6 +144,7 @@
 
 - [框架设计优势](architecture-advantages.md) — 设计原则与九大设计优势
 - [加密与 Coder 设计说明](encryption-and-coder-design.md) — 加密方案与 Jasypt/Spring 的差异及设计优势
+- [JSON 处理器与框架切换能力](json-processor-design.md) — 全局切换 JSON 框架的设计与用法
 - [质量评分卡](quality-scorecard.md) — 各维度评分与改进建议
 - [Flow 流聚合使用指导](flow-usage-guide.md) — Flow 引擎使用示例
 - [指标监控指南](metrics-guide.md) — 指标接入与 PromQL 示例

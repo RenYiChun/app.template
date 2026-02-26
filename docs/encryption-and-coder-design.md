@@ -17,12 +17,12 @@
 - `{RSA2048}Base64密文...` — RSA 加密封包（可 decode，用于配置解密）
 - `{default}v2:100000:salt:hash` — PBKDF2 哈希（仅 matches）
 
-**配置密文**使用 `aENC(...)` 包装，以区别于普通明文及 Jasypt 的 `ENC(...)`：
+**配置密文**使用 `aENC(...)` 包装，以区别于普通明文及 Jasypt 的 `ENC(...)`。采用**按需解密**：首次访问该配置项时才解密并缓存，减少启动时全量遍历与解密开销。
 
 ```yaml
 spring:
   datasource:
-    password: "aENC({RSA2048}Base64...)"  # 启动时自动解密
+    password: "aENC({RSA2048}Base64...)"  # 首次访问时解密
 ```
 
 ---

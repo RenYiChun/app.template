@@ -5,6 +5,8 @@ import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import com.lrenyi.template.core.json.JacksonJsonProcessor;
 import com.lrenyi.template.core.json.JsonProcessor;
 import com.lrenyi.template.core.json.JsonService;
+import com.lrenyi.template.core.metrics.AppMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,8 +15,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ComponentScan
 @Configuration(proxyBeanMethods = false)
@@ -44,6 +46,11 @@ public class CoreAutoConfiguration {
         @ConditionalOnMissingBean(PasswordEncoder.class)
         public DefaultTemplateEncryptService defaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
             return new DefaultTemplateEncryptService(templateConfigProperties);
+        }
+        
+        @Bean
+        public AppMetrics appMetrics(MeterRegistry registry) {
+            return new AppMetrics(registry);
         }
     }
 }
