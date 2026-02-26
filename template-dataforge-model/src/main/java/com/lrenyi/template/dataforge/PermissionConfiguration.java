@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.config;
 
+import com.lrenyi.template.dataforge.DataforgeAutoConfiguration;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.ObjectProvider;
@@ -21,9 +22,9 @@ public class PermissionConfiguration {
     
     @Bean
     @ConditionalOnClass(EntityManager.class)
-    public PermissionInitializer permissionInitializer(EntityRegistry entityRegistry,
-            EntityManager entityManager,
-            DataforgeProperties properties,
+    public PermissionInitializer permissionInitializer(ObjectProvider<EntityRegistry> entityRegistry,
+            ObjectProvider<EntityManager> entityManager,
+            ObjectProvider<DataforgeProperties> properties,
             ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
         return new PermissionInitializer(entityRegistry, entityManager, properties, transactionTemplateProvider);
     }
