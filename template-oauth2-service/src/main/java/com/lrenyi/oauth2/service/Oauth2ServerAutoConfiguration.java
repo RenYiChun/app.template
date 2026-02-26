@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuditFilter;
+import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
 import com.lrenyi.oauth2.service.config.OAuth2ClientPropertiesMapper;
 import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
@@ -104,8 +105,10 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public OAuth2AuditFilter oauth2AuditFilter(TemplateConfigProperties templateConfigProperties,
-            ObjectProvider<AuditLogService> auditLogServiceProvider) {
-        return new OAuth2AuditFilter(templateConfigProperties, auditLogServiceProvider);
+            ObjectProvider<AuditLogService> auditLogServiceProvider,
+            ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
+        return new OAuth2AuditFilter(templateConfigProperties, auditLogServiceProvider,
+                principalNameExtractorProvider);
     }
     
     @Bean

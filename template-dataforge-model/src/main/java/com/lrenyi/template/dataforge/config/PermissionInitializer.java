@@ -26,29 +26,30 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
     private final EntityRegistry entityRegistry;
     private final EntityManager entityManager;
     private final DataforgeProperties properties;
-    private final ObjectProvider<TransactionTemplate> transactionTemplateProvider;
-
-    public PermissionInitializer(EntityRegistry entityRegistry,
-            EntityManager entityManager,
-            DataforgeProperties properties,
+    private final TransactionTemplate transactionTemplate;
+    
+    public PermissionInitializer(ObjectProvider<EntityRegistry> entityRegistry,
+            ObjectProvider<EntityManager> entityManager,
+            ObjectProvider<DataforgeProperties> properties,
             ObjectProvider<TransactionTemplate> transactionTemplateProvider) {
-        this.entityRegistry = entityRegistry;
-        this.entityManager = entityManager;
-        this.properties = properties;
-        this.transactionTemplateProvider = transactionTemplateProvider;
+        this.entityRegistry = entityRegistry.getIfAvailable();
+        this.entityManager = entityManager.getIfAvailable();
+        this.properties = properties.getIfAvailable();
+        this.transactionTemplate = transactionTemplateProvider.getIfAvailable();
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        int entityCount = entityRegistry.getAll().size();
-        log.info("RBAC 权限初始化开始，已注册实体数: {}（init-permissions={}）",
-                entityCount, properties.isRbacInitPermissions());
-        if (!properties.isRbacInitPermissions()) {
+        if (transactionTemplate == null || entityRegistry == null || entityManager == null || properties == null) {
+            log.warn("RBAC 权限初始化跳过：TransactionTemplate 不可用（需 DataforgeTransactionManager）");
             return;
         }
-        TransactionTemplate transactionTemplate = transactionTemplateProvider.getIfAvailable();
-        if (transactionTemplate == null) {
-            log.warn("RBAC 权限初始化跳过：TransactionTemplate 不可用（需 DataforgeTransactionManager）");
+        int entityCount = entityRegistry.getAll().size();
+        log.info("RBAC 权限初始化开始，已注册实体数: {}（init-permissions={}）",
+                 entityCount,
+                 properties.isRbacInitPermissions()
+        );
+        if (!properties.isRbacInitPermissions()) {
             return;
         }
         Map<String, String> toInit = collectPermissionsToInit();

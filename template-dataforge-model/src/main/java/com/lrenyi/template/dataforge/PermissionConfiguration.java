@@ -1,6 +1,7 @@
-package com.lrenyi.template.dataforge.config;
+package com.lrenyi.template.dataforge;
 
-import com.lrenyi.template.dataforge.DataforgeAutoConfiguration;
+import com.lrenyi.template.dataforge.config.DataforgeProperties;
+import com.lrenyi.template.dataforge.config.PermissionInitializer;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.ObjectProvider;

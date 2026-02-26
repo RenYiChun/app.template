@@ -3,8 +3,8 @@ package com.lrenyi.template.flow.storage;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
-import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowStorageType;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**

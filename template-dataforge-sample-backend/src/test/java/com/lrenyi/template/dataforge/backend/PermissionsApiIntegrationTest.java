@@ -3,7 +3,7 @@ package com.lrenyi.template.dataforge.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.lrenyi.template.dataforge.config.PermissionConfiguration;
+import com.lrenyi.template.dataforge.PermissionConfiguration;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import com.lrenyi.template.dataforge.config.PermissionInitializer;
 import jakarta.persistence.EntityManager;

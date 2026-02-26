@@ -1,4 +1,4 @@
-package com.lrenyi.template.dataforge.config;
+package com.lrenyi.template.dataforge;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.dataforge.action.EntityActionExecutor;
+import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import com.lrenyi.template.dataforge.controller.DocsUiController;
 import com.lrenyi.template.dataforge.controller.GenericEntityController;
 import com.lrenyi.template.dataforge.controller.OpenApiController;

@@ -2,6 +2,7 @@ package com.lrenyi.oauth2.service.config;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.dataforge.service.AuditLogService;
 import jakarta.servlet.FilterChain;
@@ -25,11 +26,14 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     
     private final TemplateConfigProperties properties;
     private final ObjectProvider<AuditLogService> auditLogServiceProvider;
+    private final ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider;
     
     public OAuth2AuditFilter(TemplateConfigProperties properties,
-            ObjectProvider<AuditLogService> auditLogServiceProvider) {
+            ObjectProvider<AuditLogService> auditLogServiceProvider,
+            ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
         this.properties = properties;
         this.auditLogServiceProvider = auditLogServiceProvider;
+        this.principalNameExtractorProvider = principalNameExtractorProvider;
     }
     
     @Override
@@ -68,7 +72,9 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         String desc = "oauth2 endpoint: " + request.getMethod() + " " + uri;
         String message = success ? "HTTP " + status : "";
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String userName = auth != null ? logService.extractUserName(auth) : null;
+        String userName = Optional.ofNullable(principalNameExtractorProvider.getIfAvailable())
+                                  .flatMap(ext -> ext.extract(auth))
+                                  .orElse(auth != null ? logService.extractUserName(auth) : null);
         if (userName == null) {
             userName = "";
         }

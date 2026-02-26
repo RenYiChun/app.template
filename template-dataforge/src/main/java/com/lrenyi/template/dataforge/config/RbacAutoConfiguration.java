@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.config;
 
+import com.lrenyi.template.dataforge.DataforgeAutoConfiguration;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.permission.RbacPermissionChecker;
 import com.lrenyi.template.dataforge.permission.UserPermissionResolver;

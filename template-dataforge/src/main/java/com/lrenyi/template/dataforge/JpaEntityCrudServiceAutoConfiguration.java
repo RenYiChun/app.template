@@ -1,7 +1,6 @@
-package com.lrenyi.template.dataforge.config;
+package com.lrenyi.template.dataforge;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lrenyi.template.dataforge.DataforgeAutoConfiguration;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
 import com.lrenyi.template.dataforge.service.JpaEntityCrudService;
 import jakarta.persistence.EntityManager;

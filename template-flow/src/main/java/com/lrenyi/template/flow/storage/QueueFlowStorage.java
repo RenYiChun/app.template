@@ -10,8 +10,8 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
@@ -34,7 +34,6 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     private ScheduledFuture<?> scheduledFuture;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
-    private final String jobId;
 
     public QueueFlowStorage(int capacity,
             ProgressTracker progressTracker,
@@ -48,7 +47,6 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         this.finalizer = finalizer;
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
-        this.jobId = jobId;
 
         Gauge.builder(FlowMetricNames.STORAGE_SIZE, queue, BlockingQueue::size)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
@@ -57,7 +55,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
              .register(meterRegistry);
 
         ScheduledExecutorService egressExecutor = resourceRegistry.getStorageEgressExecutor();
-        if (jobId != null && egressExecutor != null && drainIntervalMs > 0) {
+        if (egressExecutor != null && drainIntervalMs > 0) {
             this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
                     drainIntervalMs,
                     drainIntervalMs,

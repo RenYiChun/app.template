@@ -43,7 +43,6 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final long maxCacheSize;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
-    private final String jobId;
     private final LongAdder removalSubmittedCount = new LongAdder();
 
     private static final int STRIPE_COUNT = 256;
@@ -67,21 +66,18 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.maxCacheSize = maxSize;
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
-        this.jobId = jobId;
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
                              .executor(resourceRegistry.getCacheRemovalExecutor())
-                             .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> {
-                                 if (entry == null) {
-                                     return;
-                                 }
-                                 onEntryRemoved(entry, cause);
-                             })
+                             .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> onEntryRemoved(
+                                     entry,
+                                     cause
+                             ))
                              .scheduler(Scheduler.systemScheduler())
                              .build();
-
-        Gauge.builder(FlowMetricNames.STORAGE_SIZE, cache, c -> c.estimatedSize())
+        
+        Gauge.builder(FlowMetricNames.STORAGE_SIZE, cache, Cache::estimatedSize)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
              .tag(FlowMetricNames.TAG_STORAGE_TYPE, "caffeine")
              .description("当前 Caffeine 缓存中的数据条数")
@@ -171,7 +167,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
         resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, () -> {
             try {
-                executeMatchedPairLogicBody(partner, entry, launcher);
+                executeMatchedPairLogicBody(partner, entry);
                 long matchLatency = System.currentTimeMillis() - matchStartTime;
                 Timer.builder(FlowMetricNames.MATCH_DURATION)
                      .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
@@ -190,9 +186,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             }
         });
     }
-
-    private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry,
-            FlowLauncher<Object> launcher) {
+    
+    private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {
         try (partner) {
             if (joiner.isMatched(partner.getData(), entry.getData())) {
                 handleMatchedSuccess(partner, entry);
@@ -239,8 +234,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
 
     @Override
-    public FlowEntry<T> remove(String key) {
-        return cache.asMap().remove(key);
+    public void remove(String key) {
+        cache.asMap().remove(key);
     }
 
     private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {

@@ -9,8 +9,8 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.nats.client.Message;
-import lombok.extern.slf4j.Slf4j;
 import io.nats.client.Subscription;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 单子流 NATS 数据源：包装一个 {@link Subscription}，按顺序产出 T。

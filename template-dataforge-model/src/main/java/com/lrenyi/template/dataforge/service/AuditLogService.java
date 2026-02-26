@@ -4,7 +4,6 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Date;
-import java.util.Map;
 import com.lrenyi.template.dataforge.audit.annotation.AuditLog;
 import com.lrenyi.template.dataforge.audit.enricher.AuditLogEnricher;
 import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
@@ -148,30 +147,11 @@ public class AuditLogService {
                     name = String.valueOf(bearerAuth.getTokenAttributes().get(username));
             case JwtAuthenticationToken jwtToken -> name = jwtToken.getToken().getClaimAsString(username);
             default -> {
-                String fromOAuth2AuthServer = extractUsernameFromOAuth2AccessToken(authentication);
-                if (fromOAuth2AuthServer != null) {
-                    name = fromOAuth2AuthServer;
-                }
+                // OAuth2AccessTokenAuthenticationToken 由 oauth2-service 的 OAuth2PrincipalNameExtractor 处理，
+                // 此处仅保留 dataforge-model 可直接依赖的类型，避免反射
             }
         }
         return name;
-    }
-    
-    private static String extractUsernameFromOAuth2AccessToken(Authentication authentication) {
-        try {
-            Class<?> clazz = Class.forName("org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken");
-            if (!clazz.isInstance(authentication)) {
-                return null;
-            }
-            Object params = clazz.getMethod("getAdditionalParameters").invoke(authentication);
-            if (params instanceof Map<?, ?> map) {
-                Object v = map.get("username");
-                return v != null ? String.valueOf(v) : null;
-            }
-        } catch (Exception ignored) {
-            // authorization-server not on classpath or other failure
-        }
-        return null;
     }
 
     public String getIpAddress(HttpServletRequest request) {

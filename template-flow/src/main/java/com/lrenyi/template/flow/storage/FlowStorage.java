@@ -47,7 +47,7 @@ public interface FlowStorage<T> {
      * 可选：根据 Key 移除并获取上下文
      * 仅在实现类支持 Key-Value 语义时有效（如 Caffeine 实现）
      */
-    default FlowEntry<T> remove(String key) {
+    default void remove(String key) {
         throw new UnsupportedOperationException("This storage does not support key-based retrieval.");
     }
 

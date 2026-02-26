@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.engine;
 
-import java.util.Map;
 import java.util.Optional;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowInlet;
@@ -129,7 +128,7 @@ public class FlowJoinerEngine {
             String jobId) {
         FlowSource<T> sub = provider.nextSubSource();
         try (sub) {
-            drainSubSource(sub, launcher, jobId);
+            drainSubSource(sub, launcher);
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
@@ -140,8 +139,8 @@ public class FlowJoinerEngine {
             log.error("子流消费异常 jobId={}", jobId, e);
         }
     }
-
-    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher, String jobId) {
+    
+    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher) {
         Optional<T> item = pollNext(sub);
         while (item.isPresent()) {
             if (launcher.isStopped()) {
@@ -192,9 +191,5 @@ public class FlowJoinerEngine {
 
     public ProgressTracker getProgressTracker(String jobId) {
         return flowManager.getActiveLauncher(jobId).getTaskOrchestrator().tracker();
-    }
-
-    public Map<String, Object> getHealthStatus() {
-        return flowManager.getHealthStatus();
     }
 }

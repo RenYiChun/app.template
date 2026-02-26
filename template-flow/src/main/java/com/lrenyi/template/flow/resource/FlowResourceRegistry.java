@@ -17,7 +17,6 @@ import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FlowConstants;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -138,14 +137,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         }
         return instance;
     }
-
-    /**
-     * 兼容旧调用方（无 MeterRegistry 参数）
-     */
-    public static FlowResourceRegistry getInstance(TemplateConfigProperties.Flow globalConfig) {
-        return getInstance(globalConfig, new SimpleMeterRegistry());
-    }
-
+    
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
         if (config == null) {
             return false;
