@@ -130,7 +130,9 @@ public class DefaultSecurityFilterChainBuilder {
                              .permitAll();
             TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
             if (feign.isNotOauth()) {
-                registry = registry.requestMatchers(new InternalRequestMatcher()).permitAll();
+                registry =
+                        registry.requestMatchers(new InternalRequestMatcher(feign.getInternalCallAllowedIpPatterns()))
+                                .permitAll();
             }
             registry.anyRequest().authenticated();
         });

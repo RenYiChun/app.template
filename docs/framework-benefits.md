@@ -95,10 +95,11 @@
 
 ## 四、微服务与调用
 
-### 13. Feign 凭证透传
+### 13. Feign 凭证透传与内部调用安全
 
 - 内部 Feign 调用自动携带认证上下文（Token 等），支持 OAuth2 Client Credentials。
 - **FeignClientErrorDecoder**：将 Feign 4xx/5xx 异常映射为 `TemplateException`，与框架异常契约一致。
+- **内部调用放行**：带 `X-Internal-Call: true` 的请求可配置为免认证；通过 `app.template.feign.internal-call-allowed-ip-patterns`（CIDR）限制仅内网来源生效，防止客户端伪造该头绕过认证，Docker/K8s 下配置集群网段即可。
 
 ### 14. 模块化依赖
 

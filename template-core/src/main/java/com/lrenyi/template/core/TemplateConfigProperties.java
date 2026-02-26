@@ -131,6 +131,11 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean notOauth = true;
         private String oauthClientId;
         private String oauthClientSecret;
+        /**
+         * 当非空时，仅当请求来源 IP 匹配其中任一（CIDR 或单 IP）且带 X-Internal-Call: true 时才视为内部调用。
+         * 用于防止客户端伪造 X-Internal-Call 绕过认证。示例：["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+         */
+        private List<String> internalCallAllowedIpPatterns = new ArrayList<>();
         /** 重试配置（默认关闭） */
         @NestedConfigurationProperty
         private RetryConfig retry = new RetryConfig();
