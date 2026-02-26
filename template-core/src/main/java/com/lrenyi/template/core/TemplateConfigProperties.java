@@ -53,6 +53,12 @@ public class TemplateConfigProperties implements InitializingBean {
 
     @NestedConfigurationProperty
     private FeignProperties feign = new FeignProperties();
+    
+    /**
+     * WebSocket 相关配置
+     */
+    @NestedConfigurationProperty
+    private WebSocketProperties websocket = new WebSocketProperties();
 
     private AuditLogProperties audit = new AuditLogProperties();
 
@@ -148,6 +154,20 @@ public class TemplateConfigProperties implements InitializingBean {
         private String jsonProcessorType;
         private boolean exportExceptionDetail;
     }
+    
+    /**
+     * WebSocket 配置
+     */
+    @Setter
+    @Getter
+    public static class WebSocketProperties {
+        /**
+         * 是否允许从 URL query 参数 {@code access_token} 解析 token。
+         * 为 false 时仅从 Header {@code Authorization: Bearer <token>} 解析。
+         * 生产环境建议设为 false，避免 token 进入日志、Referer 等。
+         */
+        private boolean allowTokenInQueryParameter = false;
+    }
 
     /**
      * OAuth2模块配置
@@ -184,7 +204,26 @@ public class TemplateConfigProperties implements InitializingBean {
         private Map<String, Set<String>> permitUrls = new HashMap<>();
         private Set<String> resourcePermitUrls = new HashSet<>();
         private boolean localJwtPublicKey = true;
+        /**
+         * 视为生产环境的 Spring Profile 列表，当激活其中任一 profile 且使用本地 JWT 公钥时，将拒绝启动。
+         * 默认包含 prod、production。
+         */
+        private Set<String> productionProfiles = new HashSet<>(Arrays.asList("prod", "production"));
+        /**
+         * JWT 公钥 JWK Set 的完整 URI，优先级高于 domain+path。
+         * 配置后直接使用，适用于 Keycloak、Auth0 等第三方 IdP（路径各异）。
+         */
+        private String netJwtPublicKeyUri;
+        /**
+         * JWT 公钥所在域名，与 net-jwt-public-key-path 拼接使用。
+         * 当 net-jwt-public-key-uri 未配置时生效。
+         */
         private String netJwtPublicKeyDomain;
+        /**
+         * JWT 公钥路径，与 net-jwt-public-key-domain 拼接。
+         * 默认 /jwt/public/key，与 template-oauth2-service 的端点一致。
+         */
+        private String netJwtPublicKeyPath = "/jwt/public/key";
         private String customizeLoginPage;
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
@@ -194,11 +233,35 @@ public class TemplateConfigProperties implements InitializingBean {
          * AuthorizationService的类型，目前支持两种，memory, redis
          */
         private String authorizationType = "memory";
+        
+        /**
+         * CORS 跨域配置。enabled=true 时由框架根据下方属性构建 CorsConfigurationSource 并注入 Security 链，
+         * 无需再写 Java 代码；需完全自定义时可将 enabled 置为 false 并通过 httpConfigurerProvider 注入自己的 CORS。
+         */
+        @NestedConfigurationProperty
+        private CorsProperties cors = new CorsProperties();
+    }
+    
+    /**
+     * CORS 跨域配置项，对应 app.template.security.cors.*
+     */
+    @Setter
+    @Getter
+    public static class CorsProperties {
+        private boolean enabled = false;
+        /** 允许的源模式，如 http://localhost:* ；默认本地开发常用值 */
+        private List<String> allowedOriginPatterns =
+                new ArrayList<>(Arrays.asList("http://localhost:*", "http://127.0.0.1:*"));
+        private List<String> allowedMethods =
+                new ArrayList<>(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        private List<String> allowedHeaders = new ArrayList<>(Collections.singletonList("*"));
+        private Boolean allowCredentials = true;
+        private Long maxAge = 3600L;
     }
 
     @Override
     public void afterPropertiesSet() {
-        List<String> list = Arrays.asList("/jwt/public/key", "/favicon");
+        List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), "/favicon");
         security.defaultPermitUrls.addAll(list);
         security.allPermitUrls.addAll(security.defaultPermitUrls);
         security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
@@ -227,8 +290,9 @@ public class TemplateConfigProperties implements InitializingBean {
                      flow.getConsumer().getTtlMill());
         }
         if (security.isEnabled() && !security.isLocalJwtPublicKey()
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
-            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式且未设置 net-jwt-public-key-domain");
+            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
         }
         log.info("[配置摘要] enabled={}, security.enabled={}, flow.concurrencyLimit={}, " +
                  "feign.enabled={}, oauth2.enabled={}",

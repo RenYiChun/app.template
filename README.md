@@ -36,6 +36,7 @@ A quick-to-use template library focusing on Spring Boot Security and OAuth2.
 
 ## Documentation
 
+- [使用本框架可获得的实实在在的好处](docs/framework-benefits.md)
 - [框架设计优势](docs/architecture-advantages.md)
 - [质量评分卡](docs/quality-scorecard.md)
 - [指标监控指南](docs/metrics-guide.md)

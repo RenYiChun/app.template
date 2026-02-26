@@ -1,6 +1,7 @@
 package com.lrenyi.template.api.config;
 
 import com.lrenyi.template.core.exception.TemplateException;
+import com.lrenyi.template.core.util.MCode;
 import com.lrenyi.template.core.util.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -39,15 +40,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Object>> handleIllegalArgument(IllegalArgumentException e) {
         log.debug("Bad request: {}", e.getMessage());
         Result<Object> result = Result.getError(null, e.getMessage());
-        result.setCode(400);
+        result.setCode(MCode.BAD_REQUEST.getCode());
         return ResponseEntity.badRequest().body(result);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Result<Object>> handleNotFound(NoResourceFoundException e) {
         Result<Object> result = Result.getError(null, "资源不存在");
-        result.setCode(404);
-        return ResponseEntity.status(404).body(result);
+        result.setCode(MCode.NOT_EXIT_RESOURCE.getCode());
+        return ResponseEntity.status(MCode.NOT_EXIT_RESOURCE.getCode()).body(result);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -58,7 +59,7 @@ public class GlobalExceptionHandler {
                 .orElse("参数校验失败");
         log.debug("Validation failed: {}", message);
         Result<Object> result = Result.getError(null, message);
-        result.setCode(400);
+        result.setCode(MCode.BAD_REQUEST.getCode());
         return ResponseEntity.badRequest().body(result);
     }
 
@@ -66,7 +67,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Object>> handleGeneric(Exception e) {
         log.error("未处理异常", e);
         Result<Object> result = Result.getError(null, "服务器内部错误");
-        result.setCode(500);
+        result.setCode(MCode.EXCEPTION.getCode());
         return ResponseEntity.internalServerError().body(result);
     }
 
