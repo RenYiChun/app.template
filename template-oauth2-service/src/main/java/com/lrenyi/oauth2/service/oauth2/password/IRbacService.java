@@ -1,6 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2.password;
 
 import com.lrenyi.oauth2.service.config.IdentifierType;
+import org.jspecify.annotations.Nullable;
 
 public interface IRbacService {
 
@@ -12,5 +13,6 @@ public interface IRbacService {
      * @param identifierType 标识类型
      * @return 认证用凭证，用户不存在时返回 null
      */
+    @Nullable
     RbacUserCredentials loadUserCredentials(String identifier, IdentifierType identifierType);
 }

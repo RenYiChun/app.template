@@ -5,10 +5,10 @@ import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
-import com.lrenyi.oauth2.service.oauth2.password.RbacUserDetailsService;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
@@ -30,105 +30,128 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+/**
+ * 构建 OAuth2 授权服务器使用的 {@link SecurityFilterChain}：匹配 /oauth2/* 与 /logout，
+ * 配置登录页、CSRF、CORS、登出、白名单、审计/预认证过滤器及 Token/内省/OIDC 端点。
+ * <p>
+ * 设计说明：依赖通过构造器注入便于测试与不可变性；可选 {@link OAuth2AuditFilter} 通过
+ * {@link ObjectProvider} 获取，避免强制依赖审计模块。
+ * </p>
+ */
+@Slf4j
 @Component
+@AllArgsConstructor
 @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
 public class OauthSecurityFilterChainBuilder {
-    private TemplateConfigProperties templateConfigProperties;
-    private OAuth2AuthorizationService authorizationService;
-    private OAuth2TokenGenerator<?> tokenGenerator;
-    private TemplateLogOutHandler handler;
-    private AuthenticationFailureHandler templateAuthenticationFailureHandler;
-    private PasswordAuthenticationFilter preAuthenticationFilter;
-    private PasswordEncoder passwordEncoder;
-    private UserDetailsService userDetailsService;
+    
+    private final TemplateConfigProperties templateConfigProperties;
+    private final OAuth2AuthorizationService authorizationService;
+    private final OAuth2TokenGenerator<?> tokenGenerator;
+    private final TemplateLogOutHandler handler;
+    private final AuthenticationFailureHandler templateAuthenticationFailureHandler;
+    private final PasswordAuthenticationFilter preAuthenticationFilter;
+    private final ObjectProvider<OAuth2AuditFilter> oauth2AuditFilterProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final UserDetailsService userDetailsService;
 
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
         RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
-        // 创建组合匹配器，包含OAuth2端点和logout端点
+        RequestMatcher combinedMatcher = createCombinedRequestMatcher(endpointsMatcher);
+        
+        http.securityMatcher(combinedMatcher);
+        applyExceptionHandling(http, loginPage);
+        applyCsrf(http, endpointsMatcher);
+        applyFormLogin(http, loginPage);
+        applyCorsAndLogout(http);
+        applyAuthorizeHttpRequests(http, security.getAllPermitUrls());
+        addAuditAndPreAuthFilters(http);
+        http.with(authorizationServerConfigurer, Customizer.withDefaults());
+        
+        OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
+        configureTokenEndpoint(configurer);
+        configureIntrospectionAndOidc(configurer);
+        return http.build();
+    }
+    
+    private static RequestMatcher createCombinedRequestMatcher(RequestMatcher endpointsMatcher) {
         AntPathRequestMatcher postLogOut = new AntPathRequestMatcher("/logout", "POST");
-        RequestMatcher combinedMatcher = new OrRequestMatcher(endpointsMatcher, postLogOut);
+        return new OrRequestMatcher(endpointsMatcher, postLogOut);
+    }
+    
+    private void applyExceptionHandling(HttpSecurity http, String loginPage) throws Exception {
+        String loginFormUrl = ensureLoginPagePath(loginPage);
+        LoginUrlAuthenticationEntryPoint entryPoint = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
+        MediaTypeRequestMatcher htmlMatcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
+        http.exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(entryPoint, htmlMatcher));
+    }
+    
+    private void applyCsrf(HttpSecurity http, RequestMatcher endpointsMatcher) throws Exception {
+        http.csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher));
+    }
+    
+    private void applyFormLogin(HttpSecurity http, String loginPage) throws Exception {
+        String loginFormUrl = ensureLoginPagePath(loginPage);
+        Customizer<FormLoginConfigurer<HttpSecurity>> customizer =
+                "/login".equals(loginFormUrl) ? Customizer.withDefaults() : form -> form.loginPage(loginFormUrl);
+        http.formLogin(customizer);
+    }
 
-        String[] uris = { "/jwt/public/key" };
-        http.securityMatcher(combinedMatcher).exceptionHandling((exceptions) -> {
-            String loginFormUrl = StringUtils.hasLength(loginPage) ? loginPage : "/login";
-            LoginUrlAuthenticationEntryPoint point = new LoginUrlAuthenticationEntryPoint(loginFormUrl);
-            MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
-            exceptions.defaultAuthenticationEntryPointFor(point, matcher);
-        });
-        http.csrf((csrf) -> csrf.ignoringRequestMatchers(new RequestMatcher[] { endpointsMatcher }));
-        Customizer<FormLoginConfigurer<HttpSecurity>> loginCustomizer = Customizer.withDefaults();
-        if (StringUtils.hasLength(loginPage)) {
-            loginCustomizer = form -> form.loginPage(loginPage);
+    /**
+     * 仅接受相对路径，拒绝绝对 URL 与 protocol-relative URL，防止开放重定向。
+     * 非法值时回退为 "/login" 并打日志。
+     */
+    private String ensureLoginPagePath(String loginPage) {
+        if (!StringUtils.hasLength(loginPage)) {
+            return "/login";
         }
-        http.formLogin(loginCustomizer);
+        if (loginPage.startsWith("//") || loginPage.contains("://")) {
+            log.warn("[安全] 登录页不允许配置为绝对 URL，已忽略 app.template.security.customize-login-page={}", loginPage);
+            return "/login";
+        }
+        if (!loginPage.startsWith("/")) {
+            log.warn("[安全] 登录页必须为以 / 开头的路径，已忽略 app.template.security.customize-login-page={}", loginPage);
+            return "/login";
+        }
+        return loginPage;
+    }
+    
+    private void applyCorsAndLogout(HttpSecurity http) throws Exception {
         http.cors(Customizer.withDefaults());
         http.logout(logout -> logout.logoutUrl("/logout").addLogoutHandler(handler).logoutSuccessHandler(handler));
-
-        Set<String> allPermitUrls = security.getAllPermitUrls();
-        http.authorizeHttpRequests(request -> request.requestMatchers(allPermitUrls.toArray(new String[0]))
-                .permitAll()
-                .anyRequest()
-                .authenticated());
+    }
+    
+    private void applyAuthorizeHttpRequests(HttpSecurity http, Set<String> permitUrls) throws Exception {
+        http.authorizeHttpRequests(request -> request.requestMatchers(permitUrls.toArray(new String[0]))
+                                                     .permitAll()
+                                                     .anyRequest()
+                                                     .authenticated());
+    }
+    
+    private void addAuditAndPreAuthFilters(HttpSecurity http) {
+        OAuth2AuditFilter auditFilter = oauth2AuditFilterProvider.getIfAvailable();
+        if (auditFilter != null) {
+            http.addFilterBefore(auditFilter, PasswordAuthenticationFilter.class);
+        }
         http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        http.with(authorizationServerConfigurer, Customizer.withDefaults());
-
-        OAuth2AuthorizationServerConfigurer configurer = http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
+    }
+    
+    private void configureTokenEndpoint(OAuth2AuthorizationServerConfigurer configurer) {
         configurer.tokenEndpoint(point -> {
             point.errorResponseHandler(templateAuthenticationFailureHandler);
             point.accessTokenRequestConverter(new PasswordGrantAuthenticationConverter());
             point.authenticationProvider(new PasswordGrantAuthenticationProvider(authorizationService,
-                    tokenGenerator,
-                    passwordEncoder,
-                    userDetailsService));
+                                                                                 tokenGenerator,
+                                                                                 passwordEncoder,
+                                                                                 userDetailsService
+            ));
         });
-        // 配置内省端点 - 启用标准 /oauth2/introspect
+    }
+    
+    private void configureIntrospectionAndOidc(OAuth2AuthorizationServerConfigurer configurer) {
         configurer.tokenIntrospectionEndpoint(Customizer.withDefaults());
         configurer.oidc(Customizer.withDefaults());
-        return http.build();
-    }
-
-    @Autowired
-    public void setTemplateConfigProperties(TemplateConfigProperties templateConfigProperties) {
-        this.templateConfigProperties = templateConfigProperties;
-    }
-
-    @Autowired
-    public void setAuthorizationService(OAuth2AuthorizationService authorizationService) {
-        this.authorizationService = authorizationService;
-    }
-
-    @Autowired
-    public void setTokenGenerator(OAuth2TokenGenerator<?> tokenGenerator) {
-        this.tokenGenerator = tokenGenerator;
-    }
-
-    @Autowired
-    public void setHandler(TemplateLogOutHandler handler) {
-        this.handler = handler;
-    }
-
-    @Autowired
-    public void setTemplateAuthenticationFailureHandler(
-            AuthenticationFailureHandler templateAuthenticationFailureHandler) {
-        this.templateAuthenticationFailureHandler = templateAuthenticationFailureHandler;
-    }
-
-    @Autowired
-    public void setPreAuthenticationFilter(PasswordAuthenticationFilter preAuthenticationFilter) {
-        this.preAuthenticationFilter = preAuthenticationFilter;
-    }
-
-    @Autowired
-    @Qualifier("passwordEncoder")
-    public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
-        this.passwordEncoder = passwordEncoder;
-    }
-
-    @Autowired
-    public void setUserDetailsService(RbacUserDetailsService userDetailsService) {
-        this.userDetailsService = userDetailsService;
     }
 }

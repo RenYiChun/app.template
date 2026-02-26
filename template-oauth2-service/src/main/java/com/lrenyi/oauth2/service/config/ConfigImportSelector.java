@@ -3,12 +3,10 @@ package com.lrenyi.oauth2.service.config;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.ImportSelector;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.util.ClassUtils;
 
-@Slf4j
 public class ConfigImportSelector implements ImportSelector {
     
     @Override

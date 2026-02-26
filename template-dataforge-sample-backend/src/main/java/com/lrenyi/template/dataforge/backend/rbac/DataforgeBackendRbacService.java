@@ -2,12 +2,13 @@ package com.lrenyi.template.dataforge.backend.rbac;
 
 import java.util.List;
 import java.util.Optional;
-import com.lrenyi.oauth2.service.oauth2.password.RbacUserCredentials;
 import com.lrenyi.oauth2.service.config.IdentifierType;
+import com.lrenyi.oauth2.service.oauth2.password.RbacUserCredentials;
 import com.lrenyi.template.dataforge.backend.domain.User;
 import com.lrenyi.template.dataforge.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,8 +27,8 @@ public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oa
     }
 
     @Override
-    public RbacUserCredentials loadUserCredentials(String identifier, IdentifierType identifierType) {
-        if (identifier == null || identifier.isBlank()) {
+    public RbacUserCredentials loadUserCredentials(@NonNull String identifier, @NonNull IdentifierType identifierType) {
+        if (identifier.isBlank()) {
             return null;
         }
         Optional<User> userOpt = switch (identifierType) {

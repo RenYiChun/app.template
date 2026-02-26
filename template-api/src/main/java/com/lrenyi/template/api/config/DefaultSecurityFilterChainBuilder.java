@@ -22,9 +22,9 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -52,6 +52,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Slf4j
 @Component
+@AllArgsConstructor
 public class DefaultSecurityFilterChainBuilder {
     
     private static final String AUTH_FAILURE_METRIC = "app.template.http.auth.failure";
@@ -65,25 +66,6 @@ public class DefaultSecurityFilterChainBuilder {
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
     private final OpaqueTokenIntrospector opaqueTokenIntrospector;
     private final MeterRegistry meterRegistry;
-    
-    @Autowired
-    public DefaultSecurityFilterChainBuilder(RsaPublicAndPrivateKey rsaPublicAndPrivateKey,
-            Environment environment,
-            ObjectProvider<Consumer<HttpSecurity>> httpConfigurerProvider,
-            TemplateConfigProperties templateConfigProperties,
-            ObjectProvider<JsonService> jsonServiceProvider,
-            JwtAuthenticationConverter jwtAuthenticationConverter,
-            OpaqueTokenIntrospector opaqueTokenIntrospector,
-            MeterRegistry meterRegistry) {
-        this.rsaPublicAndPrivateKey = rsaPublicAndPrivateKey;
-        this.environment = environment;
-        this.httpConfigurerProvider = httpConfigurerProvider;
-        this.templateConfigProperties = templateConfigProperties;
-        this.jsonServiceProvider = jsonServiceProvider;
-        this.jwtAuthenticationConverter = jwtAuthenticationConverter;
-        this.opaqueTokenIntrospector = opaqueTokenIntrospector;
-        this.meterRegistry = meterRegistry;
-    }
 
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);

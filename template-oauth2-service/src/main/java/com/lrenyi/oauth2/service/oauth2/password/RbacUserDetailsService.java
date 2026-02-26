@@ -2,8 +2,8 @@ package com.lrenyi.oauth2.service.oauth2.password;
 
 import java.util.List;
 import com.lrenyi.oauth2.service.config.IdentifierType;
+import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -11,20 +11,15 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 @Component
+@AllArgsConstructor
 public class RbacUserDetailsService implements UserDetailsService {
-
-    private final IRbacService rbacService;
-
-    public RbacUserDetailsService(ObjectProvider<IRbacService> rbacServiceObjectProvider) {
-        this.rbacService = rbacServiceObjectProvider.getIfAvailable();
-    }
+    private final ObjectProvider<IRbacService> rbacService;
 
     @Override
-    @Cacheable(value = "userDetails", key = "#username")
-    @SuppressWarnings({"null", "unused"})
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        if (rbacService == null) {
-            throw new UsernameNotFoundException("rbacService is null, please create it first");
+        IRbacService iRbacService = rbacService.getIfAvailable();
+        if (iRbacService == null) {
+            throw new UsernameNotFoundException("Authentication service unavailable");
         }
         String[] parts = username.split(":", 2);
         if (parts.length != 2) {
@@ -37,9 +32,9 @@ public class RbacUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("Invalid identifier type: " + parts[0]);
         }
         String identifier = parts[1];
-        RbacUserCredentials credentials = rbacService.loadUserCredentials(identifier, identifierType);
+        RbacUserCredentials credentials = iRbacService.loadUserCredentials(identifier, identifierType);
         if (credentials == null) {
-            throw new UsernameNotFoundException("User not found for identifier: " + identifier);
+            throw new UsernameNotFoundException("User not found");
         }
         List<SimpleGrantedAuthority> authorities = credentials.permissions().stream()
                 .map(SimpleGrantedAuthority::new)

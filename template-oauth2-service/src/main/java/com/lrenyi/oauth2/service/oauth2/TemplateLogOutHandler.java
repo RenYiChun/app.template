@@ -6,8 +6,9 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
@@ -20,26 +21,12 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component
+@AllArgsConstructor
 public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandler {
-    private OAuth2AuthorizationService oAuth2AuthorizationService;
-    private AuditLogService auditLogService;
-    private MeterRegistry meterRegistry;
-    
-    @Autowired(required = false)
-    public void setAuditLogService(AuditLogService auditLogService) {
-        this.auditLogService = auditLogService;
-    }
-    
-    @Autowired
-    public void setoAuth2AuthorizationService(OAuth2AuthorizationService oauth2AuthorizationService) {
-        this.oAuth2AuthorizationService = oauth2AuthorizationService;
-    }
+    private final OAuth2AuthorizationService oAuth2AuthorizationService;
+    private final ObjectProvider<AuditLogService> auditLogService;
+    private final MeterRegistry meterRegistry;
 
-    @Autowired
-    public void setMeterRegistry(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-    }
-    
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         String userName = authentication != null ? authentication.getName() : null;
@@ -68,8 +55,9 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
             exceptionDetails = e.getMessage();
             log.error("Logout failed for user {}", userName, e);
         } finally {
-            if (auditLogService != null) {
-                auditLogService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
+            AuditLogService logService = auditLogService.getIfAvailable();
+            if (logService != null) {
+                logService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
             }
         }
     }

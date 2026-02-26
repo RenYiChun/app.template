@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -120,7 +121,15 @@ public class TemplateConfigProperties implements InitializingBean {
     @Getter
     public static class AuditLogProperties {
         private boolean enabled = false;
+        /** 需审计的 OAuth2 端点 URI 列表（与 oauth2AuditPathPrefix 二选一或同时生效） */
         private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
+        /** 审计该路径前缀下的所有请求（如 /oauth2 表示 /oauth2/authorize、/oauth2/token、/oauth2/revoke 等全部审计），为空则仅按 oauth2Endpoints 列表 */
+        @Getter(AccessLevel.NONE)
+        private String oauth2AuditPathPrefix = "/oauth2";
+
+        public String getOauth2AuditPathPrefix() {
+            return oauth2AuditPathPrefix;
+        }
     }
 
     @Setter
