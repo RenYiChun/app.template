@@ -5,8 +5,8 @@
 ## 环境要求
 
 - **JDK**: 21
-- **Spring Boot**: 3.3.13
-- **Spring Cloud**: 2023.0.5
+- **Spring Boot**: __SPRING_BOOT__
+- **Spring Cloud**: __SPRING_CLOUD__
 
 ## 快速开始
 
@@ -25,7 +25,7 @@
     <parent>
         <groupId>com.lrenyi</groupId>
         <artifactId>template-dependencies</artifactId>
-        <version>2.4.0</version>
+        <version>__APP_VERSION__</version>
         <relativePath/>
     </parent>
 

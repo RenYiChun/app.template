@@ -37,7 +37,7 @@
 
 | 类别 | 技术 |
 |------|------|
-| 基础框架 | Spring Boot 3.3、Spring Cloud 2023.0 |
+| 基础框架 | Spring Boot __SPRING_BOOT__、Spring Cloud __SPRING_CLOUD__ |
 | 安全 | Spring Security、Spring Authorization Server、OAuth2 JOSE、Nimbus JWT |
 | 微服务 | OpenFeign、Spring Cloud LoadBalancer |
 | 缓存与流 | Caffeine、Spring Data Redis、Kafka、NATS |
@@ -46,6 +46,8 @@
 | 其他 | Jackson、Lombok、Commons Lang3/Text/Codec |
 
 ## 模块
+
+### 后端模块
 
 | 模块 | 说明 |
 |------|------|
@@ -59,6 +61,14 @@
 | template-dataforge-model | 领域实体、审计服务 |
 | template-dataforge-processor | 编译期注解处理 |
 | template-dataforge-sample-backend | 示例后端应用 |
+
+### 前端模块
+
+| 模块 | 说明 |
+|------|------|
+| template-dataforge-headless | Dataforge 前端核心库（框架无关） |
+| template-dataforge-ui | Vue 3 + Element Plus 组件库 |
+| template-dataforge-sample-frontend | 示例前端应用 |
 
 ## 构建
 
