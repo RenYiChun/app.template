@@ -131,11 +131,11 @@ public class OauthSecurityFilterChainBuilder {
     }
     
     private void addAuditAndPreAuthFilters(HttpSecurity http) {
+        http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         OAuth2AuditFilter auditFilter = oauth2AuditFilterProvider.getIfAvailable();
         if (auditFilter != null) {
-            http.addFilterBefore(auditFilter, PasswordAuthenticationFilter.class);
+            http.addFilterBefore(auditFilter, UsernamePasswordAuthenticationFilter.class);
         }
-        http.addFilterBefore(preAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
     }
     
     private void configureTokenEndpoint(OAuth2AuthorizationServerConfigurer configurer) {

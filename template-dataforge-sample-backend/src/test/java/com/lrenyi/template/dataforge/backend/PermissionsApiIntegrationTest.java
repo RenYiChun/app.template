@@ -12,11 +12,14 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 /**
- * 验证 RBAC 权限初始化后 GET /api/permissions 返回非空数据。
+ * 验证 RBAC 权限初始化后 POST /api/permissions/search 返回非空数据。
  * 测试中显式调用 PermissionInitializer.run()，因 @SpringBootTest 下 ApplicationRunner 可能尚未执行。
  */
 @SpringBootTest(
@@ -55,8 +58,13 @@ class PermissionsApiIntegrationTest {
         assertThat(count)
                 .as("run() 后 sys_permission 应有记录")
                 .isGreaterThan(0);
-        String url = "http://localhost:" + port + "/api/permissions";
-        ResponseEntity<JsonNode> response = restTemplate.getForEntity(url, JsonNode.class);
+        String url = "http://localhost:" + port + "/api/permissions/search";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                url,
+                new HttpEntity<>(java.util.Map.of("page", 0, "size", 20), headers),
+                JsonNode.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
@@ -64,7 +72,7 @@ class PermissionsApiIntegrationTest {
         JsonNode data = body.path("data");
         assertThat(data.has("content")).isTrue();
         assertThat(data.path("content").isEmpty())
-                .as("GET /api/permissions 的 data.content 应有记录")
+                .as("POST /api/permissions/search 的 data.content 应有记录")
                 .isFalse();
     }
 }

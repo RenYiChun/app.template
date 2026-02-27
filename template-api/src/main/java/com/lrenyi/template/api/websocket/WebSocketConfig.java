@@ -38,11 +38,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
         this.principalHandshakeHandler = principalHandshakeHandler;
     }
 
-    @Bean
-    public TemplatePrincipalHandshakeHandler templatePrincipalHandshakeHandler() {
-        return new TemplatePrincipalHandshakeHandler();
-    }
-
     @Override
     public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
         Map<String, TemplateWebSocketHandler> handlers;

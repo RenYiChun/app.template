@@ -20,7 +20,7 @@ public class User extends BaseEntity<Long> {
     
     @Column(nullable = false, length = 64)
     @DataforgeField(searchable = true, label = "用户名", order = 1)
-    @DataforgeDto(include = {DtoType.PAGE_RESPONSE})
+    @DataforgeDto(include = {DtoType.CREATE, DtoType.UPDATE, DtoType.RESPONSE, DtoType.PAGE_RESPONSE})
     private String username;
     
     @Column(length = 64)
@@ -34,7 +34,7 @@ public class User extends BaseEntity<Long> {
     
     @Column(length = 128)
     @DataforgeField(searchable = true, label = "邮箱", order = 3)
-    @DataforgeDto(include = {DtoType.PAGE_RESPONSE})
+    @DataforgeDto(include = {DtoType.CREATE, DtoType.UPDATE, DtoType.RESPONSE, DtoType.PAGE_RESPONSE})
     private String email;
     
     @Column(length = 20)

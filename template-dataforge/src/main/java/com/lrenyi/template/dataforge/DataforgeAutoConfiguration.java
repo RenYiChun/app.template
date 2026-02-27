@@ -118,6 +118,7 @@ public class DataforgeAutoConfiguration {
 
     @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
+            @Qualifier("requestMappingHandlerMapping")
             org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
         return new OpenApiController(entityRegistry, handlerMapping);
     }

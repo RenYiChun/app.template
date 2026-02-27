@@ -11,11 +11,16 @@ import org.springframework.core.env.PropertySource;
  * <p>
  * 作为链首注入，{@link #getProperty(String)} 被调用时从后续 source 获取原始值，
  * 若为 aENC(...) 则解密并缓存后返回；非加密值直接透传。
+ * <p>
+ * 使用重入保护避免与 Spring Boot 的 ConfigurationPropertySourcesPropertySource 形成递归调用导致 StackOverflowError。
  */
 final class LazyDecryptingPropertySource extends PropertySource<Object> {
     
     private static final String PREFIX = "aENC(";
     private static final String SUFFIX = ")";
+    
+    /** 需要跳过的 PropertySource 名称：其 getProperty 会委托回本链，导致无限递归 */
+    private static final String CONFIGURATION_PROPERTIES_SOURCE_NAME = "configurationProperties";
     
     private final MutablePropertySources propertySources;
     private final ConcurrentHashMap<String, String> decryptedCache = new ConcurrentHashMap<>();
@@ -43,6 +48,9 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
     private Object resolveFromChain(String name) {
         for (PropertySource<?> ps : propertySources) {
             if (ps == this) {
+                continue;
+            }
+            if (CONFIGURATION_PROPERTIES_SOURCE_NAME.equals(ps.getName())) {
                 continue;
             }
             Object value = ps.getProperty(name);

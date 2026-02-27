@@ -39,6 +39,13 @@ class UsersCrudIntegrationTest {
         return "http://localhost:" + port + "/api/users";
     }
 
+    private static final Map<String, Object> MINIMAL_CREATE_PAYLOAD = Map.of(
+            "username", "testuser",
+            "email", "test@example.com",
+            "password", "testpass123",
+            "deleted", false,
+            "version", 0L);
+
     @Test
     @Order(1)
     void createUser() {
@@ -46,7 +53,7 @@ class UsersCrudIntegrationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         ResponseEntity<JsonNode> res = restTemplate.postForEntity(
                 baseUrl(),
-                new HttpEntity<>(Map.of("username", "testuser", "email", "test@example.com"), headers),
+                new HttpEntity<>(MINIMAL_CREATE_PAYLOAD, headers),
                 JsonNode.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode node = res.getBody();
@@ -131,8 +138,10 @@ class UsersCrudIntegrationTest {
             return;
         }
         long id = content.get(0).path("id").asLong();
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(
-                Map.of("username", "updated", "email", "updated@example.com"), headers);
+        Long version = content.get(0).path("version").asLong();
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(
+                Map.of("username", "updated", "email", "updated@example.com", "password", "updated123", "deleted", false, "version", version),
+                headers);
         ResponseEntity<JsonNode> res = restTemplate.exchange(baseUrl() + "/" + id, HttpMethod.PUT, entity, JsonNode.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().path("data").path("username").asText()).isEqualTo("updated");
@@ -186,7 +195,7 @@ class UsersCrudIntegrationTest {
                 JsonNode.class).getBody().path("data");
         if (listData.path("content").isEmpty()) {
             restTemplate.postForEntity(baseUrl(),
-                    new HttpEntity<>(Map.of("username", "fixture", "email", "f@f.com"), headers),
+                    new HttpEntity<>(Map.of("username", "fixture", "email", "f@f.com", "password", "fixture123", "deleted", false, "version", 0L), headers),
                     JsonNode.class);
         }
     }
