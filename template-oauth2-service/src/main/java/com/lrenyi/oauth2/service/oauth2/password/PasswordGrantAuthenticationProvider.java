@@ -78,16 +78,21 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         }
 
         UserDetails userDetails = validateAndLoadUser(username, type, parameters);
+        
+        // 使用 UserDetails 创建 Authentication，而不是继续使用 Client Principal
+        Authentication userPrincipal = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+            userDetails, userDetails.getPassword(), userDetails.getAuthorities());
+
         Set<String> authorizedScopes = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
 
-        OAuth2Token generatedAccessToken = generateAccessToken(client, principal, grantToken, authorizedScopes);
+        OAuth2Token generatedAccessToken = generateAccessToken(client, userPrincipal, grantToken, authorizedScopes);
         OAuth2AccessToken accessToken = getAuth2AccessToken(generatedAccessToken, authorizedScopes);
         DefaultOAuth2TokenContext.Builder refreshContextBuilder = buildRefreshTokenContext(
-                client, grantToken, requestScopeSet);
+                client, userPrincipal, grantToken, requestScopeSet);
         OAuth2RefreshToken refreshToken = maybeGenerateRefreshToken(client, principal, refreshContextBuilder);
         OAuth2Authorization authorization = buildAuthorization(client,
-                principal,
+                userPrincipal,
                 grantToken,
                 accessToken,
                 generatedAccessToken,
@@ -96,9 +101,9 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
 
         this.authorizationService.save(authorization);
         HashMap<String, Object> params = new HashMap<>();
-        params.put("id", authorization.getId());
         params.put(OAuth2TokenIntrospectionClaimNames.USERNAME, username);
-        return new OAuth2AccessTokenAuthenticationToken(client, principal, accessToken, refreshToken, params);
+        // 返回的 Authentication 应该包含用户 Principal
+        return new OAuth2AccessTokenAuthenticationToken(client, userPrincipal, accessToken, refreshToken, params);
     }
 
     private UserDetails validateAndLoadUser(String username, String type, Map<String, Object> parameters) {
@@ -119,7 +124,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         return userDetails;
     }
 
-    private OAuth2Token generateAccessToken(RegisteredClient client, OAuth2ClientAuthenticationToken principal,
+    private OAuth2Token generateAccessToken(RegisteredClient client, Authentication principal,
                                             PasswordGrantAuthenticationToken grantToken, Set<String> scopes) {
         OAuth2TokenContext ctx = DefaultOAuth2TokenContext.builder()
                 .registeredClient(client)
@@ -138,11 +143,12 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     }
 
     private static DefaultOAuth2TokenContext.Builder buildRefreshTokenContext(RegisteredClient client,
+                                                                              Authentication principal,
                                                                               PasswordGrantAuthenticationToken grantToken,
                                                                               Set<String> requestScopeSet) {
         return DefaultOAuth2TokenContext.builder()
                 .registeredClient(client)
-                .principal(grantToken)
+                .principal(principal)
                 .authorizationServerContext(AuthorizationServerContextHolder.getContext())
                 .authorizationGrantType(grantToken.getGrantType())
                 .authorizedScopes(requestScopeSet)
@@ -150,7 +156,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     }
 
     private OAuth2Authorization buildAuthorization(RegisteredClient client,
-                                                   OAuth2ClientAuthenticationToken principal,
+                                                   Authentication principal,
                                                    PasswordGrantAuthenticationToken grantToken,
                                                    OAuth2AccessToken accessToken,
                                                    OAuth2Token generatedAccessToken,

@@ -2,6 +2,7 @@ package com.lrenyi.oauth2.service.oauth2.redis;
 
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import io.netty.buffer.ByteBufUtil;
+import com.lrenyi.template.core.util.TemplateConstant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -10,8 +11,8 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 
 @Slf4j
 public class RedisRegisteredClientRepository implements RegisteredClientRepository {
-    private static final String REGISTERED_CLIENT_ID_KEY = "registered-client:client_id";
-    private static final String REGISTERED_ID_KEY = "registered-client:id";
+    private static final String REGISTERED_CLIENT_ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
+    private static final String REGISTERED_ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
     private final JdkSerializationStrategy strategy = new JdkSerializationStrategy();
     
     private final RedisTemplate<String, String> stringRedisTemplate;

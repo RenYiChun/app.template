@@ -81,7 +81,10 @@ public class Oauth2ServerAutoConfiguration {
         RSAPublicKey publicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
         RSAPrivateKey privateKey = rsaPublicAndPrivateKey.templateRSAPrivateKey();
         
-        String kid = UUID.randomUUID().toString();
+        // 使用公钥的指纹或固定值作为 kid，确保重启后一致
+        // 简单起见，这里可以使用一个基于公钥内容的哈希值，或者固定的值（如果密钥对是固定的）
+        // 假设 rsaPublicAndPrivateKey 配置是稳定的，我们可以尝试计算一个稳定的 ID
+        String kid = String.valueOf(publicKey.hashCode());
         rsaPublicAndPrivateKey.setKid(kid);
         RSAKey rsaKey = new RSAKey.Builder(publicKey).privateKey(privateKey).keyID(kid).build();
         JWKSet jwkSet = new JWKSet(rsaKey);
