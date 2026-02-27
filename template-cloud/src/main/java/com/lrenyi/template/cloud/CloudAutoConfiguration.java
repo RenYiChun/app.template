@@ -9,6 +9,7 @@ import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -35,7 +36,7 @@ public class CloudAutoConfiguration {
      * Feign配置模块 - 条件导入
      */
     @ConditionalOnClass(name = "feign.RequestInterceptor")
-    @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.feign.enabled:true}' == 'true'")
     @Import(FeignClientConfiguration.class)
     static class FeignAutoConfiguration {
         // 空的配置类，仅用于条件导入

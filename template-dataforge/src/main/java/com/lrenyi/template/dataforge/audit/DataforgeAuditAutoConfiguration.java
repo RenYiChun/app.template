@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +27,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
+@ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'")
 @EnableAsync
 public class DataforgeAuditAutoConfiguration {
 

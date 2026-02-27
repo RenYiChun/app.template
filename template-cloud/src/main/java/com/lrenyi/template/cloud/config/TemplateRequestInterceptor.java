@@ -78,8 +78,8 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
     }
     
     private void makeClientOauth(RequestTemplate template) {
-        boolean enabled = templateConfigProperties.getSecurity().isEnabled();
-        if (!enabled) {
+        if (!templateConfigProperties.isFeignEffectivelyEnabled()
+                || !templateConfigProperties.isSecurityEffectivelyEnabled()) {
             return;
         }
         String token = oauthUtilService.fetchToken("server");

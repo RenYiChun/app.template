@@ -38,10 +38,10 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        TemplateConfigProperties.AuditLogProperties audit = properties.getAudit();
-        if (!audit.isEnabled()) {
+        if (!properties.isAuditEffectivelyEnabled()) {
             return true;
         }
+        TemplateConfigProperties.AuditLogProperties audit = properties.getAudit();
         String uri = request.getRequestURI();
         if (StringUtils.hasText(audit.getOauth2AuditPathPrefix()) && uri.startsWith(audit.getOauth2AuditPathPrefix())) {
             return false;

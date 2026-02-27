@@ -11,6 +11,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
@@ -59,7 +60,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApiAutoConfiguration {
     
     @EnableMethodSecurity()
-    @ConditionalOnProperty(name = "app.template.method-security.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'")
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
     }

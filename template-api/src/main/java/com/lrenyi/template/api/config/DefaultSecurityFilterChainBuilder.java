@@ -84,7 +84,7 @@ public class DefaultSecurityFilterChainBuilder {
     }
     
     private boolean isSecurityDisabled(TemplateConfigProperties.SecurityProperties security) {
-        return !templateConfigProperties.isEnabled() || !security.isEnabled();
+        return !templateConfigProperties.isSecurityEffectivelyEnabled();
     }
     
     private Set<String> collectPermitUrls(TemplateConfigProperties.SecurityProperties security) {

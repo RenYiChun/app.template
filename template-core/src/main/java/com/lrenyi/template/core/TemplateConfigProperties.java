@@ -284,6 +284,29 @@ public class TemplateConfigProperties implements InitializingBean {
         private Long maxAge = 3600L;
     }
 
+    /**
+     * 总开关关闭时，各功能均视为未启用。以下方法用于统一判断"有效启用"状态。
+     */
+    public boolean isSecurityEffectivelyEnabled() {
+        return enabled && security.isEnabled();
+    }
+
+    public boolean isOauth2EffectivelyEnabled() {
+        return enabled && oauth2.isEnabled();
+    }
+
+    public boolean isFeignEffectivelyEnabled() {
+        return enabled && feign.isEnabled();
+    }
+
+    public boolean isAuditEffectivelyEnabled() {
+        return enabled && audit.isEnabled();
+    }
+
+    public boolean isMethodSecurityEffectivelyEnabled() {
+        return enabled && methodSecurity.isEnabled();
+    }
+
     @Override
     public void afterPropertiesSet() {
         List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), "/favicon");
@@ -319,9 +342,10 @@ public class TemplateConfigProperties implements InitializingBean {
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
             log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
         }
-        log.info("[配置摘要] enabled={}, security.enabled={}, flow.concurrencyLimit={}, " +
-                 "feign.enabled={}, oauth2.enabled={}",
-                 enabled, security.isEnabled(), flow.getConsumer().getConcurrencyLimit(),
-                 feign.isEnabled(), oauth2.isEnabled());
+        log.info("[配置摘要] enabled={}, security.effective={}, flow.concurrencyLimit={}, " +
+                 "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
+                 enabled, isSecurityEffectivelyEnabled(), flow.getConsumer().getConcurrencyLimit(),
+                 isFeignEffectivelyEnabled(), isOauth2EffectivelyEnabled(),
+                 isAuditEffectivelyEnabled(), isMethodSecurityEffectivelyEnabled());
     }
 }

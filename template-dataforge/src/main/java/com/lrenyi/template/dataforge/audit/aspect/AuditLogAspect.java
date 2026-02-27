@@ -8,7 +8,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -16,7 +16,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 @Aspect
-@ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
+@ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'")
 public class AuditLogAspect {
 
     private final AuditLogService auditLogService;
