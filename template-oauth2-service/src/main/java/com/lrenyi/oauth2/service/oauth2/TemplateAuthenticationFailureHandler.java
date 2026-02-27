@@ -6,12 +6,11 @@ import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.TokenBean;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -22,25 +21,15 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component
+@AllArgsConstructor
 public class TemplateAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    
-    private JsonService jsonService;
-    private MeterRegistry meterRegistry;
-
-    @Autowired
-    public void setJsonService(JsonService jsonService) {
-        this.jsonService = jsonService;
-    }
-
-    @Autowired
-    public void setMeterRegistry(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-    }
+    private final JsonService jsonService;
+    private final MeterRegistry meterRegistry;
     
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
-                                        AuthenticationException exception) throws IOException, ServletException {
+            AuthenticationException exception) throws IOException {
         if (exception instanceof OAuth2AuthenticationException authenticationException) {
             OAuth2Error error = authenticationException.getError();
             String errorCode = error.getErrorCode();

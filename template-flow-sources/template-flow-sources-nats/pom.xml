@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-core</artifactId>
+            <artifactId>template-flow</artifactId>
         </dependency>
         <dependency>
             <groupId>com.lrenyi</groupId>

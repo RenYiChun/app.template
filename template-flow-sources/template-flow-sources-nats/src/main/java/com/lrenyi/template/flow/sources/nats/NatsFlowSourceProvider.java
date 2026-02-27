@@ -2,8 +2,8 @@ package com.lrenyi.template.flow.sources.nats;
 
 import java.time.Duration;
 import java.util.List;
-import com.lrenyi.template.core.flow.api.FlowSource;
-import com.lrenyi.template.core.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSourceProvider;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
 
@@ -43,7 +43,7 @@ public final class NatsFlowSourceProvider<T> implements FlowSourceProvider<T> {
         Duration timeout = nextMessageTimeout != null ? nextMessageTimeout : Duration.ofSeconds(1);
         List<FlowSource<T>> sources;
         sources = subscriptions.stream().<FlowSource<T>>map(sub -> new NatsFlowSource<>(sub, mapper, timeout)).toList();
-        this.delegate = com.lrenyi.template.core.flow.api.FlowSourceAdapters.fromFlowSources(sources);
+        this.delegate = com.lrenyi.template.flow.api.FlowSourceAdapters.fromFlowSources(sources);
     }
     
     @Override

@@ -15,8 +15,8 @@ import com.fasterxml.jackson.databind.type.CollectionType;
  * Jackson实现的JSON处理器
  * 基于Jackson库提供完整的JSON处理功能
  *
- * @param objectMapper -- GETTER --
- *                     获取底层的ObjectMapper实例，用于高级定制
+ * @param objectMapper
+ *  获取底层的ObjectMapper实例，用于高级定制
  */
 public record JacksonJsonProcessor(ObjectMapper objectMapper) implements JsonProcessor {
     

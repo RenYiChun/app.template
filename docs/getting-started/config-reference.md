@@ -1,0 +1,1022 @@
+# App Template 详细配置教程
+
+本文档详细介绍 App Template 框架的所有配置选项和高级功能。
+
+## 目录
+
+- [项目结构](#项目结构)
+- [核心配置](#核心配置)
+- [安全配置](#安全配置)
+- [Feign 配置与内部调用安全](#feign-配置与内部调用安全)
+- [OAuth2 配置](#oauth2-配置)
+- [数据加密配置](#数据加密配置)
+- [Redis 配置](#redis-配置)
+- [日志配置](#日志配置)
+- [异常处理配置](#异常处理配置)
+- [WebSocket 配置](#websocket-配置)
+- [NATS 事件配置](#nats-事件配置)
+- [高级功能](#高级功能)
+- [生产环境配置](#生产环境配置)
+
+## 项目结构
+
+App Template 框架包含以下模块：
+
+- **template-dependencies**: 依赖管理模块 (版本 2.4.0)
+- **template-core**: 核心功能模块
+- **template-api**: Web 应用模块
+- **template-oauth2-service**: OAuth2 认证服务模块
+
+## 核心配置
+
+### 应用基础配置
+
+```yaml
+spring:
+   application:
+      name: your-application-name
+   profiles:
+      active: dev
+
+server:
+   port: 8080
+   servlet:
+      context-path: /api
+
+# 框架总开关
+app:
+   template:
+      enabled: true  # 默认为 true，设置为 false 可禁用整个框架
+```
+
+### Maven 依赖配置
+
+#### 完整的 pom.xml 示例
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+   <modelVersion>4.0.0</modelVersion>
+
+   <parent>
+      <groupId>com.lrenyi</groupId>
+      <artifactId>template-dependencies</artifactId>
+      <version>2.4.0</version>
+      <relativePath/>
+   </parent>
+
+   <groupId>com.example</groupId>
+   <artifactId>my-app</artifactId>
+   <version>1.0.0</version>
+   <packaging>jar</packaging>
+
+   <dependencies>
+      <!-- 选择一个应用类型 -->
+
+      <!-- 独立单应用 -->
+      <dependency>
+         <groupId>com.lrenyi</groupId>
+         <artifactId>template-api</artifactId>
+      </dependency>
+
+      <!-- 或者 OAuth2 认证服务 -->
+      <!--
+	  <dependency>
+		  <groupId>com.lrenyi</groupId>
+		  <artifactId>template-oauth2-service</artifactId>
+	  </dependency>
+	  -->
+
+      <!-- 可选：Redis 支持 -->
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-data-redis</artifactId>
+      </dependency>
+   </dependencies>
+</project>
+```
+
+## 安全配置
+
+### 基础安全配置
+
+```yaml
+app:
+  template:
+    security:
+      enabled: true  # 是否启用安全功能
+      security-key: "default"  # 密码编码器密钥
+      authorization:
+        store-type: "memory"  # 授权存储类型: memory, redis, jdbc
+      local-jwt-public-key: true  # 是否使用本地 JWT 公钥
+      net-jwt-public-key-domain: "http://auth-server.com"  # 远程 JWT 公钥域名
+      
+      # 免认证 URL 配置
+      permit-urls:
+        your-app-name:  # 应用名称
+          - "/public/**"
+          - "/health"
+          - "/info"
+      
+      # 不透明令牌配置
+      oauth2:
+        opaque-token:
+          enable: false
+          introspection-uri: "http://127.0.0.1:8081/oauth2/introspect"
+          client-id: "default-client-id"
+          client-secret: "app.template"
+```
+
+### 自定义安全配置
+
+```java
+@Configuration
+public class CustomSecurityConfig {
+    
+    @Bean
+    public Consumer<HttpSecurity> customHttpConfigurer() {
+        return http -> {
+            try {
+                // 自定义安全配置
+                http.sessionManagement(session -> 
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                );
+                
+                // 添加自定义过滤器
+                http.addFilterBefore(new CustomAuthFilter(), 
+                    UsernamePasswordAuthenticationFilter.class);
+                    
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+}
+```
+
+## Feign 配置与内部调用安全
+
+引入 `template-cloud` 后，Feign 请求会经过 `TemplateRequestInterceptor`：打标内部调用（`X-Internal-Call: true`）、透传配置的 Header、无用户上下文时使用 Client 凭证。下游服务在 `app.template.feign.not-oauth=true` 时，会对带 `X-Internal-Call: true` 的请求执行 `permitAll()`，视为内部调用免认证。
+
+### 内部调用 IP 白名单（防伪造）
+
+**风险**：客户端可伪造请求头 `X-Internal-Call: true`，若不做限制会绕过认证。
+
+**应对**：配置 `app.template.feign.internal-call-allowed-ip-patterns`，仅当请求来源 IP 落在白名单内且带 `X-Internal-Call: true` 时才视为内部调用。支持单 IP 或 CIDR。
+
+```yaml
+app:
+  template:
+    feign:
+      not-oauth: true
+      # 仅以下来源的 X-Internal-Call 请求才放行，生产环境建议配置
+      internal-call-allowed-ip-patterns:
+        - "127.0.0.1"
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+```
+
+- **未配置**：只校验请求头，存在伪造风险。
+- **Docker / K8s**：使用集群内网网段即可（如 `10.0.0.0/8`、`172.16.0.0/12`），容器 IP 虽动态但通常落在固定网段；若流量经网关，可只配置网关或 Ingress 所在网段。
+- **无法区分来源时**：可不配（仅非生产），或关闭“内部调用免认证”、统一走 OAuth2 校验。
+
+### Header 透传配置
+
+`app.template.feign.headers` 指定从当前请求透传到 Feign 下游的 Header 名称（如 `Authorization`）。仅配置**可信且需透传**的 Header，避免透传客户端可控且下游信任的 Header（如自定义 `X-User-Id`）导致越权。
+
+```yaml
+app:
+  template:
+    feign:
+      headers:
+        - "Authorization"
+```
+
+### 无请求上下文时
+
+定时任务、异步调用等无 `ServletRequestAttributes` 时，拦截器会使用 Client 凭证（`OauthUtilService.fetchToken("server")`）请求下游，下游收到的是**服务身份**而非用户身份，若下游依赖“当前用户”需在业务侧区分。
+
+## OAuth2 配置
+
+### 完整的 OAuth2 服务器配置
+
+```yaml
+spring:
+  security:
+    oauth2:
+      authorization-server:
+        client:
+          # 可以配置多个客户端
+          web-client:
+            registration:
+              client-id: "web-client"
+              client-secret: "{default}your-encrypted-secret"
+              client-authentication-methods:
+                - "client_secret_post"
+                - "client_secret_basic"
+              authorization-grant-types:
+                - "authorization_code"
+                - "refresh_token"
+                - "client_credentials"
+              scopes:
+                - "openid"
+                - "profile"
+                - "email"
+              redirect-uris:
+                - "http://localhost:3000/callback"
+                - "https://your-app.com/callback"
+              post-logout-redirect-uris:
+                - "http://localhost:3000/logout"
+            token:
+              access-token-time-to-live: "PT1H"  # 1小时
+              refresh-token-time-to-live: "P30D"  # 30天
+              access-token-format: "self-contained"  # 或 "reference"
+              
+          mobile-client:
+            registration:
+              client-id: "mobile-client"
+              client-secret: "{default}mobile-secret"
+              client-authentication-methods:
+                - "client_secret_post"
+              authorization-grant-types:
+                - "authorization_password"  # 密码模式
+                - "refresh_token"
+              scopes:
+                - "openid"
+                - "mobile"
+            token:
+              access-token-time-to-live: "PT2H"
+              refresh-token-time-to-live: "P7D"
+              access-token-format: "reference"
+```
+
+### 实现用户认证服务
+
+```java
+@Service
+public class DatabaseLoginNameUserDetailService implements IRbacService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
+    @Override
+    public String loginNameType() {
+        return "username";  // 支持的登录名类型
+    }
+    
+    @Override
+    public UserDetails loadUserDetail(String username) throws AuthenticationException {
+        User user = userRepository.findByUsername(username)
+            .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
+            
+        if (!user.isEnabled()) {
+            throw new DisabledException("用户已被禁用");
+        }
+        
+        if (!user.isAccountNonLocked()) {
+            throw new AccountExpiredException("账户已锁定");
+        }
+        
+        return org.springframework.security.core.userdetails.User.builder()
+            .username(user.getUsername())
+            .password(user.getPassword())
+            .authorities(user.getAuthorities())
+            .accountExpired(!user.isAccountNonExpired())
+            .accountLocked(!user.isAccountNonLocked())
+            .credentialsExpired(!user.isCredentialsNonExpired())
+            .disabled(!user.isEnabled())
+            .build();
+    }
+}
+
+// 支持多种登录方式
+@Service
+public class EmailLoginNameUserDetailService implements IRbacService {
+    
+    @Override
+    public String loginNameType() {
+        return "email";
+    }
+    
+    @Override
+    public UserDetails loadUserDetail(String email) throws AuthenticationException {
+        // 通过邮箱查找用户
+        // ...
+    }
+}
+
+@Service
+public class PhoneLoginNameUserDetailService implements IRbacService {
+    
+    @Override
+    public String loginNameType() {
+        return "phone";
+    }
+    
+    @Override
+    public UserDetails loadUserDetail(String phone) throws AuthenticationException {
+        // 通过手机号查找用户
+        // ...
+    }
+}
+```
+
+### OAuth2 客户端使用示例
+
+```java
+@RestController
+public class AuthController {
+    
+    @Autowired
+    private TemplateOauthService oauthService;
+    
+    @PostMapping("/login")
+    public Result<TokenBean> login(@RequestParam String username,
+                                   @RequestParam String password,
+                                   @RequestParam(defaultValue = "username") String loginType,
+                                   HttpServletRequest request) {
+        
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "authorization_password");
+        body.add("username", username);
+        body.add("password", password);
+        body.add("login_type", loginType);  // 指定登录类型
+        body.add("client_id", "mobile-client");
+        body.add("client_secret", "mobile-secret");
+        
+        HttpHeaders headers = new HttpHeaders();
+        // 可以添加其他头信息
+        
+        return oauthService.login(body, headers);
+    }
+    
+    @PostMapping("/logout")
+    public Result<?> logout(HttpServletRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null) {
+            headers.add("Authorization", authorization);
+        }
+        
+        return oauthService.logout("http", headers);
+    }
+}
+```
+
+## 数据加密配置
+
+框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用 `aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2 等）可插拔。  
+设计说明、与 Jasypt/Spring Cloud 的差异及优势详见 [加密与 Coder 设计说明](../design/encryption-and-coder.md)。
+
+### 密码加密配置
+
+框架支持多种密码加密方式：
+
+```yaml
+# 配置文件中的加密密码示例
+spring:
+  datasource:
+    username: admin
+    password: "aENC(encrypted-password-here)"  # 使用 aENC() 包装加密密码
+    
+app:
+  template:
+    security:
+      security-key: "rsa"  # 使用 RSA 加密
+```
+
+### 自定义 RSA 密钥
+
+```java
+@Configuration
+public class CustomRsaConfig {
+    
+    @Bean
+    @Primary
+    public RsaPublicAndPrivateKey customRsaPublicAndPrivateKey() {
+        return new RsaPublicAndPrivateKey() {
+            @Override
+            public RSAPublicKey templateRSAPublicKey() {
+                // 加载你的公钥
+                try {
+                    String publicKeyContent = loadPublicKeyFromFile();
+                    byte[] keyBytes = Base64.getDecoder().decode(publicKeyContent);
+                    X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+                    KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+                    return (RSAPublicKey) keyFactory.generatePublic(spec);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to load RSA public key", e);
+                }
+            }
+            
+            @Override
+            public RSAPrivateKey templateRSAPrivateKey() {
+                // 加载你的私钥
+                try {
+                    String privateKeyContent = loadPrivateKeyFromFile();
+                    byte[] keyBytes = Base64.getDecoder().decode(privateKeyContent);
+                    PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+                    KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+                    return (RSAPrivateKey) keyFactory.generatePrivate(spec);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to load RSA private key", e);
+                }
+            }
+        };
+    }
+}
+```
+
+## Redis 配置
+
+### Redis 基础配置
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: your-redis-password
+      database: 0
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+app:
+  template:
+    security:
+      authorization:
+        store-type: "redis"  # 使用 Redis 存储授权信息
+```
+
+### Redis 自定义配置
+
+```java
+@Configuration
+public class RedisConfig {
+    
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
+        
+        // 使用 FastJson 序列化
+        FastJsonRedisSerializer<Object> serializer = new FastJsonRedisSerializer<>(Object.class);
+        template.setDefaultSerializer(serializer);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+        
+        return template;
+    }
+}
+```
+
+## 日志配置
+
+### 日志基础配置
+
+```yaml
+app:
+  template:
+    audit:
+      enabled: true  # 是否启用审计日志
+      oauth2-endpoints:  # 需审计的 OAuth2 端点列表（与下方前缀二选一或同时生效）
+        - "/oauth2/token"
+      oauth2-audit-path-prefix: "/oauth2"  # 审计该前缀下所有请求（默认 /oauth2，即 authorize、token、revoke、introspect 等全审计）
+
+logging:
+  level:
+    com.lrenyi: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+    max-size: 100MB
+    max-history: 30
+```
+
+### 自定义日志处理
+
+```java
+import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
+import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
+
+@Component
+public class CustomLogProcessor implements AuditLogProcessor {
+
+    @Override
+    public void process(AuditLogInfo auditLogInfo) {
+        // 自定义日志处理逻辑
+        System.out.println("审计日志: " + auditLogInfo);
+
+        // 可以保存到数据库或其他存储
+        saveLogToDatabase(auditLogInfo);
+    }
+
+    private void saveLogToDatabase(AuditLogInfo auditLogInfo) {
+        // 实现日志保存逻辑
+    }
+}
+```
+
+## 异常处理配置
+
+### 异常处理基础配置
+
+```yaml
+app:
+  template:
+    web:
+      export-exception-detail: false  # 是否导出异常详情
+```
+
+### 全局异常处理
+
+```java
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    
+    @Autowired
+    private TemplateConfigProperties templateConfigProperties;
+    
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Result<?>> handleException(Exception e) {
+        Result<?> result = new Result<>();
+        result.setCode(500);
+        result.setMessage("系统异常");
+        
+        if (templateConfigProperties.getWeb().isExportExceptionDetail()) {
+            result.setData(e.getMessage());
+        }
+        
+        return ResponseEntity.status(500).body(result);
+    }
+    
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Result<?>> handleAuthException(AuthenticationException e) {
+        Result<?> result = new Result<>();
+        result.setCode(401);
+        result.setMessage("认证失败");
+        return ResponseEntity.status(401).body(result);
+    }
+}
+```
+
+## WebSocket 配置
+
+### WebSocket 处理器
+
+```java
+@Component
+public class ChatWebSocketHandler implements TemplateWebSocketHandler {
+    
+    @Override
+    public String path() {
+        return "/ws/chat";  // WebSocket 路径
+    }
+    
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        // 连接建立后的处理
+        System.out.println("WebSocket 连接建立: " + session.getId());
+    }
+    
+    @Override
+    public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+        // 处理消息
+        String payload = message.getPayload().toString();
+        session.sendMessage(new TextMessage("Echo: " + payload));
+    }
+    
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+        // 处理传输错误
+        System.err.println("WebSocket 传输错误: " + exception.getMessage());
+    }
+    
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+        // 连接关闭后的处理
+        System.out.println("WebSocket 连接关闭: " + session.getId());
+    }
+    
+    @Override
+    public boolean supportsPartialMessages() {
+        return false;
+    }
+}
+```
+
+### WebSocket 拦截器
+
+```java
+@Component
+public class AuthWebSocketInterceptor implements TemplateHandshakeInterceptor {
+    
+    @Override
+    public boolean beforeHandshake(ServerHttpRequest request, 
+                                   ServerHttpResponse response,
+                                   WebSocketHandler wsHandler, 
+                                   Map<String, Object> attributes) throws Exception {
+        // 握手前的认证检查
+        String token = request.getHeaders().getFirst("Authorization");
+        if (token != null && validateToken(token)) {
+            attributes.put("user", getUserFromToken(token));
+            return true;
+        }
+        return false;
+    }
+    
+    @Override
+    public void afterHandshake(ServerHttpRequest request, 
+                               ServerHttpResponse response,
+                               WebSocketHandler wsHandler, 
+                               Exception exception) {
+        // 握手后的处理
+    }
+    
+    private boolean validateToken(String token) {
+        // 验证 token
+        return true;
+    }
+    
+    private Object getUserFromToken(String token) {
+        // 从 token 获取用户信息
+        return new Object();
+    }
+}
+```
+
+## NATS 事件配置
+
+### NATS 基础配置
+
+```yaml
+nats:
+  spring:
+    server: "nats://localhost:4222"
+    connection-timeout: 2s
+    max-reconnect: 60
+    reconnect-wait: 2s
+```
+
+### 事件处理器
+
+```java
+// 定义事件
+public class UserCreatedEvent {
+    private String userId;
+    private String username;
+    private LocalDateTime createdAt;
+    
+    // getters and setters
+}
+
+// 事件处理器
+@Component
+public class UserEventProcessor implements EventProcessor<UserCreatedEvent> {
+    
+    @Override
+    public String subject() {
+        return "user.created";  // NATS 主题
+    }
+    
+    @Override
+    public void process(UserCreatedEvent event) {
+        // 处理用户创建事件
+        System.out.println("用户创建事件: " + event.getUsername());
+        
+        // 可以在这里执行其他业务逻辑
+        // 如发送欢迎邮件、初始化用户数据等
+    }
+    
+    @Override
+    public Class<UserCreatedEvent> eventType() {
+        return UserCreatedEvent.class;
+    }
+}
+
+// 发送事件
+@Service
+public class UserService {
+    
+    @Autowired
+    private EventPublisher eventPublisher;
+    
+    public void createUser(String username) {
+        // 创建用户逻辑
+        User user = new User(username);
+        userRepository.save(user);
+        
+        // 发送事件
+        UserCreatedEvent event = new UserCreatedEvent();
+        event.setUserId(user.getId());
+        event.setUsername(user.getUsername());
+        event.setCreatedAt(LocalDateTime.now());
+        
+        eventPublisher.publish("user.created", event);
+    }
+}
+```
+
+## 高级功能
+
+### 接口权限控制
+
+```java
+@RestController
+public class UserController {
+    
+    @Function(domain = "user", service = "management", interfaceName = "获取用户列表")
+    @GetMapping("/users")
+    public Result<List<User>> getUsers() {
+        // 这个接口会被自动注册到权限系统中
+        return Result.success(userService.getAllUsers());
+    }
+    
+    @Function(domain = "user", service = "management", interfaceName = "创建用户")
+    @PostMapping("/users")
+    public Result<User> createUser(@RequestBody CreateUserRequest request) {
+        return Result.success(userService.createUser(request));
+    }
+}
+
+// 实现接口信息保存
+@Component
+public class DatabaseTemplateInterface implements TemplateInterface {
+    
+    @Autowired
+    private InterfaceRepository interfaceRepository;
+    
+    @Override
+    public void saveInterfaceInfo(List<Interface> interfaces) {
+        // 保存接口信息到数据库
+        for (Interface iface : interfaces) {
+            InterfaceEntity entity = new InterfaceEntity();
+            entity.setDomain(iface.getDomain());
+            entity.setService(iface.getService());
+            entity.setName(iface.getName());
+            entity.setPath(iface.getPath());
+            
+            interfaceRepository.save(entity);
+        }
+    }
+}
+```
+
+### 自定义消息转换器
+
+框架默认使用 Jackson 作为 JSON 序列化工具，你也可以自定义：
+
+```java
+@Configuration
+public class MessageConverterConfig {
+    
+    @Bean
+    @Primary
+    public FastJsonHttpMessageConverter customFastJsonConverter() {
+        FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
+        
+        FastJsonConfig config = new FastJsonConfig();
+        config.setSerializerFeatures(
+            SerializerFeature.WriteMapNullValue,
+            SerializerFeature.WriteNullStringAsEmpty,
+            SerializerFeature.WriteNullListAsEmpty
+        );
+        config.setDateFormat("yyyy-MM-dd HH:mm:ss");
+        
+        converter.setFastJsonConfig(config);
+        return converter;
+    }
+}
+```
+
+### JSON 处理器配置
+
+框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson 等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
+
+```yaml
+app:
+  template:
+    web:
+      json-processor-type: "jackson"  # 默认，当前内置实现
+```
+
+自定义实现时，提供 `JsonProcessor` Bean 即可全局接管：
+
+```java
+@Configuration
+public class CustomJsonConfig {
+
+    @Bean
+    @Primary
+    public JsonProcessor customJsonProcessor() {
+        // 实现 JsonProcessor 接口，接入 Gson、Fastjson 等
+        return new MyJsonProcessor();
+    }
+}
+```
+
+## 生产环境配置
+
+### 安全加固
+
+#### RSA 密钥配置（重要）
+
+框架在 `template-core` 资源中提供 `default_rsa_public.pem` 和 `default_rsa_private.pem` 作为开发/测试默认密钥。**生产环境严禁使用默认密钥**，必须：
+
+1. 自行生成 RSA 密钥对（如 `openssl genrsa -out rsa_private.pem 2048`）
+2. 将 `rsa_public.pem`、`rsa_private.pem` 置于 classpath 或配置指定路径
+3. 确保密钥文件仅应用进程可读，且不提交到版本库
+
+否则存在密钥泄露风险，加密数据可被破解。
+
+```yaml
+# 生产环境配置示例
+spring:
+  profiles:
+    active: prod
+    
+server:
+  port: 8080
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-password: your-keystore-password
+    key-store-type: PKCS12
+    
+app:
+  template:
+    enabled: true
+    security:
+      enabled: true
+      local-jwt-public-key: false  # 生产环境建议使用远程公钥
+      net-jwt-public-key-domain: "https://auth.yourcompany.com"
+      authorization:
+        store-type: "redis"  # 生产环境建议使用 Redis
+      
+    oauth2:
+      enabled: true
+      skip-pre-authentication: false
+      
+    method-security:
+      enabled: true  # 方法级安全（@PreAuthorize 等）
+      
+    audit:
+      enabled: true
+      
+    web:
+      export-exception-detail: false  # 生产环境不暴露异常详情
+      json-processor-type: "jackson"
+      
+logging:
+  level:
+    root: WARN
+    com.lrenyi: INFO
+  file:
+    name: /var/log/app/application.log
+```
+
+### 监控配置
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+```
+
+### Docker 部署
+
+```dockerfile
+FROM openjdk:21-jre-slim
+
+VOLUME /tmp
+VOLUME /var/log/app
+
+COPY target/your-app.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "/app.jar"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/myapp
+      - SPRING_REDIS_HOST=redis
+    depends_on:
+      - db
+      - redis
+      
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: myapp
+    volumes:
+      - mysql_data:/var/lib/mysql
+      
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+      
+volumes:
+  mysql_data:
+  redis_data:
+```
+
+## 故障排除
+
+### 常见问题
+
+1. **启动失败**
+   - 检查 JDK 版本是否为 21
+   - 检查依赖版本是否兼容
+   - 查看启动日志中的错误信息
+
+2. **认证失败**
+   - 确保实现了 `IRbacService` 接口
+   - 检查 OAuth2 客户端配置
+   - 验证用户名密码是否正确
+
+3. **权限拒绝**
+   - 检查 URL 是否在免认证列表中
+   - 验证 JWT 令牌是否有效
+   - 检查用户权限配置
+
+4. **Redis 连接失败**
+   - 检查 Redis 服务是否启动
+   - 验证连接配置是否正确
+   - 检查网络连通性
+
+### 调试技巧
+
+```yaml
+# 开启调试日志
+logging:
+  level:
+    com.lrenyi: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: TRACE
+    org.springframework.web: DEBUG
+```
+
+```java
+// 添加调试代码
+@Component
+public class DebugSecurityEventListener {
+    
+    @EventListener
+    public void onAuthenticationSuccess(AuthenticationSuccessEvent event) {
+        System.out.println("认证成功: " + event.getAuthentication().getName());
+    }
+    
+    @EventListener
+    public void onAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
+        System.out.println("认证失败: " + event.getException().getMessage());
+    }
+}
+```
+
+## 总结
+
+App Template 框架提供了丰富的功能和灵活的配置选项，可以快速构建安全、高性能的微服务应用。通过合理的配置和自定义实现，可以满足各种业务需求。
+
+建议在开发过程中：
+1. 先使用最小配置快速启动项目
+2. 根据业务需求逐步添加高级功能
+3. 在生产环境中注意安全配置
+4. 定期更新框架版本以获得最新功能和安全修复

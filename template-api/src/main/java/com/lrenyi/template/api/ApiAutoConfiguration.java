@@ -59,7 +59,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApiAutoConfiguration {
     
     @EnableMethodSecurity()
-    @ConditionalOnProperty(name = "app.template.authorize.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "app.template.method-security.enabled", havingValue = "true", matchIfMissing = true)
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
     }
@@ -87,8 +87,13 @@ public class ApiAutoConfiguration {
             return makeSpringOpaqueTokenIntrospector(introspector);
         }
         
+        /**
+         * 配置 Opaque Token 内省结果到 Spring Security 认证主体的转换逻辑。
+         * 将内省响应中的 scope 转为 GrantedAuthority，供资源服务器侧 @PreAuthorize("hasAuthority('xxx')") 等使用。
+         */
         public SpringOpaqueTokenIntrospector makeSpringOpaqueTokenIntrospector(SpringOpaqueTokenIntrospector introspector) {
             introspector.setAuthenticationConverter(accessor -> {
+                // 内省响应中的 scope 列表（授权服务器签发 token 时写入，如来自 RBAC 权限）转为 Authority
                 Collection<GrantedAuthority> authorities = new ArrayList<>();
                 List<String> scopes = accessor.getScopes();
                 if (scopes != null) {

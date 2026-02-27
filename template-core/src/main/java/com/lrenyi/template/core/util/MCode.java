@@ -8,7 +8,11 @@ public enum MCode {
     SHOW_EXCEPTION_MESSAGE(201, "非法访问"),
     PASSWORD_ERROR(202, "密码错误"),
     EXCEPTION(500, "内部服务异常"),
-    NO_PERMISSIONS(401, "没有权限访问对应的资源");
+    BAD_REQUEST(400, "无效参数异常"),
+    NO_PERMISSIONS(401, "未认证"),
+    ACCESS_DENIED(403, "权限不足"),
+    NOT_EXIT_RESOURCE(404, "资源不存在"),
+    ;
     private final int code;
     private final String message;
     

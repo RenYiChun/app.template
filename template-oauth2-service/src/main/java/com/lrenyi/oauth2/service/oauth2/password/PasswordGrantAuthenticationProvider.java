@@ -10,12 +10,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.core.util.OAuth2Constant;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClaimAccessor;
@@ -84,8 +86,13 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         DefaultOAuth2TokenContext.Builder refreshContextBuilder = buildRefreshTokenContext(
                 client, grantToken, requestScopeSet);
         OAuth2RefreshToken refreshToken = maybeGenerateRefreshToken(client, principal, refreshContextBuilder);
-        OAuth2Authorization authorization = buildAuthorization(
-                client, principal, grantToken, accessToken, generatedAccessToken, refreshToken, parameters);
+        OAuth2Authorization authorization = buildAuthorization(client,
+                principal,
+                grantToken,
+                accessToken,
+                generatedAccessToken,
+                refreshToken,
+                parameters);
 
         this.authorizationService.save(authorization);
         HashMap<String, Object> params = new HashMap<>();
@@ -95,8 +102,16 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
     }
 
     private UserDetails validateAndLoadUser(String username, String type, Map<String, Object> parameters) {
-        UserDetails userDetails = userDetailsService.loadUserByUsername(type + ":" + username);
         String password = (String) parameters.get(OAuth2ParameterNames.PASSWORD);
+        UserDetails userDetails;
+        try {
+            userDetails = userDetailsService.loadUserByUsername(type + ":" + username);
+        } catch (UsernameNotFoundException e) {
+            // 用户不存在时做一次假校验以统一响应时间，再返回与“密码错误”相同的错误，防止用户枚举
+            passwordEncoder.matches(password, passwordEncoder.encode("__dummy_enumeration_prevention__"));
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error(OAuth2Constant.LOGIN_FAIL_OF_PASSWORD, "password is incorrect", ""));
+        }
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             throw new OAuth2AuthenticationException(
                     new OAuth2Error(OAuth2Constant.LOGIN_FAIL_OF_PASSWORD, "password is incorrect", ""));
@@ -139,7 +154,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
                                                    PasswordGrantAuthenticationToken grantToken,
                                                    OAuth2AccessToken accessToken,
                                                    OAuth2Token generatedAccessToken,
-                                                   OAuth2RefreshToken refreshToken,
+                                                   @Nullable OAuth2RefreshToken refreshToken,
                                                    Map<String, Object> parameters) {
         OAuth2Authorization.Builder builder = OAuth2Authorization.withRegisteredClient(client)
                 .principalName(principal.getName())
@@ -163,8 +178,8 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         builder.authorizedScopes(accessToken.getScopes());
         return builder.build();
     }
-
-    private OAuth2RefreshToken maybeGenerateRefreshToken(RegisteredClient client,
+    
+    private @Nullable OAuth2RefreshToken maybeGenerateRefreshToken(RegisteredClient client,
                                                          OAuth2ClientAuthenticationToken principal,
                                                          DefaultOAuth2TokenContext.Builder contextBuilder) {
         boolean supportsRefresh = client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN);

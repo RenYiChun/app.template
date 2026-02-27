@@ -7,18 +7,16 @@ import io.micrometer.core.instrument.Timer;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 
 /**
  * 统一切面：记录实体平台 Controller CRUD 操作的耗时和错误指标。
  */
+@Slf4j
 @Aspect
 @Order(100)
 public final class DataforgeAspect {
-
-    private static final Logger log = LoggerFactory.getLogger(DataforgeAspect.class);
 
     private final MeterRegistry meterRegistry;
 

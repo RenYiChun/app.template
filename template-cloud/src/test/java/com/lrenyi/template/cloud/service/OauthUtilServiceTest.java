@@ -1,7 +1,6 @@
 package com.lrenyi.template.cloud.service;
 
-import java.time.LocalDateTime;
-import java.util.Map;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,10 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class OauthUtilServiceTest {
 
     private OauthUtilService service;
+    private Cache<String, String> tokenCache;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         service = new OauthUtilService();
+        tokenCache = (Cache<String, String>) ReflectionTestUtils.getField(OauthUtilService.class, "tokenCache");
         TemplateConfigProperties config = new TemplateConfigProperties();
         TemplateConfigProperties.OAuth2Config oauth2 = new TemplateConfigProperties.OAuth2Config();
         oauth2.setTokenUrl("https://auth.example.com/oauth/token");
@@ -33,27 +35,17 @@ class OauthUtilServiceTest {
     }
 
     @AfterEach
-    @SuppressWarnings("unchecked")
     void tearDown() {
-        OauthUtilService.tokenCacheMap.clear();
-        Map<String, LocalDateTime> expiresMap =
-                (Map<String, LocalDateTime>) ReflectionTestUtils.getField(OauthUtilService.class, "expiresCacheMap");
-        if (expiresMap != null) {
-            expiresMap.clear();
+        if (tokenCache != null) {
+            tokenCache.invalidateAll();
         }
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void fetchToken_withValidCache_returnsCachedToken() {
         String host = "cache-test-host";
         String token = "cached-access-token";
-        OauthUtilService.tokenCacheMap.put(host, token);
-        Map<String, LocalDateTime> expiresMap =
-                (Map<String, LocalDateTime>) ReflectionTestUtils.getField(OauthUtilService.class, "expiresCacheMap");
-        if (expiresMap != null) {
-            expiresMap.put(host, LocalDateTime.now().plusHours(1));
-        }
+        tokenCache.put(host, token);
 
         String result = service.fetchToken(host, "cid", "secret");
 
@@ -63,23 +55,17 @@ class OauthUtilServiceTest {
     @Test
     void fetchToken_withExpiredCache_attemptsLoginAndFails() {
         String host = "expired-host";
-        OauthUtilService.tokenCacheMap.clear();
+        tokenCache.invalidateAll();
 
         assertThrows(Exception.class, () ->
                 service.fetchToken(host, "cid", "secret"));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void fetchToken_withHost_returnsCachedToken() {
         String host = "host-only";
         String token = "token";
-        OauthUtilService.tokenCacheMap.put(host, token);
-        Map<String, LocalDateTime> expiresMap =
-                (Map<String, LocalDateTime>) ReflectionTestUtils.getField(OauthUtilService.class, "expiresCacheMap");
-        if (expiresMap != null) {
-            expiresMap.put(host, LocalDateTime.now().plusHours(1));
-        }
+        tokenCache.put(host, token);
 
         String result = service.fetchToken(host);
 

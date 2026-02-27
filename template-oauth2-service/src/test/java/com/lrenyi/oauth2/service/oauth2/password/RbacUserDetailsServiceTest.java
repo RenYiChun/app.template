@@ -3,9 +3,6 @@ package com.lrenyi.oauth2.service.oauth2.password;
 import java.util.Collections;
 import java.util.List;
 import com.lrenyi.oauth2.service.config.IdentifierType;
-import com.lrenyi.template.api.rbac.model.AppUser;
-import com.lrenyi.template.api.rbac.model.Permission;
-import com.lrenyi.template.api.rbac.model.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,21 +42,10 @@ class RbacUserDetailsServiceTest {
 
     @Test
     void loadUserByUsername_whenValidUser_returnsUserDetails() {
-        AppUser<String> user = new AppUser<>();
-        user.setId("uid-1");
-        user.setUsername("testuser");
-        user.setPassword("encoded");
+        RbacUserCredentials credentials = new RbacUserCredentials("testuser", "encoded", List.of("read", "write"));
 
-        Role role = createMockRole("role-1");
-        Permission perm1 = createMockPermission("read");
-        Permission perm2 = createMockPermission("write");
-
-        when(rbacService.findUserByIdentifier(eq("testuser"), eq(IdentifierType.USERNAME)))
-                .thenAnswer(invocation -> user);
-        when(rbacService.getRolesByUserId("uid-1"))
-                .thenReturn(List.of(role));
-        when(rbacService.getPermissionsByRoleId("role-1"))
-                .thenReturn(List.of(perm1, perm2));
+        when(rbacService.loadUserCredentials(eq("testuser"), eq(IdentifierType.USERNAME)))
+                .thenReturn(credentials);
 
         UserDetails details = service.loadUserByUsername("USERNAME:testuser");
 
@@ -71,21 +57,15 @@ class RbacUserDetailsServiceTest {
         assertTrue(details.getAuthorities().stream()
                 .anyMatch(a -> "write".equals(a.getAuthority())));
 
-        verify(rbacService).findUserByIdentifier("testuser", IdentifierType.USERNAME);
-        verify(rbacService).getRolesByUserId("uid-1");
-        verify(rbacService).getPermissionsByRoleId("role-1");
+        verify(rbacService).loadUserCredentials("testuser", IdentifierType.USERNAME);
     }
 
     @Test
-    void loadUserByUsername_whenRolesNull_usesEmptyList() {
-        AppUser<String> user = new AppUser<>();
-        user.setId("uid-1");
-        user.setUsername("noroles");
-        user.setPassword("encoded");
+    void loadUserByUsername_whenEmptyPermissions_usesEmptyList() {
+        RbacUserCredentials credentials = new RbacUserCredentials("noroles", "encoded", Collections.emptyList());
 
-        when(rbacService.findUserByIdentifier(eq("noroles"), eq(IdentifierType.USERNAME)))
-                .thenAnswer(invocation -> user);
-        when(rbacService.getRolesByUserId("uid-1")).thenReturn(null);
+        when(rbacService.loadUserCredentials(eq("noroles"), eq(IdentifierType.USERNAME)))
+                .thenReturn(credentials);
 
         UserDetails details = service.loadUserByUsername("USERNAME:noroles");
 
@@ -108,7 +88,7 @@ class RbacUserDetailsServiceTest {
 
     @Test
     void loadUserByUsername_whenUserNotFound_throws() {
-        when(rbacService.findUserByIdentifier(eq("unknown"), eq(IdentifierType.USERNAME)))
+        when(rbacService.loadUserCredentials(eq("unknown"), eq(IdentifierType.USERNAME)))
                 .thenReturn(null);
 
         assertThrows(UsernameNotFoundException.class, () ->
@@ -117,30 +97,14 @@ class RbacUserDetailsServiceTest {
 
     @Test
     void loadUserByUsername_whenEmployeeId_usesCorrectType() {
-        AppUser<String> user = new AppUser<>();
-        user.setId("uid-2");
-        user.setUsername("emp");
-        user.setPassword("pwd");
+        RbacUserCredentials credentials = new RbacUserCredentials("emp", "pwd", List.of());
 
-        when(rbacService.findUserByIdentifier(eq("E001"), eq(IdentifierType.EMPLOYEE_ID)))
-                .thenAnswer(invocation -> user);
-        when(rbacService.getRolesByUserId("uid-2")).thenReturn(Collections.emptyList());
+        when(rbacService.loadUserCredentials(eq("E001"), eq(IdentifierType.EMPLOYEE_ID)))
+                .thenReturn(credentials);
 
         UserDetails details = service.loadUserByUsername("EMPLOYEE_ID:E001");
 
         assertNotNull(details);
         assertEquals("emp", details.getUsername());
-    }
-
-    private static Role createMockRole(String id) {
-        Role role = org.mockito.Mockito.mock(Role.class);
-        when(role.getId()).thenReturn(id);
-        return role;
-    }
-
-    private static Permission createMockPermission(String perm) {
-        Permission p = org.mockito.Mockito.mock(Permission.class);
-        when(p.getPermission()).thenReturn(perm);
-        return p;
     }
 }

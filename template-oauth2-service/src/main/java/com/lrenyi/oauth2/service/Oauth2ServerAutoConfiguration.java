@@ -2,11 +2,12 @@ package com.lrenyi.oauth2.service;
 
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
-import com.lrenyi.oauth2.service.config.OAuth2AuthorizationServerPropertiesMapper;
+import com.lrenyi.oauth2.service.config.OAuth2AuditFilter;
+import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
+import com.lrenyi.oauth2.service.config.OAuth2ClientPropertiesMapper;
 import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationToken;
@@ -15,6 +16,7 @@ import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.audit.OAuth2AuditRecorder;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -38,7 +40,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
@@ -71,9 +72,7 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(OAuth2AuthorizationServerProperties properties) {
-        OAuth2AuthorizationServerPropertiesMapper mapper = new OAuth2AuthorizationServerPropertiesMapper(properties);
-        List<RegisteredClient> registeredClients = mapper.asRegisteredClients();
-        return new InMemoryRegisteredClientRepository(registeredClients.toArray(new RegisteredClient[0]));
+        return new InMemoryRegisteredClientRepository(OAuth2ClientPropertiesMapper.fromProperties(properties));
     }
     
     @Bean
@@ -101,6 +100,15 @@ public class Oauth2ServerAutoConfiguration {
     public PasswordAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
                                                                 TemplateConfigProperties templateConfigProperties) {
         return new PasswordAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
+    }
+    
+    @Bean
+    @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
+    public OAuth2AuditFilter oauth2AuditFilter(TemplateConfigProperties templateConfigProperties,
+            ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
+            ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
+        return new OAuth2AuditFilter(templateConfigProperties, auditRecorderProvider,
+                principalNameExtractorProvider);
     }
     
     @Bean

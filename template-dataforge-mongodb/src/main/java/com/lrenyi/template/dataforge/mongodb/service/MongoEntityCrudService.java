@@ -1,0 +1,400 @@
+package com.lrenyi.template.dataforge.mongodb.service;
+
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lrenyi.template.dataforge.annotation.StorageTypes;
+import com.lrenyi.template.dataforge.domain.DataforgePersistable;
+import com.lrenyi.template.dataforge.meta.EntityMeta;
+import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
+import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
+import com.lrenyi.template.dataforge.support.FilterCondition;
+import com.lrenyi.template.dataforge.support.ListCriteria;
+import com.lrenyi.template.dataforge.support.SortOrder;
+import org.bson.types.ObjectId;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 基于 MongoTemplate 的通用 CRUD 实现。实体需继承 MongoBaseDocument，主键类型可为 String、Long、ObjectId。
+ * 支持软删除、乐观锁、事务。当 classpath 存在 spring-boot-starter-data-mongodb 时自动注册为 StorageTypeAwareCrudService。
+ */
+public class MongoEntityCrudService implements StorageTypeAwareCrudService {
+    
+    private final MongoTemplate mongoTemplate;
+    private final ObjectMapper objectMapper;
+    
+    public MongoEntityCrudService(MongoTemplate mongoTemplate, ObjectMapper objectMapper) {
+        this.mongoTemplate = mongoTemplate;
+        this.objectMapper = objectMapper;
+    }
+    
+    @Override
+    public String getStorageType() {
+        return StorageTypes.MONGO;
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        String collection = entityMeta.getTableName();
+        ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
+        Query query = buildQuery(entityClass, c.getFilters());
+        addSoftDeleteCriteria(query);
+        long total = mongoTemplate.count(query, entityClass, collection);
+        Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
+        query.with(sort);
+        query.skip(pageable.getOffset());
+        query.limit(pageable.getPageSize());
+        List<?> content = mongoTemplate.find(query, entityClass, collection);
+        return new PageImpl<>(content, pageable, total);
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Object get(EntityMeta entityMeta, Object id) {
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        Object resolvedId = resolveId(id, entityMeta.getPrimaryKeyType());
+        Query query = new Query(Criteria.where("_id").is(resolvedId));
+        addSoftDeleteCriteria(query);
+        Object entity = mongoTemplate.findOne(query, entityClass, entityMeta.getTableName());
+        if (entity == null) {
+            throw new IllegalArgumentException("Entity not found with id: " + id);
+        }
+        return entity;
+    }
+    
+    @Override
+    @Transactional
+    public Object create(EntityMeta entityMeta, Object body) {
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        Object entity = objectMapper.convertValue(body, entityClass);
+        LocalDateTime now = LocalDateTime.now();
+        Object id = InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entityClass));
+        if (id == null && entityMeta.getPrimaryKeyType() == String.class) {
+            setIfPersistable(entity, "id", new ObjectId().toHexString());
+        } else if (id == null && entityMeta.getPrimaryKeyType() == ObjectId.class) {
+            setIfPersistable(entity, "id", new ObjectId());
+        }
+        setIfPersistable(entity, "createTime", now);
+        setIfPersistable(entity, "updateTime", now);
+        setIfPersistable(entity, "version", 0L);
+        setIfPersistable(entity, "deleted", false);
+        mongoTemplate.insert(entity, entityMeta.getTableName());
+        return entity;
+    }
+    
+    @Override
+    @Transactional
+    public Object update(EntityMeta entityMeta, Object id, Object body) {
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        Object resolvedId = resolveId(id, entityMeta.getPrimaryKeyType());
+        Query query = new Query(Criteria.where("_id").is(resolvedId));
+        addSoftDeleteCriteria(query);
+        Object existing = mongoTemplate.findOne(query, entityClass, entityMeta.getTableName());
+        if (existing == null) {
+            throw new IllegalArgumentException("Entity not found with id: " + id);
+        }
+        Long existingVersion = getVersion(existing);
+        Object entity = objectMapper.convertValue(body, entityClass);
+        setIfPersistable(entity, "id", resolvedId);
+        setIfPersistable(entity, "updateTime", LocalDateTime.now());
+        Long newVersion = getVersion(entity);
+        if (existingVersion != null && entityMeta.isEnableVersionControl()) {
+            if (newVersion == null || !newVersion.equals(existingVersion)) {
+                throw new IllegalStateException("Optimistic lock conflict: version mismatch for id " + id);
+            }
+            setIfPersistable(entity, "version", existingVersion + 1);
+        }
+        setIfPersistable(entity, "deleted", getDeleted(existing));
+        setIfPersistable(entity, "createTime", getCreateTime(existing));
+        setIfPersistable(entity, "createBy", getCreateBy(existing));
+        mongoTemplate.save(entity, entityMeta.getTableName());
+        return entity;
+    }
+    
+    @Override
+    @Transactional
+    public void delete(EntityMeta entityMeta, Object id) {
+        if (id == null) {
+            throw new IllegalArgumentException("ID cannot be null");
+        }
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        Object resolvedId = resolveId(id, entityMeta.getPrimaryKeyType());
+        String collection = entityMeta.getTableName();
+        if (entityMeta.isSoftDelete()) {
+            Query query = new Query(Criteria.where("_id").is(resolvedId));
+            Update update = new Update().set("deleted", true)
+                                        .set("updateTime", LocalDateTime.now())
+                                        .set("deleteTime", LocalDateTime.now());
+            if (entityMeta.getUpdateUserField() != null && !entityMeta.getUpdateUserField().isBlank()) {
+                update.set(entityMeta.getUpdateUserField(), getCurrentUser());
+            }
+            mongoTemplate.updateFirst(query, update, entityClass, collection);
+        } else {
+            mongoTemplate.remove(new Query(Criteria.where("_id").is(resolvedId)), entityClass, collection);
+        }
+    }
+    
+    @Override
+    @Transactional
+    public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("IDs cannot be null or empty");
+        }
+        for (Object id : ids) {
+            if (id == null) {
+                throw new IllegalArgumentException("批量删除项缺少 id");
+            }
+        }
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        List<Object> resolvedIds = ids.stream().map(id -> resolveId(id, entityMeta.getPrimaryKeyType())).toList();
+        String collection = entityMeta.getTableName();
+        if (entityMeta.isSoftDelete()) {
+            Query query = new Query(Criteria.where("_id").in(resolvedIds));
+            Update update = new Update().set("deleted", true)
+                                        .set("updateTime", LocalDateTime.now())
+                                        .set("deleteTime", LocalDateTime.now());
+            if (entityMeta.getUpdateUserField() != null && !entityMeta.getUpdateUserField().isBlank()) {
+                update.set(entityMeta.getUpdateUserField(), getCurrentUser());
+            }
+            mongoTemplate.updateMulti(query, update, entityClass, collection);
+        } else {
+            mongoTemplate.remove(new Query(Criteria.where("_id").in(resolvedIds)), entityClass, collection);
+        }
+    }
+    
+    @Override
+    @Transactional
+    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+        if (entities == null || entities.isEmpty()) {
+            throw new IllegalArgumentException("Entities cannot be null or empty");
+        }
+        for (Object entity : entities) {
+            if (InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass())) == null) {
+                throw new IllegalArgumentException("批量更新项缺少 id");
+            }
+        }
+        Class<?> entityClass = entityMeta.getEntityClass();
+        if (entityClass == null) {
+            throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
+        }
+        String collection = entityMeta.getTableName();
+        List<Object> result = new ArrayList<>(entities.size());
+        for (Object entity : entities) {
+            Object id = InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass()));
+            if (id == null) {
+                continue;
+            }
+            Object resolvedId = resolveId(id, entityMeta.getPrimaryKeyType());
+            Query query = new Query(Criteria.where("_id").is(resolvedId));
+            addSoftDeleteCriteria(query);
+            Object existing = mongoTemplate.findOne(query, entityClass, collection);
+            if (existing == null) {
+                continue;
+            }
+            if (entityMeta.isEnableVersionControl()) {
+                Long existingVersion = getVersion(existing);
+                Long newVersion = getVersion(entity);
+                if (existingVersion != null && (newVersion == null || !newVersion.equals(existingVersion))) {
+                    throw new IllegalStateException("Optimistic lock conflict: version mismatch for id " + id);
+                }
+                setIfPersistable(entity, "version", existingVersion != null ? existingVersion + 1 : 1L);
+            }
+            setIfPersistable(entity, "updateTime", LocalDateTime.now());
+            setIfPersistable(entity, "deleted", getDeleted(existing));
+            setIfPersistable(entity, "createTime", getCreateTime(existing));
+            setIfPersistable(entity, "createBy", getCreateBy(existing));
+            mongoTemplate.save(entity, collection);
+            result.add(entity);
+        }
+        return result;
+    }
+    
+    private Query buildQuery(Class<?> entityClass, List<FilterCondition> filters) {
+        Query query = new Query();
+        Set<String> allowedFields = getEntityFieldNames(entityClass);
+        List<Criteria> criteriaList = new ArrayList<>();
+        if (filters != null) {
+            for (FilterCondition fc : filters) {
+                if (fc == null || fc.op() == null) {
+                    continue;
+                }
+                if (!isValidFieldName(fc.field(), allowedFields)) {
+                    throw new IllegalArgumentException("Invalid filter field: " + fc.field());
+                }
+                String field = fc.field();
+                Object value = fc.value();
+                Criteria crit = switch (fc.op()) {
+                    case EQ -> Criteria.where(field).is(value);
+                    case NE -> Criteria.where(field).ne(value);
+                    case LIKE -> Criteria.where(field)
+                                         .regex(value instanceof String s ? ".*" + escapeRegex(s) + ".*" :
+                                                        String.valueOf(value), "i"
+                                         );
+                    case GT -> Criteria.where(field).gt(value);
+                    case GTE -> Criteria.where(field).gte(value);
+                    case LT -> Criteria.where(field).lt(value);
+                    case LTE -> Criteria.where(field).lte(value);
+                    case IN -> Criteria.where(field).in(value instanceof List<?> l ? l : List.of(value));
+                };
+                criteriaList.add(crit);
+            }
+        }
+        if (!criteriaList.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteriaList.toArray(Criteria[]::new)));
+        }
+        return query;
+    }
+    
+    /** MongoBaseDocument 实体默认带 deleted 字段，list/get 时过滤已软删记录。 */
+    private void addSoftDeleteCriteria(Query query) {
+        query.addCriteria(Criteria.where("deleted").ne(true));
+    }
+    
+    private static String escapeRegex(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\")
+                .replace("*", "\\*")
+                .replace(".", "\\.")
+                .replace("?", "\\?")
+                .replace("+", "\\+")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("|", "\\|");
+    }
+    
+    private static Set<String> getEntityFieldNames(Class<?> entityClass) {
+        Set<String> names = new java.util.HashSet<>();
+        for (Class<?> c = entityClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                names.add(f.getName());
+            }
+        }
+        return names;
+    }
+    
+    private static boolean isValidFieldName(String field, Set<String> allowedFields) {
+        return field != null && !field.isBlank() && allowedFields.contains(field);
+    }
+    
+    private Sort resolveSort(List<SortOrder> sortOrders, Sort pageableSort) {
+        if (sortOrders != null && !sortOrders.isEmpty()) {
+            List<Sort.Order> orders = new ArrayList<>();
+            for (SortOrder so : sortOrders) {
+                if (so != null && so.field() != null && !so.field().isBlank()) {
+                    orders.add("desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) :
+                                       Sort.Order.asc(so.field()));
+                }
+            }
+            return orders.isEmpty() ? pageableSort : Sort.by(orders);
+        }
+        return pageableSort;
+    }
+    
+    private Object resolveId(Object id, Class<?> primaryKeyType) {
+        if (id == null) {
+            return null;
+        }
+        if (primaryKeyType == ObjectId.class && id instanceof String s) {
+            if (ObjectId.isValid(s)) {
+                return new ObjectId(s);
+            }
+        }
+        return id;
+    }
+    
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private String getCurrentUser() {
+        try {
+            var ctx = org.springframework.security.core.context.SecurityContextHolder.getContext();
+            var auth = ctx != null ? ctx.getAuthentication() : null;
+            return auth != null && auth.isAuthenticated() ? auth.getName() : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+    
+    private Long getVersion(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getVersion();
+        }
+        return null;
+    }
+    
+    private Boolean getDeleted(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getDeleted();
+        }
+        return false;
+    }
+    
+    private LocalDateTime getCreateTime(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getCreateTime();
+        }
+        return null;
+    }
+    
+    private String getCreateBy(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getCreateBy();
+        }
+        return null;
+    }
+    
+    private void setIfPersistable(Object entity, String fieldName, Object value) {
+        Field f = findField(entity.getClass(), fieldName);
+        if (f != null) {
+            InMemoryEntityCrudService.setValueOfObject(entity, value, f);
+        }
+    }
+    
+    private static Field findField(Class<?> clazz, String name) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        return findField(clazz, "id");
+    }
+}

@@ -17,6 +17,7 @@ import com.lrenyi.template.dataforge.support.SortOrder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 /**
  * 内存版 CRUD 实现，用于演示与测试。不持久化。支持 Long、String、UUID 主键。
@@ -134,43 +135,52 @@ public class InMemoryEntityCrudService implements EntityCrudService {
 
     private List<Object> sortList(List<Object> list, List<SortOrder> sortOrders, org.springframework.data.domain.Sort pageableSort) {
         if (sortOrders != null && !sortOrders.isEmpty()) {
-            Comparator<Object> comp = null;
-            for (SortOrder so : sortOrders) {
-                if (so == null || so.field() == null) {
-                    continue;
-                }
-                boolean desc = "desc".equalsIgnoreCase(so.dir());
-                Comparator<Object> c = Comparator.comparing(
-                        e -> getFieldValue(e, so.field(), e.getClass()),
-                        (a, b) -> {
-                            int r = compareForOp(a, b);
-                            return desc ? -r : r;
-                        });
-                comp = comp == null ? c : comp.thenComparing(c);
-            }
+            Comparator<Object> comp = getObjectComparator(sortOrders);
             if (comp != null) {
                 return list.stream().sorted(comp).toList();
             }
         }
         if (pageableSort != null && pageableSort.isSorted()) {
-            Comparator<Object> comp = null;
-            for (org.springframework.data.domain.Sort.Order o : pageableSort) {
-                boolean desc = o.isDescending();
-                Comparator<Object> c = Comparator.comparing(
-                        e -> getFieldValue(e, o.getProperty(), e.getClass()),
-                        (a, b) -> {
-                            int r = compareForOp(a, b);
-                            return desc ? -r : r;
-                        });
-                comp = comp == null ? c : comp.thenComparing(c);
-            }
+            Comparator<Object> comp = getComparator(pageableSort);
             if (comp != null) {
                 return list.stream().sorted(comp).toList();
             }
         }
         return list;
     }
-
+    
+    private Comparator<Object> getComparator(Sort pageableSort) {
+        Comparator<Object> comp = null;
+        for (Sort.Order o : pageableSort) {
+            boolean desc = o.isDescending();
+            Comparator<Object> c =
+                    Comparator.comparing(e -> getFieldValue(e, o.getProperty(), e.getClass()), (a, b) -> {
+                                             int r = compareForOp(a, b);
+                                             return desc ? -r : r;
+                                         }
+                    );
+            comp = comp == null ? c : comp.thenComparing(c);
+        }
+        return comp;
+    }
+    
+    private Comparator<Object> getObjectComparator(List<SortOrder> sortOrders) {
+        Comparator<Object> comp = null;
+        for (SortOrder so : sortOrders) {
+            if (so == null || so.field() == null) {
+                continue;
+            }
+            boolean desc = "desc".equalsIgnoreCase(so.dir());
+            Comparator<Object> c = Comparator.comparing(e -> getFieldValue(e, so.field(), e.getClass()), (a, b) -> {
+                                                            int r = compareForOp(a, b);
+                                                            return desc ? -r : r;
+                                                        }
+            );
+            comp = comp == null ? c : comp.thenComparing(c);
+        }
+        return comp;
+    }
+    
     @Override
     public Object get(EntityMeta entityMeta, Object id) {
         Map<Object, Object> map = store.get(entityMeta.getPathSegment());
@@ -247,7 +257,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return getValueOfObject(entity, findIdField(entity.getClass()));
     }
     
-    static Object getValueOfObject(Object entity, Field idField2) {
+    public static Object getValueOfObject(Object entity, Field idField2) {
         try {
             if (idField2 == null) {
                 return null;
@@ -287,7 +297,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         setValueOfObject(entity, id, findIdField(entity.getClass()));
     }
     
-    static void setValueOfObject(Object entity, Object id, Field idField2) {
+    public static void setValueOfObject(Object entity, Object id, Field idField2) {
         if (entity == null || id == null) {
             return;
         }

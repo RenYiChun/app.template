@@ -21,7 +21,7 @@ class MCodeTest {
         assertEquals("内部服务异常", MCode.EXCEPTION.getMessage());
 
         assertEquals(401, MCode.NO_PERMISSIONS.getCode());
-        assertEquals("没有权限访问对应的资源", MCode.NO_PERMISSIONS.getMessage());
+        assertEquals("未认证", MCode.NO_PERMISSIONS.getMessage());
     }
 
     @Test
