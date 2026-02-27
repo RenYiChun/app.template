@@ -4,7 +4,7 @@ import com.lrenyi.template.dataforge.annotation.DataforgeDto;
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
 import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import com.lrenyi.template.dataforge.annotation.DtoType;
-import com.lrenyi.template.dataforge.domain.BaseEntity;
+import com.lrenyi.template.dataforge.jpa.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;

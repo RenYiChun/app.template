@@ -1,10 +1,10 @@
 package com.lrenyi.template.dataforge.backend.init;
 
 import com.lrenyi.template.dataforge.backend.repository.UserRepository;
-import com.lrenyi.template.dataforge.domain.Permission;
-import com.lrenyi.template.dataforge.domain.Role;
-import com.lrenyi.template.dataforge.domain.RolePermission;
-import com.lrenyi.template.dataforge.domain.UserRole;
+import com.lrenyi.template.dataforge.backend.domain.Role;
+import com.lrenyi.template.dataforge.backend.domain.RolePermission;
+import com.lrenyi.template.dataforge.backend.domain.UserRole;
+import com.lrenyi.template.dataforge.backend.domain.Permission;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.util.List;
@@ -49,7 +49,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
 
     private Role ensureRoleExists() {
         TypedQuery<Role> q = entityManager.createQuery(
-                "SELECT r FROM com.lrenyi.template.dataforge.domain.Role r WHERE r.roleCode = :code",
+                "SELECT r FROM com.lrenyi.template.dataforge.backend.domain.Role r WHERE r.roleCode = :code",
                 Role.class);
         q.setParameter("code", ROLE_ADMIN_CODE);
         List<Role> list = q.getResultList();
@@ -65,7 +65,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
 
     private void ensureUserRoleExists(Long userId, Long roleId) {
         TypedQuery<Long> q = entityManager.createQuery(
-                "SELECT COUNT(ur) FROM com.lrenyi.template.dataforge.domain.UserRole ur " +
+                "SELECT COUNT(ur) FROM com.lrenyi.template.dataforge.backend.domain.UserRole ur " +
                 "WHERE ur.userId = :userId AND ur.role.id = :roleId",
                 Long.class);
         q.setParameter("userId", String.valueOf(userId));
@@ -86,8 +86,8 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
 
     private void ensureRoleHasPermission(Long roleId) {
         TypedQuery<Long> q = entityManager.createQuery(
-                "SELECT COUNT(rp) FROM com.lrenyi.template.dataforge.domain.RolePermission rp " +
-                "WHERE rp.role.id = :roleId",
+                "SELECT COUNT(rp) FROM com.lrenyi.template.dataforge.backend.domain.RolePermission rp "
+                + "WHERE rp.role.id = :roleId",
                 Long.class);
         q.setParameter("roleId", roleId);
         Long count2 = q.getSingleResult();
@@ -95,7 +95,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
             return;
         }
         TypedQuery<Permission> permQ = entityManager.createQuery(
-                "SELECT p FROM com.lrenyi.template.dataforge.domain.Permission p WHERE p.permission LIKE 'users:%'",
+                "SELECT p FROM com.lrenyi.template.dataforge.backend.domain.Permission p WHERE p.permission LIKE 'users:%'",
                 Permission.class);
         permQ.setMaxResults(1);
         List<Permission> perms = permQ.getResultList();

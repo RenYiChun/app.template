@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.dataforge.service.AuditLogService;
+import com.lrenyi.template.core.audit.OAuth2AuditRecorder;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,14 +25,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class OAuth2AuditFilter extends OncePerRequestFilter {
     
     private final TemplateConfigProperties properties;
-    private final ObjectProvider<AuditLogService> auditLogServiceProvider;
+    private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;
     private final ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider;
-    
+
     public OAuth2AuditFilter(TemplateConfigProperties properties,
-            ObjectProvider<AuditLogService> auditLogServiceProvider,
+            ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
         this.properties = properties;
-        this.auditLogServiceProvider = auditLogServiceProvider;
+        this.auditRecorderProvider = auditRecorderProvider;
         this.principalNameExtractorProvider = principalNameExtractorProvider;
     }
     
@@ -63,22 +63,21 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     }
     
     private void recordAudit(HttpServletRequest request, int status) {
-        AuditLogService logService = auditLogServiceProvider.getIfAvailable();
-        if (logService == null) {
+        OAuth2AuditRecorder recorder = auditRecorderProvider.getIfAvailable();
+        if (recorder == null) {
             return;
         }
         boolean success = status >= 200 && status < 400;
-        String uri = request.getRequestURI();
-        String desc = "oauth2 endpoint: " + request.getMethod() + " " + uri;
+        String desc = "oauth2 endpoint: " + request.getMethod() + " " + request.getRequestURI();
         String message = success ? "HTTP " + status : "";
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String userName = Optional.ofNullable(principalNameExtractorProvider.getIfAvailable())
                                   .flatMap(ext -> ext.extract(auth))
-                                  .orElse(auth != null ? logService.extractUserName(auth) : null);
+                                  .orElse(recorder.extractUserName(auth));
         if (userName == null) {
             userName = "";
         }
-        logService.recordAuditLog(request, userName, desc, success, message);
+        recorder.record(request, userName, desc, success, message);
     }
     
     private static final class StatusCapturingResponseWrapper extends HttpServletResponseWrapper {

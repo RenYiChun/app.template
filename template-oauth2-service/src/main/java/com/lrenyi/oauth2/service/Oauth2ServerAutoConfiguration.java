@@ -16,7 +16,7 @@ import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2RefreshTokenGenerator;
 import com.lrenyi.oauth2.service.oauth2.token.UuidOAuth2TokenGenerator;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.dataforge.service.AuditLogService;
+import com.lrenyi.template.core.audit.OAuth2AuditRecorder;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -105,9 +105,9 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public OAuth2AuditFilter oauth2AuditFilter(TemplateConfigProperties templateConfigProperties,
-            ObjectProvider<AuditLogService> auditLogServiceProvider,
+            ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
-        return new OAuth2AuditFilter(templateConfigProperties, auditLogServiceProvider,
+        return new OAuth2AuditFilter(templateConfigProperties, auditRecorderProvider,
                 principalNameExtractorProvider);
     }
     

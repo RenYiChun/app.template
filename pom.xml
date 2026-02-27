@@ -10,7 +10,6 @@
         <relativePath>./template-dependencies</relativePath>
     </parent>
     <artifactId>app.template</artifactId>
-    <version>2.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>App Template</name>
     <description>A quick-to-use template library focusing on Spring Boot Security and OAuth2</description>
@@ -56,7 +55,8 @@
         <module>template-cloud</module>
         <module>template-dataforge-processor</module>
         <module>template-dataforge</module>
-        <module>template-dataforge-model</module>
+        <module>template-dataforge-jpa</module>
+        <module>template-dataforge-mongodb</module>
         <module>template-dataforge-sample-backend</module>
     </modules>
 

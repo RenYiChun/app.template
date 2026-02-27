@@ -8,23 +8,31 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * 按 entity pathSegment 将 CRUD 请求路由到对应实现；未注册的实体走 defaultService。
+ * 按 entity pathSegment 或 storageType 将 CRUD 请求路由到对应实现。
+ * 路由优先级：pathSegment → storageType → defaultService。
  */
 public class EntityCrudServiceRouter implements EntityCrudService {
 
     private final EntityCrudService defaultService;
     private final Map<String, EntityCrudService> pathSegmentToDelegate;
+    private final Map<String, EntityCrudService> storageTypeToDelegate;
 
     public EntityCrudServiceRouter(EntityCrudService defaultService,
-                                   Map<String, EntityCrudService> pathSegmentToDelegate) {
+                                   Map<String, EntityCrudService> pathSegmentToDelegate,
+                                   Map<String, EntityCrudService> storageTypeToDelegate) {
         this.defaultService = defaultService;
         this.pathSegmentToDelegate = pathSegmentToDelegate != null ? pathSegmentToDelegate : Map.of();
+        this.storageTypeToDelegate = storageTypeToDelegate != null ? storageTypeToDelegate : Map.of();
     }
 
     private EntityCrudService target(EntityMeta entityMeta) {
         String pathSegment = entityMeta != null ? entityMeta.getPathSegment() : null;
         if (pathSegment != null && pathSegmentToDelegate.containsKey(pathSegment)) {
             return pathSegmentToDelegate.get(pathSegment);
+        }
+        String storageType = entityMeta != null ? entityMeta.getStorageType() : null;
+        if (storageType != null && !storageType.isBlank() && storageTypeToDelegate.containsKey(storageType)) {
+            return storageTypeToDelegate.get(storageType);
         }
         return defaultService;
     }

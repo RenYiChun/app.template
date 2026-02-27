@@ -513,18 +513,21 @@ logging:
 ### 自定义日志处理
 
 ```java
+import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
+import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
+
 @Component
 public class CustomLogProcessor implements AuditLogProcessor {
-    
+
     @Override
     public void process(AuditLogInfo auditLogInfo) {
         // 自定义日志处理逻辑
         System.out.println("审计日志: " + auditLogInfo);
-        
+
         // 可以保存到数据库或其他存储
         saveLogToDatabase(auditLogInfo);
     }
-    
+
     private void saveLogToDatabase(AuditLogInfo auditLogInfo) {
         // 实现日志保存逻辑
     }

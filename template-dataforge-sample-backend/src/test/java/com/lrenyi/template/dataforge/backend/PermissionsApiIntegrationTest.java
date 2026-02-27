@@ -3,9 +3,8 @@ package com.lrenyi.template.dataforge.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.lrenyi.template.dataforge.PermissionConfiguration;
+import com.lrenyi.template.dataforge.rbac.PermissionInitializer;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
-import com.lrenyi.template.dataforge.config.PermissionInitializer;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +12,6 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -25,7 +23,6 @@ import org.springframework.http.ResponseEntity;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         classes = DataforgeSampleApplication.class
 )
-@Import(PermissionConfiguration.class)
 class PermissionsApiIntegrationTest {
 
     @LocalServerPort
@@ -46,14 +43,14 @@ class PermissionsApiIntegrationTest {
     @Test
     void permissionsListShouldNotBeEmptyAfterRbacInit() {
         assertThat(permissionInitializer)
-                .as("PermissionInitializer 应由 PermissionConfiguration 注册（需 JPA）")
+                .as("PermissionInitializer 应由 DataforgeRbacAutoConfiguration 注册（需 JPA + RbacPermissionSync）")
                 .isNotNull();
         assertThat(entityRegistry.getAll())
-                .as("实体应由 scan-packages 注册，请确认 app.dataforge.scan-packages 含 dataforge.domain")
+                .as("实体应由 scan-packages 注册，请确认 app.dataforge.scan-packages 已包含实体包")
                 .isNotEmpty();
         permissionInitializer.run(new DefaultApplicationArguments());
         Long count = entityManager.createQuery(
-                        "SELECT COUNT(p) FROM com.lrenyi.template.dataforge.domain.Permission p", Long.class)
+                        "SELECT COUNT(p) FROM com.lrenyi.template.dataforge.backend.domain.Permission p", Long.class)
                 .getSingleResult();
         assertThat(count)
                 .as("run() 后 sys_permission 应有记录")

@@ -1,14 +1,14 @@
 package com.lrenyi.oauth2.service.oauth2.jdbc;
 
 import com.lrenyi.oauth2.service.config.OAuth2ClientPropertiesMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * authorization.store-type=jdbc 时，在表已创建且客户端表为空的情况下，从配置写入初始客户端，与 Redis 的 ensureClientsInitialized 语义一致。
@@ -29,7 +29,7 @@ public class OAuth2InitialDataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         RegisteredClient[] clients = OAuth2ClientPropertiesMapper.fromProperties(properties);
-        if (clients == null || clients.length == 0) {
+        if (clients.length == 0) {
             return;
         }
         int seeded = 0;

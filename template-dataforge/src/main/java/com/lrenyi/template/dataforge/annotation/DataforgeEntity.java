@@ -103,6 +103,13 @@ public @interface DataforgeEntity {
      * 主键类型（Long、String、UUID 等）。默认 void 表示未指定，由扫描时从实体 id 字段类型推断。
      */
     Class<?> primaryKeyType() default void.class;
+    
+    /**
+     * 存储类型，用于路由到对应的 CrudService。
+     * 支持 SPI 扩展：使用 {@link com.lrenyi.template.dataforge.annotation.StorageTypes} 常量或自定义字符串。
+     * 自定义存储需实现 {@link com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService} 并注册为 Bean。
+     */
+    String storage() default "jpa";
 
     // ==================== 新增生产级属性 ====================
 

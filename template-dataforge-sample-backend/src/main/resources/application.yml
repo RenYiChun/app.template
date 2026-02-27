@@ -38,7 +38,7 @@ spring:
 app:
   dataforge:
     api-prefix: /api
-    scan-packages: com.lrenyi.template.dataforge.backend,com.lrenyi.template.dataforge.domain
+    scan-packages: com.lrenyi.template.dataforge.backend
     permission-enabled: false
   template:
     enabled: true

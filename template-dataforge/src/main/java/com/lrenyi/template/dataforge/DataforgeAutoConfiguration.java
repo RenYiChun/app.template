@@ -18,6 +18,7 @@ import com.lrenyi.template.dataforge.service.EntityCrudService;
 import com.lrenyi.template.dataforge.service.EntityCrudServiceRouter;
 import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
 import com.lrenyi.template.dataforge.service.PathSegmentAwareCrudService;
+import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
 import com.lrenyi.template.dataforge.support.DataforgeAspect;
 import io.micrometer.core.instrument.MeterRegistry;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
@@ -74,7 +75,8 @@ public class DataforgeAutoConfiguration {
     @ConditionalOnMissingBean(EntityCrudService.class)
     public EntityCrudService entityCrudService(
             @Qualifier("defaultEntityCrudService") EntityCrudService defaultService,
-            List<PathSegmentAwareCrudService> pathSegmentAwareServices) {
+            List<PathSegmentAwareCrudService> pathSegmentAwareServices,
+            ObjectProvider<List<StorageTypeAwareCrudService>> storageTypeAwareServicesProvider) {
         Map<String, EntityCrudService> pathSegmentToDelegate = new LinkedHashMap<>();
         if (pathSegmentAwareServices != null) {
             for (PathSegmentAwareCrudService service : pathSegmentAwareServices) {
@@ -84,7 +86,18 @@ public class DataforgeAutoConfiguration {
                 }
             }
         }
-        return new EntityCrudServiceRouter(defaultService, pathSegmentToDelegate);
+        Map<String, EntityCrudService> storageTypeToDelegate = new LinkedHashMap<>();
+        List<StorageTypeAwareCrudService> storageTypeAwareServices =
+                storageTypeAwareServicesProvider.getIfAvailable(() -> List.of());
+        if (storageTypeAwareServices != null) {
+            for (StorageTypeAwareCrudService service : storageTypeAwareServices) {
+                String st = service.getStorageType();
+                if (st != null && !st.isBlank() && !storageTypeToDelegate.containsKey(st)) {
+                    storageTypeToDelegate.put(st, service);
+                }
+            }
+        }
+        return new EntityCrudServiceRouter(defaultService, pathSegmentToDelegate, storageTypeToDelegate);
     }
 
     @Bean

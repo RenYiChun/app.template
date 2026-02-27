@@ -1,12 +1,11 @@
 package com.lrenyi.oauth2.service.oauth2;
 
 import java.io.IOException;
-import com.lrenyi.template.dataforge.service.AuditLogService;
+import com.lrenyi.template.core.audit.OAuth2AuditRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
@@ -21,11 +20,18 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component
-@AllArgsConstructor
 public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandler {
     private final OAuth2AuthorizationService oAuth2AuthorizationService;
-    private final ObjectProvider<AuditLogService> auditLogService;
+    private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;
     private final MeterRegistry meterRegistry;
+    
+    public TemplateLogOutHandler(OAuth2AuthorizationService oAuth2AuthorizationService,
+            ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
+            MeterRegistry meterRegistry) {
+        this.oAuth2AuthorizationService = oAuth2AuthorizationService;
+        this.auditRecorderProvider = auditRecorderProvider;
+        this.meterRegistry = meterRegistry;
+    }
 
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
@@ -55,9 +61,9 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
             exceptionDetails = e.getMessage();
             log.error("Logout failed for user {}", userName, e);
         } finally {
-            AuditLogService logService = auditLogService.getIfAvailable();
-            if (logService != null) {
-                logService.recordAuditLog(request, userName, "logout", success, exceptionDetails);
+            OAuth2AuditRecorder recorder = auditRecorderProvider.getIfAvailable();
+            if (recorder != null) {
+                recorder.record(request, userName != null ? userName : "", "logout", success, exceptionDetails);
             }
         }
     }

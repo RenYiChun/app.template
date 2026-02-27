@@ -27,6 +27,7 @@ public class EntityMeta {
     private boolean deleteBatchEnabled = true;
     private boolean exportEnabled = true;
     private Class<?> primaryKeyType = Long.class;
+    private String storageType = "jpa";
     private String permissionCreate = "";
     private String permissionRead = "";
     private String permissionUpdate = "";

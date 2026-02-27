@@ -19,7 +19,7 @@ import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import com.lrenyi.template.dataforge.annotation.DataforgeImport;
 import com.lrenyi.template.dataforge.annotation.DtoType;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
-import com.lrenyi.template.dataforge.domain.BaseEntity;
+import com.lrenyi.template.dataforge.domain.DataforgePersistable;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
@@ -136,7 +136,7 @@ public class MetaScanner {
         if (ann == null) {
             return;
         }
-        validateExtendsBaseEntity(clazz);
+        validateImplementsDataforgePersistable(clazz);
         EntityMeta meta = buildEntityMeta(clazz, ann);
         meta.setEntityClass(clazz);
         entityRegistry.register(meta);
@@ -168,9 +168,9 @@ public class MetaScanner {
         }
     }
 
-    private static void validateExtendsBaseEntity(Class<?> clazz) {
-        if (!BaseEntity.class.isAssignableFrom(clazz)) {
-            throw new IllegalStateException("@DataforgeEntity 实体 " + clazz.getName() + " 必须继承 BaseEntity<ID>");
+    private static void validateImplementsDataforgePersistable(Class<?> clazz) {
+        if (!DataforgePersistable.class.isAssignableFrom(clazz)) {
+            throw new IllegalStateException("@DataforgeEntity 实体 " + clazz.getName() + " 必须实现 DataforgePersistable<ID>");
         }
     }
 
@@ -203,7 +203,8 @@ public class MetaScanner {
                 ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
         Class<?> pkType = ann.primaryKeyType() != void.class ? ann.primaryKeyType() : inferPrimaryKeyType(clazz);
         meta.setPrimaryKeyType(pkType);
-        
+        meta.setStorageType(ann.storage());
+
         // ==================== 新增生产级属性设置 ====================
         meta.setDescription(ann.description());
         meta.setDefaultSortField(ann.defaultSortField());
@@ -259,7 +260,8 @@ public class MetaScanner {
             Type genericSuperclass = c.getGenericSuperclass();
             if (genericSuperclass instanceof ParameterizedType pt) {
                 Type rawType = pt.getRawType();
-                if (rawType == BaseEntity.class) {
+                // BaseEntity<ID>、MongoBaseDocument<ID> 等实现 DataforgePersistable 的基类
+                if (rawType instanceof Class<?> rawClass && DataforgePersistable.class.isAssignableFrom(rawClass)) {
                     Type idType = pt.getActualTypeArguments()[0];
                     if (idType instanceof Class<?> idClass) {
                         return idClass;
@@ -271,11 +273,11 @@ public class MetaScanner {
         return inferFromIdField(clazz);
     }
 
-    /** 泛型擦除时的回退：遍历类层级，从 id 字段或 @Id 注解字段推断类型。 */
+    /** 泛型擦除时的回退：遍历类层级，从 id 字段推断类型（存储无关）。 */
     private static Class<?> inferFromIdField(Class<?> clazz) {
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
-                if ("id".equals(f.getName()) || f.getAnnotation(jakarta.persistence.Id.class) != null) {
+                if ("id".equals(f.getName())) {
                     return f.getType();
                 }
             }

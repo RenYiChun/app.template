@@ -189,12 +189,12 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-dataforge-processor</artifactId>
+                <artifactId>template-dataforge-jpa</artifactId>
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-dataforge-model</artifactId>
+                <artifactId>template-dataforge-processor</artifactId>
                 <version>${app.template.version}</version>
             </dependency>
             <dependency>

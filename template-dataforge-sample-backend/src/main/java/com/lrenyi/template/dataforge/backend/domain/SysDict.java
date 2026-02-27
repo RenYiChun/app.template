@@ -1,7 +1,7 @@
 package com.lrenyi.template.dataforge.backend.domain;
 
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
-import com.lrenyi.template.dataforge.domain.BaseEntity;
+import com.lrenyi.template.dataforge.jpa.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
