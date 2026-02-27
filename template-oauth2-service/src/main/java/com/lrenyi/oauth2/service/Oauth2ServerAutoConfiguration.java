@@ -1,9 +1,11 @@
 package com.lrenyi.oauth2.service;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Base64;
 import java.util.Map;
-import java.util.UUID;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuditFilter;
 import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
@@ -81,14 +83,28 @@ public class Oauth2ServerAutoConfiguration {
         RSAPublicKey publicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
         RSAPrivateKey privateKey = rsaPublicAndPrivateKey.templateRSAPrivateKey();
         
-        // 使用公钥的指纹或固定值作为 kid，确保重启后一致
-        // 简单起见，这里可以使用一个基于公钥内容的哈希值，或者固定的值（如果密钥对是固定的）
-        // 假设 rsaPublicAndPrivateKey 配置是稳定的，我们可以尝试计算一个稳定的 ID
-        String kid = String.valueOf(publicKey.hashCode());
+        // 使用公钥内容的 SHA-256 指纹作为 kid，确保相同密钥在重启后得到一致的 kid
+        String kid = computeStableKeyId(publicKey);
         rsaPublicAndPrivateKey.setKid(kid);
         RSAKey rsaKey = new RSAKey.Builder(publicKey).privateKey(privateKey).keyID(kid).build();
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
+    }
+    
+    /**
+     * 基于公钥内容计算稳定的 kid，确保相同密钥在应用重启、多实例部署时得到一致结果。
+     */
+    private static String computeStableKeyId(RSAPublicKey publicKey) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(publicKey.getEncoded());
+            // 取前 16 字节，Base64URL 编码，得到约 22 字符的稳定 kid
+            byte[] prefix = new byte[Math.min(16, hash.length)];
+            System.arraycopy(hash, 0, prefix, 0, prefix.length);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(prefix);
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("SHA-256 不可用，退回到 hashCode 生成 kid", e);
+            return String.valueOf(publicKey.hashCode());
+        }
     }
     
     @Bean
