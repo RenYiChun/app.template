@@ -67,7 +67,10 @@ Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇
 
 ```java
 TemplateConfigProperties.JobGlobal global = new TemplateConfigProperties.JobGlobal();
-global.setProgressDisplaySecond(0);
+global.
+
+setProgressDisplaySecond(0);
+
 TemplateConfigProperties.JobConfig jobConfig = new TemplateConfigProperties.JobConfig();
 
 FlowManager manager = FlowManager.getInstance(global);
@@ -76,9 +79,15 @@ FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 FlowJoiner<MyItem> joiner = new MyOverwriteJoiner(); // 实现 getDataType/joinKey/sourceProvider/onSuccess/onFailed 等
 FlowSource<MyItem> singleSource = FlowSourceAdapters.fromIterator(myList.iterator(), null);
 
-engine.run("job-1", joiner, singleSource, myList.size(), jobConfig);
+engine.
+
+run("job-1",joiner, singleSource, myList.size(),jobConfig);
 ProgressTracker tracker = engine.getProgressTracker("job-1");
-tracker.getCompletionFuture().get(30, TimeUnit.SECONDS);
+tracker.
+
+getCompletionFuture().
+
+get(30,TimeUnit.SECONDS);
 ```
 
 - 若总量未知，`total` 可传 `-1`。
@@ -91,10 +100,20 @@ tracker.getCompletionFuture().get(30, TimeUnit.SECONDS);
 
 ```java
 DefaultProgressTracker tracker = new DefaultProgressTracker("job-2", manager);
-tracker.setTotalExpected("job-2", totalItemCount);
-joiner.setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
-engine.run("job-2", joiner, tracker, jobConfig);
-tracker.getCompletionFuture().get(30, TimeUnit.SECONDS);
+tracker.
+
+setTotalExpected("job-2",totalItemCount);
+joiner.
+
+setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
+        engine.
+
+run("job-2",joiner, tracker, jobConfig);
+tracker.
+
+getCompletionFuture().
+
+get(30,TimeUnit.SECONDS);
 ```
 
 ---
@@ -105,11 +124,20 @@ tracker.getCompletionFuture().get(30, TimeUnit.SECONDS);
 
 ```java
 FlowInlet<MyItem> inlet = engine.startPush("job-3", joiner, jobConfig);
-for (MyItem item : items) {
-    inlet.push(item);
+for(
+MyItem item :items){
+        inlet.
+
+push(item);
 }
-inlet.markSourceFinished();
-inlet.getCompletionFuture().get(30, TimeUnit.SECONDS);
+        inlet.
+
+markSourceFinished();
+inlet.
+
+getCompletionFuture().
+
+get(30,TimeUnit.SECONDS);
 ```
 
 - 未调用 `markSourceFinished()` 就调用 `inlet.stop(true)` 时，`getCompletionFuture()` 可能不会完成；若需提前结束，可
@@ -177,7 +205,10 @@ inlet.getCompletionFuture().get(30, TimeUnit.SECONDS);
 ```java
 // 1. 配置与引擎
 TemplateConfigProperties.JobGlobal global = new TemplateConfigProperties.JobGlobal();
-global.setProgressDisplaySecond(0);
+global.
+
+setProgressDisplaySecond(0);
+
 TemplateConfigProperties.JobConfig jobConfig = new TemplateConfigProperties.JobConfig();
 
 FlowManager manager = FlowManager.getInstance(global);
@@ -186,34 +217,57 @@ FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 // 2. Joiner：Caffeine + 单条消费（覆盖语义），推送模式可不用 source，此处用 emptyProvider）
 FlowJoiner<MyItem> joiner = new FlowJoiner<MyItem>() {
     @Override
-    public FlowStorageType getStorageType() { return FlowStorageType.CAFFEINE; }
+    public FlowStorageType getStorageType() {return FlowStorageType.CAFFEINE;}
+    
     @Override
-    public Class<MyItem> getDataType() { return MyItem.class; }
+    public Class<MyItem> getDataType() {return MyItem.class;}
+    
     @Override
-    public FlowSourceProvider<MyItem> sourceProvider() { return FlowSourceAdapters.emptyProvider(); }
+    public FlowSourceProvider<MyItem> sourceProvider() {return FlowSourceAdapters.emptyProvider();}
+    
     @Override
-    public String joinKey(MyItem item) { return item.getId(); }
+    public String joinKey(MyItem item) {return item.getId();}
+    
     @Override
     public void onSuccess(MyItem existing, MyItem incoming, String jobId) {}
+    
     @Override
     public void onConsume(MyItem item, String jobId) { /* 处理单条 */ }
+    
     @Override
     public void onFailed(MyItem item, String jobId) {}
 };
 
 // 3. 单流拉取
 FlowSource<MyItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
-engine.run("job-single", joiner, source, list.size(), jobConfig);
-engine.getProgressTracker("job-single").getCompletionFuture().get(30, TimeUnit.SECONDS);
+engine.
+
+run("job-single",joiner, source, list.size(),jobConfig);
+        engine.
+
+getProgressTracker("job-single").
+
+getCompletionFuture().
+
+get(30,TimeUnit.SECONDS);
 ```
 
 ### 推送
 
 ```java
 FlowInlet<MyItem> inlet = engine.startPush("job-push", joiner, jobConfig);
-for (MyItem item : list) inlet.push(item);
-inlet.markSourceFinished();
-inlet.getCompletionFuture().get(30, TimeUnit.SECONDS);
+for(
+MyItem item :list)inlet.
+
+push(item);
+inlet.
+
+markSourceFinished();
+inlet.
+
+getCompletionFuture().
+
+get(30,TimeUnit.SECONDS);
 ```
 
 完整可运行示例见 [FlowJoinerEngineIntegrationTest](template-core/src/test/java/com/lrenyi/template/core/flow/it/FlowJoinerEngineIntegrationTest.java)。

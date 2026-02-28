@@ -51,11 +51,11 @@
 ### 1. 应用入口
 
 ```ts
-import { createDataforge } from '@lrenyi/dataforge-headless/vue';
+import {createDataforge} from '@lrenyi/dataforge-headless/vue';
 
 createDataforge({
-  client: { baseURL: '', apiPrefix: '/api' },
-  auth: { onUnauthorized: () => router.push('/login') },
+    client: {baseURL: '', apiPrefix: '/api'},
+    auth: {onUnauthorized: () => router.push('/login')},
 });
 app.use(dataforge);
 ```
@@ -63,7 +63,8 @@ app.use(dataforge);
 ### 2. 零配置列表页（用 UI 包）
 
 ```vue
-<EntityCrudPage entity="users" @create="..." @edit="..." @delete="..." />
+
+<EntityCrudPage entity="users" @create="..." @edit="..." @delete="..."/>
 ```
 
 - 列由 **meta（后端 OpenAPI）** 解析，UI 包的 `useEntityCrud` 内部会：拉 meta → `resolveColumns(entity, meta)` → 得到
@@ -73,9 +74,9 @@ app.use(dataforge);
 ### 3. 组合式用法（仅用 headless 时）
 
 ```ts
-const { client, meta } = getDataforge();
-const { meta: entityMetaRef } = useEntityMeta(meta, entity);
-const { items, total, loading, filters, page, size, search } = useEntityCrud(client, entity);
+const {client, meta} = getDataforge();
+const {meta: entityMetaRef} = useEntityMeta(meta, entity);
+const {items, total, loading, filters, page, size, search} = useEntityCrud(client, entity);
 
 const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []);
 ```
@@ -88,14 +89,14 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 当后端 schema 没有友好 label，或需要对某几列做格式化时，再用注册表**覆盖**，而不是重新定义整张表：
 
 ```ts
-import { registerEntityConfig } from '@lrenyi/dataforge-headless/vue';
+import {registerEntityConfig} from '@lrenyi/dataforge-headless/vue';
 
 registerEntityConfig('users', {
-  displayName: '用户',
-  columns: [
-    { prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用') },
-  ],
-  searchFields: ['username', 'status'],
+    displayName: '用户',
+    columns: [
+        {prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用')},
+    ],
+    searchFields: ['username', 'status'],
 });
 ```
 

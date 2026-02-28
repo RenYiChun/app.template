@@ -91,19 +91,20 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         public void sendError(int sc, String msg) throws IOException {
             this.status = sc;
             super.sendError(sc, msg);
-        }        @Override
-        public void setStatus(int sc) {
-            this.status = sc;
-            super.setStatus(sc);
         }
         
         @Override
         public void sendError(int sc) throws IOException {
             this.status = sc;
             super.sendError(sc);
+        }        @Override
+        public void setStatus(int sc) {
+            this.status = sc;
+            super.setStatus(sc);
         }
         
 
+        
         
         @Override
         public int getStatus() {

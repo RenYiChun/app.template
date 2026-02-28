@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.MismatchPairingJoiner;
 import com.lrenyi.template.flow.OverwriteJoiner;
@@ -156,8 +156,7 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(total, snapshot.terminated());
         assertEquals(total, joiner.getConsumedCount());
         List<PairItem> order = joiner.getConsumedOrder();
-        Set<String> consumedIds = order.stream().map(PairItem::getId)
-                .collect(Collectors.toSet());
+        Set<String> consumedIds = order.stream().map(PairItem::getId).collect(Collectors.toSet());
         Set<String> expectedIds = new HashSet<>();
         for (int i = 0; i < total; i++) {
             expectedIds.add("q" + i);

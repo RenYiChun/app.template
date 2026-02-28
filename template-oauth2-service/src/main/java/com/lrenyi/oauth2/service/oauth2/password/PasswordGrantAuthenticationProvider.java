@@ -81,12 +81,14 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         UserDetails userDetails = validateAndLoadUser(username, type, parameters);
         
         // 使用 UserDetails 创建 Authentication，而不是继续使用 Client Principal
-        Authentication userPrincipal = new UsernamePasswordAuthenticationToken(
-            userDetails, userDetails.getPassword(), userDetails.getAuthorities());
-
-        Set<String> authorizedScopes = userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
-
+        Authentication userPrincipal = new UsernamePasswordAuthenticationToken(userDetails,
+                                                                               userDetails.getPassword(),
+                                                                               userDetails.getAuthorities()
+        );
+        
+        Set<String> authorizedScopes =
+                userDetails.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
+        
         OAuth2Token generatedAccessToken = generateAccessToken(client, userPrincipal, grantToken, authorizedScopes);
         OAuth2AccessToken accessToken = getAuth2AccessToken(generatedAccessToken, authorizedScopes);
         DefaultOAuth2TokenContext.Builder refreshContextBuilder =

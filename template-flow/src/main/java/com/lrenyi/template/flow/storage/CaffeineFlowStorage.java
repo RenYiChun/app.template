@@ -37,13 +37,13 @@ import lombok.extern.slf4j.Slf4j;
 public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private static final int STRIPE_COUNT = 256;
     private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
-
+    
     static {
         for (int i = 0; i < STRIPE_COUNT; i++) {
             KEY_STRIPES[i] = new ReentrantLock();
         }
     }
-
+    
     @Getter
     private final FlowFinalizer<T> finalizer;
     private final Cache<String, FlowEntry<T>> cache;

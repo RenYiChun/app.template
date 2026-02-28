@@ -15,15 +15,19 @@ refactor(core): simplify FlowManager
 
 ```markdown
 ### Features
+
 - (auth) Add JWT support
 
 ### Bug Fixes
+
 - (api) Handle null response
 
 ### Documentation
+
 - Update README
 
 ### Refactoring
+
 - (core) Simplify FlowManager
 ```
 
@@ -42,15 +46,19 @@ refactor(core): simplify FlowManager
 
 ```markdown
 ### Refactoring
+
 - 优化代码
 
 ### Tests
+
 - 增加单元测试
 
 ### Bug Fixes
+
 - 修复空指针问题
 
 ### Documentation
+
 - 增加文档
 ```
 
@@ -68,6 +76,7 @@ refactor(core): simplify FlowManager
 
 ```markdown
 ### Refactoring
+
 - 优化代码
 - 优化全局资源管理
 ```

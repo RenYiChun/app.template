@@ -15,17 +15,17 @@ npm install @lrenyi/dataforge-headless element-plus
 在应用入口（如 `main.ts`）初始化：
 
 ```ts
-import { createApp } from 'vue';
+import {createApp} from 'vue';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 import App from './App.vue';
-import { createDataforge } from '@lrenyi/dataforge-headless/vue';
+import {createDataforge} from '@lrenyi/dataforge-headless/vue';
 
 createDataforge({
-  client: {
-    baseURL: import.meta.env.VITE_API_BASE_URL || '',
-    apiPrefix: '/api',
-  },
+    client: {
+        baseURL: import.meta.env.VITE_API_BASE_URL || '',
+        apiPrefix: '/api',
+    },
 });
 
 const app = createApp(App);
@@ -36,43 +36,45 @@ app.mount('#app');
 ### 2. 零配置 CRUD 页
 
 ```vue
+
 <template>
   <EntityCrudPage
-    entity="users"
-    @create="router.push('/users/create')"
-    @view="(row) => router.push(`/users/${row.id}`)"
-    @edit="(row) => router.push(`/users/edit/${row.id}`)"
-    @delete="handleDelete"
+      entity="users"
+      @create="router.push('/users/create')"
+      @view="(row) => router.push(`/users/${row.id}`)"
+      @edit="(row) => router.push(`/users/edit/${row.id}`)"
+      @delete="handleDelete"
   />
 </template>
 
 <script setup lang="ts">
-import { EntityCrudPage } from '@lrenyi/dataforge-headless/vue';
-import { useRouter } from 'vue-router';
+  import {EntityCrudPage} from '@lrenyi/dataforge-headless/vue';
+  import {useRouter} from 'vue-router';
 
-const router = useRouter();
+  const router = useRouter();
 
-const handleDelete = async (row: Record<string, unknown>) => {
-  // 使用确认框后调用删除
-};
+  const handleDelete = async (row: Record<string, unknown>) => {
+    // 使用确认框后调用删除
+  };
 </script>
 ```
 
 ### 3. 组合式用法（高度定制）
 
 ```vue
+
 <template>
   <el-card>
     <EntitySearchBar
-      :entity-meta="entityMetaRef"
-      v-model="filters"
-      @search="search"
+        :entity-meta="entityMetaRef"
+        v-model="filters"
+        @search="search"
     />
     <EntityTable
-      :columns="columns"
-      :items="items"
-      :loading="loading"
-      @view="handleView"
+        :columns="columns"
+        :items="items"
+        :loading="loading"
+        @view="handleView"
     >
       <template #column-status="{ row, value }">
         <el-tag :type="value === 1 ? 'success' : 'info'">
@@ -81,40 +83,40 @@ const handleDelete = async (row: Record<string, unknown>) => {
       </template>
     </EntityTable>
     <el-pagination
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="total"
-      @current-change="search"
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        @current-change="search"
     />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import {
-  getDataforge,
-  useEntityCrud,
-  useEntityMeta,
-  EntityTable,
-  EntitySearchBar,
-  resolveColumns,
-} from '@lrenyi/dataforge-headless/vue';
+  import {
+    getDataforge,
+    useEntityCrud,
+    useEntityMeta,
+    EntityTable,
+    EntitySearchBar,
+    resolveColumns,
+  } from '@lrenyi/dataforge-headless/vue';
 
-const { client, meta } = getDataforge();
-const entity = 'users';
+  const {client, meta} = getDataforge();
+  const entity = 'users';
 
-const { meta: entityMetaRef } = useEntityMeta(meta, entity);
+  const {meta: entityMetaRef} = useEntityMeta(meta, entity);
 
-const {
-  items,
-  total,
-  loading,
-  filters,
-  page,
-  size,
-  search,
-} = useEntityCrud(client, entity);
+  const {
+    items,
+    total,
+    loading,
+    filters,
+    page,
+    size,
+    search,
+  } = useEntityCrud(client, entity);
 
-const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []);
+  const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []);
 </script>
 ```
 
@@ -126,16 +128,16 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 **初始化时配置 auth**（含 401 回调）：
 
 ```ts
-import { createDataforge } from '@lrenyi/dataforge-headless/vue';
-import { useRouter } from 'vue-router';
+import {createDataforge} from '@lrenyi/dataforge-headless/vue';
+import {useRouter} from 'vue-router';
 
 const router = useRouter();
 
 createDataforge({
-  client: { baseURL: 'http://localhost:8080' },
-  auth: {
-    onUnauthorized: () => router.push('/login'),
-  },
+    client: {baseURL: 'http://localhost:8080'},
+    auth: {
+        onUnauthorized: () => router.push('/login'),
+    },
 });
 ```
 
@@ -144,13 +146,14 @@ createDataforge({
 使用 `useAuth` 组合式 API 自定义登录页。
 
 ```vue
+
 <template>
   <el-form :model="form" @submit.prevent="handleLogin">
     <el-form-item>
-      <el-input v-model="form.username" placeholder="用户名" />
+      <el-input v-model="form.username" placeholder="用户名"/>
     </el-form-item>
     <el-form-item>
-      <el-input v-model="form.password" type="password" placeholder="密码" />
+      <el-input v-model="form.password" type="password" placeholder="密码"/>
     </el-form-item>
     <el-form-item>
       <el-button type="primary" @click="handleLogin">登录</el-button>
@@ -159,18 +162,18 @@ createDataforge({
 </template>
 
 <script setup lang="ts">
-import { useAuth } from '@lrenyi/dataforge-headless/vue';
-import { useRouter } from 'vue-router';
-import { reactive } from 'vue';
+  import {useAuth} from '@lrenyi/dataforge-headless/vue';
+  import {useRouter} from 'vue-router';
+  import {reactive} from 'vue';
 
-const { login } = useAuth();
-const router = useRouter();
-const form = reactive({ username: '', password: '' });
+  const {login} = useAuth();
+  const router = useRouter();
+  const form = reactive({username: '', password: ''});
 
-const handleLogin = async () => {
-  await login(form);
-  router.push('/');
-};
+  const handleLogin = async () => {
+    await login(form);
+    router.push('/');
+  };
 </script>
 ```
 
@@ -201,15 +204,15 @@ const handleLogin = async () => {
 ### 实体配置
 
 ```ts
-import { registerEntityConfig } from '@lrenyi/dataforge-headless/vue';
+import {registerEntityConfig} from '@lrenyi/dataforge-headless/vue';
 
 registerEntityConfig('users', {
-  displayName: '用户',
-  columns: [
-    { prop: 'username', label: '用户名' },
-    { prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用') },
-  ],
-  searchFields: ['username', 'status'],
+    displayName: '用户',
+    columns: [
+        {prop: 'username', label: '用户名'},
+        {prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用')},
+    ],
+    searchFields: ['username', 'status'],
 });
 ```
 

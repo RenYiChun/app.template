@@ -1,7 +1,7 @@
 package com.lrenyi.template.dataforge.backend;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.lrenyi.template.dataforge.rbac.PermissionInitializer;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
@@ -60,10 +60,12 @@ class PermissionsApiIntegrationTest {
         String url = "http://localhost:" + port + "/api/permissions/search";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                url,
-                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
-                JsonNode.class);
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(url,
+                                                                       new HttpEntity<>(Map.of("page", 0, "size", 20),
+                                                                                        headers
+                                                                       ),
+                                                                       JsonNode.class
+        );
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();

@@ -43,7 +43,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         }, FlowConstants.THREAD_NAME_SHUTDOWN_HOOK
         ));
     }
-
+    
     private final TemplateConfigProperties.Flow flowConfig;
     private final Semaphore globalSemaphore;
     private final FlowExecutorProvider executorProvider;

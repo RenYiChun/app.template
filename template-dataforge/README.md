@@ -57,6 +57,7 @@ app:
 时仍使用内存实现（仅演示用）。
 
 ```xml
+
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -124,16 +125,16 @@ app:
 ### 自定义 SecurityFilterChain 示例
 
 ```java
+
 @Configuration
 @EnableWebSecurity
 public class ProductionSecurityConfig {
-
+    
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(a -> a
-                .requestMatchers("/docs", "/api/docs").authenticated()  // 文档需认证
-                .requestMatchers("/api/**").authenticated()             // API 需认证
-                .anyRequest().denyAll());
+        http.authorizeHttpRequests(a -> a.requestMatchers("/docs", "/api/docs").authenticated()  // 文档需认证
+                                         .requestMatchers("/api/**").authenticated()             // API 需认证
+                                         .anyRequest().denyAll());
         // 按需配置 oauth2ResourceServer、formLogin 等
         return http.build();
     }
@@ -153,22 +154,22 @@ if 分支），优先用**方式三**。
    判断：需要特殊逻辑的走自己的代码，其余调用 `defaultService.list(entityMeta, pageable)` 等。
 
 ```java
+
 @Primary
 @Component
 public class MyEntityCrudService implements EntityCrudService {
     private final EntityCrudService defaultService;
-
+    
     public MyEntityCrudService(@Qualifier("defaultEntityCrudService") EntityCrudService defaultService) {
         this.defaultService = defaultService;
     }
-
+    
     @Override
     public Object create(EntityMeta entityMeta, Object body) {
         if ("users".equals(entityMeta.getPathSegment())) {
             // 用户创建前校验、加密等
             return ...;
-        }
-        return defaultService.create(entityMeta, body);
+        } return defaultService.create(entityMeta, body);
     }
     // list/get/update/delete 同理：特殊实体自己实现，其余 defaultService.xxx(...)
 }
@@ -180,20 +181,20 @@ public class MyEntityCrudService implements EntityCrudService {
 `@Primary`，且所有实体请求都会先进入该类。
 
 ```java
+
 @Primary
 @Component
 public class MyEntityCrudService extends DelegatingEntityCrudService {
     public MyEntityCrudService(@Qualifier("defaultEntityCrudService") EntityCrudService defaultService) {
         super(defaultService);
     }
-
+    
     @Override
     public Object create(EntityMeta entityMeta, Object body) {
         if ("orders".equals(entityMeta.getPathSegment())) {
             // 订单创建特殊逻辑
             return ...;
-        }
-        return defaultService.create(entityMeta, body);
+        } return defaultService.create(entityMeta, body);
     }
 }
 ```
@@ -213,18 +214,19 @@ public class MyEntityCrudService extends DelegatingEntityCrudService {
 示例：仅对 `users` 自定义创建逻辑（如密码加密），其余方法用默认。
 
 ```java
+
 @Component
 public class UsersCrudService extends DelegatingEntityCrudService implements PathSegmentAwareCrudService {
-
+    
     public UsersCrudService(@Qualifier("defaultEntityCrudService") EntityCrudService defaultService) {
         super(defaultService);
     }
-
+    
     @Override
     public String getPathSegment() {
         return "users";
     }
-
+    
     @Override
     public Object create(EntityMeta entityMeta, Object body) {
         // 仅 users 的创建逻辑，如密码加密后再调用默认

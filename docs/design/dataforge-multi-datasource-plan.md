@@ -98,8 +98,10 @@ public class ProductsCrudService extends DelegatingEntityCrudService implements 
     public ProductsCrudService(@Qualifier("mongoEntityCrudService") EntityCrudService mongoService) {
         super(mongoService);
     }
+    
     @Override
-    public String getPathSegment() { return "products"; }
+    public String getPathSegment() {return "products";}
+    
     @Override
     public Object create(EntityMeta entityMeta, Object body) { /* 自定义创建逻辑 */ }
 }
@@ -145,13 +147,18 @@ template-dataforge-mongodb (可选)
 **1. 新增 StorageType 枚举**（`annotation/StorageType.java`）
 
 ```java
-public enum StorageType { JPA, MONGO }
+public enum StorageType {
+    JPA,
+    MONGO
+}
 ```
 
 **2. @DataforgeEntity 增加 storage 属性**
 
 ```java
-StorageType storage() default StorageType.JPA;
+StorageType storage()
+
+default StorageType.JPA;
 ```
 
 **3. EntityMeta 增加 storageType**
@@ -181,8 +188,10 @@ meta.setStorageType(ann.storage());
 **7. 使用示例**
 
 ```java
+
 @DataforgeEntity(pathSegment = "products", displayName = "商品", storage = StorageType.MONGO)
-public class Product extends MongoBaseDocument<String> { ... }
+public class Product extends MongoBaseDocument<String> { ...
+}
 ```
 
 ### 3.6 JPA 实现要点（Spring Data JPA）

@@ -27,13 +27,14 @@
 如果你的模块不依赖 `template-api`，需手动添加：
 
 ```xml
+
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-actuator</artifactId>
 </dependency>
 <dependency>
-    <groupId>io.micrometer</groupId>
-    <artifactId>micrometer-registry-prometheus</artifactId>
+<groupId>io.micrometer</groupId>
+<artifactId>micrometer-registry-prometheus</artifactId>
 </dependency>
 ```
 
@@ -188,11 +189,17 @@ curl http://localhost:8080/actuator/prometheus | grep "app_template_flow"
 
 ```java
 // 无指标（默认，向后兼容）
-new KafkaFlowSource<>(consumer, mapper, Duration.ofSeconds(1));
+new KafkaFlowSource<>(consumer,mapper,Duration.
 
-// 开启指标采集
-new KafkaFlowSource<>(consumer, mapper, Duration.ofSeconds(1), meterRegistry);
-new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1), meterRegistry);
+ofSeconds(1));
+        
+        // 开启指标采集
+        new KafkaFlowSource<>(consumer,mapper,Duration.
+
+ofSeconds(1),meterRegistry);
+        new NatsFlowSource<>(subscription,mapper,Duration.
+
+ofSeconds(1),meterRegistry);
 ```
 
 ### 2.6 Dataforge 指标 (template-dataforge)
@@ -211,50 +218,44 @@ new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1), meterRegistry)
 `AppMetrics` 是框架提供的业务指标扩展工具类，注入即可使用，**无需直接操作 Micrometer API**。
 
 ```java
+
 @Service
 public class OrderService {
-
+    
     private final AppMetrics appMetrics;
-
+    
     public OrderService(AppMetrics appMetrics) {
         this.appMetrics = appMetrics;
     }
-
+    
     public void createOrder(Order order) {
         // 方式一：计数器 +1
-        appMetrics.count("app.template.order.created",
-                "channel", order.getChannel());
-
+        appMetrics.count("app.template.order.created", "channel", order.getChannel());
+        
         // 方式二：计数器 +N
-        appMetrics.count("app.template.order.items",
-                order.getItemCount(),
-                "channel", order.getChannel());
-
+        appMetrics.count("app.template.order.items", order.getItemCount(), "channel", order.getChannel());
+        
         // 方式三：手动记录耗时（毫秒）
         long start = System.currentTimeMillis();
         doBusinessLogic(order);
         long elapsed = System.currentTimeMillis() - start;
-        appMetrics.recordTime("app.template.order.process.duration",
-                elapsed,
-                "channel", order.getChannel());
+        appMetrics.recordTime("app.template.order.process.duration", elapsed, "channel", order.getChannel());
     }
-
+    
     public void processPayment(Payment payment) {
         // 方式四：自动计时（推荐）
         Timer.Sample sample = appMetrics.startTimer();
         try {
             doPayment(payment);
         } finally {
-            appMetrics.stopTimer(sample, "app.template.payment.duration",
-                    "method", payment.getMethod());
+            appMetrics.stopTimer(sample, "app.template.payment.duration", "method", payment.getMethod());
         }
     }
-
+    
     // 方式五：注册 Gauge（瞬时值），通常在初始化时调用一次
     @PostConstruct
     public void registerGauges() {
-        appMetrics.gauge("app.template.order.pending",
-                this, svc -> svc.getPendingOrderCount());
+        appMetrics.gauge("app.template.order.pending", this, svc -> svc.getPendingOrderCount());
     }
 }
 ```
@@ -290,7 +291,7 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     scrape_interval: 15s
     static_configs:
-      - targets: ['your-app-host:8080']
+      - targets: [ 'your-app-host:8080' ]
     # 如果端点启用了认证
     # basic_auth:
     #   username: 'prometheus'
@@ -305,10 +306,10 @@ scrape_configs:
     kubernetes_sd_configs:
       - role: pod
     relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+      - source_labels: [ __meta_kubernetes_pod_annotation_prometheus_io_scrape ]
         action: keep
         regex: true
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+      - source_labels: [ __meta_kubernetes_pod_annotation_prometheus_io_path ]
         action: replace
         target_label: __metrics_path__
         regex: (.+)
@@ -497,10 +498,11 @@ management:
 使用四参数构造器，传入 `MeterRegistry` 实例：
 
 ```java
-@Autowired MeterRegistry meterRegistry;
 
-KafkaFlowSource<String> source = new KafkaFlowSource<>(
-    consumer, mapper, Duration.ofSeconds(1), meterRegistry);
+@Autowired
+MeterRegistry meterRegistry;
+
+KafkaFlowSource<String> source = new KafkaFlowSource<>(consumer, mapper, Duration.ofSeconds(1), meterRegistry);
 ```
 
 三参数构造器（不传 MeterRegistry）保持向后兼容，不采集指标。

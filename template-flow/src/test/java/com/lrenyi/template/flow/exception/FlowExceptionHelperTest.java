@@ -68,8 +68,8 @@ class FlowExceptionHelperTest {
         FlowExceptionHelper.setDefaultHandler(null);
         assertDoesNotThrow(() -> FlowExceptionHelper.handleException("j",
                                                                      null,
-                                                                     new RuntimeException("test setDefaultHandler "
-                                                                                                  + "null"),
+                                                                     new RuntimeException(
+                                                                             "test setDefaultHandler " + "null"),
                                                                      FlowPhase.UNKNOWN
         ));
     }
@@ -81,8 +81,8 @@ class FlowExceptionHelperTest {
         FlowExceptionHelper.setDefaultHandler(custom);
         assertDoesNotThrow(() -> FlowExceptionHelper.handleException("j",
                                                                      null,
-                                                                     new RuntimeException("test setDefaultHandler "
-                                                                                                  + "adds"),
+                                                                     new RuntimeException(
+                                                                             "test setDefaultHandler " + "adds"),
                                                                      FlowPhase.UNKNOWN
         ));
     }
