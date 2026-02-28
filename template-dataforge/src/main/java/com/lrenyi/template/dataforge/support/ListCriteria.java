@@ -41,38 +41,49 @@ public final class ListCriteria {
             List<SortOrder> sortOrders = validateSort(req, entityMeta);
             return new ListCriteria(List.of(), sortOrders);
         }
-        Set<String> allowedFields = entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
-        Map<String, FieldMeta> fieldMetaByName =
-                entityMeta.getFields().stream().collect(Collectors.toMap(FieldMeta::getName, fm -> fm, (a, b) -> a));
+        Set<String> allowedFields =
+                entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
+        Map<String, FieldMeta> fieldMetaByName = entityMeta.getFields()
+                .stream()
+                .collect(Collectors.toMap(FieldMeta::getName, fm -> fm, (a, b) -> a));
         List<FilterCondition> valid = new ArrayList<>();
         for (FilterCondition fc : req.filters()) {
-            if (fc == null || fc.field() == null || fc.field().isBlank()) {
-                continue;
+            FilterCondition validFc = processFilterCondition(fc, allowedFields, fieldMetaByName);
+            if (validFc != null) {
+                valid.add(validFc);
             }
-            if (!allowedFields.contains(fc.field())) {
-                log.debug("Filter field '{}' not in allowedFields, skip", fc.field());
-                continue;
-            }
-            if (fc.op() == null) {
-                log.debug("Filter op is null for field '{}', skip", fc.field());
-                continue;
-            }
-            FieldMeta fm = fieldMetaByName.get(fc.field());
-            Object converted = convertValue(fc.value(), fc.op(), fm);
-            if (converted == null && fc.value() != null && fc.op() != Op.IN) {
-                log.debug("Filter value conversion failed for field '{}', skip", fc.field());
-                continue;
-            }
-            valid.add(new FilterCondition(fc.field(), fc.op(), converted));
         }
         List<SortOrder> sortOrders = validateSort(req, entityMeta);
         return new ListCriteria(valid, sortOrders);
     }
-    
+
+    private static FilterCondition processFilterCondition(FilterCondition fc,
+                                                          Set<String> allowedFields,
+                                                          Map<String, FieldMeta> fieldMetaByName) {
+        if (fc == null || fc.field() == null || fc.field().isBlank()) {
+            return null;
+        }
+        if (!allowedFields.contains(fc.field())) {
+            log.debug("Filter field '{}' not in allowedFields, skip", fc.field());
+            return null;
+        }
+        if (fc.op() == null) {
+            log.debug("Filter op is null for field '{}', skip", fc.field());
+            return null;
+        }
+        FieldMeta fm = fieldMetaByName.get(fc.field());
+        Object converted = convertValue(fc.value(), fc.op(), fm);
+        if (converted == null && fc.value() != null && fc.op() != Op.IN) {
+            log.debug("Filter value conversion failed for field '{}', skip", fc.field());
+            return null;
+        }
+        return new FilterCondition(fc.field(), fc.op(), converted);
+    }
+
     public static ListCriteria empty() {
         return new ListCriteria(List.of(), List.of());
     }
-    
+
     private static List<SortOrder> validateSort(SearchRequest req, EntityMeta entityMeta) {
         if (req == null || req.sort() == null || req.sort().isEmpty()) {
             return List.of();
@@ -80,7 +91,8 @@ public final class ListCriteria {
         if (entityMeta == null || entityMeta.getFields() == null) {
             return List.of();
         }
-        Set<String> allowedFields = entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
+        Set<String> allowedFields =
+                entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
         List<SortOrder> valid = new ArrayList<>();
         for (SortOrder so : req.sort()) {
             if (so == null || so.field() == null || so.field().isBlank()) {
@@ -95,7 +107,7 @@ public final class ListCriteria {
         }
         return valid;
     }
-    
+
     private static Object convertValue(Object raw, Op op, FieldMeta fm) {
         if (raw == null) {
             return null;
@@ -107,7 +119,10 @@ public final class ListCriteria {
         try {
             if (op == Op.IN) {
                 if (raw instanceof List<?> list) {
-                    return list.stream().map(v -> convertSingle(v, type)).filter(Objects::nonNull).toList();
+                    return list.stream()
+                            .map(v -> convertSingle(v, type))
+                            .filter(Objects::nonNull)
+                            .toList();
                 }
                 return List.of(convertSingle(raw, type));
             }
@@ -117,7 +132,7 @@ public final class ListCriteria {
             return null;
         }
     }
-    
+
     private static Object convertSingle(Object raw, String type) {
         if (raw == null) {
             return null;
@@ -125,17 +140,40 @@ public final class ListCriteria {
         if (type == null) {
             return raw;
         }
+        if (isNumberType(type)) {
+            return convertNumber(raw, type);
+        }
         return switch (type) {
             case "String" -> raw.toString();
-            case "Integer", "int" -> raw instanceof Number n ? n.intValue() : Integer.parseInt(raw.toString());
-            case "Long", "long" -> raw instanceof Number n ? n.longValue() : Long.parseLong(raw.toString());
-            case "Boolean", "boolean" -> raw instanceof Boolean b ? b : "true".equalsIgnoreCase(raw.toString());
-            case "Double", "double" -> raw instanceof Number n ? n.doubleValue() : Double.parseDouble(raw.toString());
-            case "Float", "float" -> raw instanceof Number n ? n.floatValue() : Float.parseFloat(raw.toString());
-            case "LocalDate" -> raw instanceof String s ? LocalDate.parse(s, DateTimeFormatter.ISO_LOCAL_DATE) : raw;
-            case "LocalDateTime" ->
-                    raw instanceof String s ? LocalDateTime.parse(s, DateTimeFormatter.ISO_LOCAL_DATE_TIME) : raw;
+            case "Boolean", "boolean" ->
+                    raw instanceof Boolean b ? b : "true".equalsIgnoreCase(raw.toString());
+            case "LocalDate" ->
+                    raw instanceof String s ? LocalDate.parse(s, DateTimeFormatter.ISO_LOCAL_DATE)
+                            : raw;
+            case "LocalDateTime" -> raw instanceof String s ? LocalDateTime.parse(s,
+                    DateTimeFormatter.ISO_LOCAL_DATE_TIME) : raw;
             default -> raw;
+        };
+    }
+
+    private static boolean isNumberType(String type) {
+        return switch (type) {
+            case "Integer", "int", "Long", "long", "Double", "double", "Float", "float" -> true;
+            default -> false;
+        };
+    }
+
+    private static Object convertNumber(Object raw, String type) {
+        return switch (type) {
+            case "Integer", "int" ->
+                    raw instanceof Number n ? n.intValue() : Integer.parseInt(raw.toString());
+            case "Long", "long" ->
+                    raw instanceof Number n ? n.longValue() : Long.parseLong(raw.toString());
+            case "Double", "double" ->
+                    raw instanceof Number n ? n.doubleValue() : Double.parseDouble(raw.toString());
+            case "Float", "float" ->
+                    raw instanceof Number n ? n.floatValue() : Float.parseFloat(raw.toString());
+            default -> null;
         };
     }
 }

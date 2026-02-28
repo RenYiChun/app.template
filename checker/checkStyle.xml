@@ -261,5 +261,8 @@
             <property name="commentFormat" value=".*"/>
         </module>
         <module name="CommentsIndentation"/>
+        <module name="CyclomaticComplexity">
+            <property name="max" value="15"/>
+        </module>
     </module>
 </module>

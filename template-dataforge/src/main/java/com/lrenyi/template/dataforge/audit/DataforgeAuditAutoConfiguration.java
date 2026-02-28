@@ -71,38 +71,50 @@ public class DataforgeAuditAutoConfiguration {
         if (entity == null || entity.isEmpty()) {
             return null;
         }
+        return resolveMethodDescription(methodName, entity, args);
+    }
+    
+    private static String resolveMethodDescription(String methodName, String entity, Object[] args) {
         return switch (methodName) {
             case "search" -> "搜索 " + entity;
-            case "get" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "获取 " + entity + "/" + args[1];
-                }
-                yield "获取 " + entity;
-            }
+            case "get" -> resolveGet(entity, args);
             case "create" -> "创建 " + entity;
-            case "update" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "更新 " + entity + "/" + args[1];
-                }
-                yield "更新 " + entity;
-            }
-            case "delete" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "删除 " + entity + "/" + args[1];
-                }
-                yield "删除 " + entity;
-            }
+            case "update" -> resolveUpdate(entity, args);
+            case "delete" -> resolveDelete(entity, args);
             case "deleteBatch" -> "删除 " + entity;
             case "updateBatch" -> "更新 " + entity;
             case "export" -> "导出 Excel " + entity;
-            case "executeAction" -> {
-                if (args.length > 3 && args[2] != null && args[3] instanceof String actionName) {
-                    yield "执行 " + entity + "/" + args[2] + "/" + actionName;
-                }
-                yield "执行 " + entity;
-            }
+            case "executeAction" -> resolveExecuteAction(entity, args);
             default -> null;
         };
+    }
+    
+    private static String resolveGet(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "获取 " + entity + "/" + args[1];
+        }
+        return "获取 " + entity;
+    }
+    
+    private static String resolveUpdate(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "更新 " + entity + "/" + args[1];
+        }
+        return "更新 " + entity;
+    }
+    
+    private static String resolveDelete(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "删除 " + entity + "/" + args[1];
+        }
+        return "删除 " + entity;
+    }
+    
+    private static String resolveExecuteAction(String entity, Object[] args) {
+        if (args.length > 3 && args[2] != null && args[3] instanceof String actionName) {
+            return "执行 " + entity + "/" + args[2] + "/" + actionName;
+        }
+        return "执行 " + entity;
     }
     
     @Bean

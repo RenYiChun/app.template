@@ -54,37 +54,52 @@ public class AuditLogService {
     }
     
     @Async
-    public void saveLog(ProceedingJoinPoint joinPoint,
-            String ipAddress,
-            String uri,
-            String httpMethod,
-            SecurityContext context,
-            long time,
-            Throwable e) {
+     public void saveLog(ProceedingJoinPoint joinPoint,
+                        String ipAddress,
+                        String uri,
+                        String httpMethod,
+                        SecurityContext context,
+                        long time,
+                        Throwable e) {
         AuditLogInfo logInfo = new AuditLogInfo();
         logInfo.setExecutionTimeMs(time);
         logInfo.setOperationTime(new Date());
-        
+
         logInfo.setSuccess(e == null);
         if (e != null) {
             logInfo.setExceptionDetails(e.getMessage());
         }
-        
+
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
+        String description = resolveDescription(joinPoint, method);
+        logInfo.setDescription(description);
+        logInfo.setRequestIp(ipAddress);
+        logInfo.setRequestUri(uri);
+        logInfo.setRequestMethod(httpMethod);
+        Authentication authentication = context.getAuthentication();
+        String name = extractUserName(authentication);
+        if (!StringUtils.hasLength(name)) {
+            log.warn("not find user info, the type of Authentication is: {}",
+                    authentication.getClass().getName());
+        }
+        logInfo.setUserName(name);
+
+        fillAnnotationInfo(logInfo, method);
+
+        enrichLogInfo(joinPoint, logInfo);
+
+        logInfo.setServiceName(serviceName);
+        logInfo.setServerIp(serverIp);
+
+        auditLogProcessor.process(logInfo);
+    }
+
+    private String resolveDescription(ProceedingJoinPoint joinPoint, Method method) {
         String description = null;
         AuditDescriptionResolver resolver = descriptionResolverProvider.getIfAvailable();
         if (resolver != null) {
-            HttpServletRequest request = null;
-            try {
-                // ... (略去部分代码)
-                var attrs = RequestContextHolder.getRequestAttributes();
-                if (attrs instanceof ServletRequestAttributes servletAttrs) {
-                    request = servletAttrs.getRequest();
-                }
-            } catch (Exception ignored) {
-                // ignore
-            }
+            HttpServletRequest request = getCurrentRequest();
             if (request != null) {
                 description = resolver.resolve(joinPoint, request);
             }
@@ -95,30 +110,26 @@ public class AuditLogService {
                 description = auditLogAnnotation.description();
             } else {
                 String className = joinPoint.getTarget().getClass().getSimpleName();
-                String methodName = signature.getName();
+                String methodName = method.getName();
                 description = className + "#" + methodName;
             }
         }
-        logInfo.setDescription(description);
-        logInfo.setRequestIp(ipAddress);
-        logInfo.setRequestUri(uri);
-        logInfo.setRequestMethod(httpMethod);
-        Authentication authentication = context.getAuthentication();
-        String name = authentication.getName();
-        if (authentication instanceof BearerTokenAuthentication bearerAuth) {
-            Object usernameAttr = bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME);
-            name = usernameAttr != null ? String.valueOf(usernameAttr) : authentication.getName();
-        } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
-            String claimAsString = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
-            if (StringUtils.hasText(claimAsString)) {
-                name = claimAsString;
+        return description;
+    }
+
+    private HttpServletRequest getCurrentRequest() {
+        try {
+            var attrs = RequestContextHolder.getRequestAttributes();
+            if (attrs instanceof ServletRequestAttributes servletAttrs) {
+                return servletAttrs.getRequest();
             }
+        } catch (Exception ignored) {
+            // ignore
         }
-        if (!StringUtils.hasLength(name)) {
-            log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
-        }
-        logInfo.setUserName(name);
-        
+        return null;
+    }
+
+    private void fillAnnotationInfo(AuditLogInfo logInfo, Method method) {
         AuditLog auditLogAnnotation = method.getAnnotation(AuditLog.class);
         if (auditLogAnnotation != null) {
             if (StringUtils.hasText(auditLogAnnotation.reason())) {
@@ -128,45 +139,28 @@ public class AuditLogService {
                 logInfo.setTargetType(auditLogAnnotation.targetType());
             }
         }
-        
-        HttpServletRequest requestForEnricher = null;
-        try {
-            var attrs = RequestContextHolder.getRequestAttributes();
-            if (attrs instanceof ServletRequestAttributes servletAttrs) {
-                requestForEnricher = servletAttrs.getRequest();
-            }
-        } catch (Exception ignored) {
-            // ignore
-        }
-        final HttpServletRequest request = requestForEnricher;
-        if (request != null && enricherProvider != null) {
-            enricherProvider.orderedStream().forEach(enricher -> enricher.enrich(joinPoint, request, logInfo));
-        }
-        
-        logInfo.setServiceName(serviceName);
-        logInfo.setServerIp(serverIp);
-        
-        auditLogProcessor.process(logInfo);
     }
-    
+
+    private void enrichLogInfo(ProceedingJoinPoint joinPoint, AuditLogInfo logInfo) {
+        HttpServletRequest request = getCurrentRequest();
+        if (request != null && enricherProvider != null) {
+            enricherProvider.orderedStream()
+                    .forEach(enricher -> enricher.enrich(joinPoint, request, logInfo));
+        }
+    }
+
     public String extractUserName(Authentication authentication) {
         String name = authentication.getName();
         final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
-        switch (authentication) {
-            case BearerTokenAuthentication bearerAuth -> {
-                Object attr = bearerAuth.getTokenAttributes().get(username);
-                if (attr != null) {
-                    name = String.valueOf(attr);
-                }
+        if (authentication instanceof BearerTokenAuthentication bearerAuth) {
+            Object attr = bearerAuth.getTokenAttributes().get(username);
+            if (attr != null) {
+                name = String.valueOf(attr);
             }
-            case JwtAuthenticationToken jwtToken -> {
-                String claimAsString = jwtToken.getToken().getClaimAsString(username);
-                if (StringUtils.hasText(claimAsString)) {
-                    name = claimAsString;
-                }
-            }
-            default -> {
-                // OAuth2AccessTokenAuthenticationToken 由 oauth2-service 的 OAuth2PrincipalNameExtractor 处理
+        } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
+            String claimAsString = jwtToken.getToken().getClaimAsString(username);
+            if (StringUtils.hasText(claimAsString)) {
+                name = claimAsString;
             }
         }
         return name;
@@ -219,25 +213,27 @@ public class AuditLogService {
         auditLogProcessor.process(logInfo);
     }
     
+    private static final String[] IP_HEADERS = {
+        "x-forwarded-for",
+        "Proxy-Client-IP",
+        "WL-Proxy-Client-IP",
+        "HTTP_CLIENT_IP",
+        "HTTP_X_FORWARDED_FOR"
+    };
+
     public String getIpAddress(HttpServletRequest request) {
-        String ip = request.getHeader("x-forwarded-for");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
+        for (String header : IP_HEADERS) {
+            String ip = request.getHeader(header);
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                return parseIp(ip);
+            }
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_CLIENT_IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
+        return parseIp(request.getRemoteAddr());
+    }
+    
+    private String parseIp(String ip) {
         if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0];
+            return ip.split(",")[0];
         }
         return ip;
     }
