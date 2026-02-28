@@ -5,6 +5,7 @@ import com.lrenyi.oauth2.service.config.IdentifierType;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -39,7 +40,7 @@ public class RbacUserDetailsService implements UserDetailsService {
         List<SimpleGrantedAuthority> authorities = credentials.permissions().stream()
                 .map(SimpleGrantedAuthority::new)
                 .toList();
-        return new org.springframework.security.core.userdetails.User(
+        return new User(
                 credentials.username(),
                 credentials.password(),
                 authorities);

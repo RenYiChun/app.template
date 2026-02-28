@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
+import java.util.Map;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.backend.domain.Auth;
 import com.lrenyi.template.dataforge.action.EntityActionExecutor;
@@ -17,6 +18,6 @@ public class AuthCaptchaAction implements EntityActionExecutor {
     @Override
     public Object execute(Object entityId, Object request) {
         CaptchaService.CaptchaResult result = captchaService.generate();
-        return java.util.Map.of("key", result.key(), "imageBase64", result.imageBase64());
+        return Map.of("key", result.key(), "imageBase64", result.imageBase64());
     }
 }

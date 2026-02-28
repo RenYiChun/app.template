@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.health;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -90,7 +91,7 @@ class FlowHealthTest {
         assertEquals(HealthStatus.DEGRADED.name(), details.get("overallStatus"));
 
         @SuppressWarnings("unchecked")
-        java.util.List<Map<String, Object>> indicators = (java.util.List<Map<String, Object>>) details.get("indicators");
+        List<Map<String, Object>> indicators = (List<Map<String, Object>>) details.get("indicators");
         assertNotNull(indicators);
         assertEquals(1, indicators.size());
         assertEquals("TestIndicator", indicators.getFirst().get("name"));
@@ -119,7 +120,7 @@ class FlowHealthTest {
         });
 
         Map<String, Object> details = FlowHealth.getHealthDetails();
-        java.util.List<Map<String, Object>> indicators = (java.util.List<Map<String, Object>>) details.get("indicators");
+        List<Map<String, Object>> indicators = (List<Map<String, Object>>) details.get("indicators");
         assertNotNull(indicators);
         assertEquals(1, indicators.size());
         assertEquals("BadIndicator", indicators.getFirst().get("name"));
@@ -137,7 +138,7 @@ class FlowHealthTest {
 
         Map<String, Object> details = FlowHealth.getHealthDetails();
         assertEquals(HealthStatus.HEALTHY.name(), details.get("overallStatus"));
-        java.util.List<?> indicators = (java.util.List<?>) details.get("indicators");
+        List<?> indicators = (List<?>) details.get("indicators");
         assertTrue(indicators == null || indicators.isEmpty());
     }
 

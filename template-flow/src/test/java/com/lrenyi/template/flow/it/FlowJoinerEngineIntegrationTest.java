@@ -1,8 +1,10 @@
 package com.lrenyi.template.flow.it;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -154,9 +156,9 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(total, snapshot.terminated());
         assertEquals(total, joiner.getConsumedCount());
         List<PairItem> order = joiner.getConsumedOrder();
-        java.util.Set<String> consumedIds = order.stream().map(PairItem::getId)
-                .collect(java.util.stream.Collectors.toSet());
-        java.util.Set<String> expectedIds = new java.util.HashSet<>();
+        Set<String> consumedIds = order.stream().map(PairItem::getId)
+                .collect(Collectors.toSet());
+        Set<String> expectedIds = new HashSet<>();
         for (int i = 0; i < total; i++) {
             expectedIds.add("q" + i);
         }

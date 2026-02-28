@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
+import java.util.Map;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.backend.domain.Auth;
 import com.lrenyi.template.dataforge.backend.domain.User;
@@ -26,7 +27,7 @@ public class AuthMeAction implements EntityActionExecutor {
         }
         String username = auth.getName();
         return userRepository.findByUsername(username)
-                .map(u -> java.util.Map.of("id", u.getId(), "username", u.getUsername(),
+                .map(u -> Map.of("id", u.getId(), "username", u.getUsername(),
                         "email", u.getEmail() != null ? u.getEmail() : ""))
                 .orElse(null);
     }

@@ -12,6 +12,7 @@ import com.lrenyi.oauth2.service.config.IdentifierType;
 import com.lrenyi.template.core.util.OAuth2Constant;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
@@ -80,7 +81,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         UserDetails userDetails = validateAndLoadUser(username, type, parameters);
         
         // 使用 UserDetails 创建 Authentication，而不是继续使用 Client Principal
-        Authentication userPrincipal = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+        Authentication userPrincipal = new UsernamePasswordAuthenticationToken(
             userDetails, userDetails.getPassword(), userDetails.getAuthorities());
 
         Set<String> authorizedScopes = userDetails.getAuthorities().stream()

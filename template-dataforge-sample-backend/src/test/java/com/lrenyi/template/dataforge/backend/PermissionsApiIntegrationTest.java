@@ -3,6 +3,7 @@ package com.lrenyi.template.dataforge.backend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import com.lrenyi.template.dataforge.rbac.PermissionInitializer;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManager;
@@ -63,7 +64,7 @@ class PermissionsApiIntegrationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 url,
-                new HttpEntity<>(java.util.Map.of("page", 0, "size", 20), headers),
+                new HttpEntity<>(Map.of("page", 0, "size", 20), headers),
                 JsonNode.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = response.getBody();

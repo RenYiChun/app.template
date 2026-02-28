@@ -22,6 +22,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
 /**
@@ -92,7 +93,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             writeClass(dtoPackage, simpleName + "PageResponseDTO", pageResponseFields);
         } catch (IOException e) {
             processingEnv.getMessager()
-                         .printMessage(javax.tools.Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
+                         .printMessage(Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
         }
     }
     

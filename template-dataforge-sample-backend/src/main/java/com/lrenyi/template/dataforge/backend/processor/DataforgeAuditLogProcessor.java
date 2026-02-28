@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.backend.processor;
 
+import java.util.Date;
 import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
 import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.backend.domain.OperationLog;
@@ -39,7 +40,7 @@ public class DataforgeAuditLogProcessor implements AuditLogProcessor {
         OperationLog e = new OperationLog();
         e.setUserName(info.getUserName());
         e.setDescription(info.getDescription());
-        e.setOperationTime(info.getOperationTime() != null ? info.getOperationTime() : new java.util.Date());
+        e.setOperationTime(info.getOperationTime() != null ? info.getOperationTime() : new Date());
         e.setExecutionTimeMs(info.getExecutionTimeMs());
         e.setRequestIp(info.getRequestIp());
         e.setRequestUri(info.getRequestUri());

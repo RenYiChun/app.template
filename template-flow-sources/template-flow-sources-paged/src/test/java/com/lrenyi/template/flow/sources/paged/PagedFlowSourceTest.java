@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.sources.paged;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class PagedFlowSourceTest {
 
         source.close();
         assertFalse(source.hasNext());
-        assertThrows(java.util.NoSuchElementException.class, source::next);
+        assertThrows(NoSuchElementException.class, source::next);
     }
 
     @Test
@@ -76,7 +77,7 @@ class PagedFlowSourceTest {
         assertTrue(source.hasNext());
         assertEquals("x", source.next());
         assertFalse(source.hasNext());
-        assertThrows(java.util.NoSuchElementException.class, source::next);
+        assertThrows(NoSuchElementException.class, source::next);
     }
 
     /** 单参构造：onClose 为 null，close 不抛 */
@@ -101,7 +102,7 @@ class PagedFlowSourceTest {
     void next_afterClose_throws() {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of("a")));
         source.close();
-        assertThrows(java.util.NoSuchElementException.class, source::next);
+        assertThrows(NoSuchElementException.class, source::next);
     }
 
     /** 第一页有数据带 token，第二页为空且无 token */

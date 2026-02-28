@@ -1,6 +1,8 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
 import java.awt.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.awt.image.BufferedImage;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -70,10 +72,10 @@ public class CaptchaService {
         }
         g.dispose();
         try {
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
             javax.imageio.ImageIO.write(img, "png", baos);
             return baos.toByteArray();
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

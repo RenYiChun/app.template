@@ -1,6 +1,7 @@
 package com.lrenyi.template.core.util;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,10 +14,10 @@ class EmptyUtilTest {
 
     @Test
     void isEmpty_isNotEmpty_Collection() {
-        assertTrue(EmptyUtil.isEmpty((java.util.Collection<?>) null));
+        assertTrue(EmptyUtil.isEmpty((Collection<?>) null));
         assertTrue(EmptyUtil.isEmpty(new ArrayList<>()));
         assertFalse(EmptyUtil.isEmpty(Collections.singletonList(1)));
-        assertFalse(EmptyUtil.isNotEmpty((java.util.Collection<?>) null));
+        assertFalse(EmptyUtil.isNotEmpty((Collection<?>) null));
         assertFalse(EmptyUtil.isNotEmpty(new ArrayList<>()));
         assertTrue(EmptyUtil.isNotEmpty(Collections.singletonList(1)));
     }

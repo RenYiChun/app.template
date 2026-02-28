@@ -1,6 +1,7 @@
 package com.lrenyi.template.dataforge.support;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -113,7 +114,7 @@ public final class ExcelExportSupport {
             this.setCellValueNum = cellClass.getMethod("setCellValue", double.class);
             this.setCellValueBool = cellClass.getMethod("setCellValue", boolean.class);
             this.setBlank = cellClass.getMethod("setBlank");
-            this.write = workbookClass.getMethod("write", java.io.OutputStream.class);
+            this.write = workbookClass.getMethod("write", OutputStream.class);
         }
         
         Object newWorkbook() throws Exception {
