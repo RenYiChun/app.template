@@ -35,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class CaffeineFlowStorage<T> implements FlowStorage<T> {
+    private static final String CONSUMPTION = "CONSUMPTION";
     private static final int STRIPE_COUNT = 256;
     private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
     
@@ -111,7 +112,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                    .increment();
             finalizer.submitBodyOnly(entry, launcher);
         } finally {
-            if (launcher != null && launcher.getBackpressureController() != null) {
+            if (launcher != null) {
                 launcher.getBackpressureController().signalRelease();
             }
         }
@@ -186,7 +187,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             log.warn("LauncherLookup not available for job {}", entry.getJobId());
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
-                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                   .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
                    .register(meterRegistry)
                    .increment();
             partner.close();
@@ -215,13 +216,11 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                                                         Counter.builder(FlowMetricNames.ERRORS)
                                                                .tag(FlowMetricNames.TAG_ERROR_TYPE,
                                                                     "match_process_failed")
-                                                               .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                                                               .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
                                                                .register(meterRegistry)
                                                                .increment();
                                                     } finally {
-                                                        if (launcher.getBackpressureController() != null) {
-                                                            launcher.getBackpressureController().signalRelease();
-                                                        }
+                                                        launcher.getBackpressureController().signalRelease();
                                                     }
                                                 }
         );
@@ -250,7 +249,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "onSuccess_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                   .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
                    .register(meterRegistry)
                    .increment();
         }

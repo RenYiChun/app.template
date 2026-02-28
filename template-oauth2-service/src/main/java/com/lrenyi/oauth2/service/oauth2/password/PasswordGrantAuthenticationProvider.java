@@ -141,7 +141,7 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             userDetails = userDetailsService.loadUserByUsername(type + ":" + username);
         } catch (UsernameNotFoundException e) {
             // 用户不存在时做一次假校验以统一响应时间，再返回与“密码错误”相同的错误，防止用户枚举
-            passwordEncoder.matches(password, passwordEncoder.encode("__dummy_enumeration_prevention__"));
+            passwordEncoder.matches(password, passwordEncoder.encode("__revoked_compromised_password__"));
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2Constant.LOGIN_FAIL_OF_PASSWORD,
                                                                     "password is incorrect",
                                                                     ""
@@ -229,12 +229,11 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         OAuth2Authorization.Builder builder = OAuth2Authorization.withRegisteredClient(client)
                                                                  .principalName(principal.getName())
                                                                  .authorizationGrantType(grantToken.getGrantType());
-        if (generatedAccessToken instanceof ClaimAccessor) {
+        if (generatedAccessToken instanceof ClaimAccessor claimAccessor) {
             builder.token(accessToken,
-                          (metadata) -> metadata.put(OAuth2Authorization.Token.CLAIMS_METADATA_NAME,
-                                                     ((ClaimAccessor) generatedAccessToken).getClaims()
-                          )
-            );
+                          metadata -> metadata.put(OAuth2Authorization.Token.CLAIMS_METADATA_NAME,
+                                                   claimAccessor.getClaims()
+                          ));
         } else {
             builder.accessToken(accessToken);
         }

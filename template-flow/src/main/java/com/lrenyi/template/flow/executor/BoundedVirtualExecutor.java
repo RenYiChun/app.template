@@ -76,7 +76,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
                 defaultStrategy.acquire();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new ExecutorInterruptedException(e);
             }
             delegate.execute(runReleaseOnly(defaultStrategy, command));
         } else {
@@ -106,7 +106,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
                 strategy.acquire();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new ExecutorInterruptedException(e);
             }
             try {
                 task.run();
@@ -212,7 +212,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
                 defaultStrategy.acquire();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new ExecutorInterruptedException(e);
             }
             try {
                 return task.call();
@@ -235,7 +235,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
             strategy.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new ExecutorInterruptedException(e);
         }
         // 提交任务时只负责释放（已在外部 acquire）
         delegate.execute(runReleaseOnly(strategy, task));

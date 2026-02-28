@@ -46,57 +46,31 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     public void save(OAuth2Authorization authorization) {
         Assert.notNull(authorization, "authorization cannot be null");
         
-        // 保存二级索引：id -> authorization
-        // 使用一个特殊的 token type "id" 来标识
         saveToken(authorization, authorization.getId(), "id");
-        
-        if (isState(authorization)) {
-            String token = authorization.getAttribute(OAuth2ParameterNames.STATE);
-            if (StringUtils.hasText(token)) {
-                saveToken(authorization, token, OAuth2ParameterNames.STATE);
+        String state = authorization.getAttribute(OAuth2ParameterNames.STATE);
+        if (StringUtils.hasText(state)) {
+            saveToken(authorization, state, OAuth2ParameterNames.STATE);
+        }
+        Object[][] types = {
+                {OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
+                {OAuth2RefreshToken.class, OAuth2TokenType.REFRESH_TOKEN.getValue()},
+                {OAuth2AccessToken.class, OAuth2TokenType.ACCESS_TOKEN.getValue()},
+                {OidcIdToken.class, OidcParameterNames.ID_TOKEN},
+                {OAuth2DeviceCode.class, OAuth2ParameterNames.DEVICE_CODE},
+                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}
+        };
+        for (Object[] t : types) {
+            Class<?> cls = (Class<?>) t[0];
+            String type = (String) t[1];
+            String value = getTokenValue(authorization, cls);
+            if (StringUtils.hasText(value)) {
+                saveToken(authorization, value, type);
             }
-        }
-        
-        if (isCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2AuthorizationCode> authorizationCode =
-                    authorization.getToken(OAuth2AuthorizationCode.class);
-            OAuth2AuthorizationCode authorizationCodeToken = authorizationCode.getToken();
-            saveToken(authorization, authorizationCodeToken.getTokenValue(), OAuth2ParameterNames.CODE);
-        }
-        
-        if (isRefreshToken(authorization)) {
-            OAuth2Authorization.Token<OAuth2RefreshToken> refreshToken =
-                    authorization.getToken(OAuth2RefreshToken.class);
-            OAuth2RefreshToken refreshTokenToken = refreshToken.getToken();
-            saveToken(authorization, refreshTokenToken.getTokenValue(), OAuth2TokenType.REFRESH_TOKEN.getValue());
-        }
-        
-        if (isAccessToken(authorization)) {
-            OAuth2Authorization.Token<OAuth2AccessToken> accessToken = authorization.getToken(OAuth2AccessToken.class);
-            OAuth2AccessToken accessTokenToken = accessToken.getToken();
-            saveToken(authorization, accessTokenToken.getTokenValue(), OAuth2TokenType.ACCESS_TOKEN.getValue());
-        }
-        
-        if (isIdToken(authorization)) {
-            OAuth2Authorization.Token<OidcIdToken> idToken = authorization.getToken(OidcIdToken.class);
-            OidcIdToken idTokenToken = idToken.getToken();
-            saveToken(authorization, idTokenToken.getTokenValue(), OidcParameterNames.ID_TOKEN);
-        }
-        
-        if (isDeviceCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2DeviceCode> deviceCode = authorization.getToken(OAuth2DeviceCode.class);
-            OAuth2DeviceCode deviceCodeToken = deviceCode.getToken();
-            saveToken(authorization, deviceCodeToken.getTokenValue(), OAuth2ParameterNames.DEVICE_CODE);
-        }
-        
-        if (isUserCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2UserCode> userCode = authorization.getToken(OAuth2UserCode.class);
-            OAuth2UserCode userCodeToken = userCode.getToken();
-            saveToken(authorization, userCodeToken.getTokenValue(), OAuth2ParameterNames.USER_CODE);
         }
     }
     
     private void saveToken(OAuth2Authorization authorization, String token, String tokenType) {
+        Assert.hasText(token, "token cannot be empty");
         byte[] serialize = strategy.serialize(authorization);
         String shorten = "id".equals(tokenType) ? token : Digests.shorten(token, TemplateConstant.SHOT_TOKEN_LENGTH);
         String key = buildKey(tokenType, shorten);
@@ -124,7 +98,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         if (authorization.getAccessToken() != null) {
             Map<String, Object> claims = authorization.getAccessToken().getClaims();
             if (!CollectionUtils.isEmpty(claims)) {
-                claims.forEach((k, value) -> forHash.put(key, k, value.toString()));
+                claims.forEach((k, value) -> forHash.put(key, k, String.valueOf(value)));
             }
         }
         
@@ -136,74 +110,30 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         Assert.notNull(authorization, "authorization cannot be null");
         
         List<String> keys = new ArrayList<>();
-        
-        // 删除 id 索引
         keys.add(buildKey("id", authorization.getId()));
-        
-        if (isState(authorization)) {
-            String token = authorization.getAttribute(OAuth2ParameterNames.STATE);
-            if (StringUtils.hasText(token)) {
-                keys.add(buildKey(OAuth2ParameterNames.STATE,
-                                  Digests.shorten(token, TemplateConstant.SHOT_TOKEN_LENGTH)
-                ));
+        String state = authorization.getAttribute(OAuth2ParameterNames.STATE);
+        if (StringUtils.hasText(state)) {
+            keys.add(buildKey(OAuth2ParameterNames.STATE,
+                              Digests.shorten(state, TemplateConstant.SHOT_TOKEN_LENGTH)
+            ));
+        }
+        Object[][] types = {
+                {OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
+                {OAuth2RefreshToken.class, OAuth2TokenType.REFRESH_TOKEN.getValue()},
+                {OAuth2AccessToken.class, OAuth2TokenType.ACCESS_TOKEN.getValue()},
+                {OidcIdToken.class, OidcParameterNames.ID_TOKEN},
+                {OAuth2DeviceCode.class, OAuth2ParameterNames.DEVICE_CODE},
+                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}
+        };
+        for (Object[] t : types) {
+            Class<?> cls = (Class<?>) t[0];
+            String type = (String) t[1];
+            String value = getTokenValue(authorization, cls);
+            if (StringUtils.hasText(value)) {
+                keys.add(buildKey(type, Digests.shorten(value, TemplateConstant.SHOT_TOKEN_LENGTH)));
             }
         }
-        
-        if (isCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2AuthorizationCode> authorizationCode =
-                    authorization.getToken(OAuth2AuthorizationCode.class);
-            OAuth2AuthorizationCode authorizationCodeToken = authorizationCode.getToken();
-            keys.add(buildKey(OAuth2ParameterNames.CODE,
-                              Digests.shorten(authorizationCodeToken.getTokenValue(),
-                                              TemplateConstant.SHOT_TOKEN_LENGTH
-                              )
-            ));
-        }
-        
-        if (isRefreshToken(authorization)) {
-            OAuth2Authorization.Token<OAuth2RefreshToken> refreshToken =
-                    authorization.getToken(OAuth2RefreshToken.class);
-            OAuth2RefreshToken refreshTokenToken = refreshToken.getToken();
-            keys.add(buildKey(OAuth2TokenType.REFRESH_TOKEN.getValue(),
-                              Digests.shorten(refreshTokenToken.getTokenValue(), TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
-        }
-        
-        if (isAccessToken(authorization)) {
-            OAuth2Authorization.Token<OAuth2AccessToken> accessToken = authorization.getToken(OAuth2AccessToken.class);
-            OAuth2AccessToken accessTokenToken = accessToken.getToken();
-            keys.add(buildKey(OAuth2TokenType.ACCESS_TOKEN.getValue(),
-                              Digests.shorten(accessTokenToken.getTokenValue(), TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
-        }
-        
-        if (isIdToken(authorization)) {
-            OAuth2Authorization.Token<OidcIdToken> idToken = authorization.getToken(OidcIdToken.class);
-            OidcIdToken idTokenToken = idToken.getToken();
-            keys.add(buildKey(OidcParameterNames.ID_TOKEN,
-                              Digests.shorten(idTokenToken.getTokenValue(), TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
-        }
-        
-        if (isDeviceCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2DeviceCode> deviceCode = authorization.getToken(OAuth2DeviceCode.class);
-            OAuth2DeviceCode deviceCodeToken = deviceCode.getToken();
-            keys.add(buildKey(OAuth2ParameterNames.DEVICE_CODE,
-                              Digests.shorten(deviceCodeToken.getTokenValue(), TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
-        }
-        
-        if (isUserCode(authorization)) {
-            OAuth2Authorization.Token<OAuth2UserCode> userCode = authorization.getToken(OAuth2UserCode.class);
-            OAuth2UserCode userCodeToken = userCode.getToken();
-            keys.add(buildKey(OAuth2ParameterNames.USER_CODE,
-                              Digests.shorten(userCodeToken.getTokenValue(), TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
-        }
-        
-        if (!keys.isEmpty()) {
-            stringRedisTemplate.delete(keys);
-        }
+        stringRedisTemplate.delete(keys);
     }
     
     @Override
@@ -268,6 +198,16 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         return TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + typeKey + shortenToken;
     }
     
+    @SuppressWarnings("unchecked")
+    private static String getTokenValue(OAuth2Authorization authorization, Class<?> tokenClass) {
+        OAuth2Authorization.Token<?> t =
+                (OAuth2Authorization.Token<?>) authorization.getToken((Class) tokenClass);
+        if (t == null || t.getToken() == null) {
+            return null;
+        }
+        return t.getToken().getTokenValue();
+    }
+    
     private OAuth2Authorization updateToken(OAuth2Authorization authorization) {
         if (authorization == null) {
             return null;
@@ -307,38 +247,10 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
                                                                  originalToken.getScopes()
         );
         String metadataName = OAuth2Authorization.Token.CLAIMS_METADATA_NAME;
-        Consumer<Map<String, Object>> mapConsumer = (metadata) -> metadata.put(metadataName, accessToken.getClaims());
+        Consumer<Map<String, Object>> mapConsumer = metadata -> metadata.put(metadataName, accessToken.getClaims());
         OAuth2Authorization updatedAuthorization =
                 OAuth2Authorization.from(authorization).token(newAccessToken, mapConsumer).build();
         save(updatedAuthorization);
         return updatedAuthorization;
-    }
-    
-    private static boolean isState(OAuth2Authorization authorization) {
-        return authorization.getAttribute(OAuth2ParameterNames.STATE) != null;
-    }
-    
-    private static boolean isCode(OAuth2Authorization authorization) {
-        return authorization.getToken(OAuth2AuthorizationCode.class) != null;
-    }
-    
-    private static boolean isRefreshToken(OAuth2Authorization authorization) {
-        return authorization.getToken(OAuth2RefreshToken.class) != null;
-    }
-    
-    private static boolean isAccessToken(OAuth2Authorization authorization) {
-        return authorization.getToken(OAuth2AccessToken.class) != null;
-    }
-    
-    private static boolean isIdToken(OAuth2Authorization authorization) {
-        return authorization.getToken(OidcIdToken.class) != null;
-    }
-    
-    private static boolean isDeviceCode(OAuth2Authorization authorization) {
-        return authorization.getToken(OAuth2DeviceCode.class) != null;
-    }
-    
-    private static boolean isUserCode(OAuth2Authorization authorization) {
-        return authorization.getToken(OAuth2UserCode.class) != null;
     }
 }

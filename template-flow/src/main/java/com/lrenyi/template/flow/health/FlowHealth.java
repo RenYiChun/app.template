@@ -14,6 +14,9 @@ public class FlowHealth {
     
     private static final List<FlowHealthIndicator> indicators = new CopyOnWriteArrayList<>();
     
+    private FlowHealth() {
+    }
+    
     /**
      * 注册健康检查指示器
      */

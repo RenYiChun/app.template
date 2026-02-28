@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FlowJoinerEngine {
     private final FlowManager flowManager;
+    private static final String PHASE_PRODUCTION = "PRODUCTION";
     
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
@@ -57,7 +58,7 @@ public class FlowJoinerEngine {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             throw e;
@@ -99,7 +100,7 @@ public class FlowJoinerEngine {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "subsource_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             log.error("子流消费异常 jobId={}", jobId, e);
@@ -113,7 +114,7 @@ public class FlowJoinerEngine {
                 launcher.getTaskOrchestrator().tracker().onProductionReleased();
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
-                       .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                       .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
                 return;

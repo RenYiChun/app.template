@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Getter
 @Setter
 public class FlowLauncher<T> {
+    private static final String PHASE_PRODUCTION = "PRODUCTION";
     private final AtomicInteger counter = new AtomicInteger(0);
     private final String jobId;
     private final Orchestrator taskOrchestrator;
@@ -72,12 +73,11 @@ public class FlowLauncher<T> {
     }
     
     public void launch(T data) {
-        long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
         if (stopped) {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             return;
@@ -91,8 +91,8 @@ public class FlowLauncher<T> {
                 Thread.currentThread().interrupt();
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
                 Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
-                       .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
                 return;
@@ -112,7 +112,7 @@ public class FlowLauncher<T> {
             }
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             return;
@@ -121,6 +121,7 @@ public class FlowLauncher<T> {
         try {
             awaitBackpressure();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             tracker.onProductionReleased();
             if (inFlight != null) {
                 inFlight.release();
@@ -128,12 +129,16 @@ public class FlowLauncher<T> {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "backpressure_interrupted")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             return;
         }
         
+        submitDepositTask(data, tracker, inFlight);
+    }
+    
+    private void submitDepositTask(T data, ProgressTracker tracker, Semaphore inFlight) {
         Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {

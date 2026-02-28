@@ -61,6 +61,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     FlowResourceRegistry(TemplateConfigProperties.Flow flowConfig, MeterRegistry meterRegistry, boolean unused) {
         this(flowConfig, meterRegistry);
+        log.trace("FlowResourceRegistry initialized: {}", unused);
     }
     
     private FlowResourceRegistry(TemplateConfigProperties.Flow flowConfig, MeterRegistry meterRegistry) {

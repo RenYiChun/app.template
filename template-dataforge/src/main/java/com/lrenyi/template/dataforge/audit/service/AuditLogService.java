@@ -31,6 +31,7 @@ public class AuditLogService {
     private final String serviceName;
     private final ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider;
     private final ObjectProvider<AuditLogEnricher> enricherProvider;
+    private static final String UNKNOWN = "unknown";
     private final String serverIp;
     
     public AuditLogService(AuditLogProcessor auditLogProcessor,
@@ -49,7 +50,7 @@ public class AuditLogService {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
             log.warn("failed to get server IP address", e);
-            return "unknown";
+            return UNKNOWN;
         }
     }
     
@@ -224,7 +225,7 @@ public class AuditLogService {
     public String getIpAddress(HttpServletRequest request) {
         for (String header : IP_HEADERS) {
             String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+            if (ip != null && !ip.isEmpty() && !UNKNOWN.equalsIgnoreCase(ip)) {
                 return parseIp(ip);
             }
         }

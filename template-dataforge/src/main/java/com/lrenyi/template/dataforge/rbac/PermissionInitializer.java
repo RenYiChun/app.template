@@ -64,25 +64,40 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
         Map<String, String> permToDesc = new LinkedHashMap<>();
         List<EntityMeta> all = entityRegistry.getAll();
         for (EntityMeta meta : all) {
-            String displayName = meta.getDisplayName() != null ? meta.getDisplayName() : meta.getPathSegment();
+            String displayName = displayNameOf(meta);
             addIfNonBlank(permToDesc, meta.getPermissionCreate(), displayName, "创建");
             addIfNonBlank(permToDesc, meta.getPermissionRead(), displayName, "查询");
             addIfNonBlank(permToDesc, meta.getPermissionUpdate(), displayName, "更新");
             addIfNonBlank(permToDesc, meta.getPermissionDelete(), displayName, "删除");
-            if (meta.getActions() != null) {
-                for (ActionMeta action : meta.getActions()) {
-                    String actionDesc =
-                            action.getSummary() != null && !action.getSummary().isBlank() ? action.getSummary() :
-                                    (action.getActionName() != null ? action.getActionName() : "自定义");
-                    if (action.getPermissions() != null) {
-                        for (String p : action.getPermissions()) {
-                            addIfNonBlank(permToDesc, p, displayName, "Action " + actionDesc);
-                        }
-                    }
+            if (meta.getActions() == null) {
+                continue;
+            }
+            for (ActionMeta action : meta.getActions()) {
+                String actionDesc = actionDescOf(action);
+                List<String> perms = action.getPermissions();
+                if (perms == null || perms.isEmpty()) {
+                    continue;
+                }
+                for (String p : perms) {
+                    addIfNonBlank(permToDesc, p, displayName, "Action " + actionDesc);
                 }
             }
         }
         return permToDesc;
+    }
+    
+    private static String displayNameOf(EntityMeta meta) {
+        String dn = meta.getDisplayName();
+        return dn != null ? dn : meta.getPathSegment();
+    }
+    
+    private static String actionDescOf(ActionMeta action) {
+        String s = action.getSummary();
+        if (s != null && !s.isBlank()) {
+            return s;
+        }
+        String n = action.getActionName();
+        return n != null ? n : "自定义";
     }
     
     private static void addIfNonBlank(Map<String, String> map,

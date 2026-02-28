@@ -28,22 +28,23 @@ public final class DataforgeAspect {
     public Object logRequest(ProceedingJoinPoint pjp) throws Throwable {
         String method = pjp.getSignature().getName();
         long start = System.currentTimeMillis();
+        String key = "method";
         try {
             Object result = pjp.proceed();
             long elapsed = System.currentTimeMillis() - start;
             Timer.builder("app.template.dataforge.request.duration")
-                 .tag("method", method)
+                 .tag(key, method)
                  .register(meterRegistry)
                  .record(elapsed, TimeUnit.MILLISECONDS);
             return result;
         } catch (Throwable t) {
             long elapsed = System.currentTimeMillis() - start;
             Timer.builder("app.template.dataforge.request.duration")
-                 .tag("method", method)
+                 .tag(key, method)
                  .register(meterRegistry)
                  .record(elapsed, TimeUnit.MILLISECONDS);
             Counter.builder("app.template.dataforge.request.errors")
-                   .tag("method", method)
+                   .tag(key, method)
                    .tag("errorType", t.getClass().getSimpleName())
                    .register(meterRegistry)
                    .increment();

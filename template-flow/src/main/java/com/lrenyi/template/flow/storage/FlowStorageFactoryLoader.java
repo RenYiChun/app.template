@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +19,10 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowStorageFactoryLoader {
     
     private static final ConcurrentMap<FlowStorageType, FlowStorageFactory> factoryCache = new ConcurrentHashMap<>();
-    private static volatile List<FlowStorageFactory> factories;
+    private static final AtomicReference<List<FlowStorageFactory>> factoriesRef = new AtomicReference<>();
+    
+    private FlowStorageFactoryLoader() {
+    }
     
     /**
      * 查找支持指定类型的工厂
@@ -51,10 +55,13 @@ public class FlowStorageFactoryLoader {
      * 获取所有已加载的工厂
      */
     public static List<FlowStorageFactory> getFactories() {
+        List<FlowStorageFactory> factories = factoriesRef.get();
         if (factories == null) {
             synchronized (FlowStorageFactoryLoader.class) {
+                factories = factoriesRef.get();
                 if (factories == null) {
                     factories = loadFactories();
+                    factoriesRef.set(factories);
                 }
             }
         }
@@ -92,7 +99,7 @@ public class FlowStorageFactoryLoader {
     public static void clearCache() {
         factoryCache.clear();
         synchronized (FlowStorageFactoryLoader.class) {
-            factories = null;
+            factoriesRef.set(null);
         }
     }
 }

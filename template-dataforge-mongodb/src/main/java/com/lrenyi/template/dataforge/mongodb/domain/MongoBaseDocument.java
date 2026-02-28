@@ -15,14 +15,14 @@ import org.springframework.data.annotation.Id;
  * 主键类型支持：String（ObjectId hex）、Long、{@link org.bson.types.ObjectId}。
  * </p>
  *
- * @param <ID> 主键类型
+ * @param <I> 主键类型
  */
 @Getter
 @Setter
-public abstract class MongoBaseDocument<ID extends Serializable> implements DataforgePersistable<ID> {
+public abstract class MongoBaseDocument<I extends Serializable> implements DataforgePersistable<I> {
     
     @Id
-    private ID id;
+    private I id;
     
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

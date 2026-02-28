@@ -45,15 +45,12 @@ public class DefaultProgressTracker implements ProgressTracker {
     // 生产端状态：标记 Source 是否已经彻底读完
     private volatile boolean sourceFinished = false;
     
-    {
-        for (FailureReason r : FailureReason.values()) {
-            passiveEgressByReason.put(r, new LongAdder());
-        }
-    }
-    
     public DefaultProgressTracker(String jobId, FlowManager flowManager) {
         this.jobId = jobId;
         this.flowManager = flowManager;
+        for (FailureReason r : FailureReason.values()) {
+            passiveEgressByReason.put(r, new LongAdder());
+        }
     }
     
     @Override

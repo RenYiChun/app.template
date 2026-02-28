@@ -154,7 +154,7 @@ public class Oauth2ServerAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean(OAuth2TokenGenerator.class)
-    OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource,
+    public OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource,
             OAuth2TokenCustomizer<OAuth2TokenClaimsContext> contextOAuth2TokenCustomizer,
             TemplateConfigProperties templateConfigProperties) {
         JwtGenerator jwtGenerator = new JwtGenerator(new NimbusJwtEncoder(jwkSource));

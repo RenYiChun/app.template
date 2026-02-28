@@ -14,6 +14,7 @@ import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.SortOrder;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;

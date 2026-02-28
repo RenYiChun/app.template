@@ -21,6 +21,8 @@ import org.apache.kafka.common.errors.WakeupException;
  */
 @Slf4j
 public final class KafkaFlowSource<T> implements FlowSource<T> {
+    private static final String TAG_SOURCE_TYPE = "sourceType";
+    private static final String SOURCE_KAFKA = "kafka";
     
     private final KafkaConsumer<?, ?> consumer;
     private final java.util.function.Function<ConsumerRecord<?, ?>, T> mapper;
@@ -72,13 +74,13 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
             if (meterRegistry != null) {
                 long elapsed = System.currentTimeMillis() - start;
                 Timer.builder("app.template.source.poll.duration")
-                     .tag("sourceType", "kafka")
+                     .tag(TAG_SOURCE_TYPE, SOURCE_KAFKA)
                      .register(meterRegistry)
                      .record(elapsed, TimeUnit.MILLISECONDS);
                 int count = records.count();
                 if (count > 0) {
                     Counter.builder("app.template.source.received")
-                           .tag("sourceType", "kafka")
+                           .tag(TAG_SOURCE_TYPE, SOURCE_KAFKA)
                            .register(meterRegistry)
                            .increment(count);
                 }
@@ -90,7 +92,7 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         } catch (Exception e) {
             if (meterRegistry != null) {
                 Counter.builder("app.template.source.errors")
-                       .tag("sourceType", "kafka")
+                       .tag(TAG_SOURCE_TYPE, SOURCE_KAFKA)
                        .tag("errorType", e.getClass().getSimpleName())
                        .register(meterRegistry)
                        .increment();

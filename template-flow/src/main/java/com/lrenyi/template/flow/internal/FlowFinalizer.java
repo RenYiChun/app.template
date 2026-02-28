@@ -21,49 +21,47 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         long startTime = System.currentTimeMillis();
         
         resourceRegistry.submitConsumerToGlobal(taskOrchestrator, () -> {
-                                                    try (entry) {
-                                                        if (entry.claimLogic()) {
-                                                            taskOrchestrator.tracker().onActiveEgress();
-                                                            Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
-                                                                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                                                                   .register(meterRegistry)
-                                                                   .increment();
-                                                            try {
-                                                                launcher.getFlowJoiner().onConsume(entry.getData(),
-                                                                                                   jobId);
-                                                            } catch (Exception e) {
-                                                                FlowExceptionHelper.handleException(jobId, null, e,
-                                                                                                    FlowPhase.CONSUMPTION);
-                                                                Counter.builder(FlowMetricNames.ERRORS)
-                                                                       .tag(FlowMetricNames.TAG_ERROR_TYPE,
-                                                                            "onConsume_failed")
-                                                                       .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                                                                       .register(meterRegistry)
-                                                                       .increment();
-                                                            }
-                                                        } else {
-                                                            taskOrchestrator.tracker().onPassiveEgress();
-                                                        }
-                                                    } catch (Throwable t) {
-                                                        FlowExceptionHelper.handleException(jobId, null, t,
-                                                                                            FlowPhase.FINALIZATION);
-                                                        Counter.builder(FlowMetricNames.ERRORS)
-                                                               .tag(FlowMetricNames.TAG_ERROR_TYPE,
-                                                                    "finalizer_body_failed")
-                                                               .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                                                               .register(meterRegistry)
-                                                               .increment();
-                                                    } finally {
-                                                        if (launcher.getBackpressureController() != null) {
-                                                            launcher.getBackpressureController().signalRelease();
-                                                        }
-                                                        long latency = System.currentTimeMillis() - startTime;
-                                                        Timer.builder(FlowMetricNames.FINALIZE_DURATION)
-                                                             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                                                             .register(meterRegistry)
-                                                             .record(latency, TimeUnit.MILLISECONDS);
-                                                    }
-                                                }
-        );
+            try (entry) {
+                if (entry.claimLogic()) {
+                    taskOrchestrator.tracker().onActiveEgress();
+                    Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(meterRegistry)
+                           .increment();
+                    performConsume(launcher, entry, jobId);
+                } else {
+                    taskOrchestrator.tracker().onPassiveEgress();
+                }
+            } catch (Throwable t) {
+                FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "finalizer_body_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                       .register(meterRegistry)
+                       .increment();
+            } finally {
+                if (launcher.getBackpressureController() != null) {
+                    launcher.getBackpressureController().signalRelease();
+                }
+                long latency = System.currentTimeMillis() - startTime;
+                Timer.builder(FlowMetricNames.FINALIZE_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .register(meterRegistry)
+                     .record(latency, TimeUnit.MILLISECONDS);
+            }
+        });
+    }
+    
+    private void performConsume(FlowLauncher<Object> launcher, FlowEntry<T> entry, String jobId) {
+        try {
+            launcher.getFlowJoiner().onConsume(entry.getData(), jobId);
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "onConsume_failed")
+                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                   .register(meterRegistry)
+                   .increment();
+        }
     }
 }

@@ -78,12 +78,17 @@ public class DataforgeIdGenerator implements IdentifierGenerator {
     }
     
     private static Object getCurrentId(Object entity) {
+        if (entity instanceof com.lrenyi.template.dataforge.domain.DataforgePersistable<?> p) {
+            return p.getId();
+        }
         Class<?> c = entity.getClass();
         while (c != null && c != Object.class) {
             try {
                 Field f = c.getDeclaredField("id");
-                f.setAccessible(true);
-                return f.get(entity);
+                if (f.canAccess(entity)) {
+                    return f.get(entity);
+                }
+                c = c.getSuperclass();
             } catch (NoSuchFieldException e) {
                 c = c.getSuperclass();
             } catch (ReflectiveOperationException e) {

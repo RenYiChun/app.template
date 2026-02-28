@@ -62,7 +62,6 @@ class BackpressureControllerTest {
         producer.start();
         
         assertTrue(producerBlocked.await(1, TimeUnit.SECONDS), "Producer should start");
-        Thread.sleep(100);
         
         storage.setSize(1);
         controller.signalRelease();
@@ -77,8 +76,10 @@ class BackpressureControllerTest {
         controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
         AtomicBoolean released = new AtomicBoolean(false);
         
+        CountDownLatch started = new CountDownLatch(1);
         Thread producer = new Thread(() -> {
             try {
+                started.countDown();
                 controller.awaitSpace(() -> false);
                 released.set(true);
             } catch (InterruptedException e) {
@@ -86,8 +87,7 @@ class BackpressureControllerTest {
             }
         });
         producer.start();
-        
-        Thread.sleep(150);
+        assertTrue(started.await(1, TimeUnit.SECONDS));
         assertFalse(released.get(), "Producer should still be blocking");
         
         storage.setSize(1);
@@ -127,6 +127,7 @@ class BackpressureControllerTest {
         
         @Override
         public void shutdown() {
+            //ignore
         }
     }
 }

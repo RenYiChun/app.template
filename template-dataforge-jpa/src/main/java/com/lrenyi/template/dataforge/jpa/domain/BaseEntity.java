@@ -23,17 +23,17 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * 主键类型支持：Long、Integer、UUID、String。
  * </p>
  *
- * @param <ID> 主键类型
+ * @param <I> 主键类型
  */
 @Getter
 @Setter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
-public abstract class BaseEntity<ID extends Serializable> implements DataforgePersistable<ID> {
+public abstract class BaseEntity<I extends Serializable> implements DataforgePersistable<I> {
     
     @Id
     @DataforgeId
-    private ID id;
+    private I id;
     
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;

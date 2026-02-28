@@ -25,6 +25,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class OAuth2AuditEventListener {
     
     private final MeterRegistry meterRegistry;
+    private static final String UNKNOWN = "unknown";
     
     @EventListener
     public void handleAuthenticationSuccess(AuthenticationSuccessEvent event) {
@@ -33,7 +34,7 @@ public class OAuth2AuditEventListener {
         if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
             String grantType = resolveGrantType(tokenAuth);
             RegisteredClient registeredClient = tokenAuth.getRegisteredClient();
-            String clientId = registeredClient != null ? registeredClient.getId() : "unknown";
+            String clientId = registeredClient != null ? registeredClient.getId() : UNKNOWN;
             Counter.builder("app.template.oauth2.token.issued")
                    .tag("grantType", grantType)
                    .tag("clientId", sanitizeTagValue(clientId))
@@ -44,19 +45,19 @@ public class OAuth2AuditEventListener {
     
     private String resolveGrantType(OAuth2AccessTokenAuthenticationToken tokenAuth) {
         if (tokenAuth.getRegisteredClient() == null) {
-            return "unknown";
+            return UNKNOWN;
         }
         var grantTypes = tokenAuth.getRegisteredClient().getAuthorizationGrantTypes();
         if (grantTypes == null || grantTypes.isEmpty()) {
-            return "unknown";
+            return UNKNOWN;
         }
         String value = grantTypes.iterator().next().getValue();
-        return StringUtils.hasText(value) ? value : "unknown";
+        return StringUtils.hasText(value) ? value : UNKNOWN;
     }
     
     private String sanitizeTagValue(String value) {
         if (!StringUtils.hasText(value)) {
-            return "unknown";
+            return UNKNOWN;
         }
         return value.length() > 64 ? value.substring(0, 64) : value;
     }
@@ -75,9 +76,9 @@ public class OAuth2AuditEventListener {
     private String resolveGrantTypeFromCurrentRequest() {
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs == null) {
-            return "unknown";
+            return UNKNOWN;
         }
         String grantType = attrs.getRequest().getParameter("grant_type");
-        return StringUtils.hasText(grantType) ? sanitizeTagValue(grantType) : "unknown";
+        return StringUtils.hasText(grantType) ? sanitizeTagValue(grantType) : UNKNOWN;
     }
 }

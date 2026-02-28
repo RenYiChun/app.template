@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -34,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 @Getter
 @Setter
 public class FlowManager implements ActiveLauncherLookup {
-    private static volatile FlowManager instance;
+    private static final AtomicReference<FlowManager> instanceRef = new AtomicReference<>();
     private static int lastConcurrencyLimit = -1;
     private final TemplateConfigProperties.Flow globalConfig;
     private final FlowResourceRegistry resourceRegistry;
@@ -45,6 +46,7 @@ public class FlowManager implements ActiveLauncherLookup {
     
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
+        log.trace("FlowManager initializing: {}", unused);
     }
     
     private FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
@@ -65,26 +67,29 @@ public class FlowManager implements ActiveLauncherLookup {
     }
     
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
-        if (instance == null || configChanged(globalConfig)) {
+        FlowManager current = instanceRef.get();
+        if (current == null || configChanged(globalConfig)) {
             synchronized (FlowManager.class) {
-                if (instance == null || configChanged(globalConfig)) {
-                    if (instance != null) {
+                current = instanceRef.get();
+                if (current == null || configChanged(globalConfig)) {
+                    if (current != null) {
                         log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
                                  lastConcurrencyLimit,
                                  globalConfig.getConsumer().getConcurrencyLimit()
                         );
                         try {
-                            instance.shutdownAll();
+                            current.shutdownAll();
                         } catch (Exception e) {
                             log.error("关闭旧管理器失败", e);
                         }
                     }
-                    instance = create(globalConfig, meterRegistry);
+                    FlowManager newInstance = create(globalConfig, meterRegistry);
+                    instanceRef.set(newInstance);
                     lastConcurrencyLimit = globalConfig.getConsumer().getConcurrencyLimit();
                 }
             }
         }
-        return instance;
+        return instanceRef.get();
     }
     
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
@@ -156,14 +161,15 @@ public class FlowManager implements ActiveLauncherLookup {
     
     public static void reset() {
         synchronized (FlowManager.class) {
-            if (instance != null) {
+            FlowManager current = instanceRef.get();
+            if (current != null) {
                 try {
-                    instance.shutdownAll();
+                    current.shutdownAll();
                 } catch (Exception e) {
                     log.warn("重置时关闭实例失败", e);
                 }
             }
-            instance = null;
+            instanceRef.set(null);
         }
     }
     

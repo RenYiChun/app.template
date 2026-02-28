@@ -484,7 +484,7 @@ public class GenericEntityController {
         return executeActionInternal(request, entity, id, actionName, body);
     }
     
-    private Result<?> executeActionInternal(jakarta.servlet.http.HttpServletRequest request,
+    private Result<Object> executeActionInternal(jakarta.servlet.http.HttpServletRequest request,
             String entity,
             String id,
             String actionName,
@@ -534,9 +534,9 @@ public class GenericEntityController {
             path = "/{entity}/_action/{actionName}",
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
     )
-    public Result<?> executeActionNoId(jakarta.servlet.http.HttpServletRequest request,
-            @PathVariable("entity") String entity,
-            @PathVariable("actionName") String actionName,
+    public Result<Object> executeActionNoId(jakarta.servlet.http.HttpServletRequest request,
+            @PathVariable String entity,
+            @PathVariable String actionName,
             @RequestBody(required = false) Map<String, Object> body) {
         // search, export, batch 等保留字已经由具体方法处理，此处处理其他自定义 Action
         return executeActionInternal(request, entity, null, actionName, body);
