@@ -9,6 +9,7 @@ import com.lrenyi.template.dataforge.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,7 +28,8 @@ public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oa
     }
     
     @Override
-    public RbacUserCredentials loadUserCredentials(@NonNull String identifier, @NonNull IdentifierType identifierType) {
+    public @Nullable RbacUserCredentials loadUserCredentials(@NonNull String identifier,
+            @NonNull IdentifierType identifierType) {
         if (identifier.isBlank()) {
             return null;
         }

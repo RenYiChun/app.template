@@ -1,5 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
+import com.lrenyi.template.core.util.TemplateConstant;
 import io.netty.buffer.ByteBufUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,11 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class RedisRegisteredClientRepositoryTest {
-    
+
+    private static final String CLIENT_ID_KEY =
+            TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
+    private static final String ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
+
     @Mock
     private RedisTemplate<String, String> redisTemplate;
     
@@ -42,8 +47,8 @@ class RedisRegisteredClientRepositoryTest {
         RegisteredClient client = createClient("id-1", "client-a");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq("registered-client:id"), eq("id-1"))).thenReturn(hexed);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
+        when(hashOperations.get(eq(ID_KEY), eq("id-1"))).thenReturn(hexed);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
         
@@ -69,8 +74,8 @@ class RedisRegisteredClientRepositoryTest {
         RegisteredClient client = createClient("id-2", "client-b");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq("registered-client:client_id"), eq("client-b"))).thenReturn(hexed);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
+        when(hashOperations.get(eq(CLIENT_ID_KEY), eq("client-b"))).thenReturn(hexed);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
         
@@ -83,8 +88,8 @@ class RedisRegisteredClientRepositoryTest {
     
     @Test
     void findById_whenNotInRedis_returnsNull() {
-        when(hashOperations.get(eq("registered-client:id"), anyString())).thenReturn(null);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(0L);
+        when(hashOperations.get(eq(ID_KEY), anyString())).thenReturn(null);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
         
@@ -95,24 +100,24 @@ class RedisRegisteredClientRepositoryTest {
     
     @Test
     void save_persistsToRedis() {
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RegisteredClient client = createClient("id-3", "client-c");
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
         
         repo.save(client);
         
-        verify(hashOperations).put(eq("registered-client:client_id"), eq("client-c"), anyString());
-        verify(hashOperations).put(eq("registered-client:id"), eq("id-3"), anyString());
+        verify(hashOperations).put(eq(CLIENT_ID_KEY), eq("client-c"), anyString());
+        verify(hashOperations).put(eq(ID_KEY), eq("id-3"), anyString());
     }
     
     @Test
     void constructor_withInitialClients_initializesWhenRedisEmpty() {
-        when(hashOperations.size("registered-client:client_id")).thenReturn(0L);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
         
         RegisteredClient client = createClient("id-init", "client-init");
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate, client);
         
-        verify(hashOperations).put(eq("registered-client:client_id"), eq("client-init"), anyString());
+        verify(hashOperations).put(eq(CLIENT_ID_KEY), eq("client-init"), anyString());
     }
 }

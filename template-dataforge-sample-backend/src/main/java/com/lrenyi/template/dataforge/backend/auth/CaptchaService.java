@@ -1,9 +1,12 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.awt.image.BufferedImage;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class CaptchaService {
     
+    private static final SecureRandom RANDOM = new SecureRandom();
     private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
     private static final int CODE_LEN = 4;
@@ -35,10 +39,9 @@ public class CaptchaService {
     }
     
     private String randomCode() {
-        SecureRandom r = new SecureRandom();
         StringBuilder sb = new StringBuilder(CODE_LEN);
         for (int i = 0; i < CODE_LEN; i++) {
-            sb.append(CHARS.charAt(r.nextInt(CHARS.length())));
+            sb.append(CHARS.charAt(RANDOM.nextInt(CHARS.length())));
         }
         return sb.toString();
     }
@@ -55,14 +58,13 @@ public class CaptchaService {
         g.setColor(Color.WHITE);
         g.fillRect(0, 0, WIDTH, HEIGHT);
         g.setColor(Color.LIGHT_GRAY);
-        SecureRandom r = new SecureRandom();
         for (int i = 0; i < 6; i++) {
-            g.drawLine(r.nextInt(WIDTH), r.nextInt(HEIGHT), r.nextInt(WIDTH), r.nextInt(HEIGHT));
+            g.drawLine(RANDOM.nextInt(WIDTH), RANDOM.nextInt(HEIGHT), RANDOM.nextInt(WIDTH), RANDOM.nextInt(HEIGHT));
         }
         g.setFont(new Font("Arial", Font.BOLD, 24));
         int x = 12;
         for (char c : code.toCharArray()) {
-            g.setColor(new Color(r.nextInt(100) + 50, r.nextInt(100) + 50, r.nextInt(100) + 50));
+            g.setColor(new Color(RANDOM.nextInt(100) + 50, RANDOM.nextInt(100) + 50, RANDOM.nextInt(100) + 50));
             g.drawString(String.valueOf(c), x, 28);
             x += 26;
         }

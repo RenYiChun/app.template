@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.Key;
 import java.security.KeyFactory;
@@ -192,11 +193,12 @@ public class RsaUtils {
     }
     
     public static void convertPublicKeyToPem(RSAPublicKey publicKey, String pemFilename) {
+        Path path = validateAndResolvePath(pemFilename);
         byte[] encodedPublicKey = publicKey.getEncoded();
         String publicKeyPem = "-----BEGIN PUBLIC KEY-----\n";
         publicKeyPem += Base64.encodeBase64String(encodedPublicKey).replaceAll("(.{64})", "$1\n");
         publicKeyPem += "\n-----END PUBLIC KEY-----";
-        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
+        try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write(publicKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -204,16 +206,34 @@ public class RsaUtils {
     }
     
     public static void convertPrivateKeyToPemFile(RSAPrivateKey privateKey, String pemFilename) {
+        Path path = validateAndResolvePath(pemFilename);
         byte[] encodedPrivateKey = privateKey.getEncoded();
         String privateKeyPem = "-----BEGIN PRIVATE KEY-----\n";
         privateKeyPem += Base64.encodeBase64String(encodedPrivateKey).replaceAll("(.{64})", "$1\n");
         privateKeyPem += "\n-----END PRIVATE KEY-----";
         
-        try (var writer = Files.newBufferedWriter(Paths.get(pemFilename), StandardCharsets.UTF_8)) {
+        try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write(privateKeyPem);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+    
+    /**
+     * 校验路径避免路径遍历攻击，仅允许当前工作目录下的相对路径。
+     */
+    private static Path validateAndResolvePath(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            throw new IllegalArgumentException("filename must not be empty");
+        }
+        if (filename.contains("..") || filename.startsWith("/")) {
+            throw new IllegalArgumentException("path traversal or absolute path not allowed: " + filename);
+        }
+        Path path = Paths.get(filename).normalize();
+        if (path.startsWith("..")) {
+            throw new IllegalArgumentException("path traversal not allowed: " + filename);
+        }
+        return path;
     }
     
 }

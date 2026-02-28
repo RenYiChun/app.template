@@ -39,8 +39,9 @@ public class BoundedVirtualExecutor implements ExecutorService {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate 非 null");
         }
+        PermitStrategy strategy = defaultStrategy(semaphore);
         this.delegate = delegate;
-        this.defaultStrategy = defaultStrategy(semaphore);
+        this.defaultStrategy = strategy;
         this.blockCallerOnExecute = blockCallerOnExecute;
     }
     

@@ -273,7 +273,6 @@ public class OpenApiController {
             } else {
                 var legacy = info.getPatternsCondition();
                 if (legacy != null) {
-                    legacy.getPatterns();
                     patternStrings = legacy.getPatterns();
                 }
             }

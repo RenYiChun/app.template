@@ -12,4 +12,5 @@ import lombok.Setter;
 @Setter
 @Getter
 @DataforgeEntity(pathSegment = "auth", displayName = "认证", crudEnabled = false, generateDtos = false)
-public class Auth extends BaseEntity<Long> {}
+public class Auth extends BaseEntity<Long> {
+}

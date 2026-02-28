@@ -41,6 +41,24 @@
         <Bug pattern="PATH_TRAVERSAL_OUT"/>
     </Match>
 
+    <!-- PATH_TRAVERSAL_IN：RsaUtils.convert*KeyToPem 已通过 validateAndResolvePath 校验路径 -->
+    <Match>
+        <Class name="com.lrenyi.template.core.util.RsaUtils"/>
+        <Bug pattern="PATH_TRAVERSAL_IN"/>
+    </Match>
+
+    <!-- CT_CONSTRUCTOR_THROW：参数校验抛异常，Java 9+ finalizer 已弃用，Finalizer 攻击风险可接受 -->
+    <Match>
+        <Class name="com.lrenyi.template.flow.executor.BoundedVirtualExecutor"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <!-- SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING：REST API 使用 Bearer token，非 Cookie 鉴权，CSRF 不适用 -->
+    <Match>
+        <Class name="com.lrenyi.template.dataforge.controller.GenericEntityController"/>
+        <Bug pattern="SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING"/>
+    </Match>
+
     <!-- DLS_DEAD_LOCAL_STORE / UC_USELESS_OBJECT：死存储、无用对象，多为风格或待重构 -->
     <Match>
         <Bug pattern="DLS_DEAD_LOCAL_STORE,UC_USELESS_OBJECT"/>
@@ -49,5 +67,10 @@
     <!-- NP 相关：非空参数违反、可能 NPE 路径，部分为误报或待后续加固 -->
     <Match>
         <Bug pattern="NP_NONNULL_PARAM_VIOLATION,NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+
+    <!-- NP_NONNULL_RETURN_VIOLATION：已正确标注 @Nullable，SpotBugs 不识别 jspecify 注解 -->
+    <Match>
+        <Bug pattern="NP_NONNULL_RETURN_VIOLATION"/>
     </Match>
 </FindBugsFilter>
