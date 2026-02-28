@@ -118,7 +118,7 @@ public class Digests {
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
-            return original;
+            throw new IllegalStateException("SHA-256 algorithm not available.  This is required for Digest.shorten.", e);
         }
         byte[] hashBytes = digest.digest(original.getBytes(StandardCharsets.UTF_8));
         

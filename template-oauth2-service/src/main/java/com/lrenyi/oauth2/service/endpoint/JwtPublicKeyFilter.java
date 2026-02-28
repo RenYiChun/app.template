@@ -67,6 +67,10 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         try {
             RSAPublicKey rsaPublicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
             String kid = rsaPublicAndPrivateKey.getKid();
+            if (kid == null) {
+                 // Fallback if kid is not set
+                 kid = String.valueOf(rsaPublicKey.hashCode());
+            }
             RSAKey rsaKey = new RSAKey.Builder(rsaPublicKey).keyID(kid).build();
             Map<String, Object> jsonObject = new JWKSet(rsaKey).toJSONObject(true);
             String value = jsonService.serialize(jsonObject);
@@ -93,6 +97,40 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\"':
+                    sb.append("\\\"");
+                    break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\b':
+                    sb.append("\\b");
+                    break;
+                case '\f':
+                    sb.append("\\f");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
+                    if (c < ' ') {
+                        String t = "000" + Integer.toHexString(c);
+                        sb.append("\\u" + t.substring(t.length() - 4));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
     }
 }

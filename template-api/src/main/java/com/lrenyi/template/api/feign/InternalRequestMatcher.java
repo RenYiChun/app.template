@@ -3,6 +3,7 @@ package com.lrenyi.template.api.feign;
 import java.util.List;
 import com.lrenyi.template.core.util.TemplateConstant;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.CollectionUtils;
@@ -14,6 +15,7 @@ import org.springframework.util.CollectionUtils;
  * 否则仅校验请求头。建议生产环境配置 IP 白名单，防止客户端伪造 X-Internal-Call 绕过认证。
  * </p>
  */
+@Slf4j
 public class InternalRequestMatcher implements RequestMatcher {
     
     private final List<String> allowedIpPatterns;
@@ -27,6 +29,9 @@ public class InternalRequestMatcher implements RequestMatcher {
      */
     public InternalRequestMatcher(List<String> allowedIpPatterns) {
         this.allowedIpPatterns = allowedIpPatterns;
+        if (CollectionUtils.isEmpty(allowedIpPatterns)) {
+            log.warn("[安全警告] InternalRequestMatcher 未配置 IP 白名单！仅依赖 X-Internal-Call 请求头是不安全的，容易被伪造。请配置 app.template.feign.internal-call-allowed-ip-patterns。");
+        }
     }
 
     @Override

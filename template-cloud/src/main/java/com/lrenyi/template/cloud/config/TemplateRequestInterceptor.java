@@ -62,14 +62,14 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         List<String> lowerHeader = headers.stream().map(String::toLowerCase).toList();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            if ("authorization".equalsIgnoreCase(headerName)) {
-                haveAuthorization = true;
-            }
             if (lowerHeader.contains(headerName.toLowerCase())) {
                 log.debug("headerName:{} passed to downstream", headerName);
                 String headerValue = request.getHeader(headerName);
                 // 将header向下传递
                 template.header(headerName, headerValue);
+                if ("authorization".equalsIgnoreCase(headerName)) {
+                    haveAuthorization = true;
+                }
             }
         }
         if (!haveAuthorization) {

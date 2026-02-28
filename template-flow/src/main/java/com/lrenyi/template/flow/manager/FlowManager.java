@@ -89,8 +89,12 @@ public class FlowManager implements ActiveLauncherLookup {
 
     /**
      * 兼容旧调用方（无 MeterRegistry 参数），使用 SimpleMeterRegistry 作为 fallback
+     * 注意：这将为每个实例创建一个新的 Registry，如果可能，请传递共享的 Registry
      */
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
+        if (instance != null) {
+            return instance;
+        }
         return getInstance(globalConfig, new SimpleMeterRegistry());
     }
 

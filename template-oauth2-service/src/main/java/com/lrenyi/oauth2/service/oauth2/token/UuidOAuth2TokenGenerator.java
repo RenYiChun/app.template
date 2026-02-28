@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.SpringContextUtil;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 import org.springframework.security.oauth2.core.ClaimAccessor;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
@@ -27,6 +26,11 @@ import org.springframework.util.StringUtils;
 public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2AccessToken> {
     private final StringKeyGenerator accessTokenGenerator = new UuidKeyGenerator();
     private OAuth2TokenCustomizer<OAuth2TokenClaimsContext> accessTokenCustomizer;
+    private TemplateConfigProperties templateConfigProperties;
+    
+    public void setTemplateConfigProperties(TemplateConfigProperties templateConfigProperties) {
+        this.templateConfigProperties = templateConfigProperties;
+    }
     
     @Override
     public OAuth2AccessToken generate(OAuth2TokenContext context) {
@@ -45,9 +49,8 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         
         Instant issuedAt = Instant.now();
         Duration duration = registeredClient.getTokenSettings().getAccessTokenTimeToLive();
-        TemplateConfigProperties properties = SpringContextUtil.getBean(TemplateConfigProperties.class);
-        if (properties != null) {
-            TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
+        if (templateConfigProperties != null) {
+            TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
             Long seconds = security.getSessionTimeOutSeconds();
             if (seconds != null && security.isSessionIdleTimeout() && seconds > 0) {
                 duration = Duration.ofSeconds(seconds);

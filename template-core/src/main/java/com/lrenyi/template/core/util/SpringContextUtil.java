@@ -27,19 +27,21 @@ public class SpringContextUtil implements ApplicationContextAware {
     
     //通过name,以及Clazz返回指定的Bean
     public static <T> T getBean(String name, Class<T> clazz) {
-        return getApplicationContext().getBean(name, clazz);
+        ApplicationContext applicationContext = getApplicationContext();
+        if (applicationContext == null) {
+            return null;
+        }
+        return applicationContext.getBean(name, clazz);
     }
     
     public static String getProperties(String key) {
         String property = null;
         try {
-            property = getApplicationContext().getEnvironment().getProperty(key);
-            if (property == null) {
+            ApplicationContext context = getApplicationContext();
+            if (context == null) {
                 return null;
             }
-            property = new String(property.getBytes(StandardCharsets.ISO_8859_1),
-                                  StandardCharsets.UTF_8
-            );
+            property = context.getEnvironment().getProperty(key);
         } catch (Exception e) {
             log.error("Failed to get property for key: {}", key, e);
         }
@@ -47,7 +49,11 @@ public class SpringContextUtil implements ApplicationContextAware {
     }
     
     public static <T> Map<String, T> getBeansOfType(Class<T> cls) {
-        return getApplicationContext().getBeansOfType(cls);
+        ApplicationContext applicationContext = getApplicationContext();
+        if (applicationContext == null) {
+            return Map.of();
+        }
+        return applicationContext.getBeansOfType(cls);
     }
     
     @Override

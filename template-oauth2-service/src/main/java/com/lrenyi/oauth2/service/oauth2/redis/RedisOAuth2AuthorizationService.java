@@ -3,22 +3,18 @@ package com.lrenyi.oauth2.service.oauth2.redis;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.Digests;
-import com.lrenyi.template.core.util.SpringContextUtil;
 import com.lrenyi.template.core.util.TemplateConstant;
 import io.netty.buffer.ByteBufUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2DeviceCode;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
@@ -37,10 +33,14 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationService {
     
-    private static final String AUTHORIZATION = "token";
     private final JdkSerializationStrategy strategy = new JdkSerializationStrategy();
+    private final RedisTemplate<String, String> stringRedisTemplate;
     @Resource
-    private RedisTemplate<String, String> stringRedisTemplate;
+    private TemplateConfigProperties templateConfigProperties;
+    
+    public RedisOAuth2AuthorizationService(RedisTemplate<String, String> stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
     
     @Override
     public void save(OAuth2Authorization authorization) {
@@ -275,8 +275,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
             return null;
         }
         
-        TemplateConfigProperties properties = SpringContextUtil.getBean(TemplateConfigProperties.class);
-        if (properties == null || !properties.getSecurity().isSessionIdleTimeout()) {
+        if (templateConfigProperties == null || !templateConfigProperties.getSecurity().isSessionIdleTimeout()) {
             return authorization;
         }
         
@@ -285,7 +284,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
             return authorization;
         }
         
-        TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
+        TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         Long time = security.getSessionTimeOutSeconds();
         if (time == null) {
             return authorization;

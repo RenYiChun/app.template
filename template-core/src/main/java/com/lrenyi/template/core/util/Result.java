@@ -37,7 +37,7 @@ public class Result<T> {
         String info;
         TemplateConfigProperties config = SpringContextUtil.getBean(TemplateConfigProperties.class);
         String info1 = cause.getClass().getName() + "->" + defaultMessage;
-        if (config != null && config.getWeb().isExportExceptionDetail()) {
+        if (config != null && config.getWeb() != null && config.getWeb().isExportExceptionDetail()) {
             info = cause.getMessage();
             if (!StringUtils.hasLength(info)) {
                 info = info1;

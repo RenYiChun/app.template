@@ -13,8 +13,8 @@ public class RedisOauthServiceConfig {
     
     @Bean
     @ConditionalOnProperty(value = "app.template.security.authorization.store-type", havingValue = "redis")
-    public OAuth2AuthorizationService redisOauth2AuthorizationService() {
-        return new RedisOAuth2AuthorizationService();
+    public OAuth2AuthorizationService redisOauth2AuthorizationService(RedisTemplate<String, String> templateStringRedis) {
+        return new RedisOAuth2AuthorizationService(templateStringRedis);
     }
     
     @Bean

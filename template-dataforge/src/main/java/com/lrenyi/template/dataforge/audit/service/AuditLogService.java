@@ -73,6 +73,7 @@ public class AuditLogService {
         if (resolver != null) {
             HttpServletRequest request = null;
             try {
+                // ... (略去部分代码)
                 var attrs = RequestContextHolder.getRequestAttributes();
                 if (attrs instanceof ServletRequestAttributes servletAttrs) {
                     request = servletAttrs.getRequest();
@@ -101,11 +102,16 @@ public class AuditLogService {
         Authentication authentication = context.getAuthentication();
         String name = authentication.getName();
         if (authentication instanceof BearerTokenAuthentication bearerAuth) {
-            name = String.valueOf(bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME));
+            Object usernameAttr = bearerAuth.getTokenAttributes().get(OAuth2TokenIntrospectionClaimNames.USERNAME);
+            name = usernameAttr != null ? String.valueOf(usernameAttr) : authentication.getName();
         } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
-            name = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
-        } else if (!StringUtils.hasLength(name)) {
-            log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
+            String claimAsString = jwtToken.getToken().getClaimAsString(OAuth2TokenIntrospectionClaimNames.USERNAME);
+            if (StringUtils.hasText(claimAsString)) {
+                name = claimAsString;
+            }
+        }
+        if (!StringUtils.hasLength(name)) {
+             log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
         }
         logInfo.setUserName(name);
 
@@ -143,9 +149,18 @@ public class AuditLogService {
         String name = authentication.getName();
         final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
         switch (authentication) {
-            case BearerTokenAuthentication bearerAuth ->
-                    name = String.valueOf(bearerAuth.getTokenAttributes().get(username));
-            case JwtAuthenticationToken jwtToken -> name = jwtToken.getToken().getClaimAsString(username);
+            case BearerTokenAuthentication bearerAuth -> {
+                Object attr = bearerAuth.getTokenAttributes().get(username);
+                if (attr != null) {
+                    name = String.valueOf(attr);
+                }
+            }
+            case JwtAuthenticationToken jwtToken -> {
+                String claimAsString = jwtToken.getToken().getClaimAsString(username);
+                if (StringUtils.hasText(claimAsString)) {
+                    name = claimAsString;
+                }
+            }
             default -> {
                 // OAuth2AccessTokenAuthenticationToken 由 oauth2-service 的 OAuth2PrincipalNameExtractor 处理
             }
