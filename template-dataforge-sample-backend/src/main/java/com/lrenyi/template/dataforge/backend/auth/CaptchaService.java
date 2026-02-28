@@ -16,15 +16,15 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class CaptchaService {
-
+    
     private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
     private static final int CODE_LEN = 4;
     private static final long TTL_MS = 5 * 60 * 1000;
     private static final String CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-
+    
     private final Map<String, CaptchaEntry> store = new ConcurrentHashMap<>();
-
+    
     public CaptchaResult generate() {
         String key = UUID.randomUUID().toString();
         String code = randomCode();
@@ -33,16 +33,7 @@ public class CaptchaService {
         String imageBase64 = "data:image/png;base64," + Base64.getEncoder().encodeToString(drawImage(code));
         return new CaptchaResult(key, imageBase64);
     }
-
-    public boolean verify(String key, String code) {
-        if (key == null || code == null) {
-            return false;
-        }
-        CaptchaEntry entry = store.remove(key);
-        return entry != null && entry.code.equalsIgnoreCase(code.trim())
-                && (System.currentTimeMillis() - entry.createTime) < TTL_MS;
-    }
-
+    
     private String randomCode() {
         SecureRandom r = new SecureRandom();
         StringBuilder sb = new StringBuilder(CODE_LEN);
@@ -51,7 +42,12 @@ public class CaptchaService {
         }
         return sb.toString();
     }
-
+    
+    private void evictExpired() {
+        long now = System.currentTimeMillis();
+        store.entrySet().removeIf(e -> (now - e.getValue().createTime) > TTL_MS);
+    }
+    
     private byte[] drawImage(String code) {
         BufferedImage img = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
@@ -79,19 +75,22 @@ public class CaptchaService {
             throw new RuntimeException(e);
         }
     }
-
-    private void evictExpired() {
-        long now = System.currentTimeMillis();
-        store.entrySet().removeIf(e -> (now - e.getValue().createTime) > TTL_MS);
+    
+    public boolean verify(String key, String code) {
+        if (key == null || code == null) {
+            return false;
+        }
+        CaptchaEntry entry = store.remove(key);
+        return entry != null && entry.code.equalsIgnoreCase(code.trim())
+                && (System.currentTimeMillis() - entry.createTime) < TTL_MS;
     }
-
-    public record CaptchaResult(String key, String imageBase64) {
-    }
-
+    
+    public record CaptchaResult(String key, String imageBase64) {}
+    
     private static class CaptchaEntry {
         final String code;
         final long createTime;
-
+        
         CaptchaEntry(String code, long createTime) {
             this.code = code;
             this.createTime = createTime;

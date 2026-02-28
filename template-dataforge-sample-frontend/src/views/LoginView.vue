@@ -5,10 +5,13 @@
       <div class="brand-section">
         <div class="brand-content">
           <div class="logo-area">
-            <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg class="brand-logo" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
+              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
+              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
             </svg>
             <span class="brand-name">Dataforge</span>
           </div>
@@ -35,66 +38,66 @@
           </div>
 
           <el-form
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            class="login-form"
-            size="large"
-            @submit.prevent="handleLogin"
+              ref="formRef"
+              :model="form"
+              :rules="rules"
+              class="login-form"
+              size="large"
+              @submit.prevent="handleLogin"
           >
             <el-form-item prop="username">
               <el-input
-                v-model="form.username"
-                :placeholder="$t('login.username')"
-                class="modern-input"
-                :prefix-icon="UserIcon"
-                tabindex="1"
+                  v-model="form.username"
+                  :placeholder="$t('login.username')"
+                  :prefix-icon="UserIcon"
+                  class="modern-input"
+                  tabindex="1"
               />
             </el-form-item>
 
             <el-form-item prop="password">
               <el-input
-                v-model="form.password"
-                type="password"
-                :placeholder="$t('login.password')"
-                show-password
-                class="modern-input"
-                :prefix-icon="LockIcon"
-                @keyup.enter="handleLogin"
-                tabindex="2"
+                  v-model="form.password"
+                  :placeholder="$t('login.password')"
+                  :prefix-icon="LockIcon"
+                  class="modern-input"
+                  show-password
+                  tabindex="2"
+                  type="password"
+                  @keyup.enter="handleLogin"
               />
             </el-form-item>
 
             <el-form-item v-if="captchaImage" prop="captchaCode">
               <div class="captcha-container">
                 <el-input
-                  v-model="form.captchaCode"
-                  :placeholder="$t('login.captcha')"
-                  class="modern-input captcha-input"
-                  :prefix-icon="KeyIcon"
-                  @keyup.enter="handleLogin"
-                  tabindex="3"
+                    v-model="form.captchaCode"
+                    :placeholder="$t('login.captcha')"
+                    :prefix-icon="KeyIcon"
+                    class="modern-input captcha-input"
+                    tabindex="3"
+                    @keyup.enter="handleLogin"
                 />
-                <div class="captcha-image-box" @click="fetchCaptcha" title="Click to refresh">
-                   <img :src="captchaImage" alt="Captcha" />
+                <div class="captcha-image-box" title="Click to refresh" @click="fetchCaptcha">
+                  <img :src="captchaImage" alt="Captcha"/>
                 </div>
               </div>
             </el-form-item>
 
             <div class="form-actions">
               <el-button
-                type="primary"
-                :loading="loading"
-                class="login-btn"
-                @click="handleLogin"
-                tabindex="4"
+                  :loading="loading"
+                  class="login-btn"
+                  tabindex="4"
+                  type="primary"
+                  @click="handleLogin"
               >
                 {{ $t('login.loginBtn') }}
               </el-button>
             </div>
-            
+
             <div class="form-footer-links">
-                <a href="#" class="forgot-password">{{ $t('login.forgotPwd') }}</a>
+              <a class="forgot-password" href="#">{{ $t('login.forgotPwd') }}</a>
             </div>
           </el-form>
         </div>
@@ -106,26 +109,26 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted, shallowRef, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { storeToRefs } from 'pinia';
-import { ElMessage } from 'element-plus';
-import { User, Lock, Key } from '@element-plus/icons-vue';
-import { useI18n } from 'vue-i18n';
+<script lang="ts" setup>
+import {computed, onMounted, reactive, ref, shallowRef} from 'vue';
+import {useRoute, useRouter} from 'vue-router';
+import {useAuthStore} from '../stores/auth';
+import {storeToRefs} from 'pinia';
+import {ElMessage} from 'element-plus';
+import {Key, Lock, User} from '@element-plus/icons-vue';
+import {useI18n} from 'vue-i18n';
 
 // Manually mapping icons
 const UserIcon = shallowRef(User);
 const LockIcon = shallowRef(Lock);
 const KeyIcon = shallowRef(Key);
 
-const { t } = useI18n();
+const {t} = useI18n();
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { captchaKey, captchaImage, loading } = storeToRefs(authStore);
-const { login, fetchCaptcha } = authStore;
+const {captchaKey, captchaImage, loading} = storeToRefs(authStore);
+const {login, fetchCaptcha} = authStore;
 
 const formRef = ref();
 const errorMsg = ref('');
@@ -137,9 +140,9 @@ const form = reactive({
 });
 
 const rules = computed(() => ({
-  username: [{ required: true, message: t('login.username') + ' is required', trigger: 'blur' }],
-  password: [{ required: true, message: t('login.password') + ' is required', trigger: 'blur' }],
-  captchaCode: [{ required: false, message: t('login.captcha') + ' is required', trigger: 'blur' }],
+  username: [{required: true, message: t('login.username') + ' is required', trigger: 'blur'}],
+  password: [{required: true, message: t('login.password') + ' is required', trigger: 'blur'}],
+  captchaCode: [{required: false, message: t('login.captcha') + ' is required', trigger: 'blur'}],
 }));
 
 const handleLogin = async () => {
@@ -154,7 +157,7 @@ const handleLogin = async () => {
           captchaKey: captchaKey.value || undefined,
           captchaCode: form.captchaCode || undefined,
         });
-        
+
         ElMessage.success(t('login.success'));
         const redirect = (route.query.redirect as string) || '/';
         router.push(redirect);
@@ -269,6 +272,7 @@ onMounted(() => {
   filter: blur(60px);
   opacity: 0.6;
 }
+
 .shape-1 {
   width: 300px;
   height: 300px;
@@ -276,6 +280,7 @@ onMounted(() => {
   top: -80px;
   right: -80px;
 }
+
 .shape-2 {
   width: 250px;
   height: 250px;
@@ -284,14 +289,15 @@ onMounted(() => {
   left: -60px;
   opacity: 0.4;
 }
+
 .shape-glass {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
-    pointer-events: none;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 /* Login Section (Right) */
@@ -355,7 +361,7 @@ onMounted(() => {
 }
 
 :deep(.el-input__prefix-inner) {
-    color: #9ca3af;
+  color: #9ca3af;
 }
 
 /* Captcha */
@@ -383,7 +389,7 @@ onMounted(() => {
 }
 
 .captcha-image-box:hover {
-    border-color: #d1d5db;
+  border-color: #d1d5db;
 }
 
 .captcha-image-box img {
@@ -421,18 +427,19 @@ onMounted(() => {
 }
 
 .form-footer-links {
-    margin-top: 16px;
-    text-align: center;
+  margin-top: 16px;
+  text-align: center;
 }
 
 .forgot-password {
-    color: #6366f1;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
+  color: #6366f1;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
 }
+
 .forgot-password:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 .error-banner {
@@ -453,9 +460,11 @@ onMounted(() => {
     height: auto;
     flex-direction: column;
   }
+
   .brand-section {
     display: none; /* Hide brand on smaller screens or tablets */
   }
+
   .login-section {
     width: 100%;
     padding: 40px 20px;

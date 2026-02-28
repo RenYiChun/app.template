@@ -9,7 +9,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
  * 可存在多个实现，按 @Order 顺序依次调用；仅对能识别的请求补充，不认识的直接返回。
  */
 public interface AuditLogEnricher {
-
+    
     /**
      * 根据当前请求与方法调用补充日志信息；不修改表示不处理。
      *

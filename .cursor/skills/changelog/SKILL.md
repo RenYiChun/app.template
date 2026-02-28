@@ -33,15 +33,15 @@ git log v2.4.0..v2.4.2 --pretty=format:"%h %s"
 
 If using Conventional Commits (feat, fix, docs, refactor, etc.), group by type. Otherwise, infer category from keywords:
 
-| 关键词/Type | 分类 |
-|-------------|------|
-| feat:, 新增, 增加, add | Features |
-| fix:, 修复, 修正, fix | Bug Fixes |
-| docs:, 文档, document | Documentation |
-| refactor:, 重构, 优化, refactor | Refactoring |
-| test:, 测试, test | Tests |
-| perf:, 性能, performance | Performance |
-| chore:, 构建, 配置 | Chores |
+| 关键词/Type                    | 分类            |
+|-----------------------------|---------------|
+| feat:, 新增, 增加, add          | Features      |
+| fix:, 修复, 修正, fix           | Bug Fixes     |
+| docs:, 文档, document         | Documentation |
+| refactor:, 重构, 优化, refactor | Refactoring   |
+| test:, 测试, test             | Tests         |
+| perf:, 性能, performance      | Performance   |
+| chore:, 构建, 配置              | Chores        |
 
 ### Step 3: Deduplicate & Merge
 
@@ -92,6 +92,7 @@ Use this structure:
 **Input**: User says "生成最近版本的 changelog"
 
 **Output**:
+
 ```markdown
 # Changelog
 

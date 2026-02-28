@@ -12,16 +12,15 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class FlowResourceHealthIndicator implements FlowHealthIndicator {
-
-    private final FlowResourceRegistry resourceRegistry;
-    private final FlowManager flowManager;
-
+    
     // 健康阈值配置
     private static final double SEMAPHORE_USAGE_WARNING_THRESHOLD = 0.8; // 80%
     private static final double SEMAPHORE_USAGE_CRITICAL_THRESHOLD = 0.95; // 95%
     private static final int ACTIVE_JOB_WARNING_THRESHOLD = 100;
     private static final int ACTIVE_JOB_CRITICAL_THRESHOLD = 200;
-
+    private final FlowResourceRegistry resourceRegistry;
+    private final FlowManager flowManager;
+    
     public FlowResourceHealthIndicator(FlowResourceRegistry resourceRegistry, FlowManager flowManager) {
         this.resourceRegistry = resourceRegistry;
         this.flowManager = flowManager;
@@ -84,7 +83,7 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         details.put("consumerConcurrencyAvailable", available);
         details.put("consumerConcurrencyUsed", used);
         details.put("consumerConcurrencyUsage", usage);
-
+        
         // 活跃 Job 数量
         int activeJobs = flowManager.getActiveJobCount();
         details.put("activeJobs", activeJobs);
@@ -100,7 +99,7 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         // 执行器状态
         details.put("flowConsumerExecutorShutdown", resourceRegistry.getFlowConsumerExecutor().isShutdown());
         details.put("storageEgressExecutorShutdown", resourceRegistry.getStorageEgressExecutor().isShutdown());
-
+        
         return details;
     }
     

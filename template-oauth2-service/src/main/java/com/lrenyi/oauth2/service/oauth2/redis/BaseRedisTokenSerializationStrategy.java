@@ -1,7 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
-public abstract class BaseRedisTokenSerializationStrategy implements
-        RedisTokenSerializationStrategy {
+public abstract class BaseRedisTokenSerializationStrategy implements RedisTokenSerializationStrategy {
     private static final byte[] EMPTY_ARRAY = new byte[0];
     
     @Override

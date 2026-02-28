@@ -7,8 +7,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
-import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -24,22 +24,17 @@ public class BackpressureController {
     private final IntSupplier globalSemaphoreCapacitySupplier;
     private final MeterRegistry meterRegistry;
     private final String jobId;
-
+    
     public BackpressureController(FlowStorage<?> flowStorage, MeterRegistry meterRegistry, String jobId) {
         this(flowStorage, null, null, null, meterRegistry, jobId);
     }
-
-    public BackpressureController(FlowStorage<?> flowStorage, IntSupplier consumerAvailablePermitsSupplier,
-            MeterRegistry meterRegistry, String jobId) {
-        this(flowStorage, consumerAvailablePermitsSupplier, null, null, meterRegistry, jobId);
-    }
-
+    
     public BackpressureController(FlowStorage<?> flowStorage,
-                                  IntSupplier consumerAvailablePermitsSupplier,
-                                  LongSupplier pendingCountSupplier,
-                                  IntSupplier globalSemaphoreCapacitySupplier,
-                                  MeterRegistry meterRegistry,
-                                  String jobId) {
+            IntSupplier consumerAvailablePermitsSupplier,
+            LongSupplier pendingCountSupplier,
+            IntSupplier globalSemaphoreCapacitySupplier,
+            MeterRegistry meterRegistry,
+            String jobId) {
         this.flowStorage = flowStorage;
         this.consumerAvailablePermitsSupplier = consumerAvailablePermitsSupplier;
         this.pendingCountSupplier = pendingCountSupplier;
@@ -47,31 +42,37 @@ public class BackpressureController {
         this.meterRegistry = meterRegistry;
         this.jobId = jobId;
     }
-
+    
+    public BackpressureController(FlowStorage<?> flowStorage,
+            IntSupplier consumerAvailablePermitsSupplier,
+            MeterRegistry meterRegistry,
+            String jobId) {
+        this(flowStorage, consumerAvailablePermitsSupplier, null, null, meterRegistry, jobId);
+    }
+    
     /** 生产者调用：缓存满或消费许可耗尽时阻塞 */
     public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException {
         lock.lock();
         try {
             long waitStartTime = System.currentTimeMillis();
             int waitCount = 0;
-
+            
             while (!stopCheck.getAsBoolean()) {
                 boolean cacheFull = flowStorage.size() >= flowStorage.maxCacheSize();
-                boolean consumerSaturated = consumerAvailablePermitsSupplier != null
-                        && consumerAvailablePermitsSupplier.getAsInt() <= 0;
+                boolean consumerSaturated =
+                        consumerAvailablePermitsSupplier != null && consumerAvailablePermitsSupplier.getAsInt() <= 0;
                 boolean pendingOverflow = pendingCountSupplier != null && globalSemaphoreCapacitySupplier != null
                         && pendingCountSupplier.getAsLong() >= globalSemaphoreCapacitySupplier.getAsInt();
                 if (!cacheFull && !consumerSaturated && !pendingOverflow) {
                     break;
                 }
                 waitCount++;
-                if (!notFull.await(
-                        FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS,
-                        TimeUnit.MILLISECONDS) && log.isTraceEnabled()) {
+                if (!notFull.await(FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                        && log.isTraceEnabled()) {
                     log.trace("Backpressure: timeout waiting for space, retrying check...");
                 }
             }
-
+            
             if (waitCount > 0) {
                 long waitDuration = System.currentTimeMillis() - waitStartTime;
                 Timer.builder(FlowMetricNames.BACKPRESSURE_DURATION)
@@ -83,7 +84,7 @@ public class BackpressureController {
             lock.unlock();
         }
     }
-
+    
     /** 消费者调用：当数据处理完离场时调用 */
     public void signalRelease() {
         lock.lock();

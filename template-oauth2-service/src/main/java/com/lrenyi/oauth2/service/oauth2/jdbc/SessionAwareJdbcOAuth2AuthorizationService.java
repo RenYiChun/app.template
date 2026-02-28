@@ -16,38 +16,38 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
  * 延长 access token 过期时间并写回库，与 Redis 方案的 updateToken 行为一致。
  */
 public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2AuthorizationService {
-
+    
     private final OAuth2AuthorizationService delegate;
     private final TemplateConfigProperties templateConfigProperties;
-
+    
     public SessionAwareJdbcOAuth2AuthorizationService(OAuth2AuthorizationService delegate,
-                                                       TemplateConfigProperties templateConfigProperties) {
+            TemplateConfigProperties templateConfigProperties) {
         this.delegate = delegate;
         this.templateConfigProperties = templateConfigProperties;
     }
-
+    
     @Override
     public void save(OAuth2Authorization authorization) {
         delegate.save(authorization);
     }
-
+    
     @Override
     public void remove(OAuth2Authorization authorization) {
         delegate.remove(authorization);
     }
-
+    
     @Override
     public OAuth2Authorization findById(String id) {
         OAuth2Authorization authorization = delegate.findById(id);
         return authorization != null ? updateTokenIfNeeded(authorization) : null;
     }
-
+    
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
         OAuth2Authorization authorization = delegate.findByToken(token, tokenType);
         return authorization != null ? updateTokenIfNeeded(authorization) : null;
     }
-
+    
     private OAuth2Authorization updateTokenIfNeeded(OAuth2Authorization authorization) {
         if (templateConfigProperties == null || !templateConfigProperties.getSecurity().isSessionIdleTimeout()) {
             return authorization;
@@ -72,18 +72,17 @@ public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2Authori
             }
         }
         Instant newExpiresAt = Instant.now().plus(Duration.ofSeconds(sessionTimeOutSeconds));
-        OAuth2AccessToken newAccessToken = new OAuth2AccessToken(
-                originalToken.getTokenType(),
-                originalToken.getTokenValue(),
-                issuedAt != null ? issuedAt : Instant.now(),
-                newExpiresAt,
-                originalToken.getScopes());
+        OAuth2AccessToken newAccessToken = new OAuth2AccessToken(originalToken.getTokenType(),
+                                                                 originalToken.getTokenValue(),
+                                                                 issuedAt != null ? issuedAt : Instant.now(),
+                                                                 newExpiresAt,
+                                                                 originalToken.getScopes()
+        );
         String metadataName = OAuth2Authorization.Token.CLAIMS_METADATA_NAME;
-        Consumer<Map<String, Object>> mapConsumer = (metadata) ->
-                metadata.put(metadataName, accessTokenToken.getClaims());
-        OAuth2Authorization updated = OAuth2Authorization.from(authorization)
-                .token(newAccessToken, mapConsumer)
-                .build();
+        Consumer<Map<String, Object>> mapConsumer =
+                (metadata) -> metadata.put(metadataName, accessTokenToken.getClaims());
+        OAuth2Authorization updated =
+                OAuth2Authorization.from(authorization).token(newAccessToken, mapConsumer).build();
         delegate.save(updated);
         return updated;
     }

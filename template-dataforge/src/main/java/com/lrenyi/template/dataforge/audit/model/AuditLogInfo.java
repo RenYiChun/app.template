@@ -20,7 +20,7 @@ import lombok.Setter;
 @Setter
 @Getter
 public class AuditLogInfo implements Serializable {
-
+    
     /** 操作人（Who） */
     private String userName;
     /** 操作描述（What） */
@@ -43,7 +43,7 @@ public class AuditLogInfo implements Serializable {
     private String serviceName;
     /** 服务器 IP（Where） */
     private String serverIp;
-
+    
     /** 操作原因/业务意图（Why），如工单号、审批单号、备注 */
     private String reason;
     /** 操作对象类型（What 结构化），如 User、Order */
@@ -54,26 +54,15 @@ public class AuditLogInfo implements Serializable {
     private Long affectedCount;
     /** 扩展信息 JSON（How much 等），便于后续加金额等不改表结构 */
     private String extra;
-
+    
     @Override
     public String toString() {
-        return "AuditLogInfo{"
-                + "userName='" + userName + '\''
-                + ", description='" + description + '\''
-                + ", operationTime=" + operationTime
-                + ", executionTimeMs=" + executionTimeMs
-                + ", requestIp='" + requestIp + '\''
-                + ", requestUri='" + requestUri + '\''
-                + ", requestMethod='" + requestMethod + '\''
-                + ", success=" + success
-                + ", exceptionDetails='" + exceptionDetails + '\''
-                + ", serviceName='" + serviceName + '\''
-                + ", serverIp='" + serverIp + '\''
-                + ", reason='" + reason + '\''
-                + ", targetType='" + targetType + '\''
-                + ", targetId='" + targetId + '\''
-                + ", affectedCount=" + affectedCount
-                + ", extra='" + extra + '\''
-                + '}';
+        return "AuditLogInfo{" + "userName='" + userName + '\'' + ", description='" + description + '\''
+                + ", operationTime=" + operationTime + ", executionTimeMs=" + executionTimeMs + ", requestIp='"
+                + requestIp + '\'' + ", requestUri='" + requestUri + '\'' + ", requestMethod='" + requestMethod + '\''
+                + ", success=" + success + ", exceptionDetails='" + exceptionDetails + '\'' + ", serviceName='"
+                + serviceName + '\'' + ", serverIp='" + serverIp + '\'' + ", reason='" + reason + '\''
+                + ", targetType='" + targetType + '\'' + ", targetId='" + targetId + '\'' + ", affectedCount="
+                + affectedCount + ", extra='" + extra + '\'' + '}';
     }
 }

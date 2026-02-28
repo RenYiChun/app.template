@@ -17,15 +17,15 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oauth2.password.IRbacService {
-
+    
     private final UserRepository userRepository;
     private final EntityManager entityManager;
-
+    
     public DataforgeBackendRbacService(UserRepository userRepository, EntityManager entityManager) {
         this.userRepository = userRepository;
         this.entityManager = entityManager;
     }
-
+    
     @Override
     public RbacUserCredentials loadUserCredentials(@NonNull String identifier, @NonNull IdentifierType identifierType) {
         if (identifier.isBlank()) {
@@ -40,7 +40,7 @@ public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oa
             return new RbacUserCredentials(user.getUsername(), user.getPassword(), permissions);
         }).orElse(null);
     }
-
+    
     private List<String> getPermissionStringsByUsername(String username) {
         if (username == null || username.isBlank()) {
             return List.of();

@@ -10,14 +10,14 @@ import lombok.Getter;
  */
 @Getter
 public class TemplateException extends RuntimeException {
-
+    
     private final int errorCode;
-
+    
     public TemplateException(int errorCode, String message) {
         super(message);
         this.errorCode = errorCode;
     }
-
+    
     public TemplateException(int errorCode, String message, Throwable cause) {
         super(message, cause);
         this.errorCode = errorCode;

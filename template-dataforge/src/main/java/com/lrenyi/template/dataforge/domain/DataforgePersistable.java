@@ -12,36 +12,36 @@ import java.time.LocalDateTime;
  * @param <ID> 主键类型
  */
 public interface DataforgePersistable<ID extends Serializable> extends Serializable {
-
+    
     ID getId();
-
+    
     void setId(ID id);
-
+    
     LocalDateTime getCreateTime();
-
+    
     void setCreateTime(LocalDateTime createTime);
-
+    
     LocalDateTime getUpdateTime();
-
+    
     void setUpdateTime(LocalDateTime updateTime);
-
+    
     String getCreateBy();
-
+    
     void setCreateBy(String createBy);
-
+    
     String getUpdateBy();
-
+    
     void setUpdateBy(String updateBy);
-
+    
     Boolean getDeleted();
-
+    
     void setDeleted(Boolean deleted);
-
+    
     String getRemark();
-
+    
     void setRemark(String remark);
-
+    
     Long getVersion();
-
+    
     void setVersion(Long version);
 }

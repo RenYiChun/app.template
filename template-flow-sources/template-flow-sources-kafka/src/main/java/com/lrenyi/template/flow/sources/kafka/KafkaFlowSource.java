@@ -21,31 +21,31 @@ import org.apache.kafka.common.errors.WakeupException;
  */
 @Slf4j
 public final class KafkaFlowSource<T> implements FlowSource<T> {
-
+    
     private final KafkaConsumer<?, ?> consumer;
     private final java.util.function.Function<ConsumerRecord<?, ?>, T> mapper;
     private final Duration pollTimeout;
     private final MeterRegistry meterRegistry;
-
+    
     private Iterator<? extends ConsumerRecord<?, ?>> currentBatch;
     private boolean closed;
-
+    
     public KafkaFlowSource(KafkaConsumer<?, ?> consumer,
-                           java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
-                           Duration pollTimeout) {
+            java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
+            Duration pollTimeout) {
         this(consumer, mapper, pollTimeout, null);
     }
-
+    
     public KafkaFlowSource(KafkaConsumer<?, ?> consumer,
-                           java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
-                           Duration pollTimeout,
-                           MeterRegistry meterRegistry) {
+            java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
+            Duration pollTimeout,
+            MeterRegistry meterRegistry) {
         this.consumer = consumer;
         this.mapper = mapper;
         this.pollTimeout = pollTimeout != null ? pollTimeout : Duration.ofMillis(1000);
         this.meterRegistry = meterRegistry;
     }
-
+    
     @Override
     public boolean hasNext() throws InterruptedException {
         if (closed) {
@@ -60,7 +60,7 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         fetchNextBatch();
         return currentBatch != null && currentBatch.hasNext();
     }
-
+    
     private void fetchNextBatch() throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException();
@@ -79,7 +79,8 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
                 if (count > 0) {
                     Counter.builder("app.template.source.received")
                            .tag("sourceType", "kafka")
-                           .register(meterRegistry).increment(count);
+                           .register(meterRegistry)
+                           .increment(count);
                 }
             }
         } catch (WakeupException e) {
@@ -91,12 +92,13 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
                 Counter.builder("app.template.source.errors")
                        .tag("sourceType", "kafka")
                        .tag("errorType", e.getClass().getSimpleName())
-                       .register(meterRegistry).increment();
+                       .register(meterRegistry)
+                       .increment();
             }
             throw e;
         }
     }
-
+    
     @Override
     public T next() {
         if (closed) {
@@ -108,7 +110,7 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
         ConsumerRecord<?, ?> rd = currentBatch.next();
         return mapper.apply(rd);
     }
-
+    
     @Override
     public void close() {
         if (closed) {

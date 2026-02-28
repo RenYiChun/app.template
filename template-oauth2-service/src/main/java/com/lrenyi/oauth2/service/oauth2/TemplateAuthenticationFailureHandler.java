@@ -28,7 +28,7 @@ public class TemplateAuthenticationFailureHandler implements AuthenticationFailu
     
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
-                                        HttpServletResponse response,
+            HttpServletResponse response,
             AuthenticationException exception) throws IOException {
         if (exception instanceof OAuth2AuthenticationException authenticationException) {
             OAuth2Error error = authenticationException.getError();
@@ -36,7 +36,8 @@ public class TemplateAuthenticationFailureHandler implements AuthenticationFailu
             Counter.builder("app.template.oauth2.token.failed")
                    .tag("grantType", "unknown")
                    .tag("errorType", errorCode)
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
             String description = error.getDescription();
             TokenBean result = new TokenBean();
             result.setError(errorCode);

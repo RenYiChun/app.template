@@ -5,33 +5,38 @@
       <!-- Logo Area -->
       <div class="sidebar-header">
         <div class="logo-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                  stroke-width="2"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                  stroke-width="2"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                  stroke-width="2"/>
           </svg>
         </div>
-        <span class="logo-text" v-show="!isCollapsed">Dataforge</span>
+        <span v-show="!isCollapsed" class="logo-text">Dataforge</span>
       </div>
 
       <!-- Menu Items -->
       <div class="sidebar-menu">
         <el-scrollbar>
-            <el-menu
-            :default-active="activeMenu"
-            class="el-menu-vertical"
-            :collapse="isCollapsed"
-            background-color="transparent"
-            text-color="#94a3b8"
-            active-text-color="#ffffff"
-            :collapse-transition="false"
-            @select="handleSelect"
+          <el-menu
+              :collapse="isCollapsed"
+              :collapse-transition="false"
+              :default-active="activeMenu"
+              active-text-color="#ffffff"
+              background-color="transparent"
+              class="el-menu-vertical"
+              text-color="#94a3b8"
+              @select="handleSelect"
           >
             <!-- Console is removed as requested -->
-            
+
             <el-sub-menu index="2">
               <template #title>
-                <el-icon><Setting /></el-icon>
+                <el-icon>
+                  <Setting/>
+                </el-icon>
                 <span>{{ $t('menu.system') }}</span>
               </template>
               <el-menu-item index="/system/users">{{ $t('menu.users') }}</el-menu-item>
@@ -44,10 +49,10 @@
           </el-menu>
         </el-scrollbar>
       </div>
-      
+
       <!-- Bottom Action (optional) -->
-      <div class="sidebar-footer" v-show="!isCollapsed">
-          <div class="version-tag">v1.0.0</div>
+      <div v-show="!isCollapsed" class="sidebar-footer">
+        <div class="version-tag">v1.0.0</div>
       </div>
     </aside>
 
@@ -58,12 +63,12 @@
         <div class="header-left">
           <button class="toggle-btn" @click="toggleSidebar">
             <el-icon :size="20">
-              <Expand v-if="isCollapsed" />
-              <Fold v-else />
+              <Expand v-if="isCollapsed"/>
+              <Fold v-else/>
             </el-icon>
           </button>
-          
-          <el-breadcrumb separator="/" class="breadcrumb">
+
+          <el-breadcrumb class="breadcrumb" separator="/">
             <el-breadcrumb-item :to="{ path: '/' }">{{ $t('menu.home') }}</el-breadcrumb-item>
             <el-breadcrumb-item v-if="$route.name">{{ $route.name }}</el-breadcrumb-item>
           </el-breadcrumb>
@@ -71,25 +76,31 @@
 
         <div class="header-right">
           <!-- Notification Icon -->
-          <div class="icon-btn" @click="handleDocs" style="cursor: pointer; margin-right: 16px;">
+          <div class="icon-btn" style="cursor: pointer; margin-right: 16px;" @click="handleDocs">
             <el-tooltip :content="$t('menu.docs')" placement="bottom">
-              <el-icon :size="20"><Document /></el-icon>
+              <el-icon :size="20">
+                <Document/>
+              </el-icon>
             </el-tooltip>
           </div>
 
           <!-- Notification Icon -->
           <div class="icon-btn">
-            <el-badge is-dot class="item">
-              <el-icon :size="20"><Bell /></el-icon>
+            <el-badge class="item" is-dot>
+              <el-icon :size="20">
+                <Bell/>
+              </el-icon>
             </el-badge>
           </div>
-          
+
           <!-- User Profile Dropdown -->
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-profile">
               <el-avatar :size="32" class="user-avatar">{{ userInitial }}</el-avatar>
               <span class="username">{{ user?.username || 'Admin' }}</span>
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              <el-icon class="el-icon--right">
+                <ArrowDown/>
+              </el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu class="user-dropdown">
@@ -97,14 +108,23 @@
                   <p class="dh-name">{{ user?.username || 'Administrator' }}</p>
                   <p class="dh-email">admin@dataforge.com</p>
                 </div>
-                <el-dropdown-item divided command="profile">
-                    <el-icon><User /></el-icon> {{ $t('menu.profile') }}
+                <el-dropdown-item command="profile" divided>
+                  <el-icon>
+                    <User/>
+                  </el-icon>
+                  {{ $t('menu.profile') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="settings">
-                    <el-icon><Setting /></el-icon> {{ $t('menu.settings') }}
+                  <el-icon>
+                    <Setting/>
+                  </el-icon>
+                  {{ $t('menu.settings') }}
                 </el-dropdown-item>
-                <el-dropdown-item divided command="logout" class="danger-item">
-                    <el-icon><SwitchButton /></el-icon> {{ $t('menu.logout') }}
+                <el-dropdown-item class="danger-item" command="logout" divided>
+                  <el-icon>
+                    <SwitchButton/>
+                  </el-icon>
+                  {{ $t('menu.logout') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -120,59 +140,56 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDataforge } from '@lrenyi/dataforge-headless/vue';
-import { useAuthStore } from '../stores/auth';
-import { storeToRefs } from 'pinia';
-import { 
-  User, Setting, Document, 
-  Expand, Fold, Bell, ArrowDown, SwitchButton
-} from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+<script lang="ts" setup>
+import {computed, onMounted, ref} from 'vue';
+import {useRouter} from 'vue-router';
+import {useDataforge} from '@lrenyi/dataforge-headless/vue';
+import {useAuthStore} from '../stores/auth';
+import {storeToRefs} from 'pinia';
+import {ArrowDown, Bell, Document, Expand, Fold, Setting, SwitchButton, User} from '@element-plus/icons-vue';
+import {ElMessage} from 'element-plus';
 
 const authStore = useAuthStore();
-const { user } = storeToRefs(authStore);
-const { logout, refreshMe } = authStore;
-const { authClient } = useDataforge();
+const {user} = storeToRefs(authStore);
+const {logout, refreshMe} = authStore;
+const {authClient} = useDataforge();
 const router = useRouter();
 
 const isCollapsed = ref(false);
 const activeMenu = computed(() => router.currentRoute.value.path);
 const handleSelect = (index: string) => {
-          if (index.startsWith('/')) {
-              router.push(index);
-          }
-      };
+  if (index.startsWith('/')) {
+    router.push(index);
+  }
+};
 
-      const handleDocs = () => {
-          const token = authClient?.getToken();
-          const url = token ? `/docs?token=${token}` : '/docs';
-          window.open(url, '_blank');
-      };
+const handleDocs = () => {
+  const token = authClient?.getToken();
+  const url = token ? `/docs?token=${token}` : '/docs';
+  window.open(url, '_blank');
+};
 
-      const userInitial = computed(() => {
-    return (user.value?.username?.[0] || 'A').toUpperCase();
+const userInitial = computed(() => {
+  return (user.value?.username?.[0] || 'A').toUpperCase();
 });
 
 const toggleSidebar = () => {
-    isCollapsed.value = !isCollapsed.value;
+  isCollapsed.value = !isCollapsed.value;
 };
 
 const handleCommand = async (command: string) => {
-    if (command === 'logout') {
-        await logout();
-        router.push('/login');
-        ElMessage.success('Logged out successfully');
-    } else if (command === 'profile') {
-        ElMessage.info('Profile clicked');
-    }
+  if (command === 'logout') {
+    await logout();
+    router.push('/login');
+    ElMessage.success('Logged out successfully');
+  } else if (command === 'profile') {
+    ElMessage.info('Profile clicked');
+  }
 };
 
 onMounted(() => {
-    // Ensure user data is fresh
-    refreshMe();
+  // Ensure user data is fresh
+  refreshMe();
 });
 </script>
 
@@ -218,8 +235,8 @@ onMounted(() => {
 }
 
 .sidebar.collapsed .sidebar-header {
-    justify-content: center;
-    padding: 0;
+  justify-content: center;
+  padding: 0;
 }
 
 .logo-icon {
@@ -243,18 +260,18 @@ onMounted(() => {
 }
 
 .sidebar-footer {
-    padding: 20px;
-    border-top: 1px solid #1e293b;
-    text-align: center;
+  padding: 20px;
+  border-top: 1px solid #1e293b;
+  text-align: center;
 }
 
 .version-tag {
-    font-size: 11px;
-    color: #475569;
-    background: #1e293b;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
+  font-size: 11px;
+  color: #475569;
+  background: #1e293b;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
 }
 
 /* Menu Overrides */
@@ -278,10 +295,10 @@ onMounted(() => {
 
 .sidebar.collapsed :deep(.el-menu-item),
 .sidebar.collapsed :deep(.el-sub-menu__title) {
-    margin: 4px 8px; /* Tighter margins for collapsed state */
-    padding: 0 !important;
-    display: flex;
-    justify-content: center;
+  margin: 4px 8px; /* Tighter margins for collapsed state */
+  padding: 0 !important;
+  display: flex;
+  justify-content: center;
 }
 
 :deep(.el-menu-item.is-active) {
@@ -313,7 +330,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0 24px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .header-left {
@@ -351,6 +368,7 @@ onMounted(() => {
   color: #64748b;
   transition: color 0.2s;
 }
+
 .icon-btn:hover {
   color: #334155;
 }
@@ -386,18 +404,21 @@ onMounted(() => {
   border-bottom: 1px solid #f1f5f9;
   margin-bottom: 4px;
 }
+
 .dh-name {
   font-weight: 600;
   color: #1e293b;
   margin: 0;
 }
+
 .dh-email {
   font-size: 12px;
   color: #94a3b8;
   margin: 0;
 }
+
 .danger-item {
-    color: #ef4444 !important;
+  color: #ef4444 !important;
 }
 
 /* Content Area */
@@ -411,6 +432,6 @@ onMounted(() => {
 
 /* Transitions */
 .sidebar, .main-content {
-    transition: all 0.3s ease;
+  transition: all 0.3s ease;
 }
 </style>

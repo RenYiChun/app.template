@@ -6,7 +6,7 @@ import java.util.Set;
  * 按用户标识查询其拥有的权限字符串集合（UserRole -> Role -> RolePermission -> Permission）。
  */
 public interface RbacQueryService {
-
+    
     /**
      * 根据用户标识返回该用户拥有的所有权限字符串。
      *

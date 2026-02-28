@@ -3,25 +3,27 @@
     <div class="metadata-sidebar">
       <div class="sidebar-header">
         <el-input
-          v-model="filterText"
-          :placeholder="t('dataforgeUi.search.inputPlaceholder', { label: t('menu.metadata', 'Entity') })"
-          clearable
+            v-model="filterText"
+            :placeholder="t('dataforgeUi.search.inputPlaceholder', { label: t('menu.metadata', 'Entity') })"
+            clearable
         >
           <template #prefix>
-            <el-icon><Search /></el-icon>
+            <el-icon>
+              <Search/>
+            </el-icon>
           </template>
         </el-input>
       </div>
       <el-scrollbar>
         <el-menu
-          :default-active="selectedEntity?.pathSegment"
-          class="entity-menu"
-          @select="handleSelect"
+            :default-active="selectedEntity?.pathSegment"
+            class="entity-menu"
+            @select="handleSelect"
         >
           <el-menu-item
-            v-for="entity in filteredEntities"
-            :key="entity.pathSegment"
-            :index="entity.pathSegment"
+              v-for="entity in filteredEntities"
+              :key="entity.pathSegment"
+              :index="entity.pathSegment"
           >
             <div class="menu-item-content">
               <span class="entity-name">{{ entity.displayName }}</span>
@@ -43,17 +45,18 @@
           <!-- Operations Tab -->
           <el-tab-pane :label="t('metadata.operations', 'Operations')" name="operations">
             <el-table :data="operationsList" border stripe style="width: 100%">
-              <el-table-column prop="method" :label="t('metadata.method', 'Method')" width="100">
+              <el-table-column :label="t('metadata.method', 'Method')" prop="method" width="100">
                 <template #default="{ row }">
                   <el-tag :type="getMethodType(row.method)">{{ row.method }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="path" :label="t('metadata.path', 'Path')" show-overflow-tooltip />
-              <el-table-column prop="summary" :label="t('metadata.summary', 'Summary')" show-overflow-tooltip />
-              <el-table-column prop="permissions" :label="t('metadata.permissions', 'Permissions')">
+              <el-table-column :label="t('metadata.path', 'Path')" prop="path" show-overflow-tooltip/>
+              <el-table-column :label="t('metadata.summary', 'Summary')" prop="summary" show-overflow-tooltip/>
+              <el-table-column :label="t('metadata.permissions', 'Permissions')" prop="permissions">
                 <template #default="{ row }">
                   <div v-if="row.permissions && row.permissions.length">
-                    <el-tag v-for="perm in row.permissions" :key="perm" size="small" style="margin-right: 4px; margin-bottom: 4px;">
+                    <el-tag v-for="perm in row.permissions" :key="perm" size="small"
+                            style="margin-right: 4px; margin-bottom: 4px;">
                       {{ perm }}
                     </el-tag>
                   </div>
@@ -66,11 +69,11 @@
           <!-- Queryable Fields Tab -->
           <el-tab-pane :label="t('metadata.fields', 'Queryable Fields')" name="fields">
             <el-table :data="queryableFieldsList" border stripe style="width: 100%">
-              <el-table-column prop="name" :label="t('metadata.fieldName', 'Field Name')" width="180" />
-              <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
+              <el-table-column :label="t('metadata.fieldName', 'Field Name')" prop="name" width="180"/>
+              <el-table-column :label="t('metadata.type', 'Type')" prop="type" width="120"/>
               <el-table-column :label="t('metadata.operators', 'Operators')">
                 <template #default="{ row }">
-                  <el-tag v-for="op in row.operators" :key="op" size="small" type="info" style="margin-right: 4px">
+                  <el-tag v-for="op in row.operators" :key="op" size="small" style="margin-right: 4px" type="info">
                     {{ op }}
                   </el-tag>
                 </template>
@@ -83,75 +86,75 @@
             <el-tabs v-model="activeSchemaTab" type="card">
               <el-tab-pane label="Create" name="create">
                 <div v-if="selectedEntity?.schemas?.create">
-                    <el-table :data="getSchemaData(selectedEntity.schemas.create)" border stripe>
-                        <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
-                        <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
-                        <el-table-column :label="t('metadata.required', 'Required')" width="100">
-                            <template #default="{ row }">
-                                <el-tag :type="row.required ? 'danger' : 'info'" size="small">
-                                    {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
-                                </el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column prop="description" :label="t('metadata.description', 'Description')" />
-                    </el-table>
+                  <el-table :data="getSchemaData(selectedEntity.schemas.create)" border stripe>
+                    <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
+                    <el-table-column :label="t('metadata.type', 'Type')" prop="type" width="120"/>
+                    <el-table-column :label="t('metadata.required', 'Required')" width="100">
+                      <template #default="{ row }">
+                        <el-tag :type="row.required ? 'danger' : 'info'" size="small">
+                          {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="t('metadata.description', 'Description')" prop="description"/>
+                  </el-table>
                 </div>
-                <el-empty v-else :description="t('common.noData', 'No Data')" />
+                <el-empty v-else :description="t('common.noData', 'No Data')"/>
               </el-tab-pane>
               <el-tab-pane label="Update" name="update">
                 <div v-if="selectedEntity?.schemas?.update">
-                    <el-table :data="getSchemaData(selectedEntity.schemas.update)" border stripe>
-                        <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
-                        <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
-                        <el-table-column :label="t('metadata.required', 'Required')" width="100">
-                            <template #default="{ row }">
-                                <el-tag :type="row.required ? 'danger' : 'info'" size="small">
-                                    {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
-                                </el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column prop="description" :label="t('metadata.description', 'Description')" />
-                    </el-table>
+                  <el-table :data="getSchemaData(selectedEntity.schemas.update)" border stripe>
+                    <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
+                    <el-table-column :label="t('metadata.type', 'Type')" prop="type" width="120"/>
+                    <el-table-column :label="t('metadata.required', 'Required')" width="100">
+                      <template #default="{ row }">
+                        <el-tag :type="row.required ? 'danger' : 'info'" size="small">
+                          {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="t('metadata.description', 'Description')" prop="description"/>
+                  </el-table>
                 </div>
-                <el-empty v-else :description="t('common.noData', 'No Data')" />
+                <el-empty v-else :description="t('common.noData', 'No Data')"/>
               </el-tab-pane>
               <el-tab-pane label="Response" name="response">
                 <div v-if="selectedEntity?.schemas?.pageResponse">
-                    <el-table :data="getSchemaData(selectedEntity.schemas.pageResponse)" border stripe>
-                        <el-table-column prop="name" :label="t('metadata.propertyName', 'Property')" width="180" />
-                        <el-table-column prop="type" :label="t('metadata.type', 'Type')" width="120" />
-                        <el-table-column :label="t('metadata.required', 'Required')" width="100">
-                            <template #default="{ row }">
-                                <el-tag :type="row.required ? 'danger' : 'info'" size="small">
-                                    {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
-                                </el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column prop="description" :label="t('metadata.description', 'Description')" />
-                    </el-table>
+                  <el-table :data="getSchemaData(selectedEntity.schemas.pageResponse)" border stripe>
+                    <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
+                    <el-table-column :label="t('metadata.type', 'Type')" prop="type" width="120"/>
+                    <el-table-column :label="t('metadata.required', 'Required')" width="100">
+                      <template #default="{ row }">
+                        <el-tag :type="row.required ? 'danger' : 'info'" size="small">
+                          {{ row.required ? t('common.yes', 'Yes') : t('common.no', 'No') }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="t('metadata.description', 'Description')" prop="description"/>
+                  </el-table>
                 </div>
-                <el-empty v-else :description="t('common.noData', 'No Data')" />
+                <el-empty v-else :description="t('common.noData', 'No Data')"/>
               </el-tab-pane>
             </el-tabs>
           </el-tab-pane>
         </el-tabs>
       </div>
-      <el-empty v-else :description="t('metadata.selectEntity', 'Select an entity to view details')" />
+      <el-empty v-else :description="t('metadata.selectEntity', 'Select an entity to view details')"/>
     </div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Search } from '@element-plus/icons-vue';
-import { useDataforge } from '@lrenyi/dataforge-headless/vue';
-import type { EntityMeta, OperationMeta } from '@lrenyi/dataforge-headless';
+<script lang="ts" setup>
+import {computed, onMounted, ref} from 'vue';
+import {Search} from '@element-plus/icons-vue';
+import {useDataforge} from '@lrenyi/dataforge-headless/vue';
+import type {EntityMeta} from '@lrenyi/dataforge-headless';
 
 const props = defineProps<{
   locale?: Record<string, any>;
 }>();
 
-const { meta } = useDataforge();
+const {meta} = useDataforge();
 const entities = ref<EntityMeta[]>([]);
 const selectedEntity = ref<EntityMeta | null>(null);
 const filterText = ref('');
@@ -161,17 +164,17 @@ const activeSchemaTab = ref('response');
 // Helper to translate text using provided locale or fallback
 const t = (key: string, fallback: string | Record<string, any>) => {
   if (typeof fallback === 'object') {
-      // Handle template replacement if fallback is an object (simplified logic here, actually fallback is string usually)
-      // If the second arg is params, the first arg is key
-      return key; 
+    // Handle template replacement if fallback is an object (simplified logic here, actually fallback is string usually)
+    // If the second arg is params, the first arg is key
+    return key;
   }
 
   // Simplified i18n lookup
   if (!props.locale) return fallback;
-  
+
   const keys = key.split('.');
   let value: any = props.locale;
-  
+
   for (const k of keys) {
     if (value && typeof value === 'object' && k in value) {
       value = value[k];
@@ -179,7 +182,7 @@ const t = (key: string, fallback: string | Record<string, any>) => {
       return fallback;
     }
   }
-  
+
   return value || fallback;
 };
 
@@ -188,9 +191,9 @@ const filteredEntities = computed(() => {
   if (!filterText.value) return entities.value;
   const lower = filterText.value.toLowerCase();
   return entities.value.filter(
-    (e) =>
-      (e.displayName && e.displayName.toLowerCase().includes(lower)) ||
-      (e.pathSegment && e.pathSegment.toLowerCase().includes(lower))
+      (e) =>
+          (e.displayName && e.displayName.toLowerCase().includes(lower)) ||
+          (e.pathSegment && e.pathSegment.toLowerCase().includes(lower))
   );
 });
 
@@ -215,19 +218,24 @@ const handleSelect = (pathSegment: string) => {
 
 const getMethodType = (method: string) => {
   switch (method.toUpperCase()) {
-    case 'GET': return '';
-    case 'POST': return 'success';
-    case 'PUT': return 'warning';
-    case 'DELETE': return 'danger';
-    default: return 'info';
+    case 'GET':
+      return '';
+    case 'POST':
+      return 'success';
+    case 'PUT':
+      return 'warning';
+    case 'DELETE':
+      return 'danger';
+    default:
+      return 'info';
   }
 };
 
 const getSchemaData = (schema: Record<string, any>) => {
-    return Object.entries(schema).map(([name, conf]) => ({
-        name,
-        ...conf
-    }));
+  return Object.entries(schema).map(([name, conf]) => ({
+    name,
+    ...conf
+  }));
 };
 
 onMounted(async () => {
@@ -235,7 +243,7 @@ onMounted(async () => {
     const list = await meta.getEntities();
     // Sort by pathSegment
     entities.value = list.sort((a, b) => a.pathSegment.localeCompare(b.pathSegment));
-    
+
     if (entities.value.length > 0) {
       selectedEntity.value = entities.value[0];
     }

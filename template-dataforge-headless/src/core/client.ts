@@ -71,25 +71,6 @@ export class EntityClient {
         return joinPath(this.baseURL, '', 'docs');
     }
 
-    private url(path: string): string {
-        return joinPath(this.baseURL, this.apiPrefix, path);
-    }
-
-    private async json<T>(res: Response): Promise<T> {
-        const text = await res.text();
-        if (!text) return {} as T;
-        return JSON.parse(text) as T;
-    }
-
-    private async handleResult<T>(res: Response): Promise<T> {
-        const result = (await this.json<Result<T>>(res)) as Result<T>;
-        // 检查业务状态码
-        if (result.code !== SUCCESS_CODE && result.code !== 200) {
-            throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
-        }
-        return result.data as T;
-    }
-
     /** 分页搜索 */
     async search<T = Record<string, unknown>>(
         entity: string,
@@ -235,5 +216,24 @@ export class EntityClient {
             deleteBatch: (ids: (string | number)[]) => this.deleteBatch(name, ids),
             updateBatch: (items: Array<{ id: string | number } & Partial<T>>) => this.updateBatch<T>(name, items),
         };
+    }
+
+    private url(path: string): string {
+        return joinPath(this.baseURL, this.apiPrefix, path);
+    }
+
+    private async json<T>(res: Response): Promise<T> {
+        const text = await res.text();
+        if (!text) return {} as T;
+        return JSON.parse(text) as T;
+    }
+
+    private async handleResult<T>(res: Response): Promise<T> {
+        const result = (await this.json<Result<T>>(res)) as Result<T>;
+        // 检查业务状态码
+        if (result.code !== SUCCESS_CODE && result.code !== 200) {
+            throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
+        }
+        return result.data as T;
     }
 }

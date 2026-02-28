@@ -5,19 +5,19 @@ package com.lrenyi.template.flow.api;
  * 可包装 Stream、Iterator、分页 API、Kafka 等。
  */
 public interface FlowSource<T> extends AutoCloseable {
-
+    
     /**
      * 是否还有下一条数据。
      * 若底层阻塞（如 Kafka poll），可抛 InterruptedException。
      */
     boolean hasNext() throws InterruptedException;
-
+    
     /**
      * 取下一条数据；若没有则抛 NoSuchElementException。
      * 调用前应保证 hasNext() 为 true。
      */
     T next();
-
+    
     @Override
     void close();
 }

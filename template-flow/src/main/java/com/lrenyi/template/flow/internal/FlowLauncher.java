@@ -7,7 +7,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
-import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.context.Orchestrator;
@@ -17,6 +16,7 @@ import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -38,16 +38,18 @@ public class FlowLauncher<T> {
     private final FlowStorage<T> storage;
     private final FlowManager flowManager;
     private final FlowJoiner<T> flowJoiner;
-    private volatile boolean stopped = false;
     private final Semaphore jobProducerSemaphore;
     private final TemplateConfigProperties.Flow flow;
     private final BackpressureController backpressureController;
     private final FlowResourceContext resourceContext;
-
+    private volatile boolean stopped = false;
+    
     private FlowLauncher(String jobId,
             FlowManager flowManager,
             FlowJoiner<T> flowJoiner,
-            ProgressTracker tracker, Registration registration, FlowResourceContext resourceContext) {
+            ProgressTracker tracker,
+            Registration registration,
+            FlowResourceContext resourceContext) {
         this.jobId = jobId;
         this.flowManager = flowManager;
         this.flowJoiner = flowJoiner;
@@ -58,21 +60,17 @@ public class FlowLauncher<T> {
         this.backpressureController = resourceContext.getBackpressureController();
         this.taskOrchestrator = new Orchestrator(jobId, tracker, registration, resourceContext);
     }
-
+    
     public static <T> FlowLauncher<T> create(String jobId,
             FlowJoiner<T> flowJoiner,
             FlowManager flowManager,
             ProgressTracker tracker,
             Registration registration,
             FlowResourceContext resourceContext) {
-
+        
         return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
-
-    private MeterRegistry registry() {
-        return flowManager.getMeterRegistry();
-    }
-
+    
     public void launch(T data) {
         long startTime = System.currentTimeMillis();
         ProgressTracker tracker = taskOrchestrator.tracker();
@@ -80,10 +78,11 @@ public class FlowLauncher<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
-                   .register(registry()).increment();
+                   .register(registry())
+                   .increment();
             return;
         }
-
+        
         Semaphore inFlight = resourceContext.getInFlightProductionSemaphore();
         if (inFlight != null) {
             try {
@@ -94,16 +93,18 @@ public class FlowLauncher<T> {
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
                        .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
-                       .register(registry()).increment();
+                       .register(registry())
+                       .increment();
                 return;
             }
         }
-
+        
         tracker.onProductionAcquired();
         Counter.builder(FlowMetricNames.PRODUCTION_ACQUIRED)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-               .register(registry()).increment();
-
+               .register(registry())
+               .increment();
+        
         if (stopped) {
             tracker.onProductionReleased();
             if (inFlight != null) {
@@ -112,10 +113,11 @@ public class FlowLauncher<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
-                   .register(registry()).increment();
+                   .register(registry())
+                   .increment();
             return;
         }
-
+        
         try {
             awaitBackpressure();
         } catch (InterruptedException e) {
@@ -127,10 +129,11 @@ public class FlowLauncher<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "backpressure_interrupted")
                    .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
-                   .register(registry()).increment();
+                   .register(registry())
+                   .increment();
             return;
         }
-
+        
         Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
@@ -139,29 +142,32 @@ public class FlowLauncher<T> {
                     Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                            .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                            .tag(FlowMetricNames.TAG_REASON, "SHUTDOWN")
-                           .register(registry()).increment();
+                           .register(registry())
+                           .increment();
                     return;
                 }
-
+                
                 long depositStartTime = System.currentTimeMillis();
                 getStorage().deposit(ctx);
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
-
+                
                 Counter.builder(FlowMetricNames.PRODUCTION_RELEASED)
                        .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                       .register(registry()).increment();
-
+                       .register(registry())
+                       .increment();
+                
                 Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
                      .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
-
+                
             } catch (Throwable e) {
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "deposit_failed")
                        .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-                       .register(registry()).increment();
+                       .register(registry())
+                       .increment();
             } finally {
                 tracker.onProductionReleased();
                 if (inFlight != null) {
@@ -170,7 +176,11 @@ public class FlowLauncher<T> {
             }
         });
     }
-
+    
+    private MeterRegistry registry() {
+        return flowManager.getMeterRegistry();
+    }
+    
     private void awaitBackpressure() throws InterruptedException {
         if (stopped) {
             return;
@@ -182,15 +192,15 @@ public class FlowLauncher<T> {
             throw e;
         }
     }
-
+    
     public long getCacheCapacity() {
         return flow.getProducer().getMaxCacheSize();
     }
-
+    
     public ExecutorService getProducerExecutor() {
         return resourceContext.getProducerExecutor();
     }
-
+    
     public void stop(boolean force) {
         if (stopped) {
             return;
@@ -200,8 +210,7 @@ public class FlowLauncher<T> {
         taskOrchestrator.tracker().markSourceFinished(jobId);
         try {
             FlowStorageType type = flowJoiner.getStorageType();
-            resourceContext.getCacheManager()
-                    .invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
+            resourceContext.getCacheManager().invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
         } catch (Exception e) {
             log.error("Job [{}] 停止时清理 Storage 失败", jobId, e);
         }

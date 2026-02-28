@@ -28,12 +28,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class TraceFilter extends OncePerRequestFilter {
-
+    
     private static final String TRACE_ID = "traceId";
     private static final String USER_ID = "userId";
     private static final String REQUEST_PATH = "requestPath";
     private static final String HEADER_TRACE_ID = "X-Trace-Id";
-
+    
     @Override
     protected void doFilterInternal(HttpServletRequest request,
             @NonNull HttpServletResponse response,
@@ -45,14 +45,14 @@ public class TraceFilter extends OncePerRequestFilter {
             }
             MDC.put(TRACE_ID, traceId);
             MDC.put(REQUEST_PATH, request.getRequestURI());
-
+            
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated()) {
                 MDC.put(USER_ID, auth.getName());
             }
-
+            
             response.setHeader(HEADER_TRACE_ID, traceId);
-
+            
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(TRACE_ID);

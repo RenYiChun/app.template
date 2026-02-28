@@ -11,32 +11,21 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public final class EntityDtoResolver {
-
+    
     private EntityDtoResolver() {
     }
-
+    
     public static Class<?> resolveCreateDto(EntityMeta meta) {
         return resolve(meta, "CreateDTO");
     }
-
-    public static Class<?> resolveUpdateDto(EntityMeta meta) {
-        return resolve(meta, "UpdateDTO");
-    }
-
-    public static Class<?> resolveResponseDto(EntityMeta meta) {
-        return resolve(meta, "ResponseDTO");
-    }
-
-    /** 分页列表项 DTO，仅包含 @DataforgeDto(include = DtoType.PAGE_RESPONSE) 的字段。 */
-    public static Class<?> resolvePageResponseDto(EntityMeta meta) {
-        return resolve(meta, "PageResponseDTO");
-    }
-
+    
     private static Class<?> resolve(EntityMeta meta, String suffix) {
         Class<?> entityClass = meta.getEntityClass();
         if (entityClass == null) {
             log.debug("[EntityDtoResolver] entityClass is null for pathSegment={}, cannot resolve {}",
-                    meta.getPathSegment(), suffix);
+                      meta.getPathSegment(),
+                      suffix
+            );
             return null;
         }
         String pkg = entityClass.getPackageName();
@@ -46,10 +35,27 @@ public final class EntityDtoResolver {
         try {
             return Class.forName(className, true, loader != null ? loader : ClassLoader.getSystemClassLoader());
         } catch (ClassNotFoundException e) {
-            log.warn("[EntityDtoResolver] DTO class not found: {} (entity={}, pathSegment={}). " +
-                    "Ensure the annotation processor ran and the module was compiled (e.g. mvn clean compile).",
-                    className, simple, meta.getPathSegment());
+            log.warn("[EntityDtoResolver] DTO class not found: {} (entity={}, pathSegment={}). "
+                             + "Ensure the annotation processor ran and the module was compiled (e.g. mvn clean "
+                             + "compile).",
+                     className,
+                     simple,
+                     meta.getPathSegment()
+            );
             return null;
         }
+    }
+    
+    public static Class<?> resolveUpdateDto(EntityMeta meta) {
+        return resolve(meta, "UpdateDTO");
+    }
+    
+    public static Class<?> resolveResponseDto(EntityMeta meta) {
+        return resolve(meta, "ResponseDTO");
+    }
+    
+    /** 分页列表项 DTO，仅包含 @DataforgeDto(include = DtoType.PAGE_RESPONSE) 的字段。 */
+    public static Class<?> resolvePageResponseDto(EntityMeta meta) {
+        return resolve(meta, "PageResponseDTO");
     }
 }

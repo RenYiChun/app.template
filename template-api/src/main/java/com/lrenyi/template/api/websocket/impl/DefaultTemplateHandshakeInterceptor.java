@@ -30,7 +30,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  * Opaque Token 模式下框架会自动提供 Introspector；仅 JWT 模式时需在应用中提供 {@link JwtDecoder} Bean，否则握手将拒绝。
  * </p>
  * <p>
- * 生产环境建议使用 wss://，并通过 Header 传 token；可通过 {@code app.template.websocket.allow-token-in-query-parameter=false} 禁止从 query 取 token。
+ * 生产环境建议使用 wss://，并通过 Header 传 token；可通过 {@code app.template.websocket.allow-token-in-query-parameter=false} 禁止从
+ * query 取 token。
  * </p>
  */
 @Slf4j
@@ -104,12 +105,6 @@ public class DefaultTemplateHandshakeInterceptor implements TemplateHandshakeInt
         }
         return null;
     }
-
-    private boolean isAllowTokenInQueryParameter() {
-        return templateConfigProperties != null
-                && templateConfigProperties.getWebsocket() != null
-                && templateConfigProperties.getWebsocket().isAllowTokenInQueryParameter();
-    }
     
     /** 校验 token 并返回 Principal（OAuth2AuthenticatedPrincipal 或 JwtAuthenticationToken），供 Session 使用 */
     private Object validateTokenAndGetPrincipal(String token) {
@@ -125,6 +120,11 @@ public class DefaultTemplateHandshakeInterceptor implements TemplateHandshakeInt
         log.warn("WebSocket 认证：未找到 OpaqueTokenIntrospector 或 JwtDecoder Bean，请配置 OAuth2 资源服务器或提供自定义 "
                          + "TemplateHandshakeInterceptor");
         return null;
+    }
+    
+    private boolean isAllowTokenInQueryParameter() {
+        return templateConfigProperties != null && templateConfigProperties.getWebsocket() != null
+                && templateConfigProperties.getWebsocket().isAllowTokenInQueryParameter();
     }
     
     private boolean isOpaqueTokenMode() {

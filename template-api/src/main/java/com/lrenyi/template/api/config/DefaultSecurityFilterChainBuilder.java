@@ -66,7 +66,7 @@ public class DefaultSecurityFilterChainBuilder {
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
     private final OpaqueTokenIntrospector opaqueTokenIntrospector;
     private final MeterRegistry meterRegistry;
-
+    
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
@@ -136,101 +136,9 @@ public class DefaultSecurityFilterChainBuilder {
         }
     }
     
-    private void guardLocalJwtInProduction(TemplateConfigProperties.SecurityProperties security) {
-        Set<String> activeProfiles = Arrays.stream(environment.getActiveProfiles()).collect(Collectors.toSet());
-        boolean isProduction = security.getProductionProfiles().stream().anyMatch(activeProfiles::contains);
-        if (isProduction) {
-            throw new IllegalStateException("生产环境禁止使用本地 JWT 公钥。请设置 app.template.security.local-jwt-public-key=false，"
-                                                    + "并配置 net-jwt-public-key-uri（完整 URI）或 "
-                                                    + "net-jwt-public-key-domain（域名），"
-                                                    + "或使用 Opaque Token 模式。当前激活的 profile: " + Arrays.toString(
-                    environment.getActiveProfiles()));
-        }
-    }
-    
-    private void configureLocalJwtResourceServer(HttpSecurity http) throws Exception {
-        RSAPublicKey publicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
-        JwtDecoder jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
-        http.oauth2ResourceServer(ors -> ors.jwt(jwt -> jwt.decoder(jwtDecoder)
-                                                           .jwtAuthenticationConverter(jwtAuthenticationConverter)));
-    }
-    
-    private void configureRemoteJwtResourceServer(HttpSecurity http,
-            TemplateConfigProperties.SecurityProperties security) throws Exception {
-        String jwkSetUri = resolveJwkSetUri(security);
-        http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwkSetUri(jwkSetUri)
-                                                                 .jwtAuthenticationConverter(jwtAuthenticationConverter)));
-    }
-    
     private void configureExceptionHandling(HttpSecurity http) throws Exception {
         http.exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(
                 createAuthenticationEntryPoint()).accessDeniedHandler(createAccessDeniedHandler()));
-    }
-    
-    private AuthenticationEntryPoint createAuthenticationEntryPoint() {
-        return (request, response, authException) -> {
-            String reason = inferAuthFailureReason(authException);
-            incrementAuthFailureCounter(reason);
-            writeAuthErrorJsonResponse(request, response, MCode.NO_PERMISSIONS);
-        };
-    }
-    
-    private String inferAuthFailureReason(AuthenticationException authException) {
-        String msg = authException.getMessage();
-        if (msg == null) {
-            return "MISSING_TOKEN";
-        }
-        String lower = msg.toLowerCase();
-        if (lower.contains("expired")) {
-            return "EXPIRED_TOKEN";
-        }
-        if (lower.contains("invalid")) {
-            return "INVALID_TOKEN";
-        }
-        return "MISSING_TOKEN";
-    }
-    
-    private AccessDeniedHandler createAccessDeniedHandler() {
-        return (request, response, accessDeniedException) -> {
-            incrementAuthFailureCounter("ACCESS_DENIED");
-            writeAuthErrorJsonResponse(request, response, MCode.ACCESS_DENIED);
-        };
-    }
-    
-    private void incrementAuthFailureCounter(String reason) {
-        Counter.builder(AUTH_FAILURE_METRIC).tag("reason", reason).register(meterRegistry).increment();
-    }
-    
-    /**
-     * 统一写入 401/403 的 JSON 响应，与 GlobalExceptionHandler 的 Result 格式一致。
-     */
-    private void writeAuthErrorJsonResponse(HttpServletRequest request, HttpServletResponse response, MCode mcode) {
-        if (response.isCommitted()) {
-            return;
-        }
-        JsonService jsonService = jsonServiceProvider.getIfAvailable();
-        if (jsonService != null) {
-            Result<String> error = new Result<>();
-            error.setCode(mcode.getCode());
-            error.setData(request.getRequestURI());
-            error.setMessage(mcode.getMessage());
-            String jsonString = jsonService.serialize(error);
-            response.setStatus(mcode.getCode());
-            response.setContentType(ContentType.APPLICATION_JSON.getType());
-            try {
-                ServletOutputStream outputStream = response.getOutputStream();
-                outputStream.write(jsonString.getBytes(StandardCharsets.UTF_8));
-                outputStream.flush();
-            } catch (IOException e) {
-                log.error("返回异常结果给前端时出现异常", e);
-            }
-        } else {
-            try {
-                response.sendError(mcode.getCode(), mcode.getMessage());
-            } catch (IOException e) {
-                log.error("sendError 失败: {}", e.getMessage());
-            }
-        }
     }
     
     /**
@@ -276,6 +184,47 @@ public class DefaultSecurityFilterChainBuilder {
         }
     }
     
+    private void guardLocalJwtInProduction(TemplateConfigProperties.SecurityProperties security) {
+        Set<String> activeProfiles = Arrays.stream(environment.getActiveProfiles()).collect(Collectors.toSet());
+        boolean isProduction = security.getProductionProfiles().stream().anyMatch(activeProfiles::contains);
+        if (isProduction) {
+            throw new IllegalStateException("生产环境禁止使用本地 JWT 公钥。请设置 app.template.security.local-jwt-public-key=false，"
+                                                    + "并配置 net-jwt-public-key-uri（完整 URI）或 "
+                                                    + "net-jwt-public-key-domain（域名），"
+                                                    + "或使用 Opaque Token 模式。当前激活的 profile: " + Arrays.toString(
+                    environment.getActiveProfiles()));
+        }
+    }
+    
+    private void configureLocalJwtResourceServer(HttpSecurity http) throws Exception {
+        RSAPublicKey publicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
+        JwtDecoder jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
+        http.oauth2ResourceServer(ors -> ors.jwt(jwt -> jwt.decoder(jwtDecoder)
+                                                           .jwtAuthenticationConverter(jwtAuthenticationConverter)));
+    }
+    
+    private void configureRemoteJwtResourceServer(HttpSecurity http,
+            TemplateConfigProperties.SecurityProperties security) throws Exception {
+        String jwkSetUri = resolveJwkSetUri(security);
+        http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwkSetUri(jwkSetUri)
+                                                                 .jwtAuthenticationConverter(jwtAuthenticationConverter)));
+    }
+    
+    private AuthenticationEntryPoint createAuthenticationEntryPoint() {
+        return (request, response, authException) -> {
+            String reason = inferAuthFailureReason(authException);
+            incrementAuthFailureCounter(reason);
+            writeAuthErrorJsonResponse(request, response, MCode.NO_PERMISSIONS);
+        };
+    }
+    
+    private AccessDeniedHandler createAccessDeniedHandler() {
+        return (request, response, accessDeniedException) -> {
+            incrementAuthFailureCounter("ACCESS_DENIED");
+            writeAuthErrorJsonResponse(request, response, MCode.ACCESS_DENIED);
+        };
+    }
+    
     /**
      * 解析 JWT 公钥 JWK Set 的 URI。
      * 优先使用 netJwtPublicKeyUri（完整 URI）；否则用 netJwtPublicKeyDomain + netJwtPublicKeyPath 拼接。
@@ -300,5 +249,56 @@ public class DefaultSecurityFilterChainBuilder {
             path = "/" + path;
         }
         return domain + path;
+    }
+    
+    private String inferAuthFailureReason(AuthenticationException authException) {
+        String msg = authException.getMessage();
+        if (msg == null) {
+            return "MISSING_TOKEN";
+        }
+        String lower = msg.toLowerCase();
+        if (lower.contains("expired")) {
+            return "EXPIRED_TOKEN";
+        }
+        if (lower.contains("invalid")) {
+            return "INVALID_TOKEN";
+        }
+        return "MISSING_TOKEN";
+    }
+    
+    private void incrementAuthFailureCounter(String reason) {
+        Counter.builder(AUTH_FAILURE_METRIC).tag("reason", reason).register(meterRegistry).increment();
+    }
+    
+    /**
+     * 统一写入 401/403 的 JSON 响应，与 GlobalExceptionHandler 的 Result 格式一致。
+     */
+    private void writeAuthErrorJsonResponse(HttpServletRequest request, HttpServletResponse response, MCode mcode) {
+        if (response.isCommitted()) {
+            return;
+        }
+        JsonService jsonService = jsonServiceProvider.getIfAvailable();
+        if (jsonService != null) {
+            Result<String> error = new Result<>();
+            error.setCode(mcode.getCode());
+            error.setData(request.getRequestURI());
+            error.setMessage(mcode.getMessage());
+            String jsonString = jsonService.serialize(error);
+            response.setStatus(mcode.getCode());
+            response.setContentType(ContentType.APPLICATION_JSON.getType());
+            try {
+                ServletOutputStream outputStream = response.getOutputStream();
+                outputStream.write(jsonString.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            } catch (IOException e) {
+                log.error("返回异常结果给前端时出现异常", e);
+            }
+        } else {
+            try {
+                response.sendError(mcode.getCode(), mcode.getMessage());
+            } catch (IOException e) {
+                log.error("sendError 失败: {}", e.getMessage());
+            }
+        }
     }
 }

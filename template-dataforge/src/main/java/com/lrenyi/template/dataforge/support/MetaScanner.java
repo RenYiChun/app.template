@@ -42,7 +42,7 @@ import org.springframework.util.StringUtils;
  */
 @Slf4j
 public class MetaScanner {
-
+    
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final String basePackage;
@@ -52,13 +52,101 @@ public class MetaScanner {
      */
     @Setter
     private EntityManagerFactory entityManagerFactory;
-
+    
     public MetaScanner(EntityRegistry entityRegistry, ActionRegistry actionRegistry, String basePackage) {
         this.entityRegistry = entityRegistry;
         this.actionRegistry = actionRegistry;
         this.basePackage = basePackage == null || basePackage.isEmpty() ? "" : basePackage;
     }
-
+    
+    private static void validateImplementsDataforgePersistable(Class<?> clazz) {
+        if (!DataforgePersistable.class.isAssignableFrom(clazz)) {
+            throw new IllegalStateException(
+                    "@DataforgeEntity 实体 " + clazz.getName() + " 必须实现 DataforgePersistable<ID>");
+        }
+    }
+    
+    /**
+     * 从 BaseEntity&lt;ID&gt; 泛型参数推断主键类型；若泛型擦除则回退到 id 字段类型。
+     */
+    private static Class<?> inferPrimaryKeyType(Class<?> clazz) {
+        Class<?> c = clazz;
+        while (c != null && c != Object.class) {
+            Type genericSuperclass = c.getGenericSuperclass();
+            if (genericSuperclass instanceof ParameterizedType pt) {
+                Type rawType = pt.getRawType();
+                // BaseEntity<ID>、MongoBaseDocument<ID> 等实现 DataforgePersistable 的基类
+                if (rawType instanceof Class<?> rawClass && DataforgePersistable.class.isAssignableFrom(rawClass)) {
+                    Type idType = pt.getActualTypeArguments()[0];
+                    if (idType instanceof Class<?> idClass) {
+                        return idClass;
+                    }
+                }
+            }
+            c = c.getSuperclass();
+        }
+        return inferFromIdField(clazz);
+    }
+    
+    /** 泛型擦除时的回退：遍历类层级，从 id 字段推断类型（存储无关）。 */
+    private static Class<?> inferFromIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if ("id".equals(f.getName())) {
+                    return f.getType();
+                }
+            }
+        }
+        return Long.class;
+    }
+    
+    private static String defaultPermission(String fromAnnotation,
+            String pathSegment,
+            boolean operationEnabled,
+            String action) {
+        if (StringUtils.hasText(fromAnnotation)) {
+            return fromAnnotation.trim();
+        }
+        return operationEnabled && StringUtils.hasText(pathSegment) ? pathSegment + ":" + action : "";
+    }
+    
+    private static String toSnakeCase(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) {
+                    sb.append('_');
+                }
+                sb.append(Character.toLowerCase(c));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+    
+    private static String toPluralLower(String simpleName) {
+        if (simpleName == null || simpleName.isEmpty()) {
+            return simpleName;
+        }
+        String lower = simpleName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith("y") && lower.length() > 1 && !isVowel(lower.charAt(lower.length() - 2))) {
+            return lower.substring(0, lower.length() - 1) + "ies";
+        }
+        if (lower.endsWith("s") || lower.endsWith("x") || lower.endsWith("ch") || lower.endsWith("sh")) {
+            return lower + "es";
+        }
+        return lower + "s";
+    }
+    
+    private static boolean isVowel(char c) {
+        return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
+    }
+    
     /**
      * 仅扫描并注册 @DataforgeEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
      * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @DataforgeEntity）；
@@ -71,7 +159,7 @@ public class MetaScanner {
             registerFromMetamodel();
         }
     }
-
+    
     /**
      * 仅注册 Action 执行器（实体需已通过 registerEntitiesOnly 注册）。
      */
@@ -98,7 +186,7 @@ public class MetaScanner {
             log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
         }
     }
-
+    
     /**
      * 扫描 @DataforgeEntity 实体并注册；注册带 @EntityAction 的 Action 执行器。
      * 实体注册逻辑见 registerEntitiesOnly()。
@@ -107,14 +195,13 @@ public class MetaScanner {
         registerEntitiesOnly();
         registerActionExecutors(actionExecutorBeans);
     }
-
+    
     /** 从 JPA Metamodel 获取实体，避免 classpath 扫描。 */
     private void registerFromMetamodel() {
-        Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of()
-                : Arrays.stream(basePackage.split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toSet());
+        Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of() : Arrays.stream(basePackage.split(","))
+                                                                               .map(String::trim)
+                                                                               .filter(s -> !s.isEmpty())
+                                                                               .collect(Collectors.toSet());
         for (var managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
             Class<?> clazz = managedType.getJavaType();
             if (clazz == null) {
@@ -130,7 +217,7 @@ public class MetaScanner {
             registerEntity(clazz);
         }
     }
-
+    
     private void registerEntity(Class<?> clazz) {
         DataforgeEntity ann = clazz.getAnnotation(DataforgeEntity.class);
         if (ann == null) {
@@ -142,7 +229,7 @@ public class MetaScanner {
         entityRegistry.register(meta);
         log.debug("Registered entity: {}", meta.getPathSegment());
     }
-
+    
     /** 回退：通过 classpath 扫描（在长 classpath 下可能较慢）。 */
     private void registerFromClasspathScan() {
         String[] packages = basePackage.isEmpty() ? new String[0] : basePackage.split(",");
@@ -167,13 +254,7 @@ public class MetaScanner {
             }
         }
     }
-
-    private static void validateImplementsDataforgePersistable(Class<?> clazz) {
-        if (!DataforgePersistable.class.isAssignableFrom(clazz)) {
-            throw new IllegalStateException("@DataforgeEntity 实体 " + clazz.getName() + " 必须实现 DataforgePersistable<ID>");
-        }
-    }
-
+    
     private EntityMeta buildEntityMeta(Class<?> clazz, DataforgeEntity ann) {
         EntityMeta meta = new EntityMeta();
         String simpleName = clazz.getSimpleName();
@@ -191,20 +272,32 @@ public class MetaScanner {
         meta.setDeleteBatchEnabled(ann.crudEnabled() && ann.enableDeleteBatch());
         meta.setExportEnabled(ann.crudEnabled() && ann.enableExport());
         String pathSeg = meta.getPathSegment();
-        meta.setPermissionCreate(
-                defaultPermission(ann.permissionCreate(), pathSeg, ann.crudEnabled() && ann.enableCreate(), "create"));
-        meta.setPermissionRead(defaultPermission(
-                ann.permissionRead(), pathSeg, (ann.crudEnabled() && ann.enableList())
-                        || (ann.crudEnabled() && ann.enableGet()) || (ann.crudEnabled() && ann.enableExport()),
-                "read"));
-        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg,
-                ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
-        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg,
-                ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
+        meta.setPermissionCreate(defaultPermission(ann.permissionCreate(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && ann.enableCreate(),
+                                                   "create"
+        ));
+        meta.setPermissionRead(defaultPermission(ann.permissionRead(),
+                                                 pathSeg,
+                                                 (ann.crudEnabled() && ann.enableList()) || (ann.crudEnabled()
+                                                         && ann.enableGet()) || (ann.crudEnabled()
+                                                         && ann.enableExport()),
+                                                 "read"
+        ));
+        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()),
+                                                   "update"
+        ));
+        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()),
+                                                   "delete"
+        ));
         Class<?> pkType = ann.primaryKeyType() != void.class ? ann.primaryKeyType() : inferPrimaryKeyType(clazz);
         meta.setPrimaryKeyType(pkType);
         meta.setStorageType(ann.storage());
-
+        
         // ==================== 新增生产级属性设置 ====================
         meta.setDescription(ann.description());
         meta.setDefaultSortField(ann.defaultSortField());
@@ -250,41 +343,7 @@ public class MetaScanner {
         meta.setFields(buildFieldMetas(clazz));
         return meta;
     }
-
-    /**
-     * 从 BaseEntity&lt;ID&gt; 泛型参数推断主键类型；若泛型擦除则回退到 id 字段类型。
-     */
-    private static Class<?> inferPrimaryKeyType(Class<?> clazz) {
-        Class<?> c = clazz;
-        while (c != null && c != Object.class) {
-            Type genericSuperclass = c.getGenericSuperclass();
-            if (genericSuperclass instanceof ParameterizedType pt) {
-                Type rawType = pt.getRawType();
-                // BaseEntity<ID>、MongoBaseDocument<ID> 等实现 DataforgePersistable 的基类
-                if (rawType instanceof Class<?> rawClass && DataforgePersistable.class.isAssignableFrom(rawClass)) {
-                    Type idType = pt.getActualTypeArguments()[0];
-                    if (idType instanceof Class<?> idClass) {
-                        return idClass;
-                    }
-                }
-            }
-            c = c.getSuperclass();
-        }
-        return inferFromIdField(clazz);
-    }
-
-    /** 泛型擦除时的回退：遍历类层级，从 id 字段推断类型（存储无关）。 */
-    private static Class<?> inferFromIdField(Class<?> clazz) {
-        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field f : c.getDeclaredFields()) {
-                if ("id".equals(f.getName())) {
-                    return f.getType();
-                }
-            }
-        }
-        return Long.class;
-    }
-
+    
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
         List<FieldMeta> list = new ArrayList<>();
         List<String> annotated = new ArrayList<>();
@@ -375,7 +434,7 @@ public class MetaScanner {
                     if (dataforgeField.searchable()) {
                         fm.setSearchOrder(dataforgeField.order());
                     }
-
+                    
                     // 数据转换与显示
                     fm.setFormat(dataforgeField.format());
                     fm.setMaskPattern(dataforgeField.maskPattern());
@@ -489,7 +548,7 @@ public class MetaScanner {
         }
         return list;
     }
-
+    
     private ActionMeta buildActionMeta(EntityAction ann) {
         ActionMeta meta = new ActionMeta();
         meta.setActionName(ann.actionName());
@@ -505,57 +564,12 @@ public class MetaScanner {
         }
         return meta;
     }
-
-    private static String defaultPermission(String fromAnnotation, String pathSegment, boolean operationEnabled,
-            String action) {
-        if (StringUtils.hasText(fromAnnotation)) {
-            return fromAnnotation.trim();
-        }
-        return operationEnabled && StringUtils.hasText(pathSegment) ? pathSegment + ":" + action : "";
-    }
-
+    
     private String pathSegmentFor(Class<?> entityClass) {
         DataforgeEntity pe = entityClass.getAnnotation(DataforgeEntity.class);
         if (pe != null && StringUtils.hasText(pe.pathSegment())) {
             return pe.pathSegment();
         }
         return toPluralLower(entityClass.getSimpleName());
-    }
-
-    private static String toSnakeCase(String name) {
-        if (name == null || name.isEmpty()) {
-            return name;
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) {
-                    sb.append('_');
-                }
-                sb.append(Character.toLowerCase(c));
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String toPluralLower(String simpleName) {
-        if (simpleName == null || simpleName.isEmpty()) {
-            return simpleName;
-        }
-        String lower = simpleName.toLowerCase(Locale.ROOT);
-        if (lower.endsWith("y") && lower.length() > 1 && !isVowel(lower.charAt(lower.length() - 2))) {
-            return lower.substring(0, lower.length() - 1) + "ies";
-        }
-        if (lower.endsWith("s") || lower.endsWith("x") || lower.endsWith("ch") || lower.endsWith("sh")) {
-            return lower + "es";
-        }
-        return lower + "s";
-    }
-
-    private static boolean isVowel(char c) {
-        return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
     }
 }

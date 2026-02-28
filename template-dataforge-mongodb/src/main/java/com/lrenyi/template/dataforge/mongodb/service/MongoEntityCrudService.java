@@ -240,6 +240,79 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         return result;
     }
     
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private String getCurrentUser() {
+        try {
+            var ctx = org.springframework.security.core.context.SecurityContextHolder.getContext();
+            var auth = ctx != null ? ctx.getAuthentication() : null;
+            return auth != null && auth.isAuthenticated() ? auth.getName() : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+    
+    private Long getVersion(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getVersion();
+        }
+        return null;
+    }
+    
+    private Boolean getDeleted(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getDeleted();
+        }
+        return false;
+    }
+    
+    private LocalDateTime getCreateTime(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getCreateTime();
+        }
+        return null;
+    }
+    
+    private String getCreateBy(Object entity) {
+        if (entity instanceof DataforgePersistable<?> p) {
+            return p.getCreateBy();
+        }
+        return null;
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        return findField(clazz, "id");
+    }
+    
+    private void setIfPersistable(Object entity, String fieldName, Object value) {
+        Field f = findField(entity.getClass(), fieldName);
+        if (f != null) {
+            InMemoryEntityCrudService.setValueOfObject(entity, value, f);
+        }
+    }
+    
+    private static Field findField(Class<?> clazz, String name) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
+    }
+    
+    private Object resolveId(Object id, Class<?> primaryKeyType) {
+        if (id == null) {
+            return null;
+        }
+        if (primaryKeyType == ObjectId.class && id instanceof String s) {
+            if (ObjectId.isValid(s)) {
+                return new ObjectId(s);
+            }
+        }
+        return id;
+    }
+    
     private Query buildQuery(Class<?> entityClass, List<FilterCondition> filters) {
         Query query = new Query();
         Set<String> allowedFields = getEntityFieldNames(entityClass);
@@ -281,20 +354,18 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         query.addCriteria(Criteria.where("deleted").ne(true));
     }
     
-    private static String escapeRegex(String s) {
-        if (s == null) {
-            return "";
+    private Sort resolveSort(List<SortOrder> sortOrders, Sort pageableSort) {
+        if (sortOrders != null && !sortOrders.isEmpty()) {
+            List<Sort.Order> orders = new ArrayList<>();
+            for (SortOrder so : sortOrders) {
+                if (so != null && so.field() != null && !so.field().isBlank()) {
+                    orders.add("desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) :
+                                       Sort.Order.asc(so.field()));
+                }
+            }
+            return orders.isEmpty() ? pageableSort : Sort.by(orders);
         }
-        return s.replace("\\", "\\\\")
-                .replace("*", "\\*")
-                .replace(".", "\\.")
-                .replace("?", "\\?")
-                .replace("+", "\\+")
-                .replace("[", "\\[")
-                .replace("]", "\\]")
-                .replace("(", "\\(")
-                .replace(")", "\\)")
-                .replace("|", "\\|");
+        return pageableSort;
     }
     
     private static Set<String> getEntityFieldNames(Class<?> entityClass) {
@@ -311,90 +382,19 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         return field != null && !field.isBlank() && allowedFields.contains(field);
     }
     
-    private Sort resolveSort(List<SortOrder> sortOrders, Sort pageableSort) {
-        if (sortOrders != null && !sortOrders.isEmpty()) {
-            List<Sort.Order> orders = new ArrayList<>();
-            for (SortOrder so : sortOrders) {
-                if (so != null && so.field() != null && !so.field().isBlank()) {
-                    orders.add("desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) :
-                                       Sort.Order.asc(so.field()));
-                }
-            }
-            return orders.isEmpty() ? pageableSort : Sort.by(orders);
+    private static String escapeRegex(String s) {
+        if (s == null) {
+            return "";
         }
-        return pageableSort;
-    }
-    
-    private Object resolveId(Object id, Class<?> primaryKeyType) {
-        if (id == null) {
-            return null;
-        }
-        if (primaryKeyType == ObjectId.class && id instanceof String s) {
-            if (ObjectId.isValid(s)) {
-                return new ObjectId(s);
-            }
-        }
-        return id;
-    }
-    
-    @SuppressWarnings("checkstyle:IllegalCatch")
-    private String getCurrentUser() {
-        try {
-            var ctx = org.springframework.security.core.context.SecurityContextHolder.getContext();
-            var auth = ctx != null ? ctx.getAuthentication() : null;
-            return auth != null && auth.isAuthenticated() ? auth.getName() : null;
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-    
-    private Long getVersion(Object entity) {
-        if (entity instanceof DataforgePersistable<?> p) {
-            return p.getVersion();
-        }
-        return null;
-    }
-    
-    private Boolean getDeleted(Object entity) {
-        if (entity instanceof DataforgePersistable<?> p) {
-            return p.getDeleted();
-        }
-        return false;
-    }
-    
-    private LocalDateTime getCreateTime(Object entity) {
-        if (entity instanceof DataforgePersistable<?> p) {
-            return p.getCreateTime();
-        }
-        return null;
-    }
-    
-    private String getCreateBy(Object entity) {
-        if (entity instanceof DataforgePersistable<?> p) {
-            return p.getCreateBy();
-        }
-        return null;
-    }
-    
-    private void setIfPersistable(Object entity, String fieldName, Object value) {
-        Field f = findField(entity.getClass(), fieldName);
-        if (f != null) {
-            InMemoryEntityCrudService.setValueOfObject(entity, value, f);
-        }
-    }
-    
-    private static Field findField(Class<?> clazz, String name) {
-        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            try {
-                return c.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-                // continue
-            }
-        }
-        return null;
-    }
-    
-    private static Field findIdField(Class<?> clazz) {
-        return findField(clazz, "id");
+        return s.replace("\\", "\\\\")
+                .replace("*", "\\*")
+                .replace(".", "\\.")
+                .replace("?", "\\?")
+                .replace("+", "\\+")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("|", "\\|");
     }
 }

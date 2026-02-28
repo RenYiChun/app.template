@@ -15,7 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class FieldMeta {
-
+    
     private String name;
     private String type;
     private String columnName;

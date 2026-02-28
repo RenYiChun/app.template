@@ -18,19 +18,14 @@ import lombok.Setter;
 @Entity
 @Table(name = "sys_user_role")
 @DataforgeEntity(
-        pathSegment = "user_roles",
-        displayName = "用户角色",
-        table = "sys_user_role",
-        enableUpdate = false,
-        enableUpdateBatch = false,
-        enableExport = false,
-        generateDtos = false
+        pathSegment = "user_roles", displayName = "用户角色", table = "sys_user_role", enableUpdate = false,
+        enableUpdateBatch = false, enableExport = false, generateDtos = false
 )
 public class UserRole extends BaseEntity<Long> {
-
+    
     @Column(nullable = false, length = 128)
     private String userId;
-
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @jakarta.persistence.JoinColumn(name = "role_id", nullable = false)
     private Role role;

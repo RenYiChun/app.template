@@ -12,28 +12,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class InternalRequestMatcherTest {
-
+    
     private InternalRequestMatcher matcher;
     private HttpServletRequest request;
-
+    
     @BeforeEach
     void setUp() {
         matcher = new InternalRequestMatcher();
         request = mock(HttpServletRequest.class);
     }
-
+    
     @Test
     void matches_headerTrue_returnsTrue() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("true");
         assertTrue(matcher.matches(request));
     }
-
+    
     @Test
     void matches_headerNull_returnsFalse() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn(null);
         assertFalse(matcher.matches(request));
     }
-
+    
     @Test
     void matches_headerOther_returnsFalse() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("false");
@@ -41,7 +41,7 @@ class InternalRequestMatcherTest {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("TRUE");
         assertFalse(matcher.matches(request));
     }
-
+    
     @Test
     void matches_withIpPatterns_matchingIp_returnsTrue() {
         InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of("127.0.0.1", "10.0.0.0/8"));
@@ -51,7 +51,7 @@ class InternalRequestMatcherTest {
         when(request.getRemoteAddr()).thenReturn("10.1.2.3");
         assertTrue(ipMatcher.matches(request));
     }
-
+    
     @Test
     void matches_withIpPatterns_nonMatchingIp_returnsFalse() {
         InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of("127.0.0.1"));

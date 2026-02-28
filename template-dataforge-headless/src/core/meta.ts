@@ -2,7 +2,7 @@
  * MetaService：拉取并解析 GET /api/docs 的 OpenAPI 文档
  */
 
-import {Op, EntityMeta} from './types.js';
+import {EntityMeta, Op} from './types.js';
 import type {EntityClient} from './client.js';
 
 /** OpenAPI Schema 属性 */
@@ -31,8 +31,6 @@ export interface ActionMeta {
     summary?: string;
     permissions?: string[];
 }
-
-
 
 
 const OP_LIST: Op[] = [Op.EQ, Op.NE, Op.LIKE, Op.GT, Op.GE, Op.LT, Op.LE, Op.IN];
@@ -227,79 +225,81 @@ export class MetaService {
                     // 如果是 export 操作，且有 queryableFields，则尝试将其复制给 search 操作
                     if (last === 'export' && opMeta.queryableFields) {
                         // 查找对应的 search 操作
-                    let searchOp = meta.operations!['search'];
-                    if (!searchOp) {
-                        // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
-                        // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
-                        // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
-                        // 如果我们找不到 'search' key，可能是 operationId 解析问题
-                        // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
+                        let searchOp = meta.operations!['search'];
+                        if (!searchOp) {
+                            // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
+                            // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
+                            // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
+                            // 如果我们找不到 'search' key，可能是 operationId 解析问题
+                            // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
+                        }
+
+                        if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
+                            searchOp.queryableFields = {...opMeta.queryableFields};
+                            // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
+                            meta.queryableFields = searchOp.queryableFields;
+                        }
+
+                        // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
+                        if (!meta.queryableFields) {
+                            meta.queryableFields = {...opMeta.queryableFields};
+                        }
                     }
 
-                    if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
-                        searchOp.queryableFields = {...opMeta.queryableFields};
-                        // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
-                        meta.queryableFields = searchOp.queryableFields;
-                    }
+                    meta.operations![last] = opMeta;
+                    if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
+                    if (last === 'export') meta.exportEnabled = true;
+                }
 
-                    // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
-                    if (!meta.queryableFields) {
-                        meta.queryableFields = {...opMeta.queryableFields};
+                // 解析请求体 schema：仅 create/update 的 requestBody 写入 schemas，避免把 search 的请求体（filters/sort/page/size）误当作 response 列
+                const reqBody = operation.requestBody as {
+                    content?: { 'application/json'?: { schema?: { $ref?: string } } }
+                } | undefined;
+                const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
+                if (schemaRef && (last === 'create' || last === 'update' || last === 'updateBatch')) {
+                    const schemaName = schemaRef.replace('#/components/schemas/', '');
+                    const schema = schemas[schemaName];
+                    if (schema?.properties) {
+                        const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                        const props = schema.properties as Record<string, SchemaProperty>;
+                        const enriched: Record<string, SchemaProperty> = {};
+                        for (const [k, v] of Object.entries(props)) {
+                            enriched[k] = {...v, required: requiredSet.has(k)};
+                        }
+                        meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
                     }
                 }
 
-                meta.operations![last] = opMeta;
-                if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
-                if (last === 'export') meta.exportEnabled = true;
-            }
-
-            // 解析请求体 schema：仅 create/update 的 requestBody 写入 schemas，避免把 search 的请求体（filters/sort/page/size）误当作 response 列
-            const reqBody = operation.requestBody as {
-                content?: { 'application/json'?: { schema?: { $ref?: string } } }
-            } | undefined;
-            const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
-            if (schemaRef && (last === 'create' || last === 'update' || last === 'updateBatch')) {
-                const schemaName = schemaRef.replace('#/components/schemas/', '');
-                const schema = schemas[schemaName];
-                if (schema?.properties) {
-                    const requiredSet = new Set<string>((schema.required ?? []) as string[]);
-                    const props = schema.properties as Record<string, SchemaProperty>;
-                    const enriched: Record<string, SchemaProperty> = {};
-                    for (const [k, v] of Object.entries(props)) {
-                        enriched[k] = {...v, required: requiredSet.has(k)};
+                const resp = operation.responses?.['200'] as {
+                    content?: {
+                        'application/json'?: { schema?: { $ref?: string; properties?: Record<string, unknown> } }
                     }
-                    meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
-                }
-            }
-
-            const resp = operation.responses?.['200'] as {
-                content?: { 'application/json'?: { schema?: { $ref?: string; properties?: Record<string, unknown> } } }
-            } | undefined;
-            const respSchema = resp?.content?.['application/json']?.schema;
-            const respRef = respSchema?.$ref;
-            if (respRef || respSchema?.properties) {
-                const schemaName = respRef?.replace('#/components/schemas/', '');
-                const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
-                const props = schema?.properties;
-                if (last === 'search') {
-                    // 列表接口：若为 PagedResult，用 content.items 的 schema 作为 pageResponse（表格列）
-                    const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
-                        ? (props.content as { items?: { $ref?: string } })?.items?.$ref
-                        : undefined;
-                    const itemRef = contentSchema?.replace('#/components/schemas/', '');
-                    const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
-                    if (itemSchema?.properties) {
-                        meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;
-                    } else if (props && typeof props === 'object') {
-                        meta.schemas!.pageResponse = props as Record<string, SchemaProperty>;
-                    }
-                } else if (last === 'get') {
-                    // 详情接口：200 响应 schema 作为 detail（单条展示/表单回显）
-                    if (props && typeof props === 'object') {
-                        meta.schemas!.detail = props as Record<string, SchemaProperty>;
+                } | undefined;
+                const respSchema = resp?.content?.['application/json']?.schema;
+                const respRef = respSchema?.$ref;
+                if (respRef || respSchema?.properties) {
+                    const schemaName = respRef?.replace('#/components/schemas/', '');
+                    const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
+                    const props = schema?.properties;
+                    if (last === 'search') {
+                        // 列表接口：若为 PagedResult，用 content.items 的 schema 作为 pageResponse（表格列）
+                        const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
+                            ? (props.content as { items?: { $ref?: string } })?.items?.$ref
+                            : undefined;
+                        const itemRef = contentSchema?.replace('#/components/schemas/', '');
+                        const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
+                        if (itemSchema?.properties) {
+                            meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;
+                        } else if (props && typeof props === 'object') {
+                            meta.schemas!.pageResponse = props as Record<string, SchemaProperty>;
+                        }
+                    } else if (last === 'get') {
+                        // 详情接口：200 响应 schema 作为 detail（单条展示/表单回显）
+                        if (props && typeof props === 'object') {
+                            meta.schemas!.detail = props as Record<string, SchemaProperty>;
+                        }
                     }
                 }
-            }
             }
         }
 
@@ -316,7 +316,7 @@ export class MetaService {
         // 若 properties 为空但有 schemas.pageResponse，用其填充 properties，便于列解析与元数据页展示
         for (const meta of entityBySegment.values()) {
             if (Object.keys(meta.properties).length === 0 && meta.schemas?.pageResponse && typeof meta.schemas.pageResponse === 'object') {
-                meta.properties = { ...meta.schemas.pageResponse } as Record<string, SchemaProperty>;
+                meta.properties = {...meta.schemas.pageResponse} as Record<string, SchemaProperty>;
             }
             if (Object.keys(meta.properties).length === 0) {
                 console.warn(

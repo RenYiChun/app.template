@@ -1,11 +1,10 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
+import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import java.util.Map;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.backend.domain.Auth;
-import com.lrenyi.template.dataforge.backend.domain.User;
 import com.lrenyi.template.dataforge.backend.repository.UserRepository;
-import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,11 +13,13 @@ import org.springframework.web.bind.annotation.RequestMethod;
 
 @Component
 @RequiredArgsConstructor
-@EntityAction(entity = Auth.class, actionName = "me", method = RequestMethod.GET, summary = "获取当前用户", requireId = false)
+@EntityAction(
+        entity = Auth.class, actionName = "me", method = RequestMethod.GET, summary = "获取当前用户", requireId = false
+)
 public class AuthMeAction implements EntityActionExecutor {
-
+    
     private final UserRepository userRepository;
-
+    
     @Override
     public Object execute(Object entityId, Object request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

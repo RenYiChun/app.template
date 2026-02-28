@@ -8,8 +8,8 @@ import java.util.Base64;
 import java.util.Map;
 import com.lrenyi.oauth2.service.config.ConfigImportSelector;
 import com.lrenyi.oauth2.service.config.OAuth2AuditFilter;
-import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
 import com.lrenyi.oauth2.service.config.OAuth2ClientPropertiesMapper;
+import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
 import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationToken;
@@ -111,13 +111,13 @@ public class Oauth2ServerAutoConfiguration {
     @Order(1)
     @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
-                                                              OauthSecurityFilterChainBuilder builder) throws Exception {
+            OauthSecurityFilterChainBuilder builder) throws Exception {
         return builder.build(http);
     }
     
     @Bean
     public PasswordAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
-                                                                TemplateConfigProperties templateConfigProperties) {
+            TemplateConfigProperties templateConfigProperties) {
         return new PasswordAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
     }
     
@@ -126,8 +126,7 @@ public class Oauth2ServerAutoConfiguration {
     public OAuth2AuditFilter oauth2AuditFilter(TemplateConfigProperties templateConfigProperties,
             ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
-        return new OAuth2AuditFilter(templateConfigProperties, auditRecorderProvider,
-                principalNameExtractorProvider);
+        return new OAuth2AuditFilter(templateConfigProperties, auditRecorderProvider, principalNameExtractorProvider);
     }
     
     @Bean
@@ -156,8 +155,8 @@ public class Oauth2ServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(OAuth2TokenGenerator.class)
     OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource,
-                                           OAuth2TokenCustomizer<OAuth2TokenClaimsContext> contextOAuth2TokenCustomizer,
-                                           TemplateConfigProperties templateConfigProperties) {
+            OAuth2TokenCustomizer<OAuth2TokenClaimsContext> contextOAuth2TokenCustomizer,
+            TemplateConfigProperties templateConfigProperties) {
         JwtGenerator jwtGenerator = new JwtGenerator(new NimbusJwtEncoder(jwkSource));
         UuidOAuth2TokenGenerator tokenGenerator = new UuidOAuth2TokenGenerator();
         tokenGenerator.setAccessTokenCustomizer(contextOAuth2TokenCustomizer);

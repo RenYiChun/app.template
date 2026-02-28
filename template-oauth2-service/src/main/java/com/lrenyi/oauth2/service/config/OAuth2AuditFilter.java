@@ -27,7 +27,7 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     private final TemplateConfigProperties properties;
     private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;
     private final ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider;
-
+    
     public OAuth2AuditFilter(TemplateConfigProperties properties,
             ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
@@ -88,6 +88,10 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         }
         
         @Override
+        public void sendError(int sc, String msg) throws IOException {
+            this.status = sc;
+            super.sendError(sc, msg);
+        }        @Override
         public void setStatus(int sc) {
             this.status = sc;
             super.setStatus(sc);
@@ -99,11 +103,7 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
             super.sendError(sc);
         }
         
-        @Override
-        public void sendError(int sc, String msg) throws IOException {
-            this.status = sc;
-            super.sendError(sc, msg);
-        }
+
         
         @Override
         public int getStatus() {

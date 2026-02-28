@@ -20,7 +20,7 @@ public class RedisOauthServiceConfig {
     @Bean
     @ConditionalOnProperty(value = "app.template.security.authorization.store-type", havingValue = "redis")
     public RegisteredClientRepository registerClientRepository(RedisTemplate<String, String> templateStringRedis,
-                                                               OAuth2AuthorizationServerProperties properties) {
+            OAuth2AuthorizationServerProperties properties) {
         return new RedisRegisteredClientRepository(templateStringRedis,
                                                    OAuth2ClientPropertiesMapper.fromProperties(properties)
         );

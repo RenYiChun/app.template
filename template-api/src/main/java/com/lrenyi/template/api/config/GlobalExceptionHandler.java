@@ -25,7 +25,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
 @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true", matchIfMissing = true)
 public class GlobalExceptionHandler {
-
+    
     @ExceptionHandler(TemplateException.class)
     public ResponseEntity<Result<Object>> handleTemplateException(TemplateException e) {
         int code = e.getErrorCode();
@@ -35,42 +35,7 @@ public class GlobalExceptionHandler {
         result.setCode(code);
         return ResponseEntity.status(httpStatus).body(result);
     }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Result<Object>> handleIllegalArgument(IllegalArgumentException e) {
-        log.debug("Bad request: {}", e.getMessage());
-        Result<Object> result = Result.getError(null, e.getMessage());
-        result.setCode(MCode.BAD_REQUEST.getCode());
-        return ResponseEntity.badRequest().body(result);
-    }
-
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Result<Object>> handleNotFound(NoResourceFoundException e) {
-        Result<Object> result = Result.getError(null, "资源不存在");
-        result.setCode(MCode.NOT_EXIT_RESOURCE.getCode());
-        return ResponseEntity.status(MCode.NOT_EXIT_RESOURCE.getCode()).body(result);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Result<Object>> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
-                .reduce((a, b) -> a + "; " + b)
-                .orElse("参数校验失败");
-        log.debug("Validation failed: {}", message);
-        Result<Object> result = Result.getError(null, message);
-        result.setCode(MCode.BAD_REQUEST.getCode());
-        return ResponseEntity.badRequest().body(result);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result<Object>> handleGeneric(Exception e) {
-        log.error("未处理异常", e);
-        Result<Object> result = Result.getError(null, "服务器内部错误");
-        result.setCode(MCode.EXCEPTION.getCode());
-        return ResponseEntity.internalServerError().body(result);
-    }
-
+    
     private static int mapToHttpStatus(int errorCode) {
         return switch (errorCode) {
             case 400 -> 400;
@@ -79,5 +44,42 @@ public class GlobalExceptionHandler {
             case 404 -> 404;
             default -> errorCode >= 400 && errorCode < 600 ? errorCode : 500;
         };
+    }
+    
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Result<Object>> handleIllegalArgument(IllegalArgumentException e) {
+        log.debug("Bad request: {}", e.getMessage());
+        Result<Object> result = Result.getError(null, e.getMessage());
+        result.setCode(MCode.BAD_REQUEST.getCode());
+        return ResponseEntity.badRequest().body(result);
+    }
+    
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Object>> handleNotFound(NoResourceFoundException e) {
+        Result<Object> result = Result.getError(null, "资源不存在");
+        result.setCode(MCode.NOT_EXIT_RESOURCE.getCode());
+        return ResponseEntity.status(MCode.NOT_EXIT_RESOURCE.getCode()).body(result);
+    }
+    
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Result<Object>> handleValidation(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult()
+                          .getFieldErrors()
+                          .stream()
+                          .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                          .reduce((a, b) -> a + "; " + b)
+                          .orElse("参数校验失败");
+        log.debug("Validation failed: {}", message);
+        Result<Object> result = Result.getError(null, message);
+        result.setCode(MCode.BAD_REQUEST.getCode());
+        return ResponseEntity.badRequest().body(result);
+    }
+    
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Result<Object>> handleGeneric(Exception e) {
+        log.error("未处理异常", e);
+        Result<Object> result = Result.getError(null, "服务器内部错误");
+        result.setCode(MCode.EXCEPTION.getCode());
+        return ResponseEntity.internalServerError().body(result);
     }
 }

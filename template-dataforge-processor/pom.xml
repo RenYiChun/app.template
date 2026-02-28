@@ -10,7 +10,9 @@
     </parent>
     <artifactId>template-dataforge-processor</artifactId>
     <name>Template Dataforge Processor</name>
-    <description>实体平台 Annotation Processor：编译期生成 DTO。使用时须在 maven-compiler-plugin 的 annotationProcessorPaths 中显式声明本模块。</description>
+    <description>实体平台 Annotation Processor：编译期生成 DTO。使用时须在 maven-compiler-plugin 的
+        annotationProcessorPaths 中显式声明本模块。
+    </description>
 
     <properties>
         <checker.root.dir>${project.parent.basedir}</checker.root.dir>
@@ -61,7 +63,8 @@
                         </goals>
                         <configuration>
                             <target>
-                                <delete file="${project.build.outputDirectory}/META-INF/services/javax.annotation.processing.Processor" failonerror="false"/>
+                                <delete file="${project.build.outputDirectory}/META-INF/services/javax.annotation.processing.Processor"
+                                        failonerror="false"/>
                             </target>
                         </configuration>
                     </execution>

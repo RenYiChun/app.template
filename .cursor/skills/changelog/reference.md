@@ -3,7 +3,7 @@
 ## Conventional Commits 类型
 
 | Type | 说明 |
-|------|------|
+|------|----|
 
 | feat | 新功能 |
 | fix | Bug 修复 |

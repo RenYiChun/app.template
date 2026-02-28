@@ -8,7 +8,7 @@ import org.springframework.security.core.Authentication;
  * 实现方可从 DB/缓存查询 UserRole -> Role -> Permission，使角色权限变更在下次请求或缓存失效后生效。
  */
 public interface UserPermissionResolver {
-
+    
     /**
      * 根据当前认证信息返回该用户拥有的权限字符串集合。
      *

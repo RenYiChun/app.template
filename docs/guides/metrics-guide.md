@@ -1,6 +1,7 @@
 # 监控指标系统使用教程
 
-本文档介绍 app.template 框架的监控指标体系，基于 **Micrometer + Prometheus** 构建，涵盖快速接入、内置指标一览、自定义业务指标扩展、Prometheus 集成及常用 PromQL 查询。
+本文档介绍 app.template 框架的监控指标体系，基于 **Micrometer + Prometheus** 构建，涵盖快速接入、内置指标一览、自定义业务指标扩展、Prometheus
+集成及常用 PromQL 查询。
 
 ---
 
@@ -57,12 +58,12 @@ management:
 
 启动应用后访问以下端点：
 
-| 端点 | 说明 |
-|------|------|
-| `GET /actuator/prometheus` | Prometheus 格式的全量指标 |
-| `GET /actuator/metrics` | JSON 格式的指标名列表 |
-| `GET /actuator/metrics/{name}` | 查看单个指标的详情 |
-| `GET /actuator/health` | 健康检查（含 Flow 引擎状态） |
+| 端点                             | 说明                 |
+|--------------------------------|--------------------|
+| `GET /actuator/prometheus`     | Prometheus 格式的全量指标 |
+| `GET /actuator/metrics`        | JSON 格式的指标名列表      |
+| `GET /actuator/metrics/{name}` | 查看单个指标的详情          |
+| `GET /actuator/health`         | 健康检查（含 Flow 引擎状态）  |
 
 示例：
 
@@ -87,99 +88,99 @@ curl http://localhost:8080/actuator/prometheus | grep "app_template_flow"
 
 #### Counters（计数器）
 
-| 指标名 | 标签 | 含义 | 关注场景 |
-|--------|------|------|----------|
-| `app.template.flow.job.started` | `jobId` | Job 启动次数 | 高：任务触发活跃 |
-| `app.template.flow.job.completed` | `jobId` | Job 正常完成次数 | completed/started = 任务成功率 |
-| `app.template.flow.job.stopped` | `jobId` | Job 被手动停止次数 | 正常应接近 0，高则频繁人工干预 |
-| `app.template.flow.production.acquired` | `jobId` | 已获取生产许可条数（进场量） | 高：数据源产出快 |
-| `app.template.flow.production.released` | `jobId` | 已存入 Storage 条数（入库量） | acquired - released = 在途生产中 |
-| `app.template.flow.egress.active` | `jobId` | 主动出口累计数（业务达成量） | 配对成功或 Finalizer 消费 |
-| `app.template.flow.egress.passive` | `jobId`, `reason` | 被动出口累计数（损耗量） | passive/(active+passive) = 损耗率，>10% 需关注 |
-| `app.template.flow.terminated` | `jobId` | 物理终结累计数 | rate(terminated[1m]) = TPS |
-| `app.template.flow.errors` | `errorType`, `phase` | 统一错误计数 | 高：系统异常频繁，按 errorType 和 phase 下钻定位 |
+| 指标名                                     | 标签                   | 含义                  | 关注场景                                    |
+|-----------------------------------------|----------------------|---------------------|-----------------------------------------|
+| `app.template.flow.job.started`         | `jobId`              | Job 启动次数            | 高：任务触发活跃                                |
+| `app.template.flow.job.completed`       | `jobId`              | Job 正常完成次数          | completed/started = 任务成功率               |
+| `app.template.flow.job.stopped`         | `jobId`              | Job 被手动停止次数         | 正常应接近 0，高则频繁人工干预                        |
+| `app.template.flow.production.acquired` | `jobId`              | 已获取生产许可条数（进场量）      | 高：数据源产出快                                |
+| `app.template.flow.production.released` | `jobId`              | 已存入 Storage 条数（入库量） | acquired - released = 在途生产中             |
+| `app.template.flow.egress.active`       | `jobId`              | 主动出口累计数（业务达成量）      | 配对成功或 Finalizer 消费                      |
+| `app.template.flow.egress.passive`      | `jobId`, `reason`    | 被动出口累计数（损耗量）        | passive/(active+passive) = 损耗率，>10% 需关注 |
+| `app.template.flow.terminated`          | `jobId`              | 物理终结累计数             | rate(terminated[1m]) = TPS              |
+| `app.template.flow.errors`              | `errorType`, `phase` | 统一错误计数              | 高：系统异常频繁，按 errorType 和 phase 下钻定位       |
 
 **`egress.passive` 的 reason 值域：**
 
-| reason | 含义 |
-|--------|------|
-| `TIMEOUT` | TTL 过期，数据未等到配对即超时 |
-| `EVICTION` | 容量淘汰，maxSize 满 LRU 策略踢出 |
-| `REPLACE` | 覆盖模式下同 Key 新数据顶替旧数据 |
+| reason     | 含义                         |
+|------------|----------------------------|
+| `TIMEOUT`  | TTL 过期，数据未等到配对即超时          |
+| `EVICTION` | 容量淘汰，maxSize 满 LRU 策略踢出    |
+| `REPLACE`  | 覆盖模式下同 Key 新数据顶替旧数据        |
 | `MISMATCH` | 配对模式下 isMatched() 返回 false |
-| `REJECT` | Queue 满，新数据被拒绝入队 |
-| `SHUTDOWN` | 系统关闭时缓存中残留的未处理数据 |
+| `REJECT`   | Queue 满，新数据被拒绝入队           |
+| `SHUTDOWN` | 系统关闭时缓存中残留的未处理数据           |
 
 **`errors` 的 phase 值域：**
 
-| phase | 含义 |
-|-------|------|
-| `PRODUCTION` | 生产阶段 |
-| `STORAGE` | 存储阶段 |
-| `CONSUMPTION` | 消费阶段 |
+| phase          | 含义   |
+|----------------|------|
+| `PRODUCTION`   | 生产阶段 |
+| `STORAGE`      | 存储阶段 |
+| `CONSUMPTION`  | 消费阶段 |
 | `FINALIZATION` | 终结阶段 |
 
 #### Timers（计时器）
 
-| 指标名 | 标签 | 含义 | 关注场景 |
-|--------|------|------|----------|
-| `app.template.flow.deposit.duration` | `jobId` | 单条数据存入 Storage 耗时 | 高：Storage 写入瓶颈（锁争用/队列满） |
-| `app.template.flow.match.duration` | `jobId` | Caffeine 配对处理端到端耗时 | 高：消费端饱和或 onSuccess 回调慢 |
-| `app.template.flow.acquire.duration` | `jobId` | 获取全局消费信号量耗时 | 高：消费端资源争用严重 |
-| `app.template.flow.finalize.duration` | `jobId` | 终结处理端到端耗时 | 高：消费执行器积压或回调慢 |
-| `app.template.flow.backpressure.duration` | `jobId` | 背压等待总耗时 | 高：生产远超消费，系统过载 |
+| 指标名                                       | 标签      | 含义                 | 关注场景                    |
+|-------------------------------------------|---------|--------------------|-------------------------|
+| `app.template.flow.deposit.duration`      | `jobId` | 单条数据存入 Storage 耗时  | 高：Storage 写入瓶颈（锁争用/队列满） |
+| `app.template.flow.match.duration`        | `jobId` | Caffeine 配对处理端到端耗时 | 高：消费端饱和或 onSuccess 回调慢  |
+| `app.template.flow.acquire.duration`      | `jobId` | 获取全局消费信号量耗时        | 高：消费端资源争用严重             |
+| `app.template.flow.finalize.duration`     | `jobId` | 终结处理端到端耗时          | 高：消费执行器积压或回调慢           |
+| `app.template.flow.backpressure.duration` | `jobId` | 背压等待总耗时            | 高：生产远超消费，系统过载           |
 
 #### Gauges（仪表盘）
 
-| 指标名 | 标签 | 含义 | 关注场景 |
-|--------|------|------|----------|
-| `app.template.flow.semaphore.used` | — | 全局消费信号量已占用数 | 接近 limit 时消费端饱和 |
-| `app.template.flow.semaphore.limit` | — | 全局消费信号量上限 | 利用率 = used / limit |
-| `app.template.flow.launchers.active` | — | 当前运行中的 Job 数 | 为 0 时系统空闲 |
-| `app.template.flow.storage.size` | `jobId`, `storageType` | 当前缓存数据条数 | 接近 maxSize 则即将触发驱逐或背压 |
-| `app.template.flow.completion.rate` | `jobId` | 任务完成率 | 仅 totalExpected > 0 时注册 |
+| 指标名                                  | 标签                     | 含义           | 关注场景                    |
+|--------------------------------------|------------------------|--------------|-------------------------|
+| `app.template.flow.semaphore.used`   | —                      | 全局消费信号量已占用数  | 接近 limit 时消费端饱和         |
+| `app.template.flow.semaphore.limit`  | —                      | 全局消费信号量上限    | 利用率 = used / limit      |
+| `app.template.flow.launchers.active` | —                      | 当前运行中的 Job 数 | 为 0 时系统空闲               |
+| `app.template.flow.storage.size`     | `jobId`, `storageType` | 当前缓存数据条数     | 接近 maxSize 则即将触发驱逐或背压   |
+| `app.template.flow.completion.rate`  | `jobId`                | 任务完成率        | 仅 totalExpected > 0 时注册 |
 
 ### 2.2 HTTP 认证指标 (template-api)
 
-| 指标名 | 标签 | 含义 |
-|--------|------|------|
+| 指标名                              | 标签       | 含义        |
+|----------------------------------|----------|-----------|
 | `app.template.http.auth.failure` | `reason` | 认证/授权失败次数 |
 
 **reason 值域：**
 
-| reason | 含义 |
-|--------|------|
+| reason          | 含义        |
+|-----------------|-----------|
 | `MISSING_TOKEN` | 请求未携带认证令牌 |
-| `EXPIRED_TOKEN` | 令牌已过期 |
-| `INVALID_TOKEN` | 令牌无效 |
-| `ACCESS_DENIED` | 已认证但无权限 |
+| `EXPIRED_TOKEN` | 令牌已过期     |
+| `INVALID_TOKEN` | 令牌无效      |
+| `ACCESS_DENIED` | 已认证但无权限   |
 
 ### 2.3 OAuth2 指标 (template-oauth2-service)
 
-| 指标名 | 标签 | 含义 |
-|--------|------|------|
-| `app.template.oauth2.token.issued` | `grantType` | Token 签发次数 |
+| 指标名                                | 标签                       | 含义           |
+|------------------------------------|--------------------------|--------------|
+| `app.template.oauth2.token.issued` | `grantType`              | Token 签发次数   |
 | `app.template.oauth2.token.failed` | `grantType`, `errorType` | Token 签发失败次数 |
-| `app.template.oauth2.logout` | — | 登出次数 |
+| `app.template.oauth2.logout`       | —                        | 登出次数         |
 
 ### 2.4 Feign 调用指标 (template-cloud)
 
 引入 `feign-micrometer` 后自动注册，无需手动埋点：
 
-| 指标名 | 标签 | 含义 |
-|--------|------|------|
+| 指标名            | 标签                         | 含义                 |
+|----------------|----------------------------|--------------------|
 | `feign.Client` | `method`, `host`, `status` | Feign HTTP 请求耗时和计数 |
 
 ### 2.5 数据源指标 (template-flow-sources)
 
 需在构造 `KafkaFlowSource` / `NatsFlowSource` 时传入 `MeterRegistry`（第 4 个构造参数，可选）：
 
-| 指标名 | 标签 | 含义 |
-|--------|------|------|
-| `app.template.source.received` | `sourceType` | 数据源接收数据条数 |
-| `app.template.source.poll.duration` | `sourceType` | 单次 poll 耗时 |
-| `app.template.source.errors` | `sourceType`, `errorType` | 数据源错误次数 |
-| `app.template.source.nats.pending.messages` | — | NATS 订阅待处理消息数（仅 NATS） |
+| 指标名                                         | 标签                        | 含义                    |
+|---------------------------------------------|---------------------------|-----------------------|
+| `app.template.source.received`              | `sourceType`              | 数据源接收数据条数             |
+| `app.template.source.poll.duration`         | `sourceType`              | 单次 poll 耗时            |
+| `app.template.source.errors`                | `sourceType`, `errorType` | 数据源错误次数               |
+| `app.template.source.nats.pending.messages` | —                         | NATS 订阅待处理消息数（仅 NATS） |
 
 **sourceType 值域：** `kafka`、`nats`
 
@@ -196,10 +197,10 @@ new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1), meterRegistry)
 
 ### 2.6 Dataforge 指标 (template-dataforge)
 
-| 指标名 | 标签 | 含义 |
-|--------|------|------|
-| `app.template.dataforge.request.duration` | `method` | GenericEntityController CRUD 操作耗时 |
-| `app.template.dataforge.request.errors` | `method`, `errorType` | CRUD 操作错误次数 |
+| 指标名                                       | 标签                    | 含义                                |
+|-------------------------------------------|-----------------------|-----------------------------------|
+| `app.template.dataforge.request.duration` | `method`              | GenericEntityController CRUD 操作耗时 |
+| `app.template.dataforge.request.errors`   | `method`, `errorType` | CRUD 操作错误次数                       |
 
 ---
 
@@ -260,21 +261,21 @@ public class OrderService {
 
 ### 3.2 命名规范
 
-| 规则 | 示例 |
-|------|------|
-| 统一前缀 `app.template.{module}.` | `app.template.order.created` |
-| 使用小写、点号分隔 | `app.template.payment.duration` |
-| Counter 不加 `_total` 后缀（Prometheus 自动追加） | `app.template.order.created` |
-| Timer 以 `.duration` 结尾 | `app.template.order.process.duration` |
+| 规则                                      | 示例                                    |
+|-----------------------------------------|---------------------------------------|
+| 统一前缀 `app.template.{module}.`           | `app.template.order.created`          |
+| 使用小写、点号分隔                               | `app.template.payment.duration`       |
+| Counter 不加 `_total` 后缀（Prometheus 自动追加） | `app.template.order.created`          |
+| Timer 以 `.duration` 结尾                  | `app.template.order.process.duration` |
 
 ### 3.3 标签规范
 
-| 规则 | 说明 |
-|------|------|
-| 标签值有限且可枚举 | `channel: ["web", "app", "api"]` |
-| **禁止高基数标签** | 不用 userId、orderId、requestId、IP 等 |
+| 规则             | 说明                                   |
+|----------------|--------------------------------------|
+| 标签值有限且可枚举      | `channel: ["web", "app", "api"]`     |
+| **禁止高基数标签**    | 不用 userId、orderId、requestId、IP 等     |
 | key-value 成对传入 | `"key1", "value1", "key2", "value2"` |
-| 标签数量 <= 5 个 | 防止时间序列爆炸 |
+| 标签数量 <= 5 个    | 防止时间序列爆炸                             |
 
 ---
 
@@ -451,24 +452,24 @@ management:
 
 ### 禁止用作标签的字段
 
-| 字段 | 原因 |
-|------|------|
-| userId | 用户量可达百万级 |
-| orderId / requestId | 每个请求唯一 |
-| IP 地址 | 可变且数量不可控 |
-| 完整 URL / 查询参数 | 变化无穷 |
-| 时间戳 | 每秒不同 |
+| 字段                  | 原因       |
+|---------------------|----------|
+| userId              | 用户量可达百万级 |
+| orderId / requestId | 每个请求唯一   |
+| IP 地址               | 可变且数量不可控 |
+| 完整 URL / 查询参数       | 变化无穷     |
+| 时间戳                 | 每秒不同     |
 
 ### 安全的标签示例
 
-| 标签 | 值域 | 基数 |
-|------|------|------|
-| `reason` | TIMEOUT, EVICTION, REPLACE, ... | ~6 |
-| `phase` | PRODUCTION, STORAGE, ... | ~4 |
-| `grantType` | password, client_credentials, ... | ~5 |
-| `sourceType` | kafka, nats | 2 |
-| `method` | create, update, delete, list, ... | ~10 |
-| `jobId` | 仅在任务数可控（< 50）时使用 | 可控 |
+| 标签           | 值域                                | 基数  |
+|--------------|-----------------------------------|-----|
+| `reason`     | TIMEOUT, EVICTION, REPLACE, ...   | ~6  |
+| `phase`      | PRODUCTION, STORAGE, ...          | ~4  |
+| `grantType`  | password, client_credentials, ... | ~5  |
+| `sourceType` | kafka, nats                       | 2   |
+| `method`     | create, update, delete, list, ... | ~10 |
+| `jobId`      | 仅在任务数可控（< 50）时使用                  | 可控  |
 
 ---
 
@@ -477,13 +478,15 @@ management:
 ### Q: 引入框架后没有看到 `/actuator/prometheus` 端点？
 
 确认以下几点：
+
 1. `application.yml` 中 `management.endpoints.web.exposure.include` 包含 `prometheus`
 2. classpath 中有 `micrometer-registry-prometheus` 依赖
 3. 端点未被 Spring Security 拦截（参考第 6 节）
 
 ### Q: 指标名称中的 `.` 在 Prometheus 中变成了 `_`？
 
-这是 Micrometer 的标准行为。代码中使用 `app.template.flow.job.started`，在 Prometheus 中显示为 `app_template_flow_job_started_total`（Counter 自动追加 `_total`）。
+这是 Micrometer 的标准行为。代码中使用 `app.template.flow.job.started`，在 Prometheus 中显示为
+`app_template_flow_job_started_total`（Counter 自动追加 `_total`）。
 
 ### Q: 如何查看 Flow 引擎的健康状态？
 

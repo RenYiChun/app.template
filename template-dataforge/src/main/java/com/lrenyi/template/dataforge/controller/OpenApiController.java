@@ -36,17 +36,224 @@ import org.springframework.web.util.pattern.PathPattern;
 @RestController
 @RequestMapping("${app.dataforge.api-prefix:/api}")
 public class OpenApiController {
-
-    private static final String DEFAULT_RESPONSE_DESC = "成功时 data 为实体或列表，删除成功时 data 为 null；异常时由 Result 包装。";
-
+    
+    private static final String DEFAULT_RESPONSE_DESC =
+            "成功时 data 为实体或列表，删除成功时 data 为 null；异常时由 Result 包装。";
+    
     private final EntityRegistry entityRegistry;
     private final RequestMappingHandlerMapping handlerMapping;
-
+    
     public OpenApiController(EntityRegistry entityRegistry, RequestMappingHandlerMapping handlerMapping) {
         this.entityRegistry = entityRegistry;
         this.handlerMapping = handlerMapping;
     }
-
+    
+    private static String tagForEntity(EntityMeta entity) {
+        return entity.getDisplayName() != null && !entity.getDisplayName().isBlank() ? entity.getDisplayName() :
+                entity.getPathSegment();
+    }
+    
+    private static void putOperation(Map<String, Map<String, Object>> pathsMap,
+            String path,
+            String httpMethod,
+            String summary,
+            String operationId,
+            boolean requestBody,
+            Object permissions,
+            String tag,
+            EntityMeta entity,
+            String requestSchemaRef,
+            boolean requestSchemaArray,
+            boolean requestSchemaArrayOfIds,
+            String responseSchemaRef,
+            String methodName,
+            Map<String, Object> queryableFields) { // 新增参数
+        pathsMap.computeIfAbsent(path, k -> new HashMap<>());
+        Map<String, Object> pathItem = pathsMap.get(path);
+        Map<String, Object> op = new HashMap<>();
+        op.put("tags", List.of(tag));
+        op.put("summary", summary);
+        op.put("operationId", operationId);
+        if (path.contains("{id}") && entity != null) {
+            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
+            String idSchemaType =
+                    (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ?
+                            "integer" : "string";
+            op.put("parameters",
+                   List.of(Map.of("name",
+                                  "id",
+                                  "in",
+                                  "path",
+                                  "required",
+                                  true,
+                                  "schema",
+                                  Map.of("type", idSchemaType),
+                                  "description",
+                                  "主键，类型为 " + pkType.getSimpleName()
+                   ))
+            );
+        }
+        Map<String, Object> responseContent = new LinkedHashMap<>();
+        if (responseSchemaRef != null) {
+            responseContent.put("description", DEFAULT_RESPONSE_DESC);
+            responseContent.put("content",
+                                Map.of("application/json",
+                                       Map.of("schema", Map.of("$ref", "#/components/schemas/" + responseSchemaRef))
+                                )
+            );
+        } else {
+            responseContent.put("description", DEFAULT_RESPONSE_DESC);
+        }
+        op.put("responses", Map.of("200", responseContent));
+        if (requestBody && requestSchemaRef != null) {
+            Map<String, Object> schema = requestSchemaArray ?
+                    Map.of("type", "array", "items", Map.of("$ref", "#/components/schemas/" + requestSchemaRef)) :
+                    Map.of("$ref", "#/components/schemas/" + requestSchemaRef);
+            boolean required = !"SearchRequest".equals(requestSchemaRef);
+            op.put("requestBody",
+                   Map.of("required", required, "content", Map.of("application/json", Map.of("schema", schema)))
+            );
+        } else if (requestBody && requestSchemaArrayOfIds && entity != null) {
+            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
+            String idSchemaType =
+                    (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ?
+                            "integer" : "string";
+            op.put("requestBody",
+                   Map.of("required",
+                          true,
+                          "content",
+                          Map.of("application/json",
+                                 Map.of("schema",
+                                        Map.of("type",
+                                               "array",
+                                               "items",
+                                               Map.of("type", idSchemaType),
+                                               "description",
+                                               "主键 ID 列表"
+                                        )
+                                 )
+                          )
+                   )
+            );
+        } else if (requestBody) {
+            op.put("requestBody",
+                   Map.of("required",
+                          true,
+                          "content",
+                          Map.of("application/json", Map.of("schema", Map.of("type", "object")))
+                   )
+            );
+        }
+        if (permissions != null && !"".equals(permissions)) {
+            op.put("x-permissions", permissions);
+        }
+        
+        // 优先使用传入的 queryableFields，如果没有传入且符合条件，尝试内部构建（兼容旧逻辑）
+        if (queryableFields != null && !queryableFields.isEmpty()) {
+            op.put("x-queryable-fields", queryableFields);
+        } else if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
+            Map<String, Object> builtFields = buildQueryableFields(entity);
+            if (!builtFields.isEmpty()) {
+                op.put("x-queryable-fields", builtFields);
+            }
+        }
+        
+        pathItem.put(httpMethod, op);
+    }
+    
+    private static Map<String, Object> buildQueryableFields(EntityMeta entity) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (entity.getFields() == null) {
+            return result;
+        }
+        for (FieldMeta fm : entity.getFields()) {
+            if (fm == null || fm.getName() == null || fm.getName().isBlank()) {
+                continue;
+            }
+            if (!fm.isQueryable()) {
+                continue;
+            }
+            String type = fm.getType() != null ? fm.getType() : "String";
+            List<String> operators = operatorsForType(type);
+            Map<String, Object> fieldInfo = new LinkedHashMap<>();
+            fieldInfo.put("type", type);
+            fieldInfo.put("operators", operators);
+            if (fm.getLabel() != null && !fm.getLabel().isBlank()) {
+                fieldInfo.put("label", fm.getLabel());
+            }
+            fieldInfo.put("order", fm.getOrder());
+            result.put(fm.getName(), fieldInfo);
+        }
+        // 按 order 排序
+        return result.entrySet().stream().sorted((e1, e2) -> {
+            Map<String, Object> m1 = (Map<String, Object>) e1.getValue();
+            Map<String, Object> m2 = (Map<String, Object>) e2.getValue();
+            int o1 = (int) m1.getOrDefault("order", 0);
+            int o2 = (int) m2.getOrDefault("order", 0);
+            return Integer.compare(o1, o2);
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
+    }
+    
+    private static List<String> operatorsForType(String type) {
+        if (type == null || type.isBlank()) {
+            return List.of("eq", "ne");
+        }
+        return switch (type) {
+            case "String" -> List.of("eq", "ne", "like");
+            case "Integer", "int", "Long", "long" -> List.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
+            case "Boolean", "boolean" -> List.of("eq", "ne");
+            case "LocalDate", "LocalDateTime", "Date", "Instant" -> List.of("eq", "gt", "gte", "lt", "lte");
+            default -> List.of("eq", "ne", "in");
+        };
+    }
+    
+    private static boolean hasRequestBody(Method method) {
+        for (Parameter p : method.getParameters()) {
+            if (p.getAnnotation(RequestBody.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private static String summaryFromMethodName(String methodName) {
+        return switch (methodName) {
+            case "search" -> "分页搜索";
+            case "get" -> "查询详情";
+            case "create" -> "创建";
+            case "update" -> "更新";
+            case "delete" -> "删除";
+            case "deleteBatch" -> "删除";
+            case "updateBatch" -> "更新";
+            case "export" -> "导出 Excel";
+            default -> methodName;
+        };
+    }
+    
+    private static boolean isOperationEnabled(EntityMeta entity, String methodName) {
+        return switch (methodName) {
+            case "search" -> entity.isListEnabled();
+            case "get" -> entity.isGetEnabled();
+            case "create" -> entity.isCreateEnabled();
+            case "update" -> entity.isUpdateEnabled();
+            case "updateBatch" -> entity.isUpdateBatchEnabled();
+            case "delete" -> entity.isDeleteEnabled();
+            case "deleteBatch" -> entity.isDeleteBatchEnabled();
+            case "export" -> entity.isExportEnabled();
+            default -> false;
+        };
+    }
+    
+    private static Object permissionsForMethod(String methodName, EntityMeta entity) {
+        return switch (methodName) {
+            case "search", "get", "export" -> entity.getPermissionRead();
+            case "create" -> entity.getPermissionCreate();
+            case "update", "updateBatch" -> entity.getPermissionUpdate();
+            case "delete", "deleteBatch" -> entity.getPermissionDelete();
+            default -> "";
+        };
+    }
+    
     @GetMapping("/docs")
     public ResponseEntity<Map<String, Object>> docs() {
         Map<String, Map<String, Object>> pathsMap = new HashMap<>();
@@ -91,20 +298,20 @@ public class OpenApiController {
                     if (patternStr.contains("{actionName}")) {
                         for (EntityMeta entity : entityRegistry.getAll()) {
                             for (ActionMeta action : entity.getActions()) {
-                                RequestMethod actionMethod = action.getMethod() != null ? action.getMethod()
-                                        : RequestMethod.POST;
+                                RequestMethod actionMethod =
+                                        action.getMethod() != null ? action.getMethod() : RequestMethod.POST;
                                 if (m != actionMethod) {
                                     continue;
                                 }
                                 // 判断当前 path pattern 是否包含 {id}
                                 boolean hasIdParam = patternStr.contains("{id}");
-
+                                
                                 // 核心逻辑:
                                 // 如果 Action 本身声明需要 ID (requireId=true, 默认)：
                                 // - 仅生成含 {id} 的路径文档
                                 // 如果 Action 本身声明不需要 ID (requireId=false)：
                                 // - 仅生成不含 {id} 的路径文档 (避免误导用户)
-
+                                
                                 if (action.isRequireId()) {
                                     if (!hasIdParam) {
                                         continue; // 跳过无ID路径
@@ -114,15 +321,14 @@ public class OpenApiController {
                                         continue; // 跳过有ID路径
                                     }
                                 }
-
-                                String path = patternStr
-                                        .replace("{entity}", entity.getPathSegment())
-                                        .replace("{actionName}", action.getActionName());
-
-                                boolean needBody = action.getRequestType() != null
-                                        && action.getRequestType() != Void.class;
+                                
+                                String path = patternStr.replace("{entity}", entity.getPathSegment())
+                                                        .replace("{actionName}", action.getActionName());
+                                
+                                boolean needBody =
+                                        action.getRequestType() != null && action.getRequestType() != Void.class;
                                 String tag = tagForEntity(entity);
-
+                                
                                 // OperationId 策略：
                                 // 有 ID 的: entity_actionName
                                 // 无 ID 的: entity_actionName_NoId (可选，或者依然叫 entity_actionName，因为二者互斥了)
@@ -130,22 +336,28 @@ public class OpenApiController {
                                 // 但为了明确语义，保持 entity_actionName_NoId 也可以。
                                 // 鉴于之前用户已经看到 NoId 后缀，我们保持这个后缀以便区分，或者如果互斥了，去掉后缀更干净？
                                 // 如果互斥，同一个 entity_actionName 只会出现一次。直接用 entity_actionName 最干净。
-
+                                
                                 String opId = entity.getPathSegment() + "_" + action.getActionName();
                                 if (!action.isRequireId()) {
                                     opId += "_NoId";
                                 }
-
-                                putOperation(pathsMap, path, httpMethod, action.getSummary(),
-                                        opId,
-                                        needBody, action.getPermissions().isEmpty() ? null : action.getPermissions(),
-                                        tag, entity,
-                                        null,
-                                        false,
-                                        false,
-                                        null,
-                                        null,
-                                        null);
+                                
+                                putOperation(pathsMap,
+                                             path,
+                                             httpMethod,
+                                             action.getSummary(),
+                                             opId,
+                                             needBody,
+                                             action.getPermissions().isEmpty() ? null : action.getPermissions(),
+                                             tag,
+                                             entity,
+                                             null,
+                                             false,
+                                             false,
+                                             null,
+                                             null,
+                                             null
+                                );
                             }
                         }
                     } else {
@@ -179,15 +391,23 @@ public class OpenApiController {
                             if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
                                 queryableFields = buildQueryableFields(entity);
                             }
-
-                            putOperation(pathsMap, path, httpMethod, summary, operationId, hasRequestBody,
-                                    permissions != null && !"".equals(permissions) ? permissions : null, tag, entity,
-                                    requestSchema,
-                                    requestSchemaArray,
-                                    requestSchemaArrayOfIds,
-                                    responseSchema,
-                                    methodName,
-                                    queryableFields); // 传入 queryableFields
+                            
+                            putOperation(pathsMap,
+                                         path,
+                                         httpMethod,
+                                         summary,
+                                         operationId,
+                                         hasRequestBody,
+                                         permissions != null && !"".equals(permissions) ? permissions : null,
+                                         tag,
+                                         entity,
+                                         requestSchema,
+                                         requestSchemaArray,
+                                         requestSchemaArrayOfIds,
+                                         responseSchema,
+                                         methodName,
+                                         queryableFields
+                            ); // 传入 queryableFields
                         }
                     }
                 }
@@ -202,13 +422,8 @@ public class OpenApiController {
         }
         Map<String, Object> schemas = buildSchemas();
         schemas.put("SearchRequest", buildSearchRequestSchema());
-        Map<String, Object> securitySchemes = Map.of(
-                "bearerAuth", Map.of(
-                        "type", "http",
-                        "scheme", "bearer",
-                        "bearerFormat", "JWT"
-                )
-        );
+        Map<String, Object> securitySchemes =
+                Map.of("bearerAuth", Map.of("type", "http", "scheme", "bearer", "bearerFormat", "JWT"));
         Map<String, Object> doc = new HashMap<>();
         doc.put("openapi", "3.0.0");
         doc.put("info", Map.of("title", "Entity Dataforge API", "version", "1.0"));
@@ -218,44 +433,72 @@ public class OpenApiController {
         doc.put("security", List.of(Map.of("bearerAuth", List.of())));
         return ResponseEntity.ok(doc);
     }
-
+    
     private Map<String, Object> buildSearchRequestSchema() {
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("filters", Map.of(
-                "type", "array",
-                "items", Map.of(
-                        "type", "object",
-                        "properties", Map.of(
-                                "field", Map.of("type", "string", "description", "字段名"),
-                                "op",
-                                Map.of("type", "string", "description", "操作符: eq, ne, like, gt, gte, lt, lte, in"),
-                                "value", Map.of("description", "值；in 时为数组")))));
-        properties.put("sort", Map.of(
-                "type", "array",
-                "items", Map.of(
-                        "type", "object",
-                        "properties", Map.of(
-                                "field", Map.of("type", "string", "description", "排序字段"),
-                                "dir", Map.of("type", "string", "enum", List.of("asc", "desc"), "description",
-                                        "asc 或 desc")))));
+        properties.put("filters",
+                       Map.of("type",
+                              "array",
+                              "items",
+                              Map.of("type",
+                                     "object",
+                                     "properties",
+                                     Map.of("field",
+                                            Map.of("type", "string", "description", "字段名"),
+                                            "op",
+                                            Map.of("type",
+                                                   "string",
+                                                   "description",
+                                                   "操作符: eq, ne, like, gt, gte, lt, lte, in"
+                                            ),
+                                            "value",
+                                            Map.of("description", "值；in 时为数组")
+                                     )
+                              )
+                       )
+        );
+        properties.put("sort",
+                       Map.of("type",
+                              "array",
+                              "items",
+                              Map.of("type",
+                                     "object",
+                                     "properties",
+                                     Map.of("field",
+                                            Map.of("type", "string", "description", "排序字段"),
+                                            "dir",
+                                            Map.of("type",
+                                                   "string",
+                                                   "enum",
+                                                   List.of("asc", "desc"),
+                                                   "description",
+                                                   "asc 或 desc"
+                                            )
+                                     )
+                              )
+                       )
+        );
         properties.put("page", Map.of("type", "integer", "description", "页码，默认 0"));
         properties.put("size", Map.of("type", "integer", "description", "每页条数"));
         schema.put("properties", properties);
         schema.put("example",
-                Map.of("filters",
-                        List.of(Map.of("field", "username", "op", "like", "value", "john"),
-                                Map.of("field", "status", "op", "in", "value", List.of(1, 2))),
-                        "sort",
-                        List.of(Map.of("field", "createTime", "dir", "desc")),
-                        "page",
-                        0,
-                        "size",
-                        20));
+                   Map.of("filters",
+                          List.of(Map.of("field", "username", "op", "like", "value", "john"),
+                                  Map.of("field", "status", "op", "in", "value", List.of(1, 2))
+                          ),
+                          "sort",
+                          List.of(Map.of("field", "createTime", "dir", "desc")),
+                          "page",
+                          0,
+                          "size",
+                          20
+                   )
+        );
         return schema;
     }
-
+    
     private Map<String, Object> buildSchemas() {
         Map<String, Object> schemas = new LinkedHashMap<>();
         for (EntityMeta entity : entityRegistry.getAll()) {
@@ -268,49 +511,59 @@ public class OpenApiController {
             Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
             Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
             if (createDto != null) {
-                schemas.put(createDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(createDto), entity));
+                schemas.put(createDto.getSimpleName(),
+                            enrichDtoSchemaWithFieldLabels(buildDtoSchema(createDto), entity)
+                );
             } else {
                 schemas.put(simpleName + "CreateDTO", emptySchema());
             }
             if (updateDto != null) {
-                schemas.put(updateDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(updateDto), entity));
+                schemas.put(updateDto.getSimpleName(),
+                            enrichDtoSchemaWithFieldLabels(buildDtoSchema(updateDto), entity)
+                );
             } else {
                 schemas.put(simpleName + "UpdateDTO", emptySchema());
             }
             if (responseDto != null) {
-                schemas.put(responseDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(responseDto), entity));
+                schemas.put(responseDto.getSimpleName(),
+                            enrichDtoSchemaWithFieldLabels(buildDtoSchema(responseDto), entity)
+                );
             } else {
                 schemas.put(simpleName + "ResponseDTO", emptySchema());
             }
             if (pageResponseDto != null) {
-                schemas.put(pageResponseDto.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity));
+                schemas.put(pageResponseDto.getSimpleName(),
+                            enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity)
+                );
             } else {
                 log.warn(
-                    "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. " +
-                    "List columns will be empty. Fix: run 'mvn clean compile -pl template-dataforge-sample-backend' " +
-                    "so the annotation processor generates the DTO in {}.dto package.",
-                    simpleName, entity.getPathSegment(), simpleName);
+                        "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. "
+                                + "List columns will be empty. Fix: run 'mvn clean compile -pl "
+                                + "template-dataforge-sample-backend' "
+                                + "so the annotation processor generates the DTO in {}.dto package.",
+                        simpleName,
+                        entity.getPathSegment(),
+                        simpleName
+                );
                 schemas.put(simpleName + "PageResponseDTO", emptySchema());
             }
             schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));
         }
         return schemas;
     }
-
+    
     private Map<String, Object> buildPagedResultSchema(EntityMeta entity) {
         String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
         // 分页列表项使用 PageResponseDTO（PAGE_RESPONSE），与单条详情的 ResponseDTO（RESPONSE）独立
         Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
         Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
-        String itemRef = simpleName != null ? (pageResponseDto != null
-                ? pageResponseDto.getSimpleName()
-                : (responseDto != null ? responseDto.getSimpleName() : simpleName + "PageResponseDTO")) : "object";
+        String itemRef = simpleName != null ? (pageResponseDto != null ? pageResponseDto.getSimpleName() :
+                                               (responseDto != null ? responseDto.getSimpleName() :
+                                                simpleName + "PageResponseDTO")) : "object";
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("content", Map.of(
-                "type", "array",
-                "items", Map.of("$ref", "#/components/schemas/" + itemRef)));
+        properties.put("content", Map.of("type", "array", "items", Map.of("$ref", "#/components/schemas/" + itemRef)));
         properties.put("totalElements", Map.of("type", "integer", "format", "int64"));
         properties.put("totalPages", Map.of("type", "integer"));
         properties.put("number", Map.of("type", "integer"));
@@ -318,7 +571,7 @@ public class OpenApiController {
         schema.put("properties", properties);
         return schema;
     }
-
+    
     /** DTO 类不存在时占位用，不按实体字段生成 schema，避免泄露或列过多；约定由编译期处理器生成 DTO。 */
     private Map<String, Object> emptySchema() {
         Map<String, Object> schema = new LinkedHashMap<>();
@@ -326,7 +579,7 @@ public class OpenApiController {
         schema.put("properties", new LinkedHashMap<String, Object>());
         return schema;
     }
-
+    
     private Map<String, Object> buildDtoSchema(Class<?> dtoClass) {
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
@@ -337,7 +590,7 @@ public class OpenApiController {
         schema.put("properties", properties);
         return schema;
     }
-
+    
     /** 用实体的 FieldMeta（@DataforgeField.label）为 schema 各属性补充 description，供前端表格列标题等展示 */
     @SuppressWarnings("unchecked")
     private Map<String, Object> enrichDtoSchemaWithFieldLabels(Map<String, Object> schema, EntityMeta entity) {
@@ -365,7 +618,7 @@ public class OpenApiController {
         }
         return schema;
     }
-
+    
     private Map<String, Object> buildFieldSchema(Class<?> fieldType) {
         Map<String, Object> fieldSchema = new LinkedHashMap<>();
         if (fieldType == String.class) {
@@ -396,138 +649,7 @@ public class OpenApiController {
         }
         return fieldSchema;
     }
-
-    private static String tagForEntity(EntityMeta entity) {
-        return entity.getDisplayName() != null && !entity.getDisplayName().isBlank()
-                ? entity.getDisplayName()
-                : entity.getPathSegment();
-    }
-
-    private static void putOperation(Map<String, Map<String, Object>> pathsMap,
-            String path,
-            String httpMethod,
-            String summary, String operationId, boolean requestBody, Object permissions, String tag, EntityMeta entity,
-            String requestSchemaRef, boolean requestSchemaArray, boolean requestSchemaArrayOfIds,
-            String responseSchemaRef,
-            String methodName,
-            Map<String, Object> queryableFields) { // 新增参数
-        pathsMap.computeIfAbsent(path, k -> new HashMap<>());
-        Map<String, Object> pathItem = pathsMap.get(path);
-        Map<String, Object> op = new HashMap<>();
-        op.put("tags", List.of(tag));
-        op.put("summary", summary);
-        op.put("operationId", operationId);
-        if (path.contains("{id}") && entity != null) {
-            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
-            String idSchemaType = (pkType == Long.class || pkType == long.class || pkType == Integer.class
-                    || pkType == int.class) ? "integer" : "string";
-            op.put("parameters", List.of(Map.of(
-                    "name", "id",
-                    "in", "path",
-                    "required", true,
-                    "schema", Map.of("type", idSchemaType),
-                    "description", "主键，类型为 " + pkType.getSimpleName())));
-        }
-        Map<String, Object> responseContent = new LinkedHashMap<>();
-        if (responseSchemaRef != null) {
-            responseContent.put("description", DEFAULT_RESPONSE_DESC);
-            responseContent.put("content", Map.of("application/json",
-                    Map.of("schema", Map.of("$ref", "#/components/schemas/" + responseSchemaRef))));
-        } else {
-            responseContent.put("description", DEFAULT_RESPONSE_DESC);
-        }
-        op.put("responses", Map.of("200", responseContent));
-        if (requestBody && requestSchemaRef != null) {
-            Map<String, Object> schema = requestSchemaArray
-                    ? Map.of(
-                            "type", "array",
-                            "items", Map.of("$ref", "#/components/schemas/" + requestSchemaRef))
-                    : Map.of("$ref", "#/components/schemas/" + requestSchemaRef);
-            boolean required = !"SearchRequest".equals(requestSchemaRef);
-            op.put("requestBody", Map.of(
-                    "required", required,
-                    "content", Map.of("application/json",
-                            Map.of("schema", schema))));
-        } else if (requestBody && requestSchemaArrayOfIds && entity != null) {
-            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
-            String idSchemaType = (pkType == Long.class || pkType == long.class
-                    || pkType == Integer.class || pkType == int.class) ? "integer" : "string";
-            op.put("requestBody", Map.of(
-                    "required", true,
-                    "content", Map.of("application/json", Map.of("schema", Map.of(
-                            "type", "array",
-                            "items", Map.of("type", idSchemaType),
-                            "description", "主键 ID 列表")))));
-        } else if (requestBody) {
-            op.put("requestBody", Map.of(
-                    "required", true,
-                    "content", Map.of("application/json", Map.of("schema", Map.of("type", "object")))));
-        }
-        if (permissions != null && !"".equals(permissions)) {
-            op.put("x-permissions", permissions);
-        }
-        
-        // 优先使用传入的 queryableFields，如果没有传入且符合条件，尝试内部构建（兼容旧逻辑）
-        if (queryableFields != null && !queryableFields.isEmpty()) {
-            op.put("x-queryable-fields", queryableFields);
-        } else if (("search".equals(methodName) || "export".equals(methodName)) && entity != null) {
-            Map<String, Object> builtFields = buildQueryableFields(entity);
-            if (!builtFields.isEmpty()) {
-                op.put("x-queryable-fields", builtFields);
-            }
-        }
-        
-        pathItem.put(httpMethod, op);
-    }
-
-    private static Map<String, Object> buildQueryableFields(EntityMeta entity) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        if (entity.getFields() == null) {
-            return result;
-        }
-        for (FieldMeta fm : entity.getFields()) {
-            if (fm == null || fm.getName() == null || fm.getName().isBlank()) {
-                continue;
-            }
-            if (!fm.isQueryable()) {
-                continue;
-            }
-            String type = fm.getType() != null ? fm.getType() : "String";
-            List<String> operators = operatorsForType(type);
-            Map<String, Object> fieldInfo = new LinkedHashMap<>();
-            fieldInfo.put("type", type);
-            fieldInfo.put("operators", operators);
-            if (fm.getLabel() != null && !fm.getLabel().isBlank()) {
-                fieldInfo.put("label", fm.getLabel());
-            }
-            fieldInfo.put("order", fm.getOrder());
-            result.put(fm.getName(), fieldInfo);
-        }
-        // 按 order 排序
-        return result.entrySet().stream()
-                .sorted((e1, e2) -> {
-                    Map<String, Object> m1 = (Map<String, Object>) e1.getValue();
-                    Map<String, Object> m2 = (Map<String, Object>) e2.getValue();
-                    int o1 = (int) m1.getOrDefault("order", 0);
-                    int o2 = (int) m2.getOrDefault("order", 0);
-                    return Integer.compare(o1, o2);
-                })
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
-    }
-
-    private static List<String> operatorsForType(String type) {
-        if (type == null || type.isBlank()) {
-            return List.of("eq", "ne");
-        }
-        return switch (type) {
-            case "String" -> List.of("eq", "ne", "like");
-            case "Integer", "int", "Long", "long" -> List.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
-            case "Boolean", "boolean" -> List.of("eq", "ne");
-            case "LocalDate", "LocalDateTime", "Date", "Instant" -> List.of("eq", "gt", "gte", "lt", "lte");
-            default -> List.of("eq", "ne", "in");
-        };
-    }
-
+    
     private String getRequestSchemaForMethod(String methodName, EntityMeta entity) {
         if ("search".equals(methodName) || "export".equals(methodName)) {
             return "SearchRequest";
@@ -548,15 +670,15 @@ public class OpenApiController {
             default -> null;
         };
     }
-
+    
     private boolean isRequestSchemaArrayForMethod(String methodName) {
         return "updateBatch".equals(methodName);
     }
-
+    
     private boolean isRequestSchemaArrayOfIdsForMethod(String methodName) {
         return "deleteBatch".equals(methodName);
     }
-
+    
     private String getResponseSchemaForMethod(String methodName, EntityMeta entity) {
         if ("export".equals(methodName)) {
             return null;
@@ -572,53 +694,6 @@ public class OpenApiController {
                 yield responseDto != null ? responseDto.getSimpleName() : (simpleName + "ResponseDTO");
             }
             default -> null;
-        };
-    }
-
-    private static boolean hasRequestBody(Method method) {
-        for (Parameter p : method.getParameters()) {
-            if (p.getAnnotation(RequestBody.class) != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String summaryFromMethodName(String methodName) {
-        return switch (methodName) {
-            case "search" -> "分页搜索";
-            case "get" -> "查询详情";
-            case "create" -> "创建";
-            case "update" -> "更新";
-            case "delete" -> "删除";
-            case "deleteBatch" -> "删除";
-            case "updateBatch" -> "更新";
-            case "export" -> "导出 Excel";
-            default -> methodName;
-        };
-    }
-
-    private static boolean isOperationEnabled(EntityMeta entity, String methodName) {
-        return switch (methodName) {
-            case "search" -> entity.isListEnabled();
-            case "get" -> entity.isGetEnabled();
-            case "create" -> entity.isCreateEnabled();
-            case "update" -> entity.isUpdateEnabled();
-            case "updateBatch" -> entity.isUpdateBatchEnabled();
-            case "delete" -> entity.isDeleteEnabled();
-            case "deleteBatch" -> entity.isDeleteBatchEnabled();
-            case "export" -> entity.isExportEnabled();
-            default -> false;
-        };
-    }
-
-    private static Object permissionsForMethod(String methodName, EntityMeta entity) {
-        return switch (methodName) {
-            case "search", "get", "export" -> entity.getPermissionRead();
-            case "create" -> entity.getPermissionCreate();
-            case "update", "updateBatch" -> entity.getPermissionUpdate();
-            case "delete", "deleteBatch" -> entity.getPermissionDelete();
-            default -> "";
         };
     }
 }

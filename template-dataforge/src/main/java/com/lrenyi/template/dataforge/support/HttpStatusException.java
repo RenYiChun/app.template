@@ -7,11 +7,11 @@ import com.lrenyi.template.core.exception.TemplateException;
  * 继承 {@link TemplateException}，复用框架统一异常体系。
  */
 public abstract class HttpStatusException extends TemplateException {
-
+    
     protected HttpStatusException(int statusCode, String message) {
         super(statusCode, message);
     }
-
+    
     public int getStatusCode() {
         return getErrorCode();
     }

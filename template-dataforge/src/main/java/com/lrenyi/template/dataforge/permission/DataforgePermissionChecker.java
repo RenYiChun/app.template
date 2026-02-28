@@ -7,7 +7,7 @@ import java.util.Collection;
  * 业务方可实现此接口接入自定义 RBAC/ABAC，默认实现基于 Spring Security 的 Authentication.getAuthorities()。
  */
 public interface DataforgePermissionChecker {
-
+    
     /**
      * 当前用户是否拥有 requiredPermissions 中的任意一个权限。
      *

@@ -1,18 +1,20 @@
 # JSON 处理器与框架切换能力
 
-框架通过 `JsonProcessor` 抽象层提供**全局可切换的 JSON 处理能力**，业务代码统一依赖 `JsonService` 或 `JsonProcessor`，切换实现时无需修改业务逻辑。
+框架通过 `JsonProcessor` 抽象层提供**全局可切换的 JSON 处理能力**，业务代码统一依赖 `JsonService` 或 `JsonProcessor`
+，切换实现时无需修改业务逻辑。
 
 ---
 
 ## 一、设计概览
 
-| 层级 | 说明 |
-|------|------|
-| **JsonProcessor** | 抽象接口，定义 toJson、fromJson、parse、prettyPrint、toMap、toList 等统一 API |
-| **JacksonJsonProcessor** | 内置实现，基于 Jackson ObjectMapper（默认） |
-| **JsonService** | 服务封装，注入 JsonProcessor，对外提供 serialize/deserialize 等，并统一异常处理 |
+| 层级                       | 说明                                                             |
+|--------------------------|----------------------------------------------------------------|
+| **JsonProcessor**        | 抽象接口，定义 toJson、fromJson、parse、prettyPrint、toMap、toList 等统一 API |
+| **JacksonJsonProcessor** | 内置实现，基于 Jackson ObjectMapper（默认）                               |
+| **JsonService**          | 服务封装，注入 JsonProcessor，对外提供 serialize/deserialize 等，并统一异常处理     |
 
-框架内部（JwtPublicKeyFilter、认证失败 Handler、安全链错误响应等）均通过 `JsonService` 输出 JSON，因此**切换 JsonProcessor 实现即实现全局 JSON 框架切换**。
+框架内部（JwtPublicKeyFilter、认证失败 Handler、安全链错误响应等）均通过 `JsonService` 输出 JSON，因此**切换 JsonProcessor
+实现即实现全局 JSON 框架切换**。
 
 ---
 
@@ -48,7 +50,8 @@ public class CustomJsonConfig {
 
 业务方只需注入 `JsonService`，框架会自动使用你注册的 `JsonProcessor`。
 
-非 Spring 场景（如单元测试、批处理）可直接 `new JacksonJsonProcessor(new ObjectMapper())` 或 `new JsonService(processor)` 创建实例。
+非 Spring 场景（如单元测试、批处理）可直接 `new JacksonJsonProcessor(new ObjectMapper())` 或 `new JsonService(processor)`
+创建实例。
 
 ---
 

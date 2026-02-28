@@ -28,8 +28,8 @@ public final class KafkaFlowSourceProvider<T> implements FlowSourceProvider<T> {
      * @param pollTimeout 无数据时 poll 等待时长，非 null
      */
     public KafkaFlowSourceProvider(List<KafkaConsumer<?, ?>> consumers,
-                                   java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
-                                   Duration pollTimeout) {
+            java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
+            Duration pollTimeout) {
         if (consumers == null || consumers.isEmpty()) {
             throw new IllegalArgumentException("consumers 非空");
         }
@@ -37,9 +37,8 @@ public final class KafkaFlowSourceProvider<T> implements FlowSourceProvider<T> {
             throw new IllegalArgumentException("mapper 非 null");
         }
         Duration timeout = pollTimeout != null ? pollTimeout : Duration.ofMillis(1000);
-        List<FlowSource<T>> sources = consumers.stream()
-                                               .<FlowSource<T>>map(c -> new KafkaFlowSource<>(c, mapper, timeout))
-                                               .toList();
+        List<FlowSource<T>> sources =
+                consumers.stream().<FlowSource<T>>map(c -> new KafkaFlowSource<>(c, mapper, timeout)).toList();
         this.delegate = FlowSourceAdapters.fromFlowSources(sources);
     }
     

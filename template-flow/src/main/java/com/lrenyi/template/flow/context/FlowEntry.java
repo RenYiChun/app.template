@@ -5,27 +5,24 @@ import lombok.Getter;
 
 @Getter
 public class FlowEntry<T> implements AutoCloseable {
-    private final T data;
-    private final String jobId;
-    
-    private volatile int refCnt = 1;
-    private volatile int status = 0;
-    
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> REF_UPDATER;
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> STATUS_UPDATER;
-    
     private static final int BIT_LOGIC_CLAIMED = 1;
-    
+
     static {
         try {
-            @SuppressWarnings("unchecked")
-            Class<FlowEntry<?>> clazz = (Class<FlowEntry<?>>) (Class<?>) FlowEntry.class;
+            @SuppressWarnings("unchecked") Class<FlowEntry<?>> clazz = (Class<FlowEntry<?>>) (Class<?>) FlowEntry.class;
             REF_UPDATER = AtomicIntegerFieldUpdater.newUpdater(clazz, "refCnt");
             STATUS_UPDATER = AtomicIntegerFieldUpdater.newUpdater(clazz, "status");
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
         }
     }
+    
+    private final T data;
+    private final String jobId;
+    private volatile int refCnt = 1;
+    private volatile int status = 0;
     
     public FlowEntry(T data, String jobId) {
         this.data = data;
@@ -35,7 +32,7 @@ public class FlowEntry<T> implements AutoCloseable {
     public void retain() {
         REF_UPDATER.incrementAndGet(this);
     }
-
+    
     public void release() {
         REF_UPDATER.decrementAndGet(this);
     }

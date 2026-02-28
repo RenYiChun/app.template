@@ -30,14 +30,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Slf4j
 @Component
 public class JwtPublicKeyFilter extends OncePerRequestFilter {
-
+    
     private static final String ENDPOINT_URI = "/jwt/public/key";
     private static final String CACHE_CONTROL = "public, max-age=300";
-
+    
     private final RequestMatcher endpointMatcher;
     private RsaPublicAndPrivateKey rsaPublicAndPrivateKey;
     private JsonService jsonService;
-
+    
+    public JwtPublicKeyFilter() {
+        this.endpointMatcher = new AntPathRequestMatcher(ENDPOINT_URI, HttpMethod.GET.name());
+    }
+    
     @Autowired
     public void setJsonService(JsonService jsonService) {
         this.jsonService = jsonService;
@@ -48,14 +52,10 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         this.rsaPublicAndPrivateKey = rsaPublicAndPrivateKey;
     }
     
-    public JwtPublicKeyFilter() {
-        this.endpointMatcher = new AntPathRequestMatcher(ENDPOINT_URI, HttpMethod.GET.name());
-    }
-    
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain filterChain) throws ServletException, IOException {
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
         if (!endpointMatcher.matches(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -68,8 +68,8 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
             RSAPublicKey rsaPublicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
             String kid = rsaPublicAndPrivateKey.getKid();
             if (kid == null) {
-                 // Fallback if kid is not set
-                 kid = String.valueOf(rsaPublicKey.hashCode());
+                // Fallback if kid is not set
+                kid = String.valueOf(rsaPublicKey.hashCode());
             }
             RSAKey rsaKey = new RSAKey.Builder(rsaPublicKey).keyID(kid).build();
             Map<String, Object> jsonObject = new JWKSet(rsaKey).toJSONObject(true);

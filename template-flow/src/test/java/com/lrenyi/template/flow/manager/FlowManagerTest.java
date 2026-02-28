@@ -15,9 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowManagerTest {
-
+    
     private TemplateConfigProperties.Flow config;
-
+    
     @BeforeEach
     void setUp() {
         FlowManager.reset();
@@ -26,27 +26,27 @@ class FlowManagerTest {
         config = new TemplateConfigProperties.Flow();
         config.getConsumer().setConcurrencyLimit(100);
     }
-
+    
     @AfterEach
     void tearDown() {
         FlowManager.reset();
         FlowResourceRegistry.reset();
         FlowHealth.clearIndicators();
     }
-
+    
     @Test
     void getInstance_returnsNonNull() {
         FlowManager manager = FlowManager.getInstance(config);
         assertNotNull(manager);
     }
-
+    
     @Test
     void getInstance_sameConfig_returnsSameInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
         FlowManager m2 = FlowManager.getInstance(config);
         assertSame(m1, m2);
     }
-
+    
     @Test
     void getInstance_differentConfig_recreatesInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
@@ -56,7 +56,7 @@ class FlowManagerTest {
         assertNotNull(m2);
         assertNotSame(m1, m2);
     }
-
+    
     @Test
     void packageConstructor_createsInstanceWithoutInit() {
         FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true);
@@ -64,7 +64,7 @@ class FlowManagerTest {
         assertNotNull(manager.getResourceRegistry());
         assertNotNull(manager.getRegistry());
     }
-
+    
     @Test
     void getActiveLaunchers_initiallyEmpty() {
         FlowManager manager = FlowManager.getInstance(config);
@@ -72,14 +72,14 @@ class FlowManagerTest {
         assertNotNull(launchers);
         assertTrue(launchers.isEmpty());
     }
-
+    
     @Test
     void getHealthStatus_returnsMap() {
         FlowManager manager = FlowManager.getInstance(config);
         Map<String, Object> health = manager.getHealthStatus();
         assertNotNull(health);
     }
-
+    
     @Test
     void reset_clearsInstance() {
         FlowManager.getInstance(config);

@@ -22,17 +22,17 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
     private static final int PBKDF2_ITERATIONS = 100_000;
     private static final int SALT_LENGTH = 16;
     private static final int KEY_LENGTH = 256;
-
+    
     @Override
     public String type() {
         return TemplateEncryptService.DEFAULT_ENCODER_KEY;
     }
-
+    
     @Override
     public String decode(String encodedPassword) {
         return encodedPassword;
     }
-
+    
     @Override
     public String encode(CharSequence rawPassword) {
         String plain = StringEscapeUtils.unescapeHtml4(rawPassword.toString());
