@@ -108,9 +108,9 @@ class FlowHealthTest {
         Map<String, Object> details = FlowHealth.getHealthDetails();
         assertNotNull(details);
         assertEquals(HealthStatus.DEGRADED.name(), details.get("overallStatus"));
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> indicators = (List<Map<String, Object>>) details.get("indicators");
+        
+        @SuppressWarnings("unchecked") List<Map<String, Object>> indicators =
+                (List<Map<String, Object>>) details.get("indicators");
         assertNotNull(indicators);
         assertEquals(1, indicators.size());
         assertEquals("TestIndicator", indicators.getFirst().get("name"));

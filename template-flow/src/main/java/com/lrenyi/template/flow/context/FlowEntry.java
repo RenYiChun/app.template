@@ -8,7 +8,7 @@ public class FlowEntry<T> implements AutoCloseable {
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> REF_UPDATER;
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> STATUS_UPDATER;
     private static final int BIT_LOGIC_CLAIMED = 1;
-
+    
     static {
         try {
             @SuppressWarnings("unchecked") Class<FlowEntry<?>> clazz = (Class<FlowEntry<?>>) (Class<?>) FlowEntry.class;

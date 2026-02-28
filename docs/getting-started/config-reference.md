@@ -33,20 +33,20 @@ App Template 框架包含以下模块：
 
 ```yaml
 spring:
-   application:
-      name: your-application-name
-   profiles:
-      active: dev
+  application:
+    name: your-application-name
+  profiles:
+    active: dev
 
 server:
-   port: 8080
-   servlet:
-      context-path: /api
+  port: 8080
+  servlet:
+    context-path: /api
 
 # 框架总开关
 app:
-   template:
-      enabled: true  # 默认为 true，设置为 false 可禁用整个框架
+  template:
+    enabled: true  # 默认为 true，设置为 false 可禁用整个框架
 ```
 
 ### Maven 依赖配置
@@ -59,43 +59,43 @@ app:
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
-   <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-   <parent>
-      <groupId>com.lrenyi</groupId>
-      <artifactId>template-dependencies</artifactId>
-      <version>2.4.0</version>
-      <relativePath/>
-   </parent>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-dependencies</artifactId>
+        <version>2.4.0</version>
+        <relativePath/>
+    </parent>
 
-   <groupId>com.example</groupId>
-   <artifactId>my-app</artifactId>
-   <version>1.0.0</version>
-   <packaging>jar</packaging>
+    <groupId>com.example</groupId>
+    <artifactId>my-app</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
 
-   <dependencies>
-      <!-- 选择一个应用类型 -->
+    <dependencies>
+        <!-- 选择一个应用类型 -->
 
-      <!-- 独立单应用 -->
-      <dependency>
-         <groupId>com.lrenyi</groupId>
-         <artifactId>template-api</artifactId>
-      </dependency>
+        <!-- 独立单应用 -->
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-api</artifactId>
+        </dependency>
 
-      <!-- 或者 OAuth2 认证服务 -->
-      <!--
-	  <dependency>
-		  <groupId>com.lrenyi</groupId>
-		  <artifactId>template-oauth2-service</artifactId>
-	  </dependency>
-	  -->
+        <!-- 或者 OAuth2 认证服务 -->
+        <!--
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-oauth2-service</artifactId>
+        </dependency>
+        -->
 
-      <!-- 可选：Redis 支持 -->
-      <dependency>
-         <groupId>org.springframework.boot</groupId>
-         <artifactId>spring-boot-starter-data-redis</artifactId>
-      </dependency>
-   </dependencies>
+        <!-- 可选：Redis 支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+    </dependencies>
 </project>
 ```
 
@@ -113,14 +113,14 @@ app:
         store-type: "memory"  # 授权存储类型: memory, redis, jdbc
       local-jwt-public-key: true  # 是否使用本地 JWT 公钥
       net-jwt-public-key-domain: "http://auth-server.com"  # 远程 JWT 公钥域名
-      
+
       # 免认证 URL 配置
       permit-urls:
-        your-app-name:  # 应用名称
+        your-app-name: # 应用名称
           - "/public/**"
           - "/health"
           - "/info"
-      
+
       # 不透明令牌配置
       oauth2:
         opaque-token:
@@ -133,6 +133,7 @@ app:
 ### 自定义安全配置
 
 ```java
+
 @Configuration
 public class CustomSecurityConfig {
     
@@ -141,14 +142,11 @@ public class CustomSecurityConfig {
         return http -> {
             try {
                 // 自定义安全配置
-                http.sessionManagement(session -> 
-                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                );
+                http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
                 
                 // 添加自定义过滤器
-                http.addFilterBefore(new CustomAuthFilter(), 
-                    UsernamePasswordAuthenticationFilter.class);
-                    
+                http.addFilterBefore(new CustomAuthFilter(), UsernamePasswordAuthenticationFilter.class);
+            
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -241,7 +239,7 @@ spring:
               access-token-time-to-live: "PT1H"  # 1小时
               refresh-token-time-to-live: "P30D"  # 30天
               access-token-format: "self-contained"  # 或 "reference"
-              
+
           mobile-client:
             registration:
               client-id: "mobile-client"
@@ -263,6 +261,7 @@ spring:
 ### 实现用户认证服务
 
 ```java
+
 @Service
 public class DatabaseLoginNameUserDetailService implements IRbacService {
     
@@ -280,8 +279,8 @@ public class DatabaseLoginNameUserDetailService implements IRbacService {
     @Override
     public UserDetails loadUserDetail(String username) throws AuthenticationException {
         User user = userRepository.findByUsername(username)
-            .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
-            
+                                  .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
+        
         if (!user.isEnabled()) {
             throw new DisabledException("用户已被禁用");
         }
@@ -291,14 +290,14 @@ public class DatabaseLoginNameUserDetailService implements IRbacService {
         }
         
         return org.springframework.security.core.userdetails.User.builder()
-            .username(user.getUsername())
-            .password(user.getPassword())
-            .authorities(user.getAuthorities())
-            .accountExpired(!user.isAccountNonExpired())
-            .accountLocked(!user.isAccountNonLocked())
-            .credentialsExpired(!user.isCredentialsNonExpired())
-            .disabled(!user.isEnabled())
-            .build();
+                                                                 .username(user.getUsername())
+                                                                 .password(user.getPassword())
+                                                                 .authorities(user.getAuthorities())
+                                                                 .accountExpired(!user.isAccountNonExpired())
+                                                                 .accountLocked(!user.isAccountNonLocked())
+                                                                 .credentialsExpired(!user.isCredentialsNonExpired())
+                                                                 .disabled(!user.isEnabled())
+                                                                 .build();
     }
 }
 
@@ -337,6 +336,7 @@ public class PhoneLoginNameUserDetailService implements IRbacService {
 ### OAuth2 客户端使用示例
 
 ```java
+
 @RestController
 public class AuthController {
     
@@ -345,9 +345,9 @@ public class AuthController {
     
     @PostMapping("/login")
     public Result<TokenBean> login(@RequestParam String username,
-                                   @RequestParam String password,
-                                   @RequestParam(defaultValue = "username") String loginType,
-                                   HttpServletRequest request) {
+            @RequestParam String password,
+            @RequestParam(defaultValue = "username") String loginType,
+            HttpServletRequest request) {
         
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "authorization_password");
@@ -393,7 +393,7 @@ spring:
   datasource:
     username: admin
     password: "aENC(encrypted-password-here)"  # 使用 aENC() 包装加密密码
-    
+
 app:
   template:
     security:
@@ -403,6 +403,7 @@ app:
 ### 自定义 RSA 密钥
 
 ```java
+
 @Configuration
 public class CustomRsaConfig {
     
@@ -472,6 +473,7 @@ app:
 ### Redis 自定义配置
 
 ```java
+
 @Configuration
 public class RedisConfig {
     
@@ -500,7 +502,7 @@ app:
   template:
     audit:
       enabled: true  # 是否启用审计日志
-      oauth2-endpoints:  # 需审计的 OAuth2 端点列表（与下方前缀二选一或同时生效）
+      oauth2-endpoints: # 需审计的 OAuth2 端点列表（与下方前缀二选一或同时生效）
         - "/oauth2/token"
       oauth2-audit-path-prefix: "/oauth2"  # 审计该前缀下所有请求（默认 /oauth2，即 authorize、token、revoke、introspect 等全审计）
 
@@ -526,16 +528,16 @@ import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 
 @Component
 public class CustomLogProcessor implements AuditLogProcessor {
-
+    
     @Override
     public void process(AuditLogInfo auditLogInfo) {
         // 自定义日志处理逻辑
         System.out.println("审计日志: " + auditLogInfo);
-
+        
         // 可以保存到数据库或其他存储
         saveLogToDatabase(auditLogInfo);
     }
-
+    
     private void saveLogToDatabase(AuditLogInfo auditLogInfo) {
         // 实现日志保存逻辑
     }
@@ -556,6 +558,7 @@ app:
 ### 全局异常处理
 
 ```java
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
     
@@ -590,6 +593,7 @@ public class GlobalExceptionHandler {
 ### WebSocket 处理器
 
 ```java
+
 @Component
 public class ChatWebSocketHandler implements TemplateWebSocketHandler {
     
@@ -633,14 +637,15 @@ public class ChatWebSocketHandler implements TemplateWebSocketHandler {
 ### WebSocket 拦截器
 
 ```java
+
 @Component
 public class AuthWebSocketInterceptor implements TemplateHandshakeInterceptor {
     
     @Override
-    public boolean beforeHandshake(ServerHttpRequest request, 
-                                   ServerHttpResponse response,
-                                   WebSocketHandler wsHandler, 
-                                   Map<String, Object> attributes) throws Exception {
+    public boolean beforeHandshake(ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Map<String, Object> attributes) throws Exception {
         // 握手前的认证检查
         String token = request.getHeaders().getFirst("Authorization");
         if (token != null && validateToken(token)) {
@@ -651,10 +656,10 @@ public class AuthWebSocketInterceptor implements TemplateHandshakeInterceptor {
     }
     
     @Override
-    public void afterHandshake(ServerHttpRequest request, 
-                               ServerHttpResponse response,
-                               WebSocketHandler wsHandler, 
-                               Exception exception) {
+    public void afterHandshake(ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Exception exception) {
         // 握手后的处理
     }
     
@@ -747,6 +752,7 @@ public class UserService {
 ### 接口权限控制
 
 ```java
+
 @RestController
 public class UserController {
     
@@ -792,6 +798,7 @@ public class DatabaseTemplateInterface implements TemplateInterface {
 框架默认使用 Jackson 作为 JSON 序列化工具，你也可以自定义：
 
 ```java
+
 @Configuration
 public class MessageConverterConfig {
     
@@ -801,10 +808,9 @@ public class MessageConverterConfig {
         FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
         
         FastJsonConfig config = new FastJsonConfig();
-        config.setSerializerFeatures(
-            SerializerFeature.WriteMapNullValue,
-            SerializerFeature.WriteNullStringAsEmpty,
-            SerializerFeature.WriteNullListAsEmpty
+        config.setSerializerFeatures(SerializerFeature.WriteMapNullValue,
+                                     SerializerFeature.WriteNullStringAsEmpty,
+                                     SerializerFeature.WriteNullListAsEmpty
         );
         config.setDateFormat("yyyy-MM-dd HH:mm:ss");
         
@@ -829,9 +835,10 @@ app:
 自定义实现时，提供 `JsonProcessor` Bean 即可全局接管：
 
 ```java
+
 @Configuration
 public class CustomJsonConfig {
-
+    
     @Bean
     @Primary
     public JsonProcessor customJsonProcessor() {
@@ -861,7 +868,7 @@ public class CustomJsonConfig {
 spring:
   profiles:
     active: prod
-    
+
 server:
   port: 8080
   ssl:
@@ -869,7 +876,7 @@ server:
     key-store: classpath:keystore.p12
     key-store-password: your-keystore-password
     key-store-type: PKCS12
-    
+
 app:
   template:
     enabled: true
@@ -879,21 +886,21 @@ app:
       net-jwt-public-key-domain: "https://auth.yourcompany.com"
       authorization:
         store-type: "redis"  # 生产环境建议使用 Redis
-      
+
     oauth2:
       enabled: true
       skip-pre-authentication: false
-      
+
     method-security:
       enabled: true  # 方法级安全（@PreAuthorize 等）
-      
+
     audit:
       enabled: true
-      
+
     web:
       export-exception-detail: false  # 生产环境不暴露异常详情
       json-processor-type: "jackson"
-      
+
 logging:
   level:
     root: WARN
@@ -949,7 +956,7 @@ services:
     depends_on:
       - db
       - redis
-      
+
   db:
     image: mysql:8.0
     environment:
@@ -957,12 +964,12 @@ services:
       MYSQL_DATABASE: myapp
     volumes:
       - mysql_data:/var/lib/mysql
-      
+
   redis:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
-      
+
 volumes:
   mysql_data:
   redis_data:

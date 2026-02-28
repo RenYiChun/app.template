@@ -55,6 +55,15 @@ public class FlowManager implements ActiveLauncherLookup {
         log.info("FlowManager 启动");
     }
     
+    /**
+     * 兼容旧调用方（无 MeterRegistry 参数），使用 SimpleMeterRegistry 作为 fallback。
+     * 注意：这将为每个实例创建一个新的 Registry，如果可能，请传递共享的 Registry。
+     * 配置变更时会重建实例，需委托给两参版本以执行 configChanged 检查。
+     */
+    public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
+        return getInstance(globalConfig, new SimpleMeterRegistry());
+    }
+    
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
         if (instance == null || configChanged(globalConfig)) {
             synchronized (FlowManager.class) {
@@ -77,16 +86,7 @@ public class FlowManager implements ActiveLauncherLookup {
         }
         return instance;
     }
-
-    /**
-     * 兼容旧调用方（无 MeterRegistry 参数），使用 SimpleMeterRegistry 作为 fallback。
-     * 注意：这将为每个实例创建一个新的 Registry，如果可能，请传递共享的 Registry。
-     * 配置变更时会重建实例，需委托给两参版本以执行 configChanged 检查。
-     */
-    public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
-        return getInstance(globalConfig, new SimpleMeterRegistry());
-    }
-
+    
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
         if (config == null) {
             return false;

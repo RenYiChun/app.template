@@ -466,8 +466,8 @@ public class MetaScanner {
                     fm.setExportHeader(dataforgeExport.header());
                     fm.setExportOrder(dataforgeExport.order());
                     fm.setExportFormat(dataforgeExport.format());
-                    if (dataforgeExport.converter() != null && dataforgeExport.converter()
-                            != ExportValueConverter.class) {
+                    if (dataforgeExport.converter() != null
+                            && dataforgeExport.converter() != ExportValueConverter.class) {
                         fm.setExportConverterClassName(dataforgeExport.converter().getName());
                     }
                     fm.setExportWidth(dataforgeExport.width());
@@ -491,8 +491,8 @@ public class MetaScanner {
                     fm.setImportEnabled(dataforgeImport.enabled());
                     fm.setImportRequired(dataforgeImport.required());
                     fm.setImportSample(dataforgeImport.sample());
-                    if (dataforgeImport.converter() != null && dataforgeImport.converter()
-                            != ImportValueConverter.class) {
+                    if (dataforgeImport.converter() != null
+                            && dataforgeImport.converter() != ImportValueConverter.class) {
                         fm.setImportConverterClassName(dataforgeImport.converter().getName());
                     }
                     fm.setImportValidationRegex(dataforgeImport.validationRegex());

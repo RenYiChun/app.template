@@ -37,12 +37,8 @@ public class RbacUserDetailsService implements UserDetailsService {
         if (credentials == null) {
             throw new UsernameNotFoundException("User not found");
         }
-        List<SimpleGrantedAuthority> authorities = credentials.permissions().stream()
-                .map(SimpleGrantedAuthority::new)
-                .toList();
-        return new User(
-                credentials.username(),
-                credentials.password(),
-                authorities);
+        List<SimpleGrantedAuthority> authorities =
+                credentials.permissions().stream().map(SimpleGrantedAuthority::new).toList();
+        return new User(credentials.username(), credentials.password(), authorities);
     }
 }

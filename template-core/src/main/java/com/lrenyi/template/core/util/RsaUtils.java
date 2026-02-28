@@ -40,7 +40,7 @@ public class RsaUtils {
         ensureKeysLoaded();
         return privateKey;
     }
-
+    
     private static void ensureKeysLoaded() {
         if (keysLoaded) {
             return;
@@ -59,7 +59,7 @@ public class RsaUtils {
             }
         }
     }
-
+    
     public static RSAPublicKey loadPublicKeyFromFile(String publicKeyFileName) throws Exception {
         if (FileUtil.isResourceFileNotExists(publicKeyFileName)) {
             publicKeyFileName = "default_rsa_public.pem";

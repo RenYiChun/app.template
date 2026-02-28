@@ -36,9 +36,10 @@ app:
 提供自己的 `JsonProcessor` Bean 即可全局接管，无需改配置：
 
 ```java
+
 @Configuration
 public class CustomJsonConfig {
-
+    
     @Bean
     @Primary
     public JsonProcessor customJsonProcessor() {

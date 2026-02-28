@@ -54,9 +54,8 @@ public class DocsUiController {
         html.append("      if (!token) return;\n");
         html.append("      \n");
         html.append("      // 1. 尝试通过配置注入\n");
-        html.append(
-                "      const config = { authentication: { preferredSecurityScheme: 'bearerAuth', bearer: { token: "
-                        + "token }, token: token } };\n");
+        html.append("      const config = { authentication: { preferredSecurityScheme: 'bearerAuth', bearer: { token: "
+                            + "token }, token: token } };\n");
         html.append("      const refEl = document.getElementById('api-reference');\n");
         html.append("      if (refEl) refEl.dataset.configuration = JSON.stringify(config);\n");
         html.append("      \n");
@@ -66,9 +65,8 @@ public class DocsUiController {
         html.append("        const inputs = document.querySelectorAll('input');\n");
         html.append("        let filled = false;\n");
         html.append("        inputs.forEach(input => {\n");
-        html.append(
-                "          if ((input.placeholder === 'Token' || input.dataset.testid === 'auth-bearer-token') && "
-                        + "!input.value) {\n");
+        html.append("          if ((input.placeholder === 'Token' || input.dataset.testid === 'auth-bearer-token') && "
+                            + "!input.value) {\n");
         html.append("            input.value = token;\n");
         html.append("            input.dispatchEvent(new Event('input', { bubbles: true }));\n");
         html.append("            filled = true;\n");

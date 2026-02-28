@@ -45,6 +45,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
     }
     
     private final TemplateConfigProperties templateConfigProperties;
+    
     public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
         this.templateConfigProperties = templateConfigProperties;
     }

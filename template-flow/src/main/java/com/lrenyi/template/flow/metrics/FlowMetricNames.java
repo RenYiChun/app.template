@@ -88,5 +88,6 @@ public final class FlowMetricNames {
     public static final String TAG_REASON = "reason";
     /** 存储引擎类型。caffeine / queue */
     public static final String TAG_STORAGE_TYPE = "storageType";
+    
     private FlowMetricNames() {}
 }

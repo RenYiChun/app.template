@@ -37,10 +37,7 @@ public final class EntityDtoResolver {
         } catch (ClassNotFoundException e) {
             log.warn("[EntityDtoResolver] DTO class not found: {} (entity={}, pathSegment={}). "
                              + "Ensure the annotation processor ran and the module was compiled (e.g. mvn clean "
-                             + "compile).",
-                     className,
-                     simple,
-                     meta.getPathSegment()
+                             + "compile).", className, simple, meta.getPathSegment()
             );
             return null;
         }

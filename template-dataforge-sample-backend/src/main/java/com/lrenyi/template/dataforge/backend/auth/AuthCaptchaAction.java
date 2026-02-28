@@ -1,7 +1,7 @@
 package com.lrenyi.template.dataforge.backend.auth;
 
-import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import java.util.Map;
+import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.backend.domain.Auth;
 import lombok.RequiredArgsConstructor;
