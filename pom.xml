@@ -44,8 +44,6 @@
         <spotbugs.check.skip>true</spotbugs.check.skip>
         <checker.root.dir/>
         <checker.root>${checker.root.dir}/checker</checker.root>
-        <sonar-maven-plugin.version>5.5.0.6356</sonar-maven-plugin.version>
-        <sonarlint.skip>true</sonarlint.skip>
     </properties>
 
     <modules>
@@ -160,44 +158,6 @@
     </build>
 
     <profiles>
-        <profile>
-            <id>sonarlint</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <version>3.1.1</version>
-                        <inherited>false</inherited>
-                        <executions>
-                            <execution>
-                                <id>sonarlint-scan</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${project.basedir}/scripts/sonarlint-scan.sh</executable>
-                                    <skip>${sonarlint.skip}</skip>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>sonar</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonarsource.scanner.maven</groupId>
-                        <artifactId>sonar-maven-plugin</artifactId>
-                        <version>${sonar-maven-plugin.version}</version>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
         <profile>
             <id>coverage</id>
             <build>
