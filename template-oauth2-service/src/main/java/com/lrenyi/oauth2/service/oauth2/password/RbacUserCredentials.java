@@ -12,7 +12,7 @@ import java.util.List;
  * </p>
  */
 public record RbacUserCredentials(String username, String password, List<String> permissions) {
-
+    
     @Override
     public List<String> permissions() {
         return permissions == null ? Collections.emptyList() : permissions;

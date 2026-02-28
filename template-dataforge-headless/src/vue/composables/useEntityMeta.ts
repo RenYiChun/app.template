@@ -3,8 +3,7 @@
  */
 
 import {ref, type Ref} from 'vue';
-import type {EntityMeta} from '../../core';
-import type {MetaService} from '../../core';
+import type {EntityMeta, MetaService} from '../../core';
 
 export function useEntityMeta(
     metaService: MetaService,

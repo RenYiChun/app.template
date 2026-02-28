@@ -90,6 +90,21 @@ public class OAuth2ClientPropertiesMapper {
         return applyAndBuild(() -> applyClientSettingsMappings(builder, map, client), builder::build);
     }
     
+    /**
+     * 映射 Token 相关设置：授权码/访问令牌/刷新令牌/设备码有效期、访问令牌格式、ID Token 签名算法等。
+     */
+    private TokenSettings getTokenSettings(OAuth2AuthorizationServerProperties.Client client, PropertyMapper map) {
+        OAuth2AuthorizationServerProperties.Token token = client.getToken();
+        TokenSettings.Builder builder = TokenSettings.builder();
+        return applyAndBuild(() -> applyTokenSettingsMappings(builder, map, token), builder::build);
+    }
+    
+    /** 先执行映射再 build，避免 getClientSettings/getTokenSettings 中重复「多行 map.from...to + return builder.build」结构。 */
+    private static <T> T applyAndBuild(Runnable mappings, Supplier<T> build) {
+        mappings.run();
+        return build.get();
+    }
+    
     private void applyClientSettingsMappings(ClientSettings.Builder builder,
             PropertyMapper map,
             OAuth2AuthorizationServerProperties.Client client) {
@@ -99,15 +114,6 @@ public class OAuth2ClientPropertiesMapper {
         map.from(client::getTokenEndpointAuthenticationSigningAlgorithm)
            .as(this::jwsAlgorithm)
            .to(builder::tokenEndpointAuthenticationSigningAlgorithm);
-    }
-    
-    /**
-     * 映射 Token 相关设置：授权码/访问令牌/刷新令牌/设备码有效期、访问令牌格式、ID Token 签名算法等。
-     */
-    private TokenSettings getTokenSettings(OAuth2AuthorizationServerProperties.Client client, PropertyMapper map) {
-        OAuth2AuthorizationServerProperties.Token token = client.getToken();
-        TokenSettings.Builder builder = TokenSettings.builder();
-        return applyAndBuild(() -> applyTokenSettingsMappings(builder, map, token), builder::build);
     }
     
     private void applyTokenSettingsMappings(TokenSettings.Builder builder,
@@ -122,12 +128,6 @@ public class OAuth2ClientPropertiesMapper {
         map.from(token::getIdTokenSignatureAlgorithm)
            .as(this::signatureAlgorithm)
            .to(builder::idTokenSignatureAlgorithm);
-    }
-    
-    /** 先执行映射再 build，避免 getClientSettings/getTokenSettings 中重复「多行 map.from...to + return builder.build」结构。 */
-    private static <T> T applyAndBuild(Runnable mappings, Supplier<T> build) {
-        mappings.run();
-        return build.get();
     }
     
     /**

@@ -8,9 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public record SortOrder(String field, String dir) {
     @JsonCreator
-    public SortOrder(
-            @JsonProperty("field") String field,
-            @JsonProperty("dir") String dir) {
+    public SortOrder(@JsonProperty("field") String field, @JsonProperty("dir") String dir) {
         this.field = field;
         this.dir = dir;
     }

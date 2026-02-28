@@ -1,13 +1,13 @@
 package com.lrenyi.template.dataforge.backend.init;
 
-import com.lrenyi.template.dataforge.backend.repository.UserRepository;
+import java.util.List;
+import com.lrenyi.template.dataforge.backend.domain.Permission;
 import com.lrenyi.template.dataforge.backend.domain.Role;
 import com.lrenyi.template.dataforge.backend.domain.RolePermission;
 import com.lrenyi.template.dataforge.backend.domain.UserRole;
-import com.lrenyi.template.dataforge.backend.domain.Permission;
+import com.lrenyi.template.dataforge.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
-import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.Ordered;
@@ -20,18 +20,18 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 public class RbacDataInitializer implements ApplicationRunner, Ordered {
-
+    
     private static final String ADMIN_USERNAME = "admin";
     private static final String ROLE_ADMIN_CODE = "ROLE_ADMIN";
-
+    
     private final UserRepository userRepository;
     private final EntityManager entityManager;
-
+    
     public RbacDataInitializer(UserRepository userRepository, EntityManager entityManager) {
         this.userRepository = userRepository;
         this.entityManager = entityManager;
     }
-
+    
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -41,16 +41,12 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
             ensureRoleHasPermission(role.getId());
         });
     }
-
-    @Override
-    public int getOrder() {
-        return Ordered.LOWEST_PRECEDENCE + 1;
-    }
-
+    
     private Role ensureRoleExists() {
         TypedQuery<Role> q = entityManager.createQuery(
                 "SELECT r FROM com.lrenyi.template.dataforge.backend.domain.Role r WHERE r.roleCode = :code",
-                Role.class);
+                Role.class
+        );
         q.setParameter("code", ROLE_ADMIN_CODE);
         List<Role> list = q.getResultList();
         if (!list.isEmpty()) {
@@ -62,12 +58,13 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
         entityManager.persist(role);
         return role;
     }
-
+    
     private void ensureUserRoleExists(Long userId, Long roleId) {
         TypedQuery<Long> q = entityManager.createQuery(
-                "SELECT COUNT(ur) FROM com.lrenyi.template.dataforge.backend.domain.UserRole ur " +
-                "WHERE ur.userId = :userId AND ur.role.id = :roleId",
-                Long.class);
+                "SELECT COUNT(ur) FROM com.lrenyi.template.dataforge.backend.domain.UserRole ur "
+                        + "WHERE ur.userId = :userId AND ur.role.id = :roleId",
+                Long.class
+        );
         q.setParameter("userId", String.valueOf(userId));
         q.setParameter("roleId", roleId);
         Long count = q.getSingleResult();
@@ -83,20 +80,23 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
         ur.setRole(role);
         entityManager.persist(ur);
     }
-
+    
     private void ensureRoleHasPermission(Long roleId) {
         TypedQuery<Long> q = entityManager.createQuery(
                 "SELECT COUNT(rp) FROM com.lrenyi.template.dataforge.backend.domain.RolePermission rp "
-                + "WHERE rp.role.id = :roleId",
-                Long.class);
+                        + "WHERE rp.role.id = :roleId",
+                Long.class
+        );
         q.setParameter("roleId", roleId);
         Long count2 = q.getSingleResult();
         if (count2 != null && count2 > 0) {
             return;
         }
         TypedQuery<Permission> permQ = entityManager.createQuery(
-                "SELECT p FROM com.lrenyi.template.dataforge.backend.domain.Permission p WHERE p.permission LIKE 'users:%'",
-                Permission.class);
+                "SELECT p FROM com.lrenyi.template.dataforge.backend.domain.Permission p WHERE p.permission LIKE "
+                        + "'users:%'",
+                Permission.class
+        );
         permQ.setMaxResults(1);
         List<Permission> perms = permQ.getResultList();
         if (perms.isEmpty()) {
@@ -109,5 +109,10 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
             rp.setPermission(perms.get(0));
             entityManager.persist(rp);
         }
+    }
+    
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE + 1;
     }
 }

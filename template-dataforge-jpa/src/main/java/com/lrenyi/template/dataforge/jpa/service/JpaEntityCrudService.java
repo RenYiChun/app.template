@@ -154,9 +154,23 @@ public class JpaEntityCrudService implements EntityCrudService {
         return new ArrayList<>(repo.saveAll(toSave));
     }
     
-    @SuppressWarnings("unchecked")
-    private SimpleJpaRepository<Object, Object> repositoryFor(Class<?> entityClass) {
-        return new SimpleJpaRepository<>((Class<Object>) entityClass, entityManager);
+    private Object getEntityId(Object entity) {
+        return InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass()));
+    }
+    
+    private void setEntityId(Object entity, Object id) {
+        InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField("id");
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
     }
     
     private static Set<String> getEntityFieldNames(Class<?> entityClass) {
@@ -183,22 +197,8 @@ public class JpaEntityCrudService implements EntityCrudService {
         return pageableSort;
     }
     
-    private Object getEntityId(Object entity) {
-        return InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass()));
-    }
-    
-    private void setEntityId(Object entity, Object id) {
-        InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
-    }
-    
-    private static Field findIdField(Class<?> clazz) {
-        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            try {
-                return c.getDeclaredField("id");
-            } catch (NoSuchFieldException ignored) {
-                // continue
-            }
-        }
-        return null;
+    @SuppressWarnings("unchecked")
+    private SimpleJpaRepository<Object, Object> repositoryFor(Class<?> entityClass) {
+        return new SimpleJpaRepository<>((Class<Object>) entityClass, entityManager);
     }
 }

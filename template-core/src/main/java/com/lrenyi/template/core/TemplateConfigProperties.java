@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "app.template")
 public class TemplateConfigProperties implements InitializingBean {
     private boolean enabled = true;
-
+    
     /**
      * OAuth2模块配置
      */
@@ -38,22 +38,22 @@ public class TemplateConfigProperties implements InitializingBean {
      */
     @NestedConfigurationProperty
     private MethodSecurityConfig methodSecurity = new MethodSecurityConfig();
-
+    
     @NestedConfigurationProperty
     private Flow flow = new Flow();
-
+    
     /**
      * 安全配置
      */
     @NestedConfigurationProperty
     private SecurityProperties security = new SecurityProperties();
-
+    
     /**
      * Web模块配置
      */
     @NestedConfigurationProperty
     private WebProperties web = new WebProperties();
-
+    
     @NestedConfigurationProperty
     private FeignProperties feign = new FeignProperties();
     
@@ -62,16 +62,87 @@ public class TemplateConfigProperties implements InitializingBean {
      */
     @NestedConfigurationProperty
     private WebSocketProperties websocket = new WebSocketProperties();
-
+    
     private AuditLogProperties audit = new AuditLogProperties();
-
+    
+    @Override
+    public void afterPropertiesSet() {
+        List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), "/favicon");
+        security.defaultPermitUrls.addAll(list);
+        security.allPermitUrls.addAll(security.defaultPermitUrls);
+        security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
+        if (StringUtils.hasLength(security.customizeLoginPage)) {
+            security.allPermitUrls.add(security.customizeLoginPage);
+        }
+        if (!security.resourcePermitUrls.isEmpty()) {
+            security.allPermitUrls.addAll(security.resourcePermitUrls);
+        }
+        validateConfig();
+    }
+    
+    /**
+     * 配置合理性校验，防止远程配置源（如 Nacos）覆盖导致行为异常。
+     * 仅输出 WARN 日志，不阻断启动。
+     */
+    private void validateConfig() {
+        if (flow.getConsumer().getConcurrencyLimit() <= 0) {
+            log.warn("[配置校验] app.template.flow.consumer.concurrency-limit={} 不合法，"
+                             + "可能被远程配置覆盖，将导致 Flow 引擎无法正常工作",
+                     flow.getConsumer().getConcurrencyLimit()
+            );
+        }
+        if (flow.getConsumer().getTtlMill() <= 0) {
+            log.warn("[配置校验] app.template.flow.consumer.ttl-mill={} 不合法，" + "缓存数据将立即过期",
+                     flow.getConsumer().getTtlMill()
+            );
+        }
+        if (security.isEnabled() && !security.isLocalJwtPublicKey()
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
+            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
+        }
+        log.info("[配置摘要] enabled={}, security.effective={}, flow.concurrencyLimit={}, "
+                         + "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
+                 enabled,
+                 isSecurityEffectivelyEnabled(),
+                 flow.getConsumer().getConcurrencyLimit(),
+                 isFeignEffectivelyEnabled(),
+                 isOauth2EffectivelyEnabled(),
+                 isAuditEffectivelyEnabled(),
+                 isMethodSecurityEffectivelyEnabled()
+        );
+    }
+    
+    /**
+     * 总开关关闭时，各功能均视为未启用。以下方法用于统一判断"有效启用"状态。
+     */
+    public boolean isSecurityEffectivelyEnabled() {
+        return enabled && security.isEnabled();
+    }
+    
+    public boolean isFeignEffectivelyEnabled() {
+        return enabled && feign.isEnabled();
+    }
+    
+    public boolean isOauth2EffectivelyEnabled() {
+        return enabled && oauth2.isEnabled();
+    }
+    
+    public boolean isAuditEffectivelyEnabled() {
+        return enabled && audit.isEnabled();
+    }
+    
+    public boolean isMethodSecurityEffectivelyEnabled() {
+        return enabled && methodSecurity.isEnabled();
+    }
+    
     @Setter
     @Getter
     public static class MethodSecurityConfig {
         /** 是否启用方法级安全（@PreAuthorize 等注解生效） */
         private boolean enabled = true;
     }
-
+    
     /**
      * Flow 配置
      */
@@ -88,12 +159,11 @@ public class TemplateConfigProperties implements InitializingBean {
         @NestedConfigurationProperty
         private Consumer consumer = new Consumer();
     }
-
+    
     @Setter
     @Getter
-    public static class Monitor {
-    }
-
+    public static class Monitor {}
+    
     @Setter
     @Getter
     public static class Producer {
@@ -106,7 +176,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 是否开启缓存 */
         private boolean cacheEnabled = true;
     }
-
+    
     @Setter
     @Getter
     public static class Consumer {
@@ -115,7 +185,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 全局并发消费许可数阈值 */
         private int concurrencyLimit = 1000;
     }
-
+    
     @Setter
     @Getter
     public static class AuditLogProperties {
@@ -125,7 +195,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 审计该路径前缀下的所有请求（如 /oauth2 表示 /oauth2/authorize、/oauth2/token、/oauth2/revoke 等全部审计），为空则仅按 oauth2Endpoints 列表 */
         private String oauth2AuditPathPrefix = "/oauth2";
     }
-
+    
     @Setter
     @Getter
     public static class FeignProperties {
@@ -143,7 +213,7 @@ public class TemplateConfigProperties implements InitializingBean {
         @NestedConfigurationProperty
         private RetryConfig retry = new RetryConfig();
     }
-
+    
     @Setter
     @Getter
     public static class RetryConfig {
@@ -156,7 +226,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 最大重试间隔（毫秒） */
         private long maxPeriod = 1000;
     }
-
+    
     /**
      * Web模块配置
      */
@@ -180,7 +250,7 @@ public class TemplateConfigProperties implements InitializingBean {
          */
         private boolean allowTokenInQueryParameter = false;
     }
-
+    
     /**
      * OAuth2模块配置
      */
@@ -192,7 +262,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String tokenUrl;
         @NestedConfigurationProperty
         private OpaqueTokenConfig opaqueToken = new OpaqueTokenConfig();
-
+        
         @Setter
         @Getter
         public static class OpaqueTokenConfig {
@@ -202,7 +272,7 @@ public class TemplateConfigProperties implements InitializingBean {
             private String clientSecret = "app.template";
         }
     }
-
+    
     /**
      * 安全配置
      */
@@ -240,7 +310,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
         private Long tokenMaxLifetimeSeconds = 24 * 3600L;
-
+        
         /**
          * 授权信息存储方式：memory（默认）、redis、jdbc。
          * 对应配置项 app.template.security.authorization.store-type。
@@ -248,7 +318,7 @@ public class TemplateConfigProperties implements InitializingBean {
          */
         @NestedConfigurationProperty
         private AuthorizationProperties authorization = new AuthorizationProperties();
-
+        
         /**
          * CORS 跨域配置。enabled=true 时由框架根据下方属性构建 CorsConfigurationSource 并注入 Security 链，
          * 无需再写 Java 代码；需完全自定义时可将 enabled 置为 false 并通过 httpConfigurerProvider 注入自己的 CORS。
@@ -266,7 +336,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 存储类型：memory、redis、jdbc */
         private String storeType = "memory";
     }
-
+    
     /**
      * CORS 跨域配置项，对应 app.template.security.cors.*
      */
@@ -282,70 +352,5 @@ public class TemplateConfigProperties implements InitializingBean {
         private List<String> allowedHeaders = new ArrayList<>(Collections.singletonList("*"));
         private Boolean allowCredentials = true;
         private Long maxAge = 3600L;
-    }
-
-    /**
-     * 总开关关闭时，各功能均视为未启用。以下方法用于统一判断"有效启用"状态。
-     */
-    public boolean isSecurityEffectivelyEnabled() {
-        return enabled && security.isEnabled();
-    }
-
-    public boolean isOauth2EffectivelyEnabled() {
-        return enabled && oauth2.isEnabled();
-    }
-
-    public boolean isFeignEffectivelyEnabled() {
-        return enabled && feign.isEnabled();
-    }
-
-    public boolean isAuditEffectivelyEnabled() {
-        return enabled && audit.isEnabled();
-    }
-
-    public boolean isMethodSecurityEffectivelyEnabled() {
-        return enabled && methodSecurity.isEnabled();
-    }
-
-    @Override
-    public void afterPropertiesSet() {
-        List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), "/favicon");
-        security.defaultPermitUrls.addAll(list);
-        security.allPermitUrls.addAll(security.defaultPermitUrls);
-        security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
-        if (StringUtils.hasLength(security.customizeLoginPage)) {
-            security.allPermitUrls.add(security.customizeLoginPage);
-        }
-        if (!security.resourcePermitUrls.isEmpty()) {
-            security.allPermitUrls.addAll(security.resourcePermitUrls);
-        }
-        validateConfig();
-    }
-
-    /**
-     * 配置合理性校验，防止远程配置源（如 Nacos）覆盖导致行为异常。
-     * 仅输出 WARN 日志，不阻断启动。
-     */
-    private void validateConfig() {
-        if (flow.getConsumer().getConcurrencyLimit() <= 0) {
-            log.warn("[配置校验] app.template.flow.consumer.concurrency-limit={} 不合法，" +
-                     "可能被远程配置覆盖，将导致 Flow 引擎无法正常工作",
-                     flow.getConsumer().getConcurrencyLimit());
-        }
-        if (flow.getConsumer().getTtlMill() <= 0) {
-            log.warn("[配置校验] app.template.flow.consumer.ttl-mill={} 不合法，" +
-                     "缓存数据将立即过期",
-                     flow.getConsumer().getTtlMill());
-        }
-        if (security.isEnabled() && !security.isLocalJwtPublicKey()
-                && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
-                && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
-            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
-        }
-        log.info("[配置摘要] enabled={}, security.effective={}, flow.concurrencyLimit={}, " +
-                 "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
-                 enabled, isSecurityEffectivelyEnabled(), flow.getConsumer().getConcurrencyLimit(),
-                 isFeignEffectivelyEnabled(), isOauth2EffectivelyEnabled(),
-                 isAuditEffectivelyEnabled(), isMethodSecurityEffectivelyEnabled());
     }
 }

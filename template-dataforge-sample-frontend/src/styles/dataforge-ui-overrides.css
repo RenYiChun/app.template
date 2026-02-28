@@ -1,12 +1,12 @@
 .entity-crud-page .card-header {
-  gap: 12px;
+    gap: 12px;
 }
 
 .entity-crud-page .batch-actions__hint {
-  font-weight: 600;
+    font-weight: 600;
 }
 
 .entity-crud-page .el-pagination {
-  margin-top: 20px;
+    margin-top: 20px;
 }
 

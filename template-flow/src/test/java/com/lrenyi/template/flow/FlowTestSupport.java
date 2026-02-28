@@ -18,16 +18,23 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
  * }</pre>
  */
 public final class FlowTestSupport {
-
+    
     private FlowTestSupport() {}
-
+    
+    /**
+     * 创建默认配置的 FlowJoinerEngine
+     */
+    public static FlowJoinerEngine createEngine() {
+        return new FlowJoinerEngine(createManager());
+    }
+    
     /**
      * 创建默认配置的 FlowManager（使用 SimpleMeterRegistry，不发布指标）
      */
     public static FlowManager createManager() {
         return createManager(defaultFlowConfig());
     }
-
+    
     /**
      * 创建指定配置的 FlowManager
      */
@@ -35,21 +42,7 @@ public final class FlowTestSupport {
         FlowManager.reset();
         return FlowManager.getInstance(config, new SimpleMeterRegistry());
     }
-
-    /**
-     * 创建默认配置的 FlowJoinerEngine
-     */
-    public static FlowJoinerEngine createEngine() {
-        return new FlowJoinerEngine(createManager());
-    }
-
-    /**
-     * 创建指定配置的 FlowJoinerEngine
-     */
-    public static FlowJoinerEngine createEngine(TemplateConfigProperties.Flow config) {
-        return new FlowJoinerEngine(createManager(config));
-    }
-
+    
     /**
      * 返回适合测试的默认 Flow 配置（小容量、短 TTL）
      */
@@ -61,7 +54,14 @@ public final class FlowTestSupport {
         flow.getConsumer().setTtlMill(5000);
         return flow;
     }
-
+    
+    /**
+     * 创建指定配置的 FlowJoinerEngine
+     */
+    public static FlowJoinerEngine createEngine(TemplateConfigProperties.Flow config) {
+        return new FlowJoinerEngine(createManager(config));
+    }
+    
     /**
      * 清理全局单例状态，建议在 @AfterEach 中调用
      */

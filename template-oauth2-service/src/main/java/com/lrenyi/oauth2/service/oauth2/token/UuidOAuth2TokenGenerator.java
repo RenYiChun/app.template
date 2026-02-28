@@ -117,8 +117,7 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         this.accessTokenCustomizer = accessTokenCustomizer;
     }
     
-    private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements
-            ClaimAccessor {
+    private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements ClaimAccessor {
         private final Map<String, Object> claims;
         
         private OAuth2AccessTokenClaims(TokenType tokenType,

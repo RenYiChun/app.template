@@ -25,11 +25,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class OAuth2AuditEventListener {
     
     private final MeterRegistry meterRegistry;
-
+    
     @EventListener
     public void handleAuthenticationSuccess(AuthenticationSuccessEvent event) {
         Authentication authentication = event.getAuthentication();
-
+        
         if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
             String grantType = resolveGrantType(tokenAuth);
             RegisteredClient registeredClient = tokenAuth.getRegisteredClient();
@@ -37,17 +37,9 @@ public class OAuth2AuditEventListener {
             Counter.builder("app.template.oauth2.token.issued")
                    .tag("grantType", grantType)
                    .tag("clientId", sanitizeTagValue(clientId))
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
         }
-    }
-
-    @EventListener
-    public void handleAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
-        String grantType = resolveGrantTypeFromCurrentRequest();
-        String errorType = event.getException().getClass().getSimpleName();
-        Counter.builder("app.template.oauth2.token.failed").tag("grantType", grantType)
-               .tag("errorType", errorType)
-               .register(meterRegistry).increment();
     }
     
     private String resolveGrantType(OAuth2AccessTokenAuthenticationToken tokenAuth) {
@@ -62,6 +54,24 @@ public class OAuth2AuditEventListener {
         return StringUtils.hasText(value) ? value : "unknown";
     }
     
+    private String sanitizeTagValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "unknown";
+        }
+        return value.length() > 64 ? value.substring(0, 64) : value;
+    }
+    
+    @EventListener
+    public void handleAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
+        String grantType = resolveGrantTypeFromCurrentRequest();
+        String errorType = event.getException().getClass().getSimpleName();
+        Counter.builder("app.template.oauth2.token.failed")
+               .tag("grantType", grantType)
+               .tag("errorType", errorType)
+               .register(meterRegistry)
+               .increment();
+    }
+    
     private String resolveGrantTypeFromCurrentRequest() {
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs == null) {
@@ -69,12 +79,5 @@ public class OAuth2AuditEventListener {
         }
         String grantType = attrs.getRequest().getParameter("grant_type");
         return StringUtils.hasText(grantType) ? sanitizeTagValue(grantType) : "unknown";
-    }
-    
-    private String sanitizeTagValue(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "unknown";
-        }
-        return value.length() > 64 ? value.substring(0, 64) : value;
     }
 }

@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
@@ -31,10 +30,10 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
         this.oAuth2AuthorizationService = oAuth2AuthorizationService;
         this.auditRecorderProvider = auditRecorderProvider;
         this.logoutCounter = Counter.builder("app.template.oauth2.logout")
-                .description("Total number of successful logouts")
-                .register(meterRegistry);
+                                    .description("Total number of successful logouts")
+                                    .register(meterRegistry);
     }
-
+    
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         String userName = authentication != null ? authentication.getName() : null;
@@ -78,8 +77,8 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
     
     @Override
     public void onLogoutSuccess(HttpServletRequest request,
-                                HttpServletResponse response,
-                                Authentication authentication) throws IOException {
+            HttpServletResponse response,
+            Authentication authentication) throws IOException {
         response.setStatus(HttpServletResponse.SC_OK);
         response.getWriter().write("{\"message\":\"Logout successful\"}");
     }

@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 @SpringBootApplication
 @EntityScan(basePackages = "com.lrenyi.template.dataforge.backend")
 public class DataforgeSampleApplication {
-
+    
     public static void main(String[] args) {
         SpringApplication.run(DataforgeSampleApplication.class, args);
     }

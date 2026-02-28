@@ -35,6 +35,15 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class CaffeineFlowStorage<T> implements FlowStorage<T> {
+    private static final int STRIPE_COUNT = 256;
+    private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
+
+    static {
+        for (int i = 0; i < STRIPE_COUNT; i++) {
+            KEY_STRIPES[i] = new ReentrantLock();
+        }
+    }
+
     @Getter
     private final FlowFinalizer<T> finalizer;
     private final Cache<String, FlowEntry<T>> cache;
@@ -44,17 +53,9 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
     private final LongAdder removalSubmittedCount = new LongAdder();
-
-    private static final int STRIPE_COUNT = 256;
-    private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
-    static {
-        for (int i = 0; i < STRIPE_COUNT; i++) {
-            KEY_STRIPES[i] = new ReentrantLock();
-        }
-    }
-
+    
     public CaffeineFlowStorage(long maxSize,
-                               long ttlMill,
+            long ttlMill,
             FlowJoiner<T> joiner,
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
@@ -83,18 +84,50 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
              .description("当前 Caffeine 缓存中的数据条数")
              .register(meterRegistry);
     }
-
+    
+    private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        if (launcherLookup == null) {
+            log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
+                   .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
+                   .register(meterRegistry)
+                   .increment();
+            return;
+        }
+        @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
+                (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+        try (entry) {
+            if (!cause.wasEvicted() || launcher == null) {
+                return;
+            }
+            removalSubmittedCount.increment();
+            String evictionReason = cause.name();
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, evictionReason)
+                   .register(meterRegistry)
+                   .increment();
+            finalizer.submitBodyOnly(entry, launcher);
+        } finally {
+            if (launcher != null && launcher.getBackpressureController() != null) {
+                launcher.getBackpressureController().signalRelease();
+            }
+        }
+    }
+    
     @Override
     public boolean doDeposit(FlowEntry<T> entry) {
         String key = joiner.joinKey(entry.getData());
-
+        
         if (!joiner.needMatched()) {
             return handleOverwriteMode(key, entry);
         }
-
+        
         return handleMatchingMode(key, entry);
     }
-
+    
     private boolean handleOverwriteMode(String key, FlowEntry<T> entry) {
         FlowEntry<T> oldEntry = cache.asMap().put(key, entry);
         if (oldEntry != null) {
@@ -102,49 +135,51 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         }
         return true;
     }
-
+    
+    private boolean handleMatchingMode(String key, FlowEntry<T> entry) {
+        FlowEntry<T> partner = findAndRemovePartner(key, entry);
+        if (partner == null) {
+            return true;
+        }
+        
+        processMatchedPair(partner, entry);
+        return false;
+    }
+    
     private void handleReplacedEntry(FlowEntry<T> oldEntry) {
         try (oldEntry) {
             joiner.onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                    .tag(FlowMetricNames.TAG_JOB_ID, oldEntry.getJobId())
                    .tag(FlowMetricNames.TAG_REASON, "REPLACE")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE);
         } finally {
             progressTracker.onPassiveEgress(FailureReason.REPLACE);
         }
     }
-
-    private boolean handleMatchingMode(String key, FlowEntry<T> entry) {
-        FlowEntry<T> partner = findAndRemovePartner(key, entry);
-        if (partner == null) {
-            return true;
-        }
-
-        processMatchedPair(partner, entry);
-        return false;
-    }
-
+    
     private FlowEntry<T> findAndRemovePartner(String key, FlowEntry<T> entry) {
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
             final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
             cache.asMap().compute(key, (k, existing) -> {
-                if (existing != null) {
-                    matchFound.set(existing);
-                    return null;
-                }
-                return entry;
-            });
+                                      if (existing != null) {
+                                          matchFound.set(existing);
+                                          return null;
+                                      }
+                                      return entry;
+                                  }
+            );
             return matchFound.get();
         } finally {
             stripe.unlock();
         }
     }
-
+    
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
@@ -152,12 +187,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
             partner.close();
             return;
         }
-        @SuppressWarnings("unchecked")
-        FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+        @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
+                (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             log.warn("No active launcher found for job id {}", entry.getJobId());
             partner.close();
@@ -166,25 +202,29 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         long matchStartTime = System.currentTimeMillis();
         Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
         resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, () -> {
-            try {
-                executeMatchedPairLogicBody(partner, entry);
-                long matchLatency = System.currentTimeMillis() - matchStartTime;
-                Timer.builder(FlowMetricNames.MATCH_DURATION)
-                     .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                     .register(meterRegistry)
-                     .record(matchLatency, TimeUnit.MILLISECONDS);
-            } catch (Exception e) {
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
-                       .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                       .register(meterRegistry).increment();
-            } finally {
-                if (launcher.getBackpressureController() != null) {
-                    launcher.getBackpressureController().signalRelease();
-                }
-            }
-        });
+                                                    try {
+                                                        executeMatchedPairLogicBody(partner, entry);
+                                                        long matchLatency = System.currentTimeMillis() - matchStartTime;
+                                                        Timer.builder(FlowMetricNames.MATCH_DURATION)
+                                                             .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                                                             .register(meterRegistry)
+                                                             .record(matchLatency, TimeUnit.MILLISECONDS);
+                                                    } catch (Exception e) {
+                                                        FlowExceptionHelper.handleException(entry.getJobId(), null, e
+                                                                , FlowPhase.CONSUMPTION);
+                                                        Counter.builder(FlowMetricNames.ERRORS)
+                                                               .tag(FlowMetricNames.TAG_ERROR_TYPE,
+                                                                    "match_process_failed")
+                                                               .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
+                                                               .register(meterRegistry)
+                                                               .increment();
+                                                    } finally {
+                                                        if (launcher.getBackpressureController() != null) {
+                                                            launcher.getBackpressureController().signalRelease();
+                                                        }
+                                                    }
+                                                }
+        );
     }
     
     private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {
@@ -196,13 +236,14 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             }
         }
     }
-
+    
     private void handleMatchedSuccess(FlowEntry<T> partner, FlowEntry<T> entry) {
         progressTracker.onActiveEgress();
         progressTracker.onActiveEgress();
         Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
                .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-               .register(meterRegistry).increment(2);
+               .register(meterRegistry)
+               .increment(2);
         try {
             joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
         } catch (Exception e) {
@@ -210,10 +251,11 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "onSuccess_failed")
                    .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
         }
     }
-
+    
     private void handleMatchedFailure(FlowEntry<T> partner, FlowEntry<T> entry) {
         try {
             joiner.onFailed(partner.getData(), partner.getJobId(), FailureReason.MISMATCH);
@@ -221,72 +263,44 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                    .tag(FlowMetricNames.TAG_JOB_ID, partner.getJobId())
                    .tag(FlowMetricNames.TAG_REASON, "MISMATCH")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                    .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
                    .tag(FlowMetricNames.TAG_REASON, "MISMATCH")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
         }
         progressTracker.onPassiveEgress(FailureReason.MISMATCH);
         progressTracker.onPassiveEgress(FailureReason.MISMATCH);
     }
-
-    @Override
-    public void remove(String key) {
-        cache.asMap().remove(key);
-    }
-
-    private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
-        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
-        if (launcherLookup == null) {
-            log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
-                   .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-                   .register(meterRegistry).increment();
-            return;
-        }
-        @SuppressWarnings("unchecked")
-        FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
-        try (entry) {
-            if (!cause.wasEvicted() || launcher == null) {
-                return;
-            }
-            removalSubmittedCount.increment();
-            String evictionReason = cause.name();
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, evictionReason)
-                   .register(meterRegistry).increment();
-            finalizer.submitBodyOnly(entry, launcher);
-        } finally {
-            if (launcher != null && launcher.getBackpressureController() != null) {
-                launcher.getBackpressureController().signalRelease();
-            }
-        }
-    }
-
+    
     @Override
     public long size() {
         return cache.estimatedSize();
     }
-
+    
     @Override
     public long maxCacheSize() {
         return maxCacheSize;
     }
-
-    @Override
-    public long getRemovalSubmittedCount() {
-        return removalSubmittedCount.sum();
-    }
-
+    
     @Override
     public void shutdown() {
         cache.invalidateAll();
         cache.cleanUp();
         log.info("CaffeineFlowStorage shut down, all entries invalidated.");
+    }
+    
+    @Override
+    public void remove(String key) {
+        cache.asMap().remove(key);
+    }
+    
+    @Override
+    public long getRemovalSubmittedCount() {
+        return removalSubmittedCount.sum();
     }
 }

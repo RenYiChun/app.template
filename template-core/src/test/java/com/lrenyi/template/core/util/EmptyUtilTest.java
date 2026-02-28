@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EmptyUtilTest {
-
+    
     @Test
     void isEmpty_isNotEmpty_Collection() {
         assertTrue(EmptyUtil.isEmpty((java.util.Collection<?>) null));
@@ -20,7 +20,7 @@ class EmptyUtilTest {
         assertFalse(EmptyUtil.isNotEmpty(new ArrayList<>()));
         assertTrue(EmptyUtil.isNotEmpty(Collections.singletonList(1)));
     }
-
+    
     @Test
     void isEmpty_isNotEmpty_ObjectArray() {
         assertTrue(EmptyUtil.isEmpty((Object[]) null));
@@ -30,7 +30,7 @@ class EmptyUtilTest {
         assertFalse(EmptyUtil.isNotEmpty(new Object[0]));
         assertTrue(EmptyUtil.isNotEmpty(new Object[]{"a"}));
     }
-
+    
     @Test
     void isEmpty_isNotEmpty_Map() {
         assertTrue(EmptyUtil.isEmpty((Map<?, ?>) null));
@@ -40,7 +40,7 @@ class EmptyUtilTest {
         assertFalse(EmptyUtil.isEmpty(m));
         assertTrue(EmptyUtil.isNotEmpty(m));
     }
-
+    
     @Test
     void isEmpty_isNotEmpty_String() {
         assertTrue(EmptyUtil.isEmpty((String) null));
@@ -50,7 +50,7 @@ class EmptyUtilTest {
         assertFalse(EmptyUtil.isNotEmpty((String) null));
         assertTrue(EmptyUtil.isNotEmpty("a"));
     }
-
+    
     @Test
     void isEmpty_isNotEmpty_Object() {
         assertTrue(EmptyUtil.isEmpty((Object) null));

@@ -20,17 +20,17 @@ import io.micrometer.core.instrument.Timer;
  * 禁止使用高基数字段（userId/orderId/requestId 等）作为 tag。
  */
 public record AppMetrics(MeterRegistry registry) {
-
+    
     /** 计数器 +1 */
     public void count(String name, String... tags) {
         Counter.builder(name).tags(tags).register(registry).increment();
     }
-
+    
     /** 计数器 +N */
     public void count(String name, long amount, String... tags) {
         Counter.builder(name).tags(tags).register(registry).increment(amount);
     }
-
+    
     /** 记录耗时（毫秒） */
     public void recordTime(String name, long durationMs, String... tags) {
         recordTime(name, durationMs, TimeUnit.MILLISECONDS, tags);
@@ -45,7 +45,7 @@ public record AppMetrics(MeterRegistry registry) {
     public Timer.Sample startTimer() {
         return Timer.start(registry);
     }
-
+    
     /** 停止计时并记录到指定指标 */
     public void stopTimer(Timer.Sample sample, String name, String... tags) {
         sample.stop(Timer.builder(name).tags(tags).register(registry));
@@ -60,7 +60,7 @@ public record AppMetrics(MeterRegistry registry) {
     public LongTaskTimer.Sample startLongTaskTimer(String name, String... tags) {
         return LongTaskTimer.builder(name).tags(tags).register(registry).start();
     }
-
+    
     /** 注册 Gauge（瞬时值，绑定到对象的数值函数） */
     public <T> void gauge(String name, T obj, ToDoubleFunction<T> valueFunc, String... tags) {
         Gauge.builder(name, obj, valueFunc).tags(tags).register(registry);

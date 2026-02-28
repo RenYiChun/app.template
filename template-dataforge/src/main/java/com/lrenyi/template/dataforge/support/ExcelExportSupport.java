@@ -10,7 +10,8 @@ import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
 
 /**
- * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled=false)）导出为 Excel（.xlsx）。
+ * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled
+ * =false)）导出为 Excel（.xlsx）。
  * 通过反射使用 Apache POI，避免编译期强依赖，运行时需 classpath 存在 poi-ooxml。
  */
 public final class ExcelExportSupport {
@@ -93,14 +94,6 @@ public final class ExcelExportSupport {
         private final Method setBlank;
         private final Method write;
         
-        static PoiReflect create() throws Exception {
-            Class<?> wbClass = Class.forName("org.apache.poi.xssf.usermodel.XSSFWorkbook");
-            Class<?> sheetClass = Class.forName("org.apache.poi.ss.usermodel.Sheet");
-            Class<?> rowClass = Class.forName("org.apache.poi.ss.usermodel.Row");
-            Class<?> cellClass = Class.forName("org.apache.poi.ss.usermodel.Cell");
-            return new PoiReflect(wbClass, sheetClass, rowClass, cellClass);
-        }
-        
         PoiReflect(Class<?> workbookClass,
                 Class<?> sheetClass,
                 Class<?> rowClass,
@@ -114,6 +107,14 @@ public final class ExcelExportSupport {
             this.setCellValueBool = cellClass.getMethod("setCellValue", boolean.class);
             this.setBlank = cellClass.getMethod("setBlank");
             this.write = workbookClass.getMethod("write", java.io.OutputStream.class);
+        }
+        
+        static PoiReflect create() throws Exception {
+            Class<?> wbClass = Class.forName("org.apache.poi.xssf.usermodel.XSSFWorkbook");
+            Class<?> sheetClass = Class.forName("org.apache.poi.ss.usermodel.Sheet");
+            Class<?> rowClass = Class.forName("org.apache.poi.ss.usermodel.Row");
+            Class<?> cellClass = Class.forName("org.apache.poi.ss.usermodel.Cell");
+            return new PoiReflect(wbClass, sheetClass, rowClass, cellClass);
         }
         
         Object newWorkbook() throws Exception {

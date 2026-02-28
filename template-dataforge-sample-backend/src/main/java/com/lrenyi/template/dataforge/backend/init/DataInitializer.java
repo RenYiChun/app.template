@@ -14,10 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 public class DataInitializer {
-
+    
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
+    
     @PostConstruct
     @Transactional
     public void init() {

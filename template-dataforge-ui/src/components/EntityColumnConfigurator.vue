@@ -1,17 +1,20 @@
-<script setup lang="ts">
-import { computed } from 'vue';
-import { ElButton, ElPopover, ElCheckboxGroup, ElCheckbox } from 'element-plus';
-import { Setting } from '@element-plus/icons-vue';
-import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
+<script lang="ts" setup>
+import {computed} from 'vue';
+import {ElButton, ElCheckbox, ElCheckboxGroup, ElPopover} from 'element-plus';
+import {Setting} from '@element-plus/icons-vue';
+import type {ColumnConfig} from '@lrenyi/dataforge-headless/vue';
 
 const props = withDefaults(
-  defineProps<{
-    allColumns: ColumnConfig[];
-    displayColumns?: ColumnConfig[];
-    visibleColumnProps: string[];
-    setVisibleColumnProps?: (props: string[]) => void;
-  }>(),
-  { setVisibleColumnProps: () => {} }
+    defineProps<{
+      allColumns: ColumnConfig[];
+      displayColumns?: ColumnConfig[];
+      visibleColumnProps: string[];
+      setVisibleColumnProps?: (props: string[]) => void;
+    }>(),
+    {
+      setVisibleColumnProps: () => {
+      }
+    }
 );
 
 const selectedProps = computed({
@@ -24,9 +27,9 @@ const selectedProps = computed({
 
 <template>
   <span class="entity-column-configurator">
-    <ElPopover placement="bottom" :width="200" trigger="click">
+    <ElPopover :width="200" placement="bottom" trigger="click">
       <template #reference>
-        <ElButton circle :icon="Setting" title="列设置" />
+        <ElButton :icon="Setting" circle title="列设置"/>
       </template>
       <div class="column-setting-popover">
         <div class="popover-title">列设置</div>

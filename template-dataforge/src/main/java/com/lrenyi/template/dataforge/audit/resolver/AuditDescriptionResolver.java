@@ -9,7 +9,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
  */
 @FunctionalInterface
 public interface AuditDescriptionResolver {
-
+    
     /**
      * 根据当前请求与方法调用生成操作描述；若无法解析则返回 null，由审计模块回退到默认描述。
      *

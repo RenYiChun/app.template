@@ -20,10 +20,10 @@ import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
 import com.lrenyi.template.dataforge.service.PathSegmentAwareCrudService;
 import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
 import com.lrenyi.template.dataforge.support.DataforgeAspect;
-import io.micrometer.core.instrument.MeterRegistry;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
 import com.lrenyi.template.dataforge.support.MetaScanner;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.Validator;
 import org.springframework.beans.factory.ObjectProvider;
@@ -44,37 +44,35 @@ import org.springframework.core.convert.ConversionService;
 @EnableConfigurationProperties(DataforgeProperties.class)
 @ConditionalOnProperty(name = "app.dataforge.enabled", havingValue = "true", matchIfMissing = true)
 public class DataforgeAutoConfiguration {
-
+    
     @Bean
     public EntityRegistry entityRegistry() {
         return new EntityRegistry();
     }
-
+    
     @Bean
     public ActionRegistry actionRegistry() {
         return new ActionRegistry();
     }
-
+    
     @Bean
-    public MetaScanner metaScanner(
-            EntityRegistry entityRegistry,
+    public MetaScanner metaScanner(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             DataforgeProperties properties) {
         String base = properties.getScanPackages();
         return new MetaScanner(entityRegistry, actionRegistry, base);
     }
-
+    
     @Bean("defaultEntityCrudService")
     @ConditionalOnMissingBean(name = "defaultEntityCrudService")
     public EntityCrudService defaultEntityCrudService() {
         return new InMemoryEntityCrudService();
     }
-
+    
     @Bean
     @Primary
     @ConditionalOnMissingBean(EntityCrudService.class)
-    public EntityCrudService entityCrudService(
-            @Qualifier("defaultEntityCrudService") EntityCrudService defaultService,
+    public EntityCrudService entityCrudService(@Qualifier("defaultEntityCrudService") EntityCrudService defaultService,
             List<PathSegmentAwareCrudService> pathSegmentAwareServices,
             ObjectProvider<List<StorageTypeAwareCrudService>> storageTypeAwareServicesProvider) {
         Map<String, EntityCrudService> pathSegmentToDelegate = new LinkedHashMap<>();
@@ -99,39 +97,38 @@ public class DataforgeAutoConfiguration {
         }
         return new EntityCrudServiceRouter(defaultService, pathSegmentToDelegate, storageTypeToDelegate);
     }
-
+    
     @Bean
     public DataforgeAspect dataforgeAspect(MeterRegistry meterRegistry) {
         return new DataforgeAspect(meterRegistry);
     }
-
+    
     @Bean
     public DataforgeExceptionHandler dataforgeExceptionHandler(DataforgeProperties properties) {
         return new DataforgeExceptionHandler(properties);
     }
-
+    
     @Bean
     @ConditionalOnMissingBean(DataforgePermissionChecker.class)
     public DataforgePermissionChecker dataforgePermissionChecker() {
         return new DefaultDataforgePermissionChecker();
     }
-
+    
     @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
             @Qualifier("requestMappingHandlerMapping")
             org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
         return new OpenApiController(entityRegistry, handlerMapping);
     }
-
+    
     @Bean
     @ConditionalOnProperty(name = "app.dataforge.docs-ui-enabled", havingValue = "true", matchIfMissing = true)
     public DocsUiController docsUiController(DataforgeProperties properties) {
         return new DocsUiController(properties);
     }
-
+    
     @Bean
-    public DataforgeServices dataforgeServices(
-            EntityRegistry entityRegistry,
+    public DataforgeServices dataforgeServices(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
             DataforgeProperties properties,
@@ -139,42 +136,42 @@ public class DataforgeAutoConfiguration {
             ObjectMapper objectMapper,
             ObjectProvider<Validator> validatorProvider,
             ConversionService conversionService) {
-        return new DataforgeServices(
-                entityRegistry, actionRegistry, entityCrudService, properties,
-                dataforgePermissionChecker, objectMapper, validatorProvider, conversionService);
+        return new DataforgeServices(entityRegistry,
+                                     actionRegistry,
+                                     entityCrudService,
+                                     properties,
+                                     dataforgePermissionChecker,
+                                     objectMapper,
+                                     validatorProvider,
+                                     conversionService
+        );
     }
-
+    
     @Bean
     public GenericEntityController genericEntityController(DataforgeServices dataforgeServices) {
         return new GenericEntityController(dataforgeServices);
     }
-
+    
     @Bean
-    public DataforgeInitializer dataforgeInitializer(
-            MetaScanner metaScanner,
+    public DataforgeInitializer dataforgeInitializer(MetaScanner metaScanner,
             EntityRegistry entityRegistry,
             ApplicationContext applicationContext,
             ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
-        return new DataforgeInitializer(metaScanner,
-                                             entityRegistry,
-                                             applicationContext,
-                                             entityManagerFactoryProvider
-        );
+        return new DataforgeInitializer(metaScanner, entityRegistry, applicationContext, entityManagerFactoryProvider);
     }
-
+    
     /**
      * 在 ApplicationRunner 阶段执行实体扫描与 Action 注册（启动完成后执行，避免在 refresh 期间阻塞）。
      */
     @lombok.extern.slf4j.Slf4j
     public static class DataforgeInitializer implements ApplicationRunner, Ordered {
-
+        
         private final MetaScanner metaScanner;
         private final EntityRegistry entityRegistry;
         private final ApplicationContext applicationContext;
         private final ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider;
-
-        public DataforgeInitializer(
-                MetaScanner metaScanner,
+        
+        public DataforgeInitializer(MetaScanner metaScanner,
                 EntityRegistry entityRegistry,
                 ApplicationContext applicationContext,
                 ObjectProvider<EntityManagerFactory> entityManagerFactoryProvider) {
@@ -183,12 +180,12 @@ public class DataforgeAutoConfiguration {
             this.applicationContext = applicationContext;
             this.entityManagerFactoryProvider = entityManagerFactoryProvider;
         }
-
+        
         @Override
         public int getOrder() {
             return Ordered.HIGHEST_PRECEDENCE;
         }
-
+        
         @Override
         public void run(ApplicationArguments args) {
             try {

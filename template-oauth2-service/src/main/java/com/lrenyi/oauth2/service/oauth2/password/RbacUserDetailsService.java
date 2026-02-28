@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @AllArgsConstructor
 public class RbacUserDetailsService implements UserDetailsService {
     private final ObjectProvider<IRbacService> rbacService;
-
+    
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         IRbacService iRbacService = rbacService.getIfAvailable();
@@ -36,12 +36,11 @@ public class RbacUserDetailsService implements UserDetailsService {
         if (credentials == null) {
             throw new UsernameNotFoundException("User not found");
         }
-        List<SimpleGrantedAuthority> authorities = credentials.permissions().stream()
-                .map(SimpleGrantedAuthority::new)
-                .toList();
-        return new org.springframework.security.core.userdetails.User(
-                credentials.username(),
-                credentials.password(),
-                authorities);
+        List<SimpleGrantedAuthority> authorities =
+                credentials.permissions().stream().map(SimpleGrantedAuthority::new).toList();
+        return new org.springframework.security.core.userdetails.User(credentials.username(),
+                                                                      credentials.password(),
+                                                                      authorities
+        );
     }
 }

@@ -29,7 +29,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
     private final OauthUtilService oauthUtilService;
     
     public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties,
-                                      OauthUtilService oauthUtilService) {
+            OauthUtilService oauthUtilService) {
         this.templateConfigProperties = templateConfigProperties;
         this.oauthUtilService = oauthUtilService;
     }

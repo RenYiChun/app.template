@@ -30,7 +30,8 @@ public class UuidOAuth2RefreshTokenGenerator implements OAuth2TokenGenerator<OAu
     
     private static boolean isPublicClientForAuthorizationCodeGrant(OAuth2TokenContext context) {
         if (AuthorizationGrantType.AUTHORIZATION_CODE.equals(context.getAuthorizationGrantType())
-                && (context.getAuthorizationGrant().getPrincipal() instanceof OAuth2ClientAuthenticationToken clientPrincipal)) {
+                && (context.getAuthorizationGrant()
+                           .getPrincipal() instanceof OAuth2ClientAuthenticationToken clientPrincipal)) {
             return clientPrincipal.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE);
         }
         return false;

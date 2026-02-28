@@ -24,13 +24,18 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 @Component
 public class OauthUtilService {
-    private static final Cache<String, String> tokenCache = Caffeine.newBuilder()
-            .maximumSize(64)
-            .expireAfterWrite(50, TimeUnit.MINUTES)
-            .build();
+    private static final Cache<String, String> tokenCache =
+            Caffeine.newBuilder().maximumSize(64).expireAfterWrite(50, TimeUnit.MINUTES).build();
+    private final RestTemplate restTemplate = new RestTemplate();
     @Resource
     private TemplateConfigProperties templateConfigProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    
+    public String fetchToken(String host) {
+        TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
+        String clientId = feign.getOauthClientId();
+        String clientSecret = feign.getOauthClientSecret();
+        return fetchToken(host, clientId, clientSecret);
+    }
     
     public String fetchToken(String host, String clientId, String clientSecret) {
         String token = fetchTokenFromCache(host);
@@ -39,13 +44,6 @@ public class OauthUtilService {
         } else {
             return fetchTokenFromLogin(host, clientId, clientSecret);
         }
-    }
-    
-    public String fetchToken(String host) {
-        TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
-        String clientId = feign.getOauthClientId();
-        String clientSecret = feign.getOauthClientSecret();
-        return fetchToken(host, clientId, clientSecret);
     }
     
     private String fetchTokenFromCache(String host) {
@@ -93,10 +91,10 @@ public class OauthUtilService {
     
     @SuppressWarnings("null")
     public <T, R> R sendRequest(HttpHeaders headers,
-                                String url,
-                                HttpMethod method,
-                                T rb,
-                                ParameterizedTypeReference<R> rt) {
+            String url,
+            HttpMethod method,
+            T rb,
+            ParameterizedTypeReference<R> rt) {
         HttpEntity<T> entity;
         if (rb == null) {
             entity = new HttpEntity<>(headers);

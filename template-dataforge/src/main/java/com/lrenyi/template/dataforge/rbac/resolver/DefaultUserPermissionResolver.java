@@ -15,23 +15,21 @@ import org.springframework.security.core.Authentication;
  * 当 app.dataforge.rbac-cache-ttl-minutes &gt; 0 时使用 Caffeine 本地缓存，过期后反映角色权限动态变更。
  */
 public class DefaultUserPermissionResolver implements UserPermissionResolver {
-
+    
     private final RbacQueryService rbacQueryService;
     private final Cache<String, Set<String>> cache;
-
+    
     public DefaultUserPermissionResolver(RbacQueryService rbacQueryService, DataforgeProperties properties) {
         this.rbacQueryService = rbacQueryService;
         int expireMinutes = properties.getRbacCacheTtlMinutes();
         if (expireMinutes > 0) {
-            this.cache = Caffeine.newBuilder()
-                    .maximumSize(1024)
-                    .expireAfterWrite(expireMinutes, TimeUnit.MINUTES)
-                    .build();
+            this.cache =
+                    Caffeine.newBuilder().maximumSize(1024).expireAfterWrite(expireMinutes, TimeUnit.MINUTES).build();
         } else {
             this.cache = null;
         }
     }
-
+    
     @Override
     public Set<String> getPermissions(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -46,7 +44,7 @@ public class DefaultUserPermissionResolver implements UserPermissionResolver {
         }
         return rbacQueryService.getPermissionStringsByUserId(userId);
     }
-
+    
     private static String resolveUserId(Authentication authentication) {
         String name = authentication.getName();
         if (name != null && !name.isBlank()) {

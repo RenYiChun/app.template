@@ -12,20 +12,18 @@ import java.util.List;
  * @param nextPageToken 下一页令牌，null 表示没有下一页
  */
 public record PageResult<T>(List<T> items, Object nextPageToken) {
-
+    
     /**
      * 构造无下一页的结果。
      */
     public static <T> PageResult<T> of(List<T> items) {
         return new PageResult<>(items == null ? Collections.emptyList() : items, null);
     }
-
+    
     /**
      * 构造含下一页令牌的结果。
      */
     public static <T> PageResult<T> of(List<T> items, Object nextPageToken) {
-        return new PageResult<>(
-                items == null ? Collections.emptyList() : items,
-                nextPageToken);
+        return new PageResult<>(items == null ? Collections.emptyList() : items, nextPageToken);
     }
 }

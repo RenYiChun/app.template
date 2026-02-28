@@ -9,7 +9,6 @@ import com.lrenyi.template.core.util.SpringContextUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -37,7 +36,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void setPrincipalHandshakeHandler(TemplatePrincipalHandshakeHandler principalHandshakeHandler) {
         this.principalHandshakeHandler = principalHandshakeHandler;
     }
-
+    
     @Override
     public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
         Map<String, TemplateWebSocketHandler> handlers;
@@ -62,6 +61,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
         }
     }
     
+    private List<TemplateHandshakeInterceptor> getHandshakeInterceptors() {
+        Map<String, TemplateHandshakeInterceptor> map;
+        map = SpringContextUtil.getBeansOfType(TemplateHandshakeInterceptor.class);
+        return map.isEmpty() ? Collections.emptyList() : map.values().stream().toList();
+    }
+    
     /**
      * 复用 app.template.security.cors 的允许源配置，与 HTTP CORS 一致；
      * 未启用或未配置时返回空列表，WebSocket 仅允许同源。
@@ -75,11 +80,5 @@ public class WebSocketConfig implements WebSocketConfigurer {
             return Collections.emptyList();
         }
         return cors.getAllowedOriginPatterns();
-    }
-    
-    private List<TemplateHandshakeInterceptor> getHandshakeInterceptors() {
-        Map<String, TemplateHandshakeInterceptor> map;
-        map = SpringContextUtil.getBeansOfType(TemplateHandshakeInterceptor.class);
-        return map.isEmpty() ? Collections.emptyList() : map.values().stream().toList();
     }
 }

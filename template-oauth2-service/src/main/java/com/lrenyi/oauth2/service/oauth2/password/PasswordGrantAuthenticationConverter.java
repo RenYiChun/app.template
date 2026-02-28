@@ -32,12 +32,18 @@ public class PasswordGrantAuthenticationConverter implements AuthenticationConve
         String username = parameters.getFirst(OAuth2ParameterNames.USERNAME);
         if (!StringUtils.hasText(username) || parameters.get(OAuth2ParameterNames.USERNAME).size() != 1) {
             throw new OAuth2AuthenticationException(new org.springframework.security.oauth2.core.OAuth2Error(
-                "invalid_request", "无效请求，用户名不能为空！", null));
+                    "invalid_request",
+                    "无效请求，用户名不能为空！",
+                    null
+            ));
         }
         String password = parameters.getFirst(OAuth2ParameterNames.PASSWORD);
         if (!StringUtils.hasText(password) || parameters.get(OAuth2ParameterNames.PASSWORD).size() != 1) {
             throw new OAuth2AuthenticationException(new org.springframework.security.oauth2.core.OAuth2Error(
-                "invalid_request", "无效请求，密码不能为空！", null));
+                    "invalid_request",
+                    "无效请求，密码不能为空！",
+                    null
+            ));
         }
         
         Map<String, Object> additionalParameters = new HashMap<>();

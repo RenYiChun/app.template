@@ -4,10 +4,10 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Date;
-import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
-import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.annotation.AuditLog;
 import com.lrenyi.template.dataforge.audit.enricher.AuditLogEnricher;
+import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
+import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.resolver.AuditDescriptionResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -26,23 +26,24 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 public class AuditLogService {
-
+    
     private final AuditLogProcessor auditLogProcessor;
     private final String serviceName;
     private final ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider;
     private final ObjectProvider<AuditLogEnricher> enricherProvider;
     private final String serverIp;
-
-    public AuditLogService(AuditLogProcessor auditLogProcessor, String serviceName,
-                           ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider,
-                           ObjectProvider<AuditLogEnricher> enricherProvider) {
+    
+    public AuditLogService(AuditLogProcessor auditLogProcessor,
+            String serviceName,
+            ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider,
+            ObjectProvider<AuditLogEnricher> enricherProvider) {
         this.auditLogProcessor = auditLogProcessor;
         this.serviceName = serviceName;
         this.descriptionResolverProvider = descriptionResolverProvider;
         this.enricherProvider = enricherProvider;
         this.serverIp = getServerIp();
     }
-
+    
     private String getServerIp() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
@@ -51,21 +52,24 @@ public class AuditLogService {
             return "unknown";
         }
     }
-
+    
     @Async
-    public void saveLog(ProceedingJoinPoint joinPoint, String ipAddress, String uri, String httpMethod,
-                        SecurityContext context,
-                        long time,
-                        Throwable e) {
+    public void saveLog(ProceedingJoinPoint joinPoint,
+            String ipAddress,
+            String uri,
+            String httpMethod,
+            SecurityContext context,
+            long time,
+            Throwable e) {
         AuditLogInfo logInfo = new AuditLogInfo();
         logInfo.setExecutionTimeMs(time);
         logInfo.setOperationTime(new Date());
-
+        
         logInfo.setSuccess(e == null);
         if (e != null) {
             logInfo.setExceptionDetails(e.getMessage());
         }
-
+        
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
         String description = null;
@@ -111,10 +115,10 @@ public class AuditLogService {
             }
         }
         if (!StringUtils.hasLength(name)) {
-             log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
+            log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
         }
         logInfo.setUserName(name);
-
+        
         AuditLog auditLogAnnotation = method.getAnnotation(AuditLog.class);
         if (auditLogAnnotation != null) {
             if (StringUtils.hasText(auditLogAnnotation.reason())) {
@@ -124,7 +128,7 @@ public class AuditLogService {
                 logInfo.setTargetType(auditLogAnnotation.targetType());
             }
         }
-
+        
         HttpServletRequest requestForEnricher = null;
         try {
             var attrs = RequestContextHolder.getRequestAttributes();
@@ -138,13 +142,13 @@ public class AuditLogService {
         if (request != null && enricherProvider != null) {
             enricherProvider.orderedStream().forEach(enricher -> enricher.enrich(joinPoint, request, logInfo));
         }
-
+        
         logInfo.setServiceName(serviceName);
         logInfo.setServerIp(serverIp);
-
+        
         auditLogProcessor.process(logInfo);
     }
-
+    
     public String extractUserName(Authentication authentication) {
         String name = authentication.getName();
         final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
@@ -167,49 +171,26 @@ public class AuditLogService {
         }
         return name;
     }
-
-    public String getIpAddress(HttpServletRequest request) {
-        String ip = request.getHeader("x-forwarded-for");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_CLIENT_IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0];
-        }
-        return ip;
-    }
-
+    
     @Async
     public void recordAuditLog(HttpServletRequest request,
-                               String userName,
-                               String desc,
-                               boolean success,
-                               String exception) {
+            String userName,
+            String desc,
+            boolean success,
+            String exception) {
         recordAuditLog(request, userName, desc, success, exception, null, null, null, null);
     }
-
+    
     @Async
     public void recordAuditLog(HttpServletRequest request,
-                               String userName,
-                               String desc,
-                               boolean success,
-                               String exception,
-                               String reason,
-                               String targetType,
-                               String targetId,
-                               Long affectedCount) {
+            String userName,
+            String desc,
+            boolean success,
+            String exception,
+            String reason,
+            String targetType,
+            String targetId,
+            Long affectedCount) {
         AuditLogInfo logInfo = new AuditLogInfo();
         logInfo.setUserName(userName);
         logInfo.setDescription(desc);
@@ -236,5 +217,28 @@ public class AuditLogService {
         logInfo.setServiceName(serviceName);
         logInfo.setServerIp(serverIp);
         auditLogProcessor.process(logInfo);
+    }
+    
+    public String getIpAddress(HttpServletRequest request) {
+        String ip = request.getHeader("x-forwarded-for");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_CLIENT_IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0];
+        }
+        return ip;
     }
 }

@@ -159,13 +159,16 @@ public class CustomSecurityConfig {
 
 ## Feign 配置与内部调用安全
 
-引入 `template-cloud` 后，Feign 请求会经过 `TemplateRequestInterceptor`：打标内部调用（`X-Internal-Call: true`）、透传配置的 Header、无用户上下文时使用 Client 凭证。下游服务在 `app.template.feign.not-oauth=true` 时，会对带 `X-Internal-Call: true` 的请求执行 `permitAll()`，视为内部调用免认证。
+引入 `template-cloud` 后，Feign 请求会经过 `TemplateRequestInterceptor`：打标内部调用（`X-Internal-Call: true`）、透传配置的
+Header、无用户上下文时使用 Client 凭证。下游服务在 `app.template.feign.not-oauth=true` 时，会对带 `X-Internal-Call: true`
+的请求执行 `permitAll()`，视为内部调用免认证。
 
 ### 内部调用 IP 白名单（防伪造）
 
 **风险**：客户端可伪造请求头 `X-Internal-Call: true`，若不做限制会绕过认证。
 
-**应对**：配置 `app.template.feign.internal-call-allowed-ip-patterns`，仅当请求来源 IP 落在白名单内且带 `X-Internal-Call: true` 时才视为内部调用。支持单 IP 或 CIDR。
+**应对**：配置 `app.template.feign.internal-call-allowed-ip-patterns`，仅当请求来源 IP 落在白名单内且带
+`X-Internal-Call: true` 时才视为内部调用。支持单 IP 或 CIDR。
 
 ```yaml
 app:
@@ -181,12 +184,14 @@ app:
 ```
 
 - **未配置**：只校验请求头，存在伪造风险。
-- **Docker / K8s**：使用集群内网网段即可（如 `10.0.0.0/8`、`172.16.0.0/12`），容器 IP 虽动态但通常落在固定网段；若流量经网关，可只配置网关或 Ingress 所在网段。
+- **Docker / K8s**：使用集群内网网段即可（如 `10.0.0.0/8`、`172.16.0.0/12`），容器 IP 虽动态但通常落在固定网段；若流量经网关，可只配置网关或
+  Ingress 所在网段。
 - **无法区分来源时**：可不配（仅非生产），或关闭“内部调用免认证”、统一走 OAuth2 校验。
 
 ### Header 透传配置
 
-`app.template.feign.headers` 指定从当前请求透传到 Feign 下游的 Header 名称（如 `Authorization`）。仅配置**可信且需透传**的 Header，避免透传客户端可控且下游信任的 Header（如自定义 `X-User-Id`）导致越权。
+`app.template.feign.headers` 指定从当前请求透传到 Feign 下游的 Header 名称（如 `Authorization`）。仅配置**可信且需透传**的
+Header，避免透传客户端可控且下游信任的 Header（如自定义 `X-User-Id`）导致越权。
 
 ```yaml
 app:
@@ -198,7 +203,8 @@ app:
 
 ### 无请求上下文时
 
-定时任务、异步调用等无 `ServletRequestAttributes` 时，拦截器会使用 Client 凭证（`OauthUtilService.fetchToken("server")`）请求下游，下游收到的是**服务身份**而非用户身份，若下游依赖“当前用户”需在业务侧区分。
+定时任务、异步调用等无 `ServletRequestAttributes` 时，拦截器会使用 Client 凭证（`OauthUtilService.fetchToken("server")`
+）请求下游，下游收到的是**服务身份**而非用户身份，若下游依赖“当前用户”需在业务侧区分。
 
 ## OAuth2 配置
 
@@ -372,7 +378,9 @@ public class AuthController {
 
 ## 数据加密配置
 
-框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用 `aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2 等）可插拔。  
+框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用
+`aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2
+等）可插拔。  
 设计说明、与 Jasypt/Spring Cloud 的差异及优势详见 [加密与 Coder 设计说明](../design/encryption-and-coder.md)。
 
 ### 密码加密配置
@@ -808,7 +816,8 @@ public class MessageConverterConfig {
 
 ### JSON 处理器配置
 
-框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson 等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
+框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson
+等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
 
 ```yaml
 app:
@@ -838,7 +847,8 @@ public class CustomJsonConfig {
 
 #### RSA 密钥配置（重要）
 
-框架在 `template-core` 资源中提供 `default_rsa_public.pem` 和 `default_rsa_private.pem` 作为开发/测试默认密钥。**生产环境严禁使用默认密钥**，必须：
+框架在 `template-core` 资源中提供 `default_rsa_public.pem` 和 `default_rsa_private.pem` 作为开发/测试默认密钥。*
+*生产环境严禁使用默认密钥**，必须：
 
 1. 自行生成 RSA 密钥对（如 `openssl genrsa -out rsa_private.pem 2048`）
 2. 将 `rsa_public.pem`、`rsa_private.pem` 置于 classpath 或配置指定路径
@@ -963,24 +973,24 @@ volumes:
 ### 常见问题
 
 1. **启动失败**
-   - 检查 JDK 版本是否为 21
-   - 检查依赖版本是否兼容
-   - 查看启动日志中的错误信息
+    - 检查 JDK 版本是否为 21
+    - 检查依赖版本是否兼容
+    - 查看启动日志中的错误信息
 
 2. **认证失败**
-   - 确保实现了 `IRbacService` 接口
-   - 检查 OAuth2 客户端配置
-   - 验证用户名密码是否正确
+    - 确保实现了 `IRbacService` 接口
+    - 检查 OAuth2 客户端配置
+    - 验证用户名密码是否正确
 
 3. **权限拒绝**
-   - 检查 URL 是否在免认证列表中
-   - 验证 JWT 令牌是否有效
-   - 检查用户权限配置
+    - 检查 URL 是否在免认证列表中
+    - 验证 JWT 令牌是否有效
+    - 检查用户权限配置
 
 4. **Redis 连接失败**
-   - 检查 Redis 服务是否启动
-   - 验证连接配置是否正确
-   - 检查网络连通性
+    - 检查 Redis 服务是否启动
+    - 验证连接配置是否正确
+    - 检查网络连通性
 
 ### 调试技巧
 
@@ -1016,6 +1026,7 @@ public class DebugSecurityEventListener {
 App Template 框架提供了丰富的功能和灵活的配置选项，可以快速构建安全、高性能的微服务应用。通过合理的配置和自定义实现，可以满足各种业务需求。
 
 建议在开发过程中：
+
 1. 先使用最小配置快速启动项目
 2. 根据业务需求逐步添加高级功能
 3. 在生产环境中注意安全配置

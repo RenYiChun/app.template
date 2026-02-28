@@ -14,10 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * OauthUtilService 单元测试
  */
 class OauthUtilServiceTest {
-
+    
     private OauthUtilService service;
     private Cache<String, String> tokenCache;
-
+    
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
@@ -33,42 +33,41 @@ class OauthUtilServiceTest {
         config.setFeign(feign);
         ReflectionTestUtils.setField(service, "templateConfigProperties", config);
     }
-
+    
     @AfterEach
     void tearDown() {
         if (tokenCache != null) {
             tokenCache.invalidateAll();
         }
     }
-
+    
     @Test
     void fetchToken_withValidCache_returnsCachedToken() {
         String host = "cache-test-host";
         String token = "cached-access-token";
         tokenCache.put(host, token);
-
+        
         String result = service.fetchToken(host, "cid", "secret");
-
+        
         assertEquals(token, result);
     }
-
+    
     @Test
     void fetchToken_withExpiredCache_attemptsLoginAndFails() {
         String host = "expired-host";
         tokenCache.invalidateAll();
-
-        assertThrows(Exception.class, () ->
-                service.fetchToken(host, "cid", "secret"));
+        
+        assertThrows(Exception.class, () -> service.fetchToken(host, "cid", "secret"));
     }
-
+    
     @Test
     void fetchToken_withHost_returnsCachedToken() {
         String host = "host-only";
         String token = "token";
         tokenCache.put(host, token);
-
+        
         String result = service.fetchToken(host);
-
+        
         assertEquals(token, result);
     }
 }

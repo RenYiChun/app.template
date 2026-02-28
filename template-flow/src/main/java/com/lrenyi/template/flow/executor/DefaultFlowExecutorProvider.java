@@ -36,13 +36,13 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
         // 2. 有界队列 (capacity=10000) 防止任务堆积 OOM
         // 3. CallerRunsPolicy 实现生产端背压：当队列满时，由驱逐触发线程（如 Caffeine 维护线程或 put 线程）执行回调
         int limit = removalSubmissionLimit > 0 ? removalSubmissionLimit : 100;
-        this.cacheRemovalExecutor = new ThreadPoolExecutor(
-                limit,
-                limit,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(limit * 10),
-                Thread.ofVirtual().name("flow-removal-", 0).factory(),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+        this.cacheRemovalExecutor = new ThreadPoolExecutor(limit,
+                                                           limit,
+                                                           0L,
+                                                           TimeUnit.MILLISECONDS,
+                                                           new LinkedBlockingQueue<>(limit * 10),
+                                                           Thread.ofVirtual().name("flow-removal-", 0).factory(),
+                                                           new ThreadPoolExecutor.CallerRunsPolicy()
         );
     }
     

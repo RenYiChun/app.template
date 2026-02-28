@@ -1,83 +1,83 @@
 <template>
   <div class="operation-log-auto-container">
     <EntityCrudPage
-      entity="operation_log"
-      :locale="dataforgeUiLocale"
-      @view="handleView"
+        :locale="dataforgeUiLocale"
+        entity="operation_log"
+        @view="handleView"
     >
       <template #alert="{ error }">
-        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
+        <el-alert v-if="error" :title="error.message" class="mb-4" show-icon type="error"/>
       </template>
 
       <template #toolbar="scope">
-          <EntityToolbar
-            :selected-ids="scope.selectedIds"
-            :can-create="false"
+        <EntityToolbar
+            :all-columns="scope.allColumns"
+            :batch-update-text="$t('common.batchUpdate')"
             :can-batch-delete="scope.canBatchDelete"
             :can-batch-update="scope.canBatchUpdate"
-            :batch-update-text="$t('common.batchUpdate')"
+            :can-create="false"
             :can-export="true"
-            :export-text="$t('common.export')"
-            :show-search="scope.showSearch"
-            :all-columns="scope.allColumns"
             :display-columns="scope.displayColumns"
-            :visible-column-props="scope.visibleColumnProps"
+            :export-text="$t('common.export')"
+            :selected-ids="scope.selectedIds"
             :set-visible-column-props="scope.setVisibleColumnProps"
-            @batch-update="scope.handleBatchUpdate"
+            :show-search="scope.showSearch"
+            :visible-column-props="scope.visibleColumnProps"
             @export="scope.handleExport"
-            @toggle-search="scope.toggleSearch"
             @refresh="scope.handleSearch"
-          />
-        </template>
+            @batch-update="scope.handleBatchUpdate"
+            @toggle-search="scope.toggleSearch"
+        />
+      </template>
 
-        <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
-          <EntitySearchBar
+      <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
+        <EntitySearchBar
             v-if="showSearch"
             :entity-meta="entityMeta"
             :model-value="filters"
-            @update:modelValue="setFilters"
             @search="handleSearch"
-          />
-        </template>
+            @update:modelValue="setFilters"
+        />
+      </template>
 
-        <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
-          <EntityTable
+      <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
+        <EntityTable
+            :columns="displayColumns"
+            :handle-sort-change="handleSortChange"
             :items="items"
             :loading="loading"
-            :columns="displayColumns"
-            :sort="sort"
             :selectable="selectable"
-            :handle-sort-change="handleSortChange"
+            :sort="sort"
             @selection-change="handleSelectionChange"
-          >
-            <!-- 自定义状态列 -->
-            <template #column-success="{ value }">
-              <el-tag :type="value ? 'success' : 'danger'">
-                {{ value ? $t('common.success') : $t('common.failed') }}
-              </el-tag>
-            </template>
+        >
+          <!-- 自定义状态列 -->
+          <template #column-success="{ value }">
+            <el-tag :type="value ? 'success' : 'danger'">
+              {{ value ? $t('common.success') : $t('common.failed') }}
+            </el-tag>
+          </template>
 
-            <!-- 自定义时间列 -->
-            <template #column-operationTime="{ value }">
-              {{ formatDate(value) }}
-            </template>
-          </EntityTable>
-        </template>
+          <!-- 自定义时间列 -->
+          <template #column-operationTime="{ value }">
+            {{ formatDate(value) }}
+          </template>
+        </EntityTable>
+      </template>
 
-        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
-          <el-pagination
-            class="mt-4"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
+      <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+        <el-pagination
             :current-page="page"
             :page-size="size"
             :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            background
+            class="mt-4"
+            layout="total, sizes, prev, pager, next, jumper"
             @update:current-page="handlePageChange"
             @update:page-size="handleSizeChange"
-          />
-        </template>
-      </EntityCrudPage>
+        />
+      </template>
+    </EntityCrudPage>
 
     <!-- 详情对话框 (直接复用手写逻辑) -->
     <el-dialog v-model="detailDialogVisible" :title="$t('system.log.detailTitle')" width="700px">
@@ -93,8 +93,12 @@
         <el-descriptions-item :label="$t('system.log.description')" :span="2">
           {{ currentLog?.description }}
         </el-descriptions-item>
-        <el-descriptions-item :label="$t('system.log.requestMethod')">{{ currentLog?.requestMethod }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('system.log.executionTime')">{{ currentLog?.executionTimeMs }} ms</el-descriptions-item>
+        <el-descriptions-item :label="$t('system.log.requestMethod')">{{
+            currentLog?.requestMethod
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="$t('system.log.executionTime')">{{ currentLog?.executionTimeMs }} ms
+        </el-descriptions-item>
         <el-descriptions-item :label="$t('system.log.requestUri')" :span="2">
           {{ currentLog?.requestUri }}
         </el-descriptions-item>
@@ -109,7 +113,8 @@
         <el-descriptions-item v-if="currentLog?.targetId" :label="$t('system.log.targetId')">
           {{ currentLog?.targetId }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="currentLog?.affectedCount !== null" :label="$t('system.log.affectedCount')" :span="2">
+        <el-descriptions-item v-if="currentLog?.affectedCount !== null" :label="$t('system.log.affectedCount')"
+                              :span="2">
           {{ currentLog?.affectedCount }}
         </el-descriptions-item>
         <el-descriptions-item v-if="currentLog?.reason" :label="$t('system.log.reason')" :span="2">
@@ -129,15 +134,15 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed } from 'vue';
-import { ElMessage } from 'element-plus';
-import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar } from '@lrenyi/dataforge-ui';
+<script lang="ts" setup>
+import {ref} from 'vue';
+import {ElMessage} from 'element-plus';
+import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
 import dayjs from 'dayjs';
-import { useI18n } from 'vue-i18n';
-import { useDataforgeUiLocale } from '@/i18n';
+import {useI18n} from 'vue-i18n';
+import {useDataforgeUiLocale} from '@/i18n';
 
-const { t } = useI18n();
+const {t} = useI18n();
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 

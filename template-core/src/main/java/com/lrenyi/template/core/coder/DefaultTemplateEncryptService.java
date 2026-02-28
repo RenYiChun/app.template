@@ -17,11 +17,8 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class DefaultTemplateEncryptService implements TemplateEncryptService, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
-    private final TemplateConfigProperties templateConfigProperties;
-    
-    public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
-        this.templateConfigProperties = templateConfigProperties;
-    }
+    private static String defaultPasswordEncoderKey;
+    private static PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
     
     static {
         ServiceLoader<TemplateEncryptService> load = ServiceLoader.load(TemplateEncryptService.class);
@@ -47,15 +44,9 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         }
     }
     
-    private static String defaultPasswordEncoderKey;
-    private static PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
-    
-    public static void setDefaultPasswordEncoderForMatches(String encoderKey) {
-        if (!StringUtils.hasLength(encoderKey)) {
-            throw new IllegalArgumentException("defaultPasswordEncoderForMatches cannot be null");
-        }
-        defaultPasswordEncoderKey = encoderKey;
-        defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
+    private final TemplateConfigProperties templateConfigProperties;
+    public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
+        this.templateConfigProperties = templateConfigProperties;
     }
     
     @Override
@@ -87,6 +78,26 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         String extractId = extractId(encodedPassword);
         String password = extractEncodedPassword(encodedPassword);
         return new KeyPassword(extractId, password);
+    }
+    
+    private static String extractId(String prefixEncodedPassword) {
+        if (prefixEncodedPassword == null) {
+            return null;
+        }
+        int start = prefixEncodedPassword.indexOf("{");
+        if (start != 0) {
+            return null;
+        }
+        int end = prefixEncodedPassword.indexOf("}", start);
+        if (end < 0) {
+            return null;
+        }
+        return prefixEncodedPassword.substring(start + 1, end);
+    }
+    
+    private static String extractEncodedPassword(String prefixEncodedPassword) {
+        int start = prefixEncodedPassword.indexOf("}");
+        return prefixEncodedPassword.substring(start + 1);
     }
     
     @Override
@@ -138,26 +149,6 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         }
     }
     
-    private static String extractId(String prefixEncodedPassword) {
-        if (prefixEncodedPassword == null) {
-            return null;
-        }
-        int start = prefixEncodedPassword.indexOf("{");
-        if (start != 0) {
-            return null;
-        }
-        int end = prefixEncodedPassword.indexOf("}", start);
-        if (end < 0) {
-            return null;
-        }
-        return prefixEncodedPassword.substring(start + 1, end);
-    }
-    
-    private static String extractEncodedPassword(String prefixEncodedPassword) {
-        int start = prefixEncodedPassword.indexOf("}");
-        return prefixEncodedPassword.substring(start + 1);
-    }
-    
     @Override
     public void afterPropertiesSet() {
         String defaultEncryptKey = "default";
@@ -165,6 +156,14 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
             defaultEncryptKey = templateConfigProperties.getSecurity().getSecurityKey();
         }
         setDefaultPasswordEncoderForMatches(defaultEncryptKey);
+    }
+    
+    public static void setDefaultPasswordEncoderForMatches(String encoderKey) {
+        if (!StringUtils.hasLength(encoderKey)) {
+            throw new IllegalArgumentException("defaultPasswordEncoderForMatches cannot be null");
+        }
+        defaultPasswordEncoderKey = encoderKey;
+        defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
     }
     
     @Data

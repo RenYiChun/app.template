@@ -11,5 +11,4 @@ import org.springframework.context.annotation.Import;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true", matchIfMissing = true)
 @Import(FlowMetricsAutoConfiguration.class)
-public class FlowAutoConfiguration {
-}
+public class FlowAutoConfiguration {}

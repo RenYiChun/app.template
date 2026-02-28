@@ -20,19 +20,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 public final class ListCriteria {
-
+    
     private final List<FilterCondition> filters;
     private final List<SortOrder> sortOrders;
-
+    
     private ListCriteria(List<FilterCondition> filters, List<SortOrder> sortOrders) {
         this.filters = filters != null ? List.copyOf(filters) : List.of();
         this.sortOrders = sortOrders != null ? List.copyOf(sortOrders) : List.of();
     }
     
-    public static ListCriteria empty() {
-        return new ListCriteria(List.of(), List.of());
-    }
-
     /**
      * 从 SearchRequest 构建 ListCriteria，校验 field 在 allowedFields 内，
      * 按 FieldMeta.type 转换 value，非法条件忽略并记录 debug 日志。
@@ -45,11 +41,9 @@ public final class ListCriteria {
             List<SortOrder> sortOrders = validateSort(req, entityMeta);
             return new ListCriteria(List.of(), sortOrders);
         }
-        Set<String> allowedFields = entityMeta.getFields().stream()
-                .map(FieldMeta::getName)
-                .collect(Collectors.toSet());
-        Map<String, FieldMeta> fieldMetaByName = entityMeta.getFields().stream()
-                .collect(Collectors.toMap(FieldMeta::getName, fm -> fm, (a, b) -> a));
+        Set<String> allowedFields = entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
+        Map<String, FieldMeta> fieldMetaByName =
+                entityMeta.getFields().stream().collect(Collectors.toMap(FieldMeta::getName, fm -> fm, (a, b) -> a));
         List<FilterCondition> valid = new ArrayList<>();
         for (FilterCondition fc : req.filters()) {
             if (fc == null || fc.field() == null || fc.field().isBlank()) {
@@ -74,7 +68,11 @@ public final class ListCriteria {
         List<SortOrder> sortOrders = validateSort(req, entityMeta);
         return new ListCriteria(valid, sortOrders);
     }
-
+    
+    public static ListCriteria empty() {
+        return new ListCriteria(List.of(), List.of());
+    }
+    
     private static List<SortOrder> validateSort(SearchRequest req, EntityMeta entityMeta) {
         if (req == null || req.sort() == null || req.sort().isEmpty()) {
             return List.of();
@@ -82,9 +80,7 @@ public final class ListCriteria {
         if (entityMeta == null || entityMeta.getFields() == null) {
             return List.of();
         }
-        Set<String> allowedFields = entityMeta.getFields().stream()
-                .map(FieldMeta::getName)
-                .collect(Collectors.toSet());
+        Set<String> allowedFields = entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
         List<SortOrder> valid = new ArrayList<>();
         for (SortOrder so : req.sort()) {
             if (so == null || so.field() == null || so.field().isBlank()) {
@@ -99,7 +95,7 @@ public final class ListCriteria {
         }
         return valid;
     }
-
+    
     private static Object convertValue(Object raw, Op op, FieldMeta fm) {
         if (raw == null) {
             return null;
@@ -111,8 +107,7 @@ public final class ListCriteria {
         try {
             if (op == Op.IN) {
                 if (raw instanceof List<?> list) {
-                    return list.stream().map(v -> convertSingle(v, type)).filter(Objects::nonNull)
-                            .toList();
+                    return list.stream().map(v -> convertSingle(v, type)).filter(Objects::nonNull).toList();
                 }
                 return List.of(convertSingle(raw, type));
             }
@@ -122,7 +117,7 @@ public final class ListCriteria {
             return null;
         }
     }
-
+    
     private static Object convertSingle(Object raw, String type) {
         if (raw == null) {
             return null;
@@ -137,12 +132,9 @@ public final class ListCriteria {
             case "Boolean", "boolean" -> raw instanceof Boolean b ? b : "true".equalsIgnoreCase(raw.toString());
             case "Double", "double" -> raw instanceof Number n ? n.doubleValue() : Double.parseDouble(raw.toString());
             case "Float", "float" -> raw instanceof Number n ? n.floatValue() : Float.parseFloat(raw.toString());
-            case "LocalDate" -> raw instanceof String s
-                    ? LocalDate.parse(s, DateTimeFormatter.ISO_LOCAL_DATE)
-                    : raw;
-            case "LocalDateTime" -> raw instanceof String s
-                    ? LocalDateTime.parse(s, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                    : raw;
+            case "LocalDate" -> raw instanceof String s ? LocalDate.parse(s, DateTimeFormatter.ISO_LOCAL_DATE) : raw;
+            case "LocalDateTime" ->
+                    raw instanceof String s ? LocalDateTime.parse(s, DateTimeFormatter.ISO_LOCAL_DATE_TIME) : raw;
             default -> raw;
         };
     }

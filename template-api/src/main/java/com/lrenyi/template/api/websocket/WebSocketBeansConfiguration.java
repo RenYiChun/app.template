@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 public class WebSocketBeansConfiguration {
-
+    
     @Bean
     @ConditionalOnMissingBean
     public TemplatePrincipalHandshakeHandler templatePrincipalHandshakeHandler() {

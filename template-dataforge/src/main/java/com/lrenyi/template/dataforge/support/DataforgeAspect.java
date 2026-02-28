@@ -4,10 +4,10 @@ import java.util.concurrent.TimeUnit;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 
 /**
@@ -17,13 +17,13 @@ import org.springframework.core.annotation.Order;
 @Aspect
 @Order(100)
 public final class DataforgeAspect {
-
+    
     private final MeterRegistry meterRegistry;
-
+    
     public DataforgeAspect(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
     }
-
+    
     @Around("execution(* com.lrenyi.template.dataforge.controller.GenericEntityController.*(..))")
     public Object logRequest(ProceedingJoinPoint pjp) throws Throwable {
         String method = pjp.getSignature().getName();
@@ -45,7 +45,8 @@ public final class DataforgeAspect {
             Counter.builder("app.template.dataforge.request.errors")
                    .tag("method", method)
                    .tag("errorType", t.getClass().getSimpleName())
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
             throw t;
         }
     }

@@ -10,8 +10,8 @@ import com.lrenyi.template.core.CoreAutoConfiguration;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
@@ -60,7 +60,9 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApiAutoConfiguration {
     
     @EnableMethodSecurity()
-    @ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'")
+    @ConditionalOnExpression(
+            "'${app.template.enabled:true}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'"
+    )
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
     }
@@ -122,7 +124,7 @@ public class ApiAutoConfiguration {
         @Bean
         @Order(2)
         public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http,
-                                                              DefaultSecurityFilterChainBuilder builder) throws Exception {
+                DefaultSecurityFilterChainBuilder builder) throws Exception {
             
             return builder.build(http);
         }

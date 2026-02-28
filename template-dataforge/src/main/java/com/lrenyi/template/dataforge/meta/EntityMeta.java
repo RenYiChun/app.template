@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class EntityMeta {
-
+    
     private String entityName;
     private String tableName;
     private String pathSegment;
@@ -78,27 +78,27 @@ public class EntityMeta {
     private boolean enableImport = true;
     private String importTemplate = "";
     private String exportTemplate = "";
-
+    
     public void setPermissionCreate(String permissionCreate) {
         this.permissionCreate = permissionCreate != null ? permissionCreate : "";
     }
-
+    
     public void setPermissionRead(String permissionRead) {
         this.permissionRead = permissionRead != null ? permissionRead : "";
     }
-
+    
     public void setPermissionUpdate(String permissionUpdate) {
         this.permissionUpdate = permissionUpdate != null ? permissionUpdate : "";
     }
-
+    
     public void setPermissionDelete(String permissionDelete) {
         this.permissionDelete = permissionDelete != null ? permissionDelete : "";
     }
-
+    
     public void setFields(List<FieldMeta> fields) {
         this.fields = fields != null ? fields : new ArrayList<>();
     }
-
+    
     public void setActions(List<ActionMeta> actions) {
         this.actions = actions != null ? actions : new ArrayList<>();
     }

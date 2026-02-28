@@ -1,128 +1,131 @@
 <template>
   <div class="user-list-container">
     <EntityCrudPage
-      entity="users"
-      :locale="dataforgeUiLocale"
-      @create="handleAdd"
-      @edit="handleEdit"
-      @delete="handleDelete"
-      @export="handleExport"
+        :locale="dataforgeUiLocale"
+        entity="users"
+        @create="handleAdd"
+        @delete="handleDelete"
+        @edit="handleEdit"
+        @export="handleExport"
     >
       <template #alert="{ error }">
-        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
+        <el-alert v-if="error" :title="error.message" class="mb-4" show-icon type="error"/>
       </template>
 
       <template #toolbar="scope">
-          <EntityToolbar
-            :selected-ids="scope.selectedIds"
-            :can-create="true"
-            :create-text="$t('common.add')"
-            :can-batch-delete="scope.canBatchDelete"
-            :batch-delete-text="$t('common.batchDelete')"
-            :can-batch-update="scope.canBatchUpdate"
-            :batch-update-text="$t('common.batchUpdate')"
-            :can-export="true"
-            :export-text="$t('common.export')"
-            :show-search="scope.showSearch"
+        <EntityToolbar
             :all-columns="scope.allColumns"
+            :batch-delete-text="$t('common.batchDelete')"
+            :batch-update-text="$t('common.batchUpdate')"
+            :can-batch-delete="scope.canBatchDelete"
+            :can-batch-update="scope.canBatchUpdate"
+            :can-create="true"
+            :can-export="true"
+            :create-text="$t('common.add')"
             :display-columns="scope.displayColumns"
-            :visible-column-props="scope.visibleColumnProps"
+            :export-text="$t('common.export')"
+            :selected-ids="scope.selectedIds"
             :set-visible-column-props="scope.setVisibleColumnProps"
+            :show-search="scope.showSearch"
+            :visible-column-props="scope.visibleColumnProps"
             @create="handleAdd"
+            @export="scope.handleExport"
+            @refresh="scope.handleSearch"
             @batch-delete="scope.handleDelete"
             @batch-update="scope.handleBatchUpdate"
-            @export="scope.handleExport"
             @toggle-search="scope.toggleSearch"
-            @refresh="scope.handleSearch"
-          />
-        </template>
+        />
+      </template>
 
-        <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
-          <EntitySearchBar
+      <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
+        <EntitySearchBar
             v-if="showSearch"
             :entity-meta="entityMeta"
             :model-value="filters"
-            @update:modelValue="setFilters"
             @search="handleSearch"
-          />
-        </template>
+            @update:modelValue="setFilters"
+        />
+      </template>
 
-        <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
-          <EntityTable
+      <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
+        <EntityTable
+            :columns="displayColumns"
+            :handle-sort-change="handleSortChange"
             :items="items"
             :loading="loading"
-            :columns="displayColumns"
-            :sort="sort"
             :selectable="selectable"
-            :handle-sort-change="handleSortChange"
+            :sort="sort"
             @selection-change="handleSelectionChange"
-          >
-            <!-- 自定义状态列 -->
-            <template #column-status="{ value }">
-              <el-tag :type="value === '1' ? 'success' : 'danger'">
-                {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
-              </el-tag>
-            </template>
+        >
+          <!-- 自定义状态列 -->
+          <template #column-status="{ value }">
+            <el-tag :type="value === '1' ? 'success' : 'danger'">
+              {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
+            </el-tag>
+          </template>
 
-            <!-- 自定义行操作 -->
-            <template #row-actions="{ row }">
-              <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-              <el-button link type="warning" @click="handleAssignRoles(row)">{{ $t('system.user.assignRoles') }}</el-button>
-              <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
-            </template>
-          </EntityTable>
-        </template>
+          <!-- 自定义行操作 -->
+          <template #row-actions="{ row }">
+            <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+            <el-button link type="warning" @click="handleAssignRoles(row)">{{
+                $t('system.user.assignRoles')
+              }}
+            </el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+          </template>
+        </EntityTable>
+      </template>
 
-        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
-          <el-pagination
-            class="mt-4"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
+      <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+        <el-pagination
             :current-page="page"
             :page-size="size"
             :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            background
+            class="mt-4"
+            layout="total, sizes, prev, pager, next, jumper"
             @update:current-page="handlePageChange"
             @update:page-size="handleSizeChange"
-          />
-        </template>
-      </EntityCrudPage>
+        />
+      </template>
+    </EntityCrudPage>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="600px"
-      @close="handleDialogClose"
+        v-model="dialogVisible"
+        :title="dialogTitle"
+        width="600px"
+        @close="handleDialogClose"
     >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item :label="$t('system.user.username')" prop="username">
-          <el-input v-model="form.username" :disabled="!!form.id" />
+          <el-input v-model="form.username" :disabled="!!form.id"/>
         </el-form-item>
         <el-form-item :label="$t('system.user.nickname')" prop="nickname">
-          <el-input v-model="form.nickname" />
+          <el-input v-model="form.nickname"/>
         </el-form-item>
-        <el-form-item :label="$t('system.user.password')" prop="password" v-if="!form.id">
-          <el-input v-model="form.password" type="password" show-password />
+        <el-form-item v-if="!form.id" :label="$t('system.user.password')" prop="password">
+          <el-input v-model="form.password" show-password type="password"/>
         </el-form-item>
         <el-form-item :label="$t('system.user.email')" prop="email">
-          <el-input v-model="form.email" />
+          <el-input v-model="form.email"/>
         </el-form-item>
         <el-form-item :label="$t('system.user.phone')" prop="phone">
-          <el-input v-model="form.phone" />
+          <el-input v-model="form.phone"/>
         </el-form-item>
         <el-form-item :label="$t('system.user.dept')" prop="departmentId">
           <el-cascader
-            v-model="form.departmentId"
-            :options="deptTreeData"
-            :props="{ label: 'name', value: 'id', checkStrictly: true, emitPath: false }"
-            :placeholder="$t('system.user.selectDept')"
-            clearable
-            style="width: 100%"
+              v-model="form.departmentId"
+              :options="deptTreeData"
+              :placeholder="$t('system.user.selectDept')"
+              :props="{ label: 'name', value: 'id', checkStrictly: true, emitPath: false }"
+              clearable
+              style="width: 100%"
           />
         </el-form-item>
         <el-form-item :label="$t('system.role.remark')" prop="remark">
-          <el-input v-model="form.remark" type="textarea" />
+          <el-input v-model="form.remark" type="textarea"/>
         </el-form-item>
         <el-form-item :label="$t('system.user.status')" prop="status">
           <el-radio-group v-model="form.status">
@@ -133,7 +136,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">{{ $t('common.confirm') }}</el-button>
+        <el-button :loading="submitting" type="primary" @click="handleSubmit">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
@@ -146,24 +149,35 @@
       </el-checkbox-group>
       <template #footer>
         <el-button @click="roleDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSaveRoles" :loading="submitting">{{ $t('common.confirm') }}</el-button>
+        <el-button :loading="submitting" type="primary" @click="handleSaveRoles">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox, ElCard, ElAlert, ElPagination, ElButton, ElInput, ElSelect, ElOption, ElDatePicker, ElTable, ElTableColumn, ElTag, ElIcon, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElCheckboxGroup, ElCheckbox } from 'element-plus';
-import { useDataforge, BusinessError, useEntityCrud } from '@lrenyi/dataforge-headless/vue';
-import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar, EntityColumnConfigurator } from '@lrenyi/dataforge-ui';
-import { useI18n } from 'vue-i18n';
-import { useDataforgeUiLocale } from '@/i18n';
+<script lang="ts" setup>
+import {reactive, ref} from 'vue';
+import {
+  ElAlert,
+  ElButton,
+  ElCheckbox,
+  ElCheckboxGroup,
+  ElInput,
+  ElMessage,
+  ElMessageBox,
+  ElPagination,
+  ElTag
+} from 'element-plus';
+import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
+import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
+import {useI18n} from 'vue-i18n';
+import {useDataforgeUiLocale} from '@/i18n';
 
-const { t } = useI18n();
-const { client } = useDataforge();
+const {t} = useI18n();
+const {client} = useDataforge();
 
 const dataforgeUiLocale = useDataforgeUiLocale();
+
 interface User {
   id: number;
   username: string;
@@ -182,7 +196,7 @@ const deptClient = client.define<any>('departments');
 const roleClient = client.define<any>('roles');
 const userRoleClient = client.define<any>('user_roles');
 
-const { search } = useEntityCrud<User>('users');
+const {search} = useEntityCrud<User>('users');
 
 
 const submitting = ref(false);
@@ -210,8 +224,8 @@ const form = reactive({
 });
 
 const rules = {
-  username: [{ required: true, message: t('system.user.inputUsername'), trigger: 'blur' }],
-  password: [{ required: true, message: t('system.user.inputPassword'), trigger: 'blur' }],
+  username: [{required: true, message: t('system.user.inputUsername'), trigger: 'blur'}],
+  password: [{required: true, message: t('system.user.inputPassword'), trigger: 'blur'}],
 };
 
 const handleAdd = () => {
@@ -237,7 +251,7 @@ const handleExport = () => {
 
 const handleEdit = (row: any) => {
   dialogTitle.value = t('system.user.edit');
-  Object.assign(form, { ...row, password: '' });
+  Object.assign(form, {...row, password: ''});
   dialogVisible.value = true;
   loadDeptTree();
 };
@@ -250,7 +264,7 @@ const handleSubmit = async () => {
   await formRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...form };
+    const submitData = {...form};
     if (form.id) {
       if (!submitData.password) delete (submitData as any).password;
       await userClient.update(form.id, submitData);
@@ -275,7 +289,7 @@ const handleSubmit = async () => {
 };
 
 const handleDelete = async (row: any) => {
-  await ElMessageBox.confirm(t('system.user.deleteConfirm'), t('common.tips'), { type: 'warning' });
+  await ElMessageBox.confirm(t('system.user.deleteConfirm'), t('common.tips'), {type: 'warning'});
   try {
     await userClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
@@ -288,7 +302,7 @@ const handleDelete = async (row: any) => {
 
 const loadDeptTree = async () => {
   try {
-    const result = await deptClient.search({ page: 0, size: 1000 });
+    const result = await deptClient.search({page: 0, size: 1000});
     const list = result.content || [];
     deptTreeData.value = buildTree(list);
   } catch (error: any) {
@@ -300,7 +314,7 @@ const buildTree = (list: any[]) => {
   const map: any = {};
   const roots: any[] = [];
   list.forEach((item) => {
-    map[item.id] = { ...item, children: [] };
+    map[item.id] = {...item, children: []};
   });
   list.forEach((item) => {
     if (item.parentId && map[item.parentId]) {
@@ -322,7 +336,7 @@ const handleAssignRoles = async (row: any) => {
 const loadRoles = async () => {
   rolesLoading.value = true;
   try {
-    const result = await roleClient.search({ page: 0, size: 1000 });
+    const result = await roleClient.search({page: 0, size: 1000});
     allRoles.value = result.content || [];
   } catch {
     ElMessage.error(t('system.user.loadRolesFailed'));
@@ -335,7 +349,7 @@ const loadUserRoles = async (username: string) => {
   rolesLoading.value = true;
   try {
     const result = await userRoleClient.search({
-      filters: [{ field: 'userId', op: 'eq', value: username }],
+      filters: [{field: 'userId', op: 'eq', value: username}],
       page: 0,
       size: 1000,
     });
@@ -352,7 +366,7 @@ const handleSaveRoles = async () => {
   try {
     // 删除所有现有角色
     const existingResult = await userRoleClient.search({
-      filters: [{ field: 'userId', op: 'eq', value: currentUser.value.username }],
+      filters: [{field: 'userId', op: 'eq', value: currentUser.value.username}],
       page: 0,
       size: 1000,
     });
@@ -365,7 +379,7 @@ const handleSaveRoles = async () => {
     for (const roleId of selectedRoles.value) {
       await userRoleClient.create({
         userId: currentUser.value.username,
-        role: { id: roleId },
+        role: {id: roleId},
       });
     }
 

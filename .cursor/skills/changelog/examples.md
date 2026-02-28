@@ -3,6 +3,7 @@
 ## 示例 1：基于 Conventional Commits
 
 **Commits:**
+
 ```
 feat(auth): add JWT support
 fix(api): handle null response
@@ -11,6 +12,7 @@ refactor(core): simplify FlowManager
 ```
 
 **Output:**
+
 ```markdown
 ### Features
 - (auth) Add JWT support
@@ -28,6 +30,7 @@ refactor(core): simplify FlowManager
 ## 示例 2：中文自由格式
 
 **Commits:**
+
 ```
 优化代码
 增加单元测试
@@ -36,6 +39,7 @@ refactor(core): simplify FlowManager
 ```
 
 **Output:**
+
 ```markdown
 ### Refactoring
 - 优化代码
@@ -53,6 +57,7 @@ refactor(core): simplify FlowManager
 ## 示例 3：合并重复项
 
 **Commits:**
+
 ```
 优化代码
 优化代码
@@ -60,6 +65,7 @@ refactor(core): simplify FlowManager
 ```
 
 **Output:**
+
 ```markdown
 ### Refactoring
 - 优化代码

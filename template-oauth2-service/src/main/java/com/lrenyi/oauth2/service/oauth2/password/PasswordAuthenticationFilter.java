@@ -18,15 +18,15 @@ public class PasswordAuthenticationFilter extends OncePerRequestFilter {
     private final ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers;
     
     public PasswordAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
-                                        TemplateConfigProperties templateConfigProperties) {
+            TemplateConfigProperties templateConfigProperties) {
         this.preAuthenticationCheckers = preAuthenticationCheckers;
         this.templateConfigProperties = templateConfigProperties;
     }
     
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
         String grantType = request.getParameter("grant_type");
         boolean login = request.getRequestURI().equals("/oauth2/token");
         boolean skipPreAuthentication = templateConfigProperties.getOauth2().isSkipPreAuthentication();

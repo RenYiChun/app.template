@@ -8,7 +8,7 @@ package com.lrenyi.template.flow.sources.paged;
  */
 @FunctionalInterface
 public interface PageFetcher<T> {
-
+    
     /**
      * 拉取一页。
      *

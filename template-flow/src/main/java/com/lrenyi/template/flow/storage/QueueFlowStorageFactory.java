@@ -11,17 +11,17 @@ import io.micrometer.core.instrument.MeterRegistry;
  * Queue 存储工厂实现
  */
 public class QueueFlowStorageFactory implements FlowStorageFactory {
-
+    
     @Override
     public FlowStorageType getSupportedType() {
         return FlowStorageType.QUEUE;
     }
-
+    
     @Override
     public boolean supports(FlowStorageType type) {
         return type == FlowStorageType.QUEUE;
     }
-
+    
     @Override
     public <T> FlowStorage<T> createStorage(String jobId,
             FlowJoiner<T> joiner,
@@ -30,13 +30,14 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             ProgressTracker progressTracker,
             MeterRegistry meterRegistry) {
         return new QueueFlowStorage<>(config.getProducer().getMaxCacheSize(),
-                progressTracker,
-                finalizer,
-                jobId,
-                config.getConsumer().getTtlMill(),
-                meterRegistry);
+                                      progressTracker,
+                                      finalizer,
+                                      jobId,
+                                      config.getConsumer().getTtlMill(),
+                                      meterRegistry
+        );
     }
-
+    
     @Override
     public int getPriority() {
         return 10;

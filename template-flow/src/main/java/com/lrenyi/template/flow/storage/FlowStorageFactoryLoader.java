@@ -17,47 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowStorageFactoryLoader {
     
-    private static volatile List<FlowStorageFactory> factories;
     private static final ConcurrentMap<FlowStorageType, FlowStorageFactory> factoryCache = new ConcurrentHashMap<>();
-    
-    /**
-     * 加载所有存储工厂
-     */
-    private static List<FlowStorageFactory> loadFactories() {
-        List<FlowStorageFactory> list = new ArrayList<>();
-        try {
-            ServiceLoader<FlowStorageFactory> loader = ServiceLoader.load(FlowStorageFactory.class);
-            for (FlowStorageFactory factory : loader) {
-                list.add(factory);
-                log.debug("加载存储工厂: {} (类型: {}, 优先级: {})",
-                          factory.getClass().getName(),
-                          factory.getSupportedType(),
-                          factory.getPriority()
-                );
-            }
-            // 按优先级排序
-            list.sort(Comparator.comparingInt(FlowStorageFactory::getPriority));
-            log.info("共加载 {} 个存储工厂", list.size());
-        } catch (Exception e) {
-            log.error("加载存储工厂失败", e);
-            throw new IllegalStateException("Failed to load FlowStorageFactory", e);
-        }
-        return Collections.unmodifiableList(list);
-    }
-    
-    /**
-     * 获取所有已加载的工厂
-     */
-    public static List<FlowStorageFactory> getFactories() {
-        if (factories == null) {
-            synchronized (FlowStorageFactoryLoader.class) {
-                if (factories == null) {
-                    factories = loadFactories();
-                }
-            }
-        }
-        return factories;
-    }
+    private static volatile List<FlowStorageFactory> factories;
     
     /**
      * 查找支持指定类型的工厂
@@ -84,6 +45,45 @@ public class FlowStorageFactoryLoader {
         }
         
         return factory;
+    }
+    
+    /**
+     * 获取所有已加载的工厂
+     */
+    public static List<FlowStorageFactory> getFactories() {
+        if (factories == null) {
+            synchronized (FlowStorageFactoryLoader.class) {
+                if (factories == null) {
+                    factories = loadFactories();
+                }
+            }
+        }
+        return factories;
+    }
+    
+    /**
+     * 加载所有存储工厂
+     */
+    private static List<FlowStorageFactory> loadFactories() {
+        List<FlowStorageFactory> list = new ArrayList<>();
+        try {
+            ServiceLoader<FlowStorageFactory> loader = ServiceLoader.load(FlowStorageFactory.class);
+            for (FlowStorageFactory factory : loader) {
+                list.add(factory);
+                log.debug("加载存储工厂: {} (类型: {}, 优先级: {})",
+                          factory.getClass().getName(),
+                          factory.getSupportedType(),
+                          factory.getPriority()
+                );
+            }
+            // 按优先级排序
+            list.sort(Comparator.comparingInt(FlowStorageFactory::getPriority));
+            log.info("共加载 {} 个存储工厂", list.size());
+        } catch (Exception e) {
+            log.error("加载存储工厂失败", e);
+            throw new IllegalStateException("Failed to load FlowStorageFactory", e);
+        }
+        return Collections.unmodifiableList(list);
     }
     
     /**

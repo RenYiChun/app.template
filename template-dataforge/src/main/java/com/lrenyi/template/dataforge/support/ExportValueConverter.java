@@ -6,7 +6,7 @@ package com.lrenyi.template.dataforge.support;
  */
 @FunctionalInterface
 public interface ExportValueConverter {
-
+    
     /**
      * 将字段原始值转换为导出到 Excel 的显示值。
      *

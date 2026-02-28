@@ -14,23 +14,23 @@ import com.lrenyi.template.flow.api.FlowSource;
  * @param <T> 业务产出类型
  */
 public final class PagedFlowSource<T> implements FlowSource<T> {
-
+    
     private final PageFetcher<T> fetcher;
     private final Runnable onClose;
-
+    
     private Iterator<T> currentPage;
     private Object nextPageToken;
     private boolean closed;
     /** 首次拉取用 null，之后用 nextPageToken */
     private boolean firstFetch = true;
-
+    
     /**
      * @param fetcher 分页拉取器，非 null
      */
     public PagedFlowSource(PageFetcher<T> fetcher) {
         this(fetcher, null);
     }
-
+    
     /**
      * @param fetcher  分页拉取器，非 null
      * @param onClose  关闭时回调，可为 null
@@ -39,7 +39,7 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
         this.fetcher = fetcher;
         this.onClose = onClose;
     }
-
+    
     @Override
     public boolean hasNext() throws InterruptedException {
         if (closed) {
@@ -54,7 +54,7 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
         fetchNextPage();
         return currentPage != null && currentPage.hasNext();
     }
-
+    
     private void fetchNextPage() throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException();
@@ -74,7 +74,7 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
         currentPage = result.items().iterator();
         nextPageToken = result.nextPageToken();
     }
-
+    
     @Override
     public T next() {
         if (closed) {
@@ -85,7 +85,7 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
         }
         return currentPage.next();
     }
-
+    
     @Override
     public void close() {
         if (closed) {

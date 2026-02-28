@@ -8,7 +8,7 @@ import java.util.Map;
  */
 @FunctionalInterface
 public interface RbacPermissionSync {
-
+    
     /**
      * 确保权限码在持久层存在，不存在则新增。
      *

@@ -1,6 +1,5 @@
 package com.lrenyi.template.core.util;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import lombok.Getter;
 import lombok.NonNull;

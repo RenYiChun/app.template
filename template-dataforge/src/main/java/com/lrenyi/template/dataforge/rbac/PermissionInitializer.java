@@ -60,11 +60,6 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
         }
     }
     
-    @Override
-    public int getOrder() {
-        return Ordered.LOWEST_PRECEDENCE;
-    }
-    
     private Map<String, String> collectPermissionsToInit() {
         Map<String, String> permToDesc = new LinkedHashMap<>();
         List<EntityMeta> all = entityRegistry.getAll();
@@ -98,5 +93,10 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
             String key = permission.trim();
             map.putIfAbsent(key, displayName + " " + actionDesc);
         }
+    }
+    
+    @Override
+    public int getOrder() {
+        return Ordered.LOWEST_PRECEDENCE;
     }
 }

@@ -18,7 +18,9 @@ public class DataforgeBackendBeansConfiguration {
     
     @Bean
     @Primary
-    @ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'")
+    @ConditionalOnExpression(
+            "'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'"
+    )
     public AuditLogProcessor dataforgeAuditLogProcessor(EntityRegistry entityRegistry,
             EntityCrudService entityCrudService) {
         return new DataforgeAuditLogProcessor(entityRegistry, entityCrudService);

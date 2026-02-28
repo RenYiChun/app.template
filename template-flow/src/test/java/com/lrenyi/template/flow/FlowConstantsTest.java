@@ -1,15 +1,15 @@
 package com.lrenyi.template.flow;
 
-import com.lrenyi.template.flow.model.FlowConstants;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import com.lrenyi.template.flow.model.FlowConstants;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FlowConstantsTest {
-
+    
     @Test
     void constructor_throwsUnsupportedOperationException() throws Exception {
         Constructor<FlowConstants> c = FlowConstants.class.getDeclaredConstructor();
@@ -17,7 +17,7 @@ class FlowConstantsTest {
         InvocationTargetException e = assertThrows(InvocationTargetException.class, c::newInstance);
         assertEquals(UnsupportedOperationException.class, e.getCause().getClass());
     }
-
+    
     @Test
     void constants_values() {
         assertEquals(5L, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_SECONDS);

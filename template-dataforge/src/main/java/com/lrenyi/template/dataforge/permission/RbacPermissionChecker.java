@@ -10,13 +10,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * 支持角色权限动态变更（Resolver 查库或短 TTL 缓存）。
  */
 public class RbacPermissionChecker implements DataforgePermissionChecker {
-
+    
     private final UserPermissionResolver userPermissionResolver;
-
+    
     public RbacPermissionChecker(UserPermissionResolver userPermissionResolver) {
         this.userPermissionResolver = userPermissionResolver;
     }
-
+    
     @Override
     public boolean hasAnyPermission(Collection<String> requiredPermissions) {
         if (requiredPermissions == null || requiredPermissions.isEmpty()) {

@@ -18,28 +18,30 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Aspect
 @ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'")
 public class AuditLogAspect {
-
+    
     private final AuditLogService auditLogService;
-
+    
     public AuditLogAspect(AuditLogService auditLogService) {
         this.auditLogService = auditLogService;
     }
-
-    @Pointcut("""
-        execution(public * *(..))
-        && (@within(org.springframework.stereotype.Controller)
-        || @within(org.springframework.web.bind.annotation.RestController))
-          && (@annotation(org.springframework.web.bind.annotation.RequestMapping)
-           || @annotation(org.springframework.web.bind.annotation.GetMapping)
-            || @annotation(org.springframework.web.bind.annotation.PostMapping)
-             || @annotation(org.springframework.web.bind.annotation.PutMapping)
-              || @annotation(org.springframework.web.bind.annotation.DeleteMapping)
-               || @annotation(org.springframework.web.bind.annotation.PatchMapping)
-             )
-    """)
+    
+    @Pointcut(
+            """
+                        execution(public * *(..))
+                        && (@within(org.springframework.stereotype.Controller)
+                        || @within(org.springframework.web.bind.annotation.RestController))
+                          && (@annotation(org.springframework.web.bind.annotation.RequestMapping)
+                           || @annotation(org.springframework.web.bind.annotation.GetMapping)
+                            || @annotation(org.springframework.web.bind.annotation.PostMapping)
+                             || @annotation(org.springframework.web.bind.annotation.PutMapping)
+                              || @annotation(org.springframework.web.bind.annotation.DeleteMapping)
+                               || @annotation(org.springframework.web.bind.annotation.PatchMapping)
+                             )
+                    """
+    )
     public void auditLogPointcut() {
     }
-
+    
     @Around("auditLogPointcut()")
     public Object doAround(ProceedingJoinPoint joinPoint) throws Throwable {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();

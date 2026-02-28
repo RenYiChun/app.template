@@ -11,12 +11,12 @@ import lombok.Setter;
 @Getter
 @Setter
 public class LoginRequest {
-
+    
     private String username;
     private String password;
     private String captchaKey;
     private String captchaCode;
-
+    
     /** 提取域内登录凭证 */
     public LoginCredentials toCredentials() {
         return new LoginCredentials(username, password);

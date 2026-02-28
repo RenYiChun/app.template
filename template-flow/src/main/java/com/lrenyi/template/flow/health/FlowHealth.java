@@ -31,32 +31,6 @@ public class FlowHealth {
     }
     
     /**
-     * 执行所有健康检查
-     *
-     * @return 整体健康状态（取最差的状态）
-     */
-    public static HealthStatus checkHealth() {
-        if (indicators.isEmpty()) {
-            return HealthStatus.HEALTHY; // 没有指示器时认为健康
-        }
-        
-        HealthStatus worstStatus = HealthStatus.HEALTHY;
-        for (FlowHealthIndicator indicator : indicators) {
-            try {
-                HealthStatus status = indicator.checkHealth();
-                if (status.ordinal() > worstStatus.ordinal()) {
-                    worstStatus = status;
-                }
-            } catch (Exception e) {
-                // 健康检查失败视为不健康
-                return HealthStatus.UNHEALTHY;
-            }
-        }
-        
-        return worstStatus;
-    }
-    
-    /**
      * 获取所有健康检查详情
      *
      * @return 详情映射
@@ -85,6 +59,32 @@ public class FlowHealth {
         allDetails.put("indicators", indicatorDetails);
         
         return Collections.unmodifiableMap(allDetails);
+    }
+    
+    /**
+     * 执行所有健康检查
+     *
+     * @return 整体健康状态（取最差的状态）
+     */
+    public static HealthStatus checkHealth() {
+        if (indicators.isEmpty()) {
+            return HealthStatus.HEALTHY; // 没有指示器时认为健康
+        }
+        
+        HealthStatus worstStatus = HealthStatus.HEALTHY;
+        for (FlowHealthIndicator indicator : indicators) {
+            try {
+                HealthStatus status = indicator.checkHealth();
+                if (status.ordinal() > worstStatus.ordinal()) {
+                    worstStatus = status;
+                }
+            } catch (Exception e) {
+                // 健康检查失败视为不健康
+                return HealthStatus.UNHEALTHY;
+            }
+        }
+        
+        return worstStatus;
     }
     
     /**

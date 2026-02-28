@@ -31,10 +31,10 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     private final ProgressTracker progressTracker;
     private final FlowFinalizer<T> finalizer;
     private final AtomicBoolean stopped = new AtomicBoolean(false);
-    private ScheduledFuture<?> scheduledFuture;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
-
+    private ScheduledFuture<?> scheduledFuture;
+    
     public QueueFlowStorage(int capacity,
             ProgressTracker progressTracker,
             FlowFinalizer<T> finalizer,
@@ -47,22 +47,23 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         this.finalizer = finalizer;
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
-
+        
         Gauge.builder(FlowMetricNames.STORAGE_SIZE, queue, BlockingQueue::size)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
              .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue")
              .description("当前队列中的数据条数")
              .register(meterRegistry);
-
+        
         ScheduledExecutorService egressExecutor = resourceRegistry.getStorageEgressExecutor();
         if (egressExecutor != null && drainIntervalMs > 0) {
             this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
-                    drainIntervalMs,
-                    drainIntervalMs,
-                    TimeUnit.MILLISECONDS);
+                                                                         drainIntervalMs,
+                                                                         drainIntervalMs,
+                                                                         TimeUnit.MILLISECONDS
+            );
         }
     }
-
+    
     private void drainLoop() {
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
@@ -70,13 +71,14 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                   .register(meterRegistry).increment();
+                   .register(meterRegistry)
+                   .increment();
             return;
         }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
-            @SuppressWarnings("unchecked")
-            FlowLauncher<Object> launcher = (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+            @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
+                    (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
@@ -84,14 +86,15 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
                 Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                        .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
                        .tag(FlowMetricNames.TAG_REASON, "SHUTDOWN")
-                       .register(meterRegistry).increment();
+                       .register(meterRegistry)
+                       .increment();
                 entry.close();
                 continue;
             }
             finalizer.submitBodyOnly(entry, launcher);
         }
     }
-
+    
     @Override
     public boolean doDeposit(FlowEntry<T> ctx) {
         boolean success = queue.offer(ctx);
@@ -107,24 +110,26 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                .tag(FlowMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(FlowMetricNames.TAG_REASON, "REJECT")
-               .register(meterRegistry).increment();
+               .register(meterRegistry)
+               .increment();
         Counter.builder(FlowMetricNames.ERRORS)
                .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_full_rejected")
                .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-               .register(meterRegistry).increment();
+               .register(meterRegistry)
+               .increment();
         return false;
     }
-
+    
     @Override
     public long size() {
         return queue.size();
     }
-
+    
     @Override
     public long maxCacheSize() {
         return maxCacheSize;
     }
-
+    
     @Override
     public void shutdown() {
         stopped.set(true);
