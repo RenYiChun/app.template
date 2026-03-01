@@ -1,35 +1,34 @@
 <template>
   <div class="metadata-viewer">
     <div class="sidebar">
-      <el-input v-model="filterText" placeholder="搜索实体..." clearable prefix-icon="Search" class="mb-2"/>
+      <el-input v-model="filterText" class="mb-2" clearable placeholder="搜索实体..." prefix-icon="Search"/>
       <el-tree
-        ref="treeRef"
-        :data="treeData"
-        :props="defaultProps"
-        default-expand-all
-        :filter-node-method="filterNode"
-        @node-click="handleNodeClick"
-        highlight-current
-        node-key="id"
+          ref="treeRef"
+          :data="treeData"
+          :filter-node-method="filterNode"
+          :props="defaultProps"
+          default-expand-all
+          highlight-current
+          node-key="id"
+          @node-click="handleNodeClick"
       />
     </div>
     <div class="content">
-      <MetadataDetail v-if="currentEntity" :entity="currentEntity" />
+      <MetadataDetail v-if="currentEntity" :entity="currentEntity"/>
       <div v-else class="empty-state">
-        <el-empty description="请选择一个实体查看详情" />
+        <el-empty description="请选择一个实体查看详情"/>
       </div>
     </div>
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue';
-import { useDataforge } from '@lrenyi/dataforge-headless/vue';
-import type { EntityMeta } from '@lrenyi/dataforge-headless/core';
-import { Search } from '@element-plus/icons-vue';
+<script lang="ts" setup>
+import {computed, onMounted, ref, watch} from 'vue';
+import {useDataforge} from '@lrenyi/dataforge-headless/vue';
+import type {EntityMeta} from '@lrenyi/dataforge-headless/core';
 import MetadataDetail from './MetadataDetail.vue';
 
-const { meta } = useDataforge();
+const {meta} = useDataforge();
 const entities = ref<EntityMeta[]>([]);
 const filterText = ref('');
 const currentEntity = ref<EntityMeta | null>(null);
@@ -91,6 +90,7 @@ onMounted(async () => {
   border: 1px solid #dcdfe6;
   background-color: #fff;
 }
+
 .sidebar {
   width: 300px;
   border-right: 1px solid #dcdfe6;
@@ -99,14 +99,17 @@ onMounted(async () => {
   flex-direction: column;
   background-color: #f5f7fa;
 }
+
 .mb-2 {
-    margin-bottom: 8px;
+  margin-bottom: 8px;
 }
+
 .content {
   flex: 1;
   overflow: auto;
   padding: 20px;
 }
+
 .empty-state {
   display: flex;
   justify-content: center;

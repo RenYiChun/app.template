@@ -55,6 +55,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("${app.dataforge.api-prefix:/api}")
 public class GenericEntityController {
     
+    private static final String CRUD_READ = "read";
+    private static final String CRUD_CREATE = "create";
+    private static final String CRUD_UPDATE = "update";
+    private static final String CRUD_DELETE = "delete";
+    private static final String ERR_ID_FORMAT = "id 格式错误";
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final EntityCrudService crudService;
@@ -63,12 +68,6 @@ public class GenericEntityController {
     private final ObjectMapper objectMapper;
     private final ObjectProvider<Validator> validatorProvider;
     private final ConversionService conversionService;
-    
-    private static final String CRUD_READ = "read";
-    private static final String CRUD_CREATE = "create";
-    private static final String CRUD_UPDATE = "update";
-    private static final String CRUD_DELETE = "delete";
-    private static final String ERR_ID_FORMAT = "id 格式错误";
     
     public GenericEntityController(DataforgeServices services) {
         this.entityRegistry = services.entityRegistry();
@@ -321,6 +320,19 @@ public class GenericEntityController {
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
     }
     
+    private static void setEntityId(Object entity, Object id) {
+        if (entity == null || id == null) {
+            return;
+        }
+        try {
+            java.lang.reflect.Field idField = entity.getClass().getDeclaredField("id");
+            idField.setAccessible(true); //NOSONAR
+            idField.set(entity, id);     //NOSONAR
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+            // ignore
+        }
+    }
+    
     @DeleteMapping("/{entity}/{id}")
     public Result<Object> delete(@PathVariable String entity, @PathVariable String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
@@ -436,19 +448,6 @@ public class GenericEntityController {
         setEntityId(bodyEntity, idParsed);
         entities.add(bodyEntity);
         return null;
-    }
-    
-    private static void setEntityId(Object entity, Object id) {
-        if (entity == null || id == null) {
-            return;
-        }
-        try {
-            java.lang.reflect.Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true); //NOSONAR
-            idField.set(entity, id);     //NOSONAR
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
-            // ignore
-        }
     }
     
     /**

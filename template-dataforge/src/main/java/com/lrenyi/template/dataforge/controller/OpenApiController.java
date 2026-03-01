@@ -132,172 +132,104 @@ public class OpenApiController {
         op.put(KEY_OPERATION_ID, spec.operationId);
         addParameters(op, spec.path, spec.entity);
         addResponses(op, spec.responseSchemaRef);
-        addRequestBody(op, spec.requestBody, spec.requestSchemaRef, spec.requestSchemaArray, spec.requestSchemaArrayOfIds,
-                spec.entity);
+        addRequestBody(op,
+                       spec.requestBody,
+                       spec.requestSchemaRef,
+                       spec.requestSchemaArray,
+                       spec.requestSchemaArrayOfIds,
+                       spec.entity
+        );
         addExtensions(op, spec.permissions, spec.queryableFields, spec.methodName, spec.entity);
         pathItem.put(spec.httpMethod, op);
     }
     
-    private static final class OperationSpec {
-        private final String path;
-        private final String httpMethod;
-        private final String summary;
-        private final String operationId;
-        private final boolean requestBody;
-        private final Object permissions;
-        private final String tag;
-        private final EntityMeta entity;
-        private final String requestSchemaRef;
-        private final boolean requestSchemaArray;
-        private final boolean requestSchemaArrayOfIds;
-        private final String responseSchemaRef;
-        private final String methodName;
-        private final Map<String, Object> queryableFields;
-
-        private OperationSpec(Builder b) {
-            this.path = b.path;
-            this.httpMethod = b.httpMethod;
-            this.summary = b.summary;
-            this.operationId = b.operationId;
-            this.requestBody = b.requestBody;
-            this.permissions = b.permissions;
-            this.tag = b.tag;
-            this.entity = b.entity;
-            this.requestSchemaRef = b.requestSchemaRef;
-            this.requestSchemaArray = b.requestSchemaArray;
-            this.requestSchemaArrayOfIds = b.requestSchemaArrayOfIds;
-            this.responseSchemaRef = b.responseSchemaRef;
-            this.methodName = b.methodName;
-            this.queryableFields = b.queryableFields;
-        }
-
-        static Builder builder() {
-            return new Builder();
-        }
-
-        static final class Builder {
-            String path;
-            String httpMethod;
-            String summary;
-            String operationId;
-            boolean requestBody;
-            Object permissions;
-            String tag;
-            EntityMeta entity;
-            String requestSchemaRef;
-            boolean requestSchemaArray;
-            boolean requestSchemaArrayOfIds;
-            String responseSchemaRef;
-            String methodName;
-            Map<String, Object> queryableFields;
-
-            Builder path(String v) { path = v; return this; }
-            Builder httpMethod(String v) { httpMethod = v; return this; }
-            Builder summary(String v) { summary = v; return this; }
-            Builder operationId(String v) { operationId = v; return this; }
-            Builder requestBody(boolean v) { requestBody = v; return this; }
-            Builder permissions(Object v) { permissions = v; return this; }
-            Builder tag(String v) { tag = v; return this; }
-            Builder entity(EntityMeta v) { entity = v; return this; }
-            Builder requestSchemaRef(String v) { requestSchemaRef = v; return this; }
-            Builder requestSchemaArray(boolean v) { requestSchemaArray = v; return this; }
-            Builder requestSchemaArrayOfIds(boolean v) { requestSchemaArrayOfIds = v; return this; }
-            Builder responseSchemaRef(String v) { responseSchemaRef = v; return this; }
-            Builder methodName(String v) { methodName = v; return this; }
-            Builder queryableFields(Map<String, Object> v) { queryableFields = v; return this; }
-
-            OperationSpec build() {
-                return new OperationSpec(this);
-            }
-        }
-    }
-
     private static void addParameters(Map<String, Object> op, String path, EntityMeta entity) {
         if (path.contains("{id}") && entity != null) {
-            Class<?> pkType =
-                    entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
-            String idSchemaType = (pkType == Long.class || pkType == long.class
-                    || pkType == Integer.class || pkType == int.class) ? TYPE_INTEGER : TYPE_STRING;
+            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
+            String idSchemaType =
+                    (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ?
+                            TYPE_INTEGER : TYPE_STRING;
             op.put(KEY_PARAMETERS,
-                    List.of(Map.of(KEY_NAME,
-                            KEY_ID,
-                            KEY_IN,
-                            IN_PATH,
-                            KEY_REQUIRED,
-                            true,
-                            KEY_SCHEMA,
-                            Map.of(KEY_TYPE, idSchemaType),
-                            KEY_DESCRIPTION,
-                            "主键，类型为 " + pkType.getSimpleName()
-                    ))
+                   List.of(Map.of(KEY_NAME,
+                                  KEY_ID,
+                                  KEY_IN,
+                                  IN_PATH,
+                                  KEY_REQUIRED,
+                                  true,
+                                  KEY_SCHEMA,
+                                  Map.of(KEY_TYPE, idSchemaType),
+                                  KEY_DESCRIPTION,
+                                  "主键，类型为 " + pkType.getSimpleName()
+                   ))
             );
         }
     }
-
+    
     private static void addResponses(Map<String, Object> op, String responseSchemaRef) {
         Map<String, Object> responseContent = new LinkedHashMap<>();
         if (responseSchemaRef != null) {
             responseContent.put(KEY_DESCRIPTION, DEFAULT_RESPONSE_DESC);
             responseContent.put(KEY_CONTENT,
-                    Map.of(JSON,
-                            Map.of(KEY_SCHEMA, Map.of(REF, REF_PREFIX + responseSchemaRef))
-                    )
+                                Map.of(JSON, Map.of(KEY_SCHEMA, Map.of(REF, REF_PREFIX + responseSchemaRef)))
             );
         } else {
             responseContent.put(KEY_DESCRIPTION, DEFAULT_RESPONSE_DESC);
         }
         op.put(KEY_RESPONSES, Map.of(KEY_200, responseContent));
     }
-
-    private static void addRequestBody(Map<String, Object> op, boolean requestBody,
-                                       String requestSchemaRef, boolean requestSchemaArray,
-                                       boolean requestSchemaArrayOfIds, EntityMeta entity) {
+    
+    private static void addRequestBody(Map<String, Object> op,
+            boolean requestBody,
+            String requestSchemaRef,
+            boolean requestSchemaArray,
+            boolean requestSchemaArrayOfIds,
+            EntityMeta entity) {
         if (requestBody && requestSchemaRef != null) {
-            Map<String, Object> schema = requestSchemaArray
-                    ? Map.of(KEY_TYPE, TYPE_ARRAY,
-                            KEY_ITEMS, Map.of(REF, REF_PREFIX + requestSchemaRef))
-                    : Map.of(REF, REF_PREFIX + requestSchemaRef);
+            Map<String, Object> schema = requestSchemaArray ?
+                    Map.of(KEY_TYPE, TYPE_ARRAY, KEY_ITEMS, Map.of(REF, REF_PREFIX + requestSchemaRef)) :
+                    Map.of(REF, REF_PREFIX + requestSchemaRef);
             boolean required = !SEARCH_REQUEST.equals(requestSchemaRef);
             op.put(KEY_REQUEST_BODY,
-                    Map.of(KEY_REQUIRED, required, KEY_CONTENT,
-                            Map.of(JSON, Map.of(KEY_SCHEMA, schema)))
+                   Map.of(KEY_REQUIRED, required, KEY_CONTENT, Map.of(JSON, Map.of(KEY_SCHEMA, schema)))
             );
         } else if (requestBody && requestSchemaArrayOfIds && entity != null) {
-            Class<?> pkType =
-                    entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
-            String idSchemaType = (pkType == Long.class || pkType == long.class
-                    || pkType == Integer.class || pkType == int.class) ? TYPE_INTEGER : TYPE_STRING;
+            Class<?> pkType = entity.getPrimaryKeyType() != null ? entity.getPrimaryKeyType() : Long.class;
+            String idSchemaType =
+                    (pkType == Long.class || pkType == long.class || pkType == Integer.class || pkType == int.class) ?
+                            TYPE_INTEGER : TYPE_STRING;
             op.put(KEY_REQUEST_BODY,
-                    Map.of(KEY_REQUIRED,
-                            true,
-                            KEY_CONTENT,
-                            Map.of(JSON,
-                                    Map.of(KEY_SCHEMA,
-                                            Map.of(KEY_TYPE,
-                                                    TYPE_ARRAY,
-                                                    KEY_ITEMS,
-                                                    Map.of(KEY_TYPE, idSchemaType),
-                                                    KEY_DESCRIPTION,
-                                                    "主键 ID 列表"
-                                            )
-                                    )
-                            )
-                    )
+                   Map.of(KEY_REQUIRED,
+                          true,
+                          KEY_CONTENT,
+                          Map.of(JSON,
+                                 Map.of(KEY_SCHEMA,
+                                        Map.of(KEY_TYPE,
+                                               TYPE_ARRAY,
+                                               KEY_ITEMS,
+                                               Map.of(KEY_TYPE, idSchemaType),
+                                               KEY_DESCRIPTION,
+                                               "主键 ID 列表"
+                                        )
+                                 )
+                          )
+                   )
             );
         } else if (requestBody) {
             op.put(KEY_REQUEST_BODY,
-                    Map.of(KEY_REQUIRED,
-                            true,
-                            KEY_CONTENT,
-                            Map.of(JSON, Map.of(KEY_SCHEMA, Map.of(KEY_TYPE, TYPE_OBJECT)))
-                    )
+                   Map.of(KEY_REQUIRED,
+                          true,
+                          KEY_CONTENT,
+                          Map.of(JSON, Map.of(KEY_SCHEMA, Map.of(KEY_TYPE, TYPE_OBJECT)))
+                   )
             );
         }
     }
-
-    private static void addExtensions(Map<String, Object> op, Object permissions,
-                                      Map<String, Object> queryableFields, String methodName,
-                                      EntityMeta entity) {
+    
+    private static void addExtensions(Map<String, Object> op,
+            Object permissions,
+            Map<String, Object> queryableFields,
+            String methodName,
+            EntityMeta entity) {
         if (permissions != null && !"".equals(permissions)) {
             op.put(X_PERMISSIONS, permissions);
         }
@@ -402,6 +334,205 @@ public class OpenApiController {
         };
     }
     
+    private static boolean isGenericEntityController(HandlerMethod hm) {
+        Class<?> controllerClass = ClassUtils.getUserClass(hm.getBeanType());
+        return GenericEntityController.class.isAssignableFrom(controllerClass);
+    }
+    
+    private static List<String> extractPatternStrings(RequestMappingInfo info) {
+        var pathCondition = info.getPathPatternsCondition();
+        if (pathCondition != null) {
+            List<String> list = new ArrayList<>();
+            for (PathPattern pp : pathCondition.getPatterns()) {
+                list.add(pp.getPatternString());
+            }
+            return list;
+        }
+        var legacy = info.getPatternsCondition();
+        if (legacy != null) {
+            return new ArrayList<>(legacy.getPatterns());
+        }
+        return List.of();
+    }
+    
+    private static boolean methodMatches(String httpMethod, ActionMeta action) {
+        RequestMethod m = action.getMethod() != null ? action.getMethod() : RequestMethod.POST;
+        return httpMethod.equalsIgnoreCase(m.name());
+    }
+    
+    private static boolean idRequirementSatisfied(boolean requireId, boolean hasIdParam) {
+        return requireId ? hasIdParam : !hasIdParam;
+    }
+    
+    private static String buildActionPath(String patternStr, EntityMeta entity, ActionMeta action) {
+        return patternStr.replace("{entity}", entity.getPathSegment()).replace("{actionName}", action.getActionName());
+    }
+    
+    private static boolean hasRequestBodyForAction(ActionMeta action) {
+        return action.getRequestType() != null && action.getRequestType() != Void.class;
+    }
+    
+    private static String buildActionOperationId(EntityMeta entity, ActionMeta action) {
+        String base = entity.getPathSegment() + "_" + action.getActionName();
+        return action.isRequireId() ? base : base + "_NoId";
+    }
+    
+    private static void addDtoSchema(Map<String, Object> schemas,
+            EntityMeta entity,
+            String simpleName,
+            String suffix,
+            Class<?> dtoClass) {
+        if (dtoClass != null) {
+            schemas.put(dtoClass.getSimpleName(), enrichDtoSchemaWithFieldLabels(buildDtoSchema(dtoClass), entity));
+        } else {
+            schemas.put(simpleName + suffix, emptySchema());
+        }
+    }
+    
+    private static void addPageResponseDtoSchema(Map<String, Object> schemas, EntityMeta entity, String simpleName) {
+        Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
+        if (pageResponseDto != null) {
+            schemas.put(pageResponseDto.getSimpleName(),
+                        enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity)
+            );
+        } else {
+            log.warn("[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. "
+                             + "List columns will be empty. Fix: run 'mvn clean compile -pl "
+                             + "template-dataforge-sample-backend' "
+                             + "so the annotation processor generates the DTO in {}.dto package.",
+                     simpleName,
+                     entity.getPathSegment(),
+                     simpleName
+            );
+            schemas.put(simpleName + "PageResponseDTO", emptySchema());
+        }
+    }
+    
+    /** DTO 类不存在时占位用，不按实体字段生成 schema，避免泄露或列过多；约定由编译期处理器生成 DTO。 */
+    private static Map<String, Object> emptySchema() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put(KEY_TYPE, TYPE_OBJECT);
+        schema.put(KEY_PROPERTIES, new LinkedHashMap<String, Object>());
+        return schema;
+    }
+    
+    private static Map<String, Object> buildDtoSchema(Class<?> dtoClass) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put(KEY_TYPE, TYPE_OBJECT);
+        Map<String, Object> properties = new LinkedHashMap<>();
+        for (Field field : dtoClass.getDeclaredFields()) {
+            properties.put(field.getName(), buildFieldSchema(field.getType()));
+        }
+        schema.put(KEY_PROPERTIES, properties);
+        return schema;
+    }
+    
+    /** 用实体的 FieldMeta（@DataforgeField.label）为 schema 各属性补充 description，供前端表格列标题等展示 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> enrichDtoSchemaWithFieldLabels(Map<String, Object> schema, EntityMeta entity) {
+        if (entity == null || entity.getFields() == null) {
+            return schema;
+        }
+        Map<String, String> labels = buildLabelByField(entity);
+        applyLabelsToSchemaProperties(schema, labels);
+        return schema;
+    }
+    
+    private static Map<String, String> buildLabelByField(EntityMeta entity) {
+        Map<String, String> labelByField = new HashMap<>();
+        for (FieldMeta fm : entity.getFields()) {
+            if (fm == null) {
+                continue;
+            }
+            String name = fm.getName();
+            String label = fm.getLabel();
+            if (name != null && !name.isBlank() && label != null && !label.isBlank()) {
+                labelByField.put(name, label);
+            }
+        }
+        return labelByField;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private static void applyLabelsToSchemaProperties(Map<String, Object> schema, Map<String, String> labels) {
+        Object propsObj = schema.get(KEY_PROPERTIES);
+        if (!(propsObj instanceof Map)) {
+            return;
+        }
+        Map<String, Object> properties = (Map<String, Object>) propsObj;
+        for (Map.Entry<String, Object> e : properties.entrySet()) {
+            String label = labels.get(e.getKey());
+            if (label != null && e.getValue() instanceof Map) {
+                ((Map<String, Object>) e.getValue()).put(KEY_DESCRIPTION, label);
+            }
+        }
+    }
+    
+    private static Map<String, Object> buildFieldSchema(Class<?> fieldType) {
+        Map<String, Object> fieldSchema = new LinkedHashMap<>();
+        if (fieldType == String.class) {
+            fieldSchema.put(KEY_TYPE, TYPE_STRING);
+        } else if (isIntegerType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
+            fieldSchema.put(FORMAT, "int32");
+        } else if (isLongType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
+            fieldSchema.put(FORMAT, "int64");
+        } else if (isBooleanType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, TYPE_BOOLEAN);
+        } else if (isDoubleType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, NUMBER);
+            fieldSchema.put(FORMAT, "double");
+        } else if (isFloatType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, NUMBER);
+            fieldSchema.put(FORMAT, "float");
+        } else if (fieldType == java.math.BigDecimal.class) {
+            fieldSchema.put(KEY_TYPE, NUMBER);
+        } else if (isDateType(fieldType)) {
+            fieldSchema.put(KEY_TYPE, TYPE_STRING);
+            fieldSchema.put(FORMAT, fieldType == java.time.LocalDate.class ? "date" : "date-time");
+        } else if (fieldType.isEnum()) {
+            buildEnumSchema(fieldSchema, fieldType);
+        } else {
+            fieldSchema.put(KEY_TYPE, TYPE_OBJECT);
+        }
+        return fieldSchema;
+    }
+    
+    private static boolean isIntegerType(Class<?> type) {
+        return type == Integer.class || type == int.class;
+    }
+    
+    private static boolean isLongType(Class<?> type) {
+        return type == Long.class || type == long.class;
+    }
+    
+    private static boolean isBooleanType(Class<?> type) {
+        return type == Boolean.class || type == boolean.class;
+    }
+    
+    private static boolean isDoubleType(Class<?> type) {
+        return type == Double.class || type == double.class;
+    }
+    
+    private static boolean isFloatType(Class<?> type) {
+        return type == Float.class || type == float.class;
+    }
+    
+    private static boolean isDateType(Class<?> type) {
+        return type == java.time.LocalDate.class || type == java.time.LocalDateTime.class
+                || type == java.util.Date.class || type == java.time.Instant.class;
+    }
+    
+    private static void buildEnumSchema(Map<String, Object> schema, Class<?> type) {
+        schema.put(KEY_TYPE, TYPE_STRING);
+        List<String> enumValues = new ArrayList<>();
+        for (Object e : type.getEnumConstants()) {
+            enumValues.add(e.toString());
+        }
+        schema.put(KEY_ENUM, enumValues);
+    }
+    
     @GetMapping("/docs")
     public ResponseEntity<Map<String, Object>> docs() {
         Map<String, Map<String, Object>> pathsMap = new HashMap<>();
@@ -429,9 +560,10 @@ public class OpenApiController {
         doc.put(KEY_SECURITY, List.of(Map.of(BEARER_AUTH, List.of())));
         return ResponseEntity.ok(doc);
     }
-
-    private void processHandlerMethod(RequestMappingInfo info, HandlerMethod hm,
-                                     Map<String, Map<String, Object>> pathsMap) {
+    
+    private void processHandlerMethod(RequestMappingInfo info,
+            HandlerMethod hm,
+            Map<String, Map<String, Object>> pathsMap) {
         if (!isGenericEntityController(hm)) {
             return;
         }
@@ -447,32 +579,11 @@ public class OpenApiController {
         }
     }
     
-    private static boolean isGenericEntityController(HandlerMethod hm) {
-        Class<?> controllerClass = ClassUtils.getUserClass(hm.getBeanType());
-        return GenericEntityController.class.isAssignableFrom(controllerClass);
-    }
-    
-    private static List<String> extractPatternStrings(RequestMappingInfo info) {
-        var pathCondition = info.getPathPatternsCondition();
-        if (pathCondition != null) {
-            List<String> list = new ArrayList<>();
-            for (PathPattern pp : pathCondition.getPatterns()) {
-                list.add(pp.getPatternString());
-            }
-            return list;
-        }
-        var legacy = info.getPatternsCondition();
-        if (legacy != null) {
-            return new ArrayList<>(legacy.getPatterns());
-        }
-        return List.of();
-    }
-    
     private void processMethodsForPattern(String patternStr,
-                                          Set<RequestMethod> methods,
-                                          String methodName,
-                                          boolean hasRequestBody,
-                                          Map<String, Map<String, Object>> pathsMap) {
+            Set<RequestMethod> methods,
+            String methodName,
+            boolean hasRequestBody,
+            Map<String, Map<String, Object>> pathsMap) {
         for (RequestMethod m : methods) {
             String httpMethod = m.name().toLowerCase();
             if (patternStr.contains("{actionName}")) {
@@ -482,14 +593,13 @@ public class OpenApiController {
             }
         }
     }
-
-    private void processActionPattern(String patternStr, String httpMethod,
-                                      Map<String, Map<String, Object>> pathsMap) {
+    
+    private void processActionPattern(String patternStr, String httpMethod, Map<String, Map<String, Object>> pathsMap) {
         for (EntityMeta entity : entityRegistry.getAll()) {
             for (ActionMeta action : entity.getActions()) {
                 boolean hasIdParam = patternStr.contains("{id}");
-                boolean eligible = methodMatches(httpMethod, action)
-                        && idRequirementSatisfied(action.isRequireId(), hasIdParam);
+                boolean eligible =
+                        methodMatches(httpMethod, action) && idRequirementSatisfied(action.isRequireId(), hasIdParam);
                 if (!eligible) {
                     continue;
                 }
@@ -499,51 +609,29 @@ public class OpenApiController {
                 String opId = buildActionOperationId(entity, action);
                 Object perms = action.getPermissions().isEmpty() ? null : action.getPermissions();
                 OperationSpec spec = OperationSpec.builder()
-                        .path(path)
-                        .httpMethod(httpMethod)
-                        .summary(action.getSummary())
-                        .operationId(opId)
-                        .requestBody(needBody)
-                        .permissions(perms)
-                        .tag(tag)
-                        .entity(entity)
-                        .build();
+                                                  .path(path)
+                                                  .httpMethod(httpMethod)
+                                                  .summary(action.getSummary())
+                                                  .operationId(opId)
+                                                  .requestBody(needBody)
+                                                  .permissions(perms)
+                                                  .tag(tag)
+                                                  .entity(entity)
+                                                  .build();
                 putOperation(pathsMap, spec);
             }
         }
     }
     
-    private static boolean methodMatches(String httpMethod, ActionMeta action) {
-        RequestMethod m = action.getMethod() != null ? action.getMethod() : RequestMethod.POST;
-        return httpMethod.equalsIgnoreCase(m.name());
-    }
-    
-    private static boolean idRequirementSatisfied(boolean requireId, boolean hasIdParam) {
-        return requireId ? hasIdParam : !hasIdParam;
-    }
-    
-    private static String buildActionPath(String patternStr, EntityMeta entity, ActionMeta action) {
-        return patternStr.replace("{entity}", entity.getPathSegment())
-                .replace("{actionName}", action.getActionName());
-    }
-    
-    private static boolean hasRequestBodyForAction(ActionMeta action) {
-        return action.getRequestType() != null && action.getRequestType() != Void.class;
-    }
-    
-    private static String buildActionOperationId(EntityMeta entity, ActionMeta action) {
-        String base = entity.getPathSegment() + "_" + action.getActionName();
-        return action.isRequireId() ? base : base + "_NoId";
-    }
-
-    private void processStandardPattern(String patternStr, String httpMethod, String methodName,
-                                        boolean hasRequestBody,
-                                        Map<String, Map<String, Object>> pathsMap) {
+    private void processStandardPattern(String patternStr,
+            String httpMethod,
+            String methodName,
+            boolean hasRequestBody,
+            Map<String, Map<String, Object>> pathsMap) {
         for (EntityMeta entity : entityRegistry.getAll()) {
-            boolean shouldSkip = !isOperationEnabled(entity, methodName)
-                    || (patternStr.endsWith("/batch")
-                    && ((HTTP_DELETE.equals(httpMethod) && !entity.isDeleteBatchEnabled())
-                    || (HTTP_PUT.equals(httpMethod) && !entity.isUpdateBatchEnabled())));
+            boolean shouldSkip = !isOperationEnabled(entity, methodName) || (patternStr.endsWith("/batch") && (
+                    (HTTP_DELETE.equals(httpMethod) && !entity.isDeleteBatchEnabled()) || (HTTP_PUT.equals(httpMethod)
+                            && !entity.isUpdateBatchEnabled())));
             if (shouldSkip) {
                 continue;
             }
@@ -561,21 +649,23 @@ public class OpenApiController {
                 queryableFields = buildQueryableFields(entity);
             }
             OperationSpec spec = OperationSpec.builder()
-                    .path(path)
-                    .httpMethod(httpMethod)
-                    .summary(summary)
-                    .operationId(operationId)
-                    .requestBody(hasRequestBody)
-                    .permissions(permissions != null && !"".equals(permissions) ? permissions : null)
-                    .tag(tag)
-                    .entity(entity)
-                    .requestSchemaRef(requestSchema)
-                    .requestSchemaArray(requestSchemaArray)
-                    .requestSchemaArrayOfIds(requestSchemaArrayOfIds)
-                    .responseSchemaRef(responseSchema)
-                    .methodName(methodName)
-                    .queryableFields(queryableFields)
-                    .build();
+                                              .path(path)
+                                              .httpMethod(httpMethod)
+                                              .summary(summary)
+                                              .operationId(operationId)
+                                              .requestBody(hasRequestBody)
+                                              .permissions(
+                                                      permissions != null && !"".equals(permissions) ? permissions :
+                                                              null)
+                                              .tag(tag)
+                                              .entity(entity)
+                                              .requestSchemaRef(requestSchema)
+                                              .requestSchemaArray(requestSchemaArray)
+                                              .requestSchemaArrayOfIds(requestSchemaArrayOfIds)
+                                              .responseSchemaRef(responseSchema)
+                                              .methodName(methodName)
+                                              .queryableFields(queryableFields)
+                                              .build();
             putOperation(pathsMap, spec);
         }
     }
@@ -648,48 +738,17 @@ public class OpenApiController {
     private Map<String, Object> buildSchemas() {
         Map<String, Object> schemas = new LinkedHashMap<>();
         for (EntityMeta entity : entityRegistry.getAll()) {
-            String simpleName =
-                    entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
+            String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
             if (simpleName == null) {
                 continue;
             }
-            addDtoSchema(schemas, entity, simpleName, "CreateDTO",
-                    EntityDtoResolver.resolveCreateDto(entity));
-            addDtoSchema(schemas, entity, simpleName, "UpdateDTO",
-                    EntityDtoResolver.resolveUpdateDto(entity));
-            addDtoSchema(schemas, entity, simpleName, "ResponseDTO",
-                    EntityDtoResolver.resolveResponseDto(entity));
+            addDtoSchema(schemas, entity, simpleName, "CreateDTO", EntityDtoResolver.resolveCreateDto(entity));
+            addDtoSchema(schemas, entity, simpleName, "UpdateDTO", EntityDtoResolver.resolveUpdateDto(entity));
+            addDtoSchema(schemas, entity, simpleName, "ResponseDTO", EntityDtoResolver.resolveResponseDto(entity));
             addPageResponseDtoSchema(schemas, entity, simpleName);
             schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));
         }
         return schemas;
-    }
-
-    private static void addDtoSchema(Map<String, Object> schemas, EntityMeta entity,
-                                     String simpleName, String suffix, Class<?> dtoClass) {
-        if (dtoClass != null) {
-            schemas.put(dtoClass.getSimpleName(),
-                    enrichDtoSchemaWithFieldLabels(buildDtoSchema(dtoClass), entity));
-        } else {
-            schemas.put(simpleName + suffix, emptySchema());
-        }
-    }
-
-    private static void addPageResponseDtoSchema(Map<String, Object> schemas, EntityMeta entity,
-                                                 String simpleName) {
-        Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
-        if (pageResponseDto != null) {
-            schemas.put(pageResponseDto.getSimpleName(),
-                    enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity));
-        } else {
-            log.warn(
-                    "[OpenApi] PageResponseDTO class not found for entity {} (pathSegment={}), using empty schema. "
-                            + "List columns will be empty. Fix: run 'mvn clean compile -pl "
-                            + "template-dataforge-sample-backend' "
-                            + "so the annotation processor generates the DTO in {}.dto package.",
-                    simpleName, entity.getPathSegment(), simpleName);
-            schemas.put(simpleName + "PageResponseDTO", emptySchema());
-        }
     }
     
     private Map<String, Object> buildPagedResultSchema(EntityMeta entity) {
@@ -717,132 +776,6 @@ public class OpenApiController {
         properties.put("size", Map.of(KEY_TYPE, TYPE_INTEGER));
         schema.put(KEY_PROPERTIES, properties);
         return schema;
-    }
-    
-    /** DTO 类不存在时占位用，不按实体字段生成 schema，避免泄露或列过多；约定由编译期处理器生成 DTO。 */
-    private static Map<String, Object> emptySchema() {
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put(KEY_TYPE, TYPE_OBJECT);
-        schema.put(KEY_PROPERTIES, new LinkedHashMap<String, Object>());
-        return schema;
-    }
-
-    private static Map<String, Object> buildDtoSchema(Class<?> dtoClass) {
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put(KEY_TYPE, TYPE_OBJECT);
-        Map<String, Object> properties = new LinkedHashMap<>();
-        for (Field field : dtoClass.getDeclaredFields()) {
-            properties.put(field.getName(), buildFieldSchema(field.getType()));
-        }
-        schema.put(KEY_PROPERTIES, properties);
-        return schema;
-    }
-    
-    /** 用实体的 FieldMeta（@DataforgeField.label）为 schema 各属性补充 description，供前端表格列标题等展示 */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> enrichDtoSchemaWithFieldLabels(Map<String, Object> schema,
-                                                                      EntityMeta entity) {
-        if (entity == null || entity.getFields() == null) {
-            return schema;
-        }
-        Map<String, String> labels = buildLabelByField(entity);
-        applyLabelsToSchemaProperties(schema, labels);
-        return schema;
-    }
-    
-    private static Map<String, String> buildLabelByField(EntityMeta entity) {
-        Map<String, String> labelByField = new HashMap<>();
-        for (FieldMeta fm : entity.getFields()) {
-            if (fm == null) {
-                continue;
-            }
-            String name = fm.getName();
-            String label = fm.getLabel();
-            if (name != null && !name.isBlank() && label != null && !label.isBlank()) {
-                labelByField.put(name, label);
-            }
-        }
-        return labelByField;
-    }
-    
-    @SuppressWarnings("unchecked")
-    private static void applyLabelsToSchemaProperties(Map<String, Object> schema, Map<String, String> labels) {
-        Object propsObj = schema.get(KEY_PROPERTIES);
-        if (!(propsObj instanceof Map)) {
-            return;
-        }
-        Map<String, Object> properties = (Map<String, Object>) propsObj;
-        for (Map.Entry<String, Object> e : properties.entrySet()) {
-            String label = labels.get(e.getKey());
-            if (label != null && e.getValue() instanceof Map) {
-                ((Map<String, Object>) e.getValue()).put(KEY_DESCRIPTION, label);
-            }
-        }
-    }
-    
-    private static Map<String, Object> buildFieldSchema(Class<?> fieldType) {
-        Map<String, Object> fieldSchema = new LinkedHashMap<>();
-        if (fieldType == String.class) {
-            fieldSchema.put(KEY_TYPE, TYPE_STRING);
-        } else if (isIntegerType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
-            fieldSchema.put(FORMAT, "int32");
-        } else if (isLongType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
-            fieldSchema.put(FORMAT, "int64");
-        } else if (isBooleanType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, TYPE_BOOLEAN);
-        } else if (isDoubleType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, NUMBER);
-            fieldSchema.put(FORMAT, "double");
-        } else if (isFloatType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, NUMBER);
-            fieldSchema.put(FORMAT, "float");
-        } else if (fieldType == java.math.BigDecimal.class) {
-            fieldSchema.put(KEY_TYPE, NUMBER);
-        } else if (isDateType(fieldType)) {
-            fieldSchema.put(KEY_TYPE, TYPE_STRING);
-            fieldSchema.put(FORMAT, fieldType == java.time.LocalDate.class ? "date" : "date-time");
-        } else if (fieldType.isEnum()) {
-            buildEnumSchema(fieldSchema, fieldType);
-        } else {
-            fieldSchema.put(KEY_TYPE, TYPE_OBJECT);
-        }
-        return fieldSchema;
-    }
-
-    private static boolean isIntegerType(Class<?> type) {
-        return type == Integer.class || type == int.class;
-    }
-
-    private static boolean isLongType(Class<?> type) {
-        return type == Long.class || type == long.class;
-    }
-
-    private static boolean isBooleanType(Class<?> type) {
-        return type == Boolean.class || type == boolean.class;
-    }
-
-    private static boolean isDoubleType(Class<?> type) {
-        return type == Double.class || type == double.class;
-    }
-
-    private static boolean isFloatType(Class<?> type) {
-        return type == Float.class || type == float.class;
-    }
-
-    private static boolean isDateType(Class<?> type) {
-        return type == java.time.LocalDate.class || type == java.time.LocalDateTime.class
-                || type == java.util.Date.class || type == java.time.Instant.class;
-    }
-
-    private static void buildEnumSchema(Map<String, Object> schema, Class<?> type) {
-        schema.put(KEY_TYPE, TYPE_STRING);
-        List<String> enumValues = new ArrayList<>();
-        for (Object e : type.getEnumConstants()) {
-            enumValues.add(e.toString());
-        }
-        schema.put(KEY_ENUM, enumValues);
     }
     
     private String getRequestSchemaForMethod(String methodName, EntityMeta entity) {
@@ -890,5 +823,134 @@ public class OpenApiController {
             }
             default -> null;
         };
+    }
+    
+    private static final class OperationSpec {
+        private final String path;
+        private final String httpMethod;
+        private final String summary;
+        private final String operationId;
+        private final boolean requestBody;
+        private final Object permissions;
+        private final String tag;
+        private final EntityMeta entity;
+        private final String requestSchemaRef;
+        private final boolean requestSchemaArray;
+        private final boolean requestSchemaArrayOfIds;
+        private final String responseSchemaRef;
+        private final String methodName;
+        private final Map<String, Object> queryableFields;
+        
+        private OperationSpec(Builder b) {
+            this.path = b.path;
+            this.httpMethod = b.httpMethod;
+            this.summary = b.summary;
+            this.operationId = b.operationId;
+            this.requestBody = b.requestBody;
+            this.permissions = b.permissions;
+            this.tag = b.tag;
+            this.entity = b.entity;
+            this.requestSchemaRef = b.requestSchemaRef;
+            this.requestSchemaArray = b.requestSchemaArray;
+            this.requestSchemaArrayOfIds = b.requestSchemaArrayOfIds;
+            this.responseSchemaRef = b.responseSchemaRef;
+            this.methodName = b.methodName;
+            this.queryableFields = b.queryableFields;
+        }
+        
+        static Builder builder() {
+            return new Builder();
+        }
+        
+        static final class Builder {
+            String path;
+            String httpMethod;
+            String summary;
+            String operationId;
+            boolean requestBody;
+            Object permissions;
+            String tag;
+            EntityMeta entity;
+            String requestSchemaRef;
+            boolean requestSchemaArray;
+            boolean requestSchemaArrayOfIds;
+            String responseSchemaRef;
+            String methodName;
+            Map<String, Object> queryableFields;
+            
+            Builder path(String v) {
+                path = v;
+                return this;
+            }
+            
+            Builder httpMethod(String v) {
+                httpMethod = v;
+                return this;
+            }
+            
+            Builder summary(String v) {
+                summary = v;
+                return this;
+            }
+            
+            Builder operationId(String v) {
+                operationId = v;
+                return this;
+            }
+            
+            Builder requestBody(boolean v) {
+                requestBody = v;
+                return this;
+            }
+            
+            Builder permissions(Object v) {
+                permissions = v;
+                return this;
+            }
+            
+            Builder tag(String v) {
+                tag = v;
+                return this;
+            }
+            
+            Builder entity(EntityMeta v) {
+                entity = v;
+                return this;
+            }
+            
+            Builder requestSchemaRef(String v) {
+                requestSchemaRef = v;
+                return this;
+            }
+            
+            Builder requestSchemaArray(boolean v) {
+                requestSchemaArray = v;
+                return this;
+            }
+            
+            Builder requestSchemaArrayOfIds(boolean v) {
+                requestSchemaArrayOfIds = v;
+                return this;
+            }
+            
+            Builder responseSchemaRef(String v) {
+                responseSchemaRef = v;
+                return this;
+            }
+            
+            Builder methodName(String v) {
+                methodName = v;
+                return this;
+            }
+            
+            Builder queryableFields(Map<String, Object> v) {
+                queryableFields = v;
+                return this;
+            }
+            
+            OperationSpec build() {
+                return new OperationSpec(this);
+            }
+        }
     }
 }

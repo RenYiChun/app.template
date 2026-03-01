@@ -91,8 +91,8 @@ public class FlowLauncher<T> {
                 Thread.currentThread().interrupt();
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
                 Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
-                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
+                       .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
                 return;
@@ -138,6 +138,22 @@ public class FlowLauncher<T> {
         submitDepositTask(data, tracker, inFlight);
     }
     
+    private MeterRegistry registry() {
+        return flowManager.getMeterRegistry();
+    }
+    
+    private void awaitBackpressure() throws InterruptedException {
+        if (stopped) {
+            return;
+        }
+        try {
+            backpressureController.awaitSpace(() -> stopped);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+    
     private void submitDepositTask(T data, ProgressTracker tracker, Semaphore inFlight) {
         Thread.ofVirtual().start(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
@@ -180,22 +196,6 @@ public class FlowLauncher<T> {
                 }
             }
         });
-    }
-    
-    private MeterRegistry registry() {
-        return flowManager.getMeterRegistry();
-    }
-    
-    private void awaitBackpressure() throws InterruptedException {
-        if (stopped) {
-            return;
-        }
-        try {
-            backpressureController.awaitSpace(() -> stopped);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        }
     }
     
     public long getCacheCapacity() {

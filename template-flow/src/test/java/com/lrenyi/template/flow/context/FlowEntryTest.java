@@ -28,7 +28,13 @@ class FlowEntryTest {
         e.release();
         assertEquals(0, getRefCnt(e));
     }
-
+    
+    private int getRefCnt(FlowEntry<?> entry) throws Exception {
+        java.lang.reflect.Field field = FlowEntry.class.getDeclaredField("refCnt");
+        field.setAccessible(true);
+        return field.getInt(entry);
+    }
+    
     @Test
     void close_decrementsRefCount() throws Exception {
         FlowEntry<String> e = new FlowEntry<>("d", "j");
@@ -36,11 +42,5 @@ class FlowEntryTest {
         assertEquals(2, getRefCnt(e));
         e.close();
         assertEquals(1, getRefCnt(e));
-    }
-    
-    private int getRefCnt(FlowEntry<?> entry) throws Exception {
-        java.lang.reflect.Field field = FlowEntry.class.getDeclaredField("refCnt");
-        field.setAccessible(true);
-        return field.getInt(entry);
     }
 }

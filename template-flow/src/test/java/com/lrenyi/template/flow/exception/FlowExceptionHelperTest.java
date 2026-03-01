@@ -1,7 +1,7 @@
 package com.lrenyi.template.flow.exception;
 
-import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -40,9 +40,9 @@ class FlowExceptionHelperTest {
         });
         
         FlowExceptionHelper.handleException("job1",
-                                             "e1",
-                                             new RuntimeException("test delegatesToContext"),
-                                             FlowPhase.STORAGE
+                                            "e1",
+                                            new RuntimeException("test delegatesToContext"),
+                                            FlowPhase.STORAGE
         );
         assertTrue(called.get());
     }
@@ -76,11 +76,7 @@ class FlowExceptionHelperTest {
         FlowExceptionHelper.registerHandler(h);
         FlowExceptionHelper.removeHandler(h);
         
-        FlowExceptionHelper.handleException("j",
-                                            null,
-                                            new RuntimeException("test removeHandler"),
-                                            FlowPhase.UNKNOWN
-        );
+        FlowExceptionHelper.handleException("j", null, new RuntimeException("test removeHandler"), FlowPhase.UNKNOWN);
         assertFalse(called.get());
     }
     
@@ -108,8 +104,7 @@ class FlowExceptionHelperTest {
         
         FlowExceptionHelper.handleException("j",
                                             null,
-                                            new RuntimeException(
-                                                    "test setDefaultHandler " + "adds"),
+                                            new RuntimeException("test setDefaultHandler " + "adds"),
                                             FlowPhase.UNKNOWN
         );
         assertTrue(called.get());

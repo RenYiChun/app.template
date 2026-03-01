@@ -91,15 +91,6 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
         return dn != null ? dn : meta.getPathSegment();
     }
     
-    private static String actionDescOf(ActionMeta action) {
-        String s = action.getSummary();
-        if (s != null && !s.isBlank()) {
-            return s;
-        }
-        String n = action.getActionName();
-        return n != null ? n : "自定义";
-    }
-    
     private static void addIfNonBlank(Map<String, String> map,
             String permission,
             String displayName,
@@ -108,6 +99,15 @@ public class PermissionInitializer implements ApplicationRunner, Ordered {
             String key = permission.trim();
             map.putIfAbsent(key, displayName + " " + actionDesc);
         }
+    }
+    
+    private static String actionDescOf(ActionMeta action) {
+        String s = action.getSummary();
+        if (s != null && !s.isBlank()) {
+            return s;
+        }
+        String n = action.getActionName();
+        return n != null ? n : "自定义";
     }
     
     @Override

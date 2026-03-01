@@ -11,8 +11,8 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -77,7 +77,9 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
     
-    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field, String annotationFqn, String elementName) {
+    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field,
+            String annotationFqn,
+            String elementName) {
         AnnotationMirror mirror = findAnnotationMirror(field, annotationFqn);
         if (mirror == null) {
             return Set.of();
@@ -233,19 +235,19 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return null;
     }
     
-    private void addFieldSpec(VariableElement field, DeclaredType typeInContext, Types typeUtils, List<FieldSpec> list) {
+    private void addFieldSpec(VariableElement field,
+            DeclaredType typeInContext,
+            Types typeUtils,
+            List<FieldSpec> list) {
         TypeMirror fieldType = typeInContext != null ? typeUtils.asMemberOf(typeInContext, field) : field.asType();
         String typeName = toSourceTypeName(fieldType);
         String name = field.getSimpleName().toString();
-        Set<String> includeTypes = getDtoTypeNamesFromMirrors(field,
-                "com.lrenyi.template.dataforge.annotation.DataforgeDto",
-                "include");
-        Set<String> excludeTypes = getDtoTypeNamesFromMirrors(field,
-                "com.lrenyi.template.dataforge.annotation.DataforgeDto",
-                "exclude");
-        Set<String> legacyExcludeFrom = getDtoTypeNamesFromMirrors(field,
-                "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom",
-                "value");
+        Set<String> includeTypes =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "include");
+        Set<String> excludeTypes =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "exclude");
+        Set<String> legacyExcludeFrom =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom", "value");
         Set<String> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
         boolean notNull = hasColumnNullableFalse(field);
         int maxSize = getColumnLength(field);

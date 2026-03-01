@@ -97,13 +97,13 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         public void sendError(int sc) throws IOException {
             this.status = sc;
             super.sendError(sc);
-        }        @Override
+        }
+        
+        @Override
         public void setStatus(int sc) {
             this.status = sc;
             super.setStatus(sc);
         }
-        
-
         
         
         @Override

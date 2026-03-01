@@ -51,14 +51,12 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         if (StringUtils.hasText(state)) {
             saveToken(authorization, state, OAuth2ParameterNames.STATE);
         }
-        Object[][] types = {
-                {OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
+        Object[][] types = {{OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
                 {OAuth2RefreshToken.class, OAuth2TokenType.REFRESH_TOKEN.getValue()},
                 {OAuth2AccessToken.class, OAuth2TokenType.ACCESS_TOKEN.getValue()},
                 {OidcIdToken.class, OidcParameterNames.ID_TOKEN},
                 {OAuth2DeviceCode.class, OAuth2ParameterNames.DEVICE_CODE},
-                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}
-        };
+                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}};
         for (Object[] t : types) {
             Class<?> cls = (Class<?>) t[0];
             String type = (String) t[1];
@@ -113,18 +111,14 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         keys.add(buildKey("id", authorization.getId()));
         String state = authorization.getAttribute(OAuth2ParameterNames.STATE);
         if (StringUtils.hasText(state)) {
-            keys.add(buildKey(OAuth2ParameterNames.STATE,
-                              Digests.shorten(state, TemplateConstant.SHOT_TOKEN_LENGTH)
-            ));
+            keys.add(buildKey(OAuth2ParameterNames.STATE, Digests.shorten(state, TemplateConstant.SHOT_TOKEN_LENGTH)));
         }
-        Object[][] types = {
-                {OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
+        Object[][] types = {{OAuth2AuthorizationCode.class, OAuth2ParameterNames.CODE},
                 {OAuth2RefreshToken.class, OAuth2TokenType.REFRESH_TOKEN.getValue()},
                 {OAuth2AccessToken.class, OAuth2TokenType.ACCESS_TOKEN.getValue()},
                 {OidcIdToken.class, OidcParameterNames.ID_TOKEN},
                 {OAuth2DeviceCode.class, OAuth2ParameterNames.DEVICE_CODE},
-                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}
-        };
+                {OAuth2UserCode.class, OAuth2ParameterNames.USER_CODE}};
         for (Object[] t : types) {
             Class<?> cls = (Class<?>) t[0];
             String type = (String) t[1];

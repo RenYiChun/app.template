@@ -346,27 +346,6 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         return query;
     }
     
-    private static boolean isUsableFilter(FilterCondition fc, Set<String> allowedFields) {
-        return fc != null && fc.op() != null && isValidFieldName(fc.field(), allowedFields);
-    }
-    
-    private static Criteria toCriteria(FilterCondition fc) {
-        String field = fc.field();
-        Object value = fc.value();
-        return switch (fc.op()) {
-            case EQ -> Criteria.where(field).is(value);
-            case NE -> Criteria.where(field).ne(value);
-            case LIKE -> Criteria.where(field)
-                                 .regex(value instanceof String s ? ".*" + escapeRegex(s) + ".*" :
-                                                String.valueOf(value), "i");
-            case GT -> Criteria.where(field).gt(value);
-            case GTE -> Criteria.where(field).gte(value);
-            case LT -> Criteria.where(field).lt(value);
-            case LTE -> Criteria.where(field).lte(value);
-            case IN -> Criteria.where(field).in(value instanceof List<?> l ? l : List.of(value));
-        };
-    }
-    
     /** MongoBaseDocument 实体默认带 deleted 字段，list/get 时过滤已软删记录。 */
     private void addSoftDeleteCriteria(Query query) {
         query.addCriteria(Criteria.where(FIELD_DELETED).ne(true));
@@ -394,6 +373,28 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
             }
         }
         return names;
+    }
+    
+    private static boolean isUsableFilter(FilterCondition fc, Set<String> allowedFields) {
+        return fc != null && fc.op() != null && isValidFieldName(fc.field(), allowedFields);
+    }
+    
+    private static Criteria toCriteria(FilterCondition fc) {
+        String field = fc.field();
+        Object value = fc.value();
+        return switch (fc.op()) {
+            case EQ -> Criteria.where(field).is(value);
+            case NE -> Criteria.where(field).ne(value);
+            case LIKE -> Criteria.where(field)
+                                 .regex(value instanceof String s ? ".*" + escapeRegex(s) + ".*" :
+                                                String.valueOf(value), "i"
+                                 );
+            case GT -> Criteria.where(field).gt(value);
+            case GTE -> Criteria.where(field).gte(value);
+            case LT -> Criteria.where(field).lt(value);
+            case LTE -> Criteria.where(field).lte(value);
+            case IN -> Criteria.where(field).in(value instanceof List<?> l ? l : List.of(value));
+        };
     }
     
     private static boolean isValidFieldName(String field, Set<String> allowedFields) {

@@ -50,7 +50,7 @@ class FeignClientErrorDecoderTest {
             
             @Override
             public void close() {
-                throw  new UnsupportedOperationException("Not supported yet.");
+                throw new UnsupportedOperationException("Not supported yet.");
             }
         };
         Request request = Request.create(Request.HttpMethod.GET,
@@ -102,7 +102,7 @@ class FeignClientErrorDecoderTest {
             
             @Override
             public void close() {
-                throw  new UnsupportedOperationException("Not supported yet.");
+                throw new UnsupportedOperationException("Not supported yet.");
             }
         };
         Request request = Request.create(Request.HttpMethod.GET,

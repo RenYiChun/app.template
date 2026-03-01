@@ -134,7 +134,7 @@ const generateFieldRules = (key: string, prop: SchemaProperty): any[] => {
 
 const mergeRules = (key: string, generatedRules: any[]) => {
   const ov = props.rulesOverride?.[key] as any[] | undefined;
-  
+
   if (props.rulesMode === 'replace') {
     if (ov) {
       rules[key] = ov;
@@ -143,7 +143,7 @@ const mergeRules = (key: string, generatedRules: any[]) => {
     }
     return;
   }
-  
+
   // merge mode
   const newRules = [...(generatedRules || [])];
   if (ov?.length) {

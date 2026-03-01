@@ -78,7 +78,8 @@ Token 快照。
    `update_time`、`create_by`、`update_by`、`deleted`、`remark`。主键由序列 `dataforge_entity_seq` 生成（MySQL 下为表模拟）。需自行建表或通过
    JPA 自动建表后初始化数据。
 3. **权限标识**：`@DataforgeEntity` 未显式指定 `permissionCreate`/`permissionRead`/`permissionUpdate`/`permissionDelete`
-   时，按 `pathSegment` 自动生成（如 `pathSegment:create`、`pathSegment:read`），与 `sys_permission.permission` 列（对应实体字段 `permissionCode`）一致即可用于角色分配。
+   时，按 `pathSegment` 自动生成（如 `pathSegment:create`、`pathSegment:read`），与 `sys_permission.permission` 列（对应实体字段
+   `permissionCode`）一致即可用于角色分配。
 4. **权限自动初始化**：启用 JPA 且应用扫描了 dataforge.domain 时，启动后会根据已注册实体向 `sys_permission`
    补齐缺失的权限记录（仅插入不存在的），便于直接为角色分配权限。可通过 `app.dataforge.rbac.init-permissions=false` 关闭。
 5. **配置**：`app.dataforge.rbac-cache-ttl-minutes` 控制用户权限缓存分钟数，&lt;=0 表示不缓存；&gt;0 时需引入 Caffeine

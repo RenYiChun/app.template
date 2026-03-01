@@ -41,8 +41,8 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * 框架默认 Security 过滤链构建器。

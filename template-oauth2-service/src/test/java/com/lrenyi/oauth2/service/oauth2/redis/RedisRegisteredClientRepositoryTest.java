@@ -26,11 +26,11 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class RedisRegisteredClientRepositoryTest {
-
+    
     private static final String CLIENT_ID_KEY =
             TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
     private static final String ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
-
+    
     @Mock
     private RedisTemplate<String, String> redisTemplate;
     

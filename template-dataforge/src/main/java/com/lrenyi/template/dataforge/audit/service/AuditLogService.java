@@ -29,19 +29,15 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Slf4j
 public class AuditLogService {
     
+    private static final String UNKNOWN = "unknown";
+    private static final String[] IP_HEADERS =
+            {"x-forwarded-for", "Proxy-Client-IP", "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"};
     private final AuditLogProcessor auditLogProcessor;
     private final String serviceName;
     private final ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider;
     private final ObjectProvider<AuditLogEnricher> enricherProvider;
-    private static final String UNKNOWN = "unknown";
     private final String serverIp;
-    
     private AuditLogService self;
-    
-    @Autowired
-    public void setSelf(@Lazy AuditLogService self) {
-        this.self = self;
-    }
     
     public AuditLogService(AuditLogProcessor auditLogProcessor,
             String serviceName,
@@ -61,6 +57,11 @@ public class AuditLogService {
             log.warn("failed to get server IP address", e);
             return UNKNOWN;
         }
+    }
+    
+    @Autowired
+    public void setSelf(@Lazy AuditLogService self) {
+        this.self = self;
     }
     
     @Async
@@ -126,16 +127,21 @@ public class AuditLogService {
         return description;
     }
     
-    private HttpServletRequest getCurrentRequest() {
-        try {
-            var attrs = RequestContextHolder.getRequestAttributes();
-            if (attrs instanceof ServletRequestAttributes servletAttrs) {
-                return servletAttrs.getRequest();
+    public String extractUserName(Authentication authentication) {
+        String name = authentication.getName();
+        final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
+        if (authentication instanceof BearerTokenAuthentication bearerAuth) {
+            Object attr = bearerAuth.getTokenAttributes().get(username);
+            if (attr != null) {
+                name = String.valueOf(attr);
             }
-        } catch (Exception ignored) {
-            // ignore
+        } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
+            String claimAsString = jwtToken.getToken().getClaimAsString(username);
+            if (StringUtils.hasText(claimAsString)) {
+                name = claimAsString;
+            }
         }
-        return null;
+        return name;
     }
     
     private void fillAnnotationInfo(AuditLogInfo logInfo, Method method) {
@@ -157,21 +163,16 @@ public class AuditLogService {
         }
     }
     
-    public String extractUserName(Authentication authentication) {
-        String name = authentication.getName();
-        final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
-        if (authentication instanceof BearerTokenAuthentication bearerAuth) {
-            Object attr = bearerAuth.getTokenAttributes().get(username);
-            if (attr != null) {
-                name = String.valueOf(attr);
+    private HttpServletRequest getCurrentRequest() {
+        try {
+            var attrs = RequestContextHolder.getRequestAttributes();
+            if (attrs instanceof ServletRequestAttributes servletAttrs) {
+                return servletAttrs.getRequest();
             }
-        } else if (authentication instanceof JwtAuthenticationToken jwtToken) {
-            String claimAsString = jwtToken.getToken().getClaimAsString(username);
-            if (StringUtils.hasText(claimAsString)) {
-                name = claimAsString;
-            }
+        } catch (Exception ignored) {
+            // ignore
         }
-        return name;
+        return null;
     }
     
     @Async
@@ -181,71 +182,14 @@ public class AuditLogService {
             boolean success,
             String exception) {
         self.recordAuditLog(RecordParams.builder()
-                .request(request)
-                .userName(userName)
-                .desc(desc)
-                .success(success)
-                .exception(exception)
-                .build());
+                                        .request(request)
+                                        .userName(userName)
+                                        .desc(desc)
+                                        .success(success)
+                                        .exception(exception)
+                                        .build());
     }
-
-    /**
-     * 参数对象，用于减少 recordAuditLog 方法参数数量。
-     */
-    public static final class RecordParams {
-        private final HttpServletRequest request;
-        private final String userName;
-        private final String desc;
-        private final boolean success;
-        private final String exception;
-        private final String reason;
-        private final String targetType;
-        private final String targetId;
-        private final Long affectedCount;
-
-        private RecordParams(Builder b) {
-            this.request = b.request;
-            this.userName = b.userName;
-            this.desc = b.desc;
-            this.success = b.success;
-            this.exception = b.exception;
-            this.reason = b.reason;
-            this.targetType = b.targetType;
-            this.targetId = b.targetId;
-            this.affectedCount = b.affectedCount;
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public static final class Builder {
-            HttpServletRequest request;
-            String userName;
-            String desc;
-            boolean success;
-            String exception;
-            String reason;
-            String targetType;
-            String targetId;
-            Long affectedCount;
-
-            public Builder request(HttpServletRequest v) { request = v; return this; }
-            public Builder userName(String v) { userName = v; return this; }
-            public Builder desc(String v) { desc = v; return this; }
-            public Builder success(boolean v) { success = v; return this; }
-            public Builder exception(String v) { exception = v; return this; }
-            public Builder reason(String v) { reason = v; return this; }
-            public Builder targetType(String v) { targetType = v; return this; }
-            public Builder targetId(String v) { targetId = v; return this; }
-            public Builder affectedCount(Long v) { affectedCount = v; return this; }
-
-            public RecordParams build() {
-                return new RecordParams(this);
-            }
-        }
-    }
-
+    
     @Async
     public void recordAuditLog(RecordParams params) {
         AuditLogInfo logInfo = new AuditLogInfo();
@@ -276,9 +220,6 @@ public class AuditLogService {
         auditLogProcessor.process(logInfo);
     }
     
-    private static final String[] IP_HEADERS =
-            {"x-forwarded-for", "Proxy-Client-IP", "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"};
-    
     public String getIpAddress(HttpServletRequest request) {
         for (String header : IP_HEADERS) {
             String ip = request.getHeader(header);
@@ -294,5 +235,97 @@ public class AuditLogService {
             return ip.split(",")[0];
         }
         return ip;
+    }
+    
+    /**
+     * 参数对象，用于减少 recordAuditLog 方法参数数量。
+     */
+    public static final class RecordParams {
+        private final HttpServletRequest request;
+        private final String userName;
+        private final String desc;
+        private final boolean success;
+        private final String exception;
+        private final String reason;
+        private final String targetType;
+        private final String targetId;
+        private final Long affectedCount;
+        
+        private RecordParams(Builder b) {
+            this.request = b.request;
+            this.userName = b.userName;
+            this.desc = b.desc;
+            this.success = b.success;
+            this.exception = b.exception;
+            this.reason = b.reason;
+            this.targetType = b.targetType;
+            this.targetId = b.targetId;
+            this.affectedCount = b.affectedCount;
+        }
+        
+        public static Builder builder() {
+            return new Builder();
+        }
+        
+        public static final class Builder {
+            HttpServletRequest request;
+            String userName;
+            String desc;
+            boolean success;
+            String exception;
+            String reason;
+            String targetType;
+            String targetId;
+            Long affectedCount;
+            
+            public Builder request(HttpServletRequest v) {
+                request = v;
+                return this;
+            }
+            
+            public Builder userName(String v) {
+                userName = v;
+                return this;
+            }
+            
+            public Builder desc(String v) {
+                desc = v;
+                return this;
+            }
+            
+            public Builder success(boolean v) {
+                success = v;
+                return this;
+            }
+            
+            public Builder exception(String v) {
+                exception = v;
+                return this;
+            }
+            
+            public Builder reason(String v) {
+                reason = v;
+                return this;
+            }
+            
+            public Builder targetType(String v) {
+                targetType = v;
+                return this;
+            }
+            
+            public Builder targetId(String v) {
+                targetId = v;
+                return this;
+            }
+            
+            public Builder affectedCount(Long v) {
+                affectedCount = v;
+                return this;
+            }
+            
+            public RecordParams build() {
+                return new RecordParams(this);
+            }
+        }
     }
 }

@@ -16,12 +16,12 @@ public class FlowExceptionHelper {
     private static final java.util.concurrent.atomic.AtomicReference<FlowExceptionHandler> defaultHandler =
             new java.util.concurrent.atomic.AtomicReference<>(new DefaultFlowExceptionHandler());
     
-    private FlowExceptionHelper() {
-    }
-    
     static {
         // 注册默认处理器
         handlers.add(defaultHandler.get());
+    }
+    
+    private FlowExceptionHelper() {
     }
     
     /**

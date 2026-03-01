@@ -26,8 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class FlowJoinerEngine {
-    private final FlowManager flowManager;
     private static final String PHASE_PRODUCTION = "PRODUCTION";
+    private final FlowManager flowManager;
     
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);

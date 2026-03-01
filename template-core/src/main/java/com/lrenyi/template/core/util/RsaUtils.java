@@ -8,8 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -24,6 +22,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.crypto.Cipher;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
@@ -214,20 +214,6 @@ public class RsaUtils {
         }
     }
     
-    public static void convertPrivateKeyToPemFile(RSAPrivateKey privateKey, String pemFilename) {
-        Path path = validateAndResolvePath(pemFilename);
-        byte[] encodedPrivateKey = privateKey.getEncoded();
-        String privateKeyPem = "-----BEGIN PRIVATE KEY-----\n";
-        privateKeyPem += Base64.encodeBase64String(encodedPrivateKey).replaceAll("(.{64})", "$1\n");
-        privateKeyPem += "\n-----END PRIVATE KEY-----";
-        
-        try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-            writer.write(privateKeyPem);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-    
     /**
      * 校验路径避免路径遍历攻击，仅允许当前工作目录下的相对路径。
      */
@@ -243,6 +229,20 @@ public class RsaUtils {
             throw new IllegalArgumentException("path traversal not allowed: " + filename);
         }
         return path;
+    }
+    
+    public static void convertPrivateKeyToPemFile(RSAPrivateKey privateKey, String pemFilename) {
+        Path path = validateAndResolvePath(pemFilename);
+        byte[] encodedPrivateKey = privateKey.getEncoded();
+        String privateKeyPem = "-----BEGIN PRIVATE KEY-----\n";
+        privateKeyPem += Base64.encodeBase64String(encodedPrivateKey).replaceAll("(.{64})", "$1\n");
+        privateKeyPem += "\n-----END PRIVATE KEY-----";
+        
+        try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+            writer.write(privateKeyPem);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
     
 }

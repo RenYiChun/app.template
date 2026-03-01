@@ -2,6 +2,7 @@ export interface ActionMeta {
     actionName: string;
     summary?: string;
     permissions?: string[];
+
     [key: string]: any;
 }
 
@@ -122,6 +123,7 @@ export interface FieldMeta {
     referencedField?: string;
     displayField?: string;
     valueField?: string;
+
     [key: string]: any;
 }
 
@@ -134,10 +136,10 @@ export type EntityMeta = {
     pathSegment: string;
     tableName?: string;
     description?: string;
-    
+
     // 字段列表 (核心)
     fields: FieldMeta[];
-    
+
     // 功能开关
     crudEnabled?: boolean;
     listEnabled?: boolean;
@@ -146,7 +148,7 @@ export type EntityMeta = {
     updateEnabled?: boolean;
     deleteEnabled?: boolean;
     exportEnabled?: boolean;
-    
+
     // 服务标识 (前端注入)
     serviceName?: string;
 
@@ -162,7 +164,7 @@ export type EntityMeta = {
     };
     queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
     actions?: ActionMeta[];
-    
+
     [key: string]: any;
 };
 

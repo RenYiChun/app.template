@@ -59,14 +59,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     private final AtomicReference<ActiveLauncherLookup> launcherLookupRef = new AtomicReference<>();
-
-    public ActiveLauncherLookup getLauncherLookup() {
-        return launcherLookupRef.get();
-    }
-
-    public void setLauncherLookup(ActiveLauncherLookup launcherLookup) {
-        launcherLookupRef.set(launcherLookup);
-    }
     
     FlowResourceRegistry(TemplateConfigProperties.Flow flowConfig, MeterRegistry meterRegistry, boolean unused) {
         this(flowConfig, meterRegistry);
@@ -188,6 +180,14 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             }
             instanceRef.set(null);
         }
+    }
+    
+    public ActiveLauncherLookup getLauncherLookup() {
+        return launcherLookupRef.get();
+    }
+    
+    public void setLauncherLookup(ActiveLauncherLookup launcherLookup) {
+        launcherLookupRef.set(launcherLookup);
     }
     
     @Override

@@ -84,7 +84,7 @@ public class EntityMeta {
     
     // ==================== 运行时支持 ====================
     
-    /** 
+    /**
      * 高性能属性访问器（JDK 9+ VarHandle 或反射回退）。
      * 在 MetaScanner 扫描时注入。
      */

@@ -66,13 +66,13 @@ public class OAuth2ClientPropertiesMapper {
         map.from(registration::getClientSecret).to(builder::clientSecret);
         map.from(registration::getClientName).to(builder::clientName);
         Consumer<String> consumer = clientAuthenticationMethod -> map.from(clientAuthenticationMethod)
-                                                                       .as(ClientAuthenticationMethod::new)
-                                                                       .to(builder::clientAuthenticationMethod);
+                                                                     .as(ClientAuthenticationMethod::new)
+                                                                     .to(builder::clientAuthenticationMethod);
         registration.getClientAuthenticationMethods().forEach(consumer);
         registration.getAuthorizationGrantTypes()
                     .forEach(authorizationGrantType -> map.from(authorizationGrantType)
-                                                            .as(AuthorizationGrantType::new)
-                                                            .to(builder::authorizationGrantType));
+                                                          .as(AuthorizationGrantType::new)
+                                                          .to(builder::authorizationGrantType));
         registration.getRedirectUris().forEach(redirectUri -> map.from(redirectUri).to(builder::redirectUri));
         registration.getPostLogoutRedirectUris()
                     .forEach(redirectUri -> map.from(redirectUri).to(builder::postLogoutRedirectUri));

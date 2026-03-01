@@ -1,10 +1,10 @@
 package com.lrenyi.oauth2.service.oauth2.token;
 
-import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -119,6 +119,11 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
     }
     
     @Override
+    public int hashCode() {
+        return Objects.hash(accessTokenCustomizer, templateConfigProperties);
+    }
+    
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
@@ -127,13 +132,10 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
             return false;
         }
         UuidOAuth2TokenGenerator other = (UuidOAuth2TokenGenerator) obj;
-        return Objects.equals(accessTokenCustomizer, other.accessTokenCustomizer)
-                && Objects.equals(templateConfigProperties, other.templateConfigProperties);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(accessTokenCustomizer, templateConfigProperties);
+        return Objects.equals(accessTokenCustomizer, other.accessTokenCustomizer) && Objects.equals(
+                templateConfigProperties,
+                other.templateConfigProperties
+        );
     }
     
     private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements ClaimAccessor {

@@ -24,8 +24,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
 public class OAuth2AuditEventListener {
     
-    private final MeterRegistry meterRegistry;
     private static final String UNKNOWN = "unknown";
+    private final MeterRegistry meterRegistry;
     
     @EventListener
     public void handleAuthenticationSuccess(AuthenticationSuccessEvent event) {

@@ -164,6 +164,7 @@ interface OperationLog {
   affectedCount?: number;
   extra?: string;
 }
+
 const detailDialogVisible = ref(false);
 const currentLog = ref<OperationLog | null>(null);
 

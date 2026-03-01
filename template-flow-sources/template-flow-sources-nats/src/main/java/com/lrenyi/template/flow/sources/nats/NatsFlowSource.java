@@ -20,13 +20,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class NatsFlowSource<T> implements FlowSource<T> {
     
+    private static final String TAG_SOURCE_TYPE = "sourceType";
+    private static final String SOURCE_NATS = "nats";
     private final Subscription subscription;
     private final java.util.function.Function<Message, T> mapper;
     private final Duration nextMessageTimeout;
     private final MeterRegistry meterRegistry;
-    private static final String TAG_SOURCE_TYPE = "sourceType";
-    private static final String SOURCE_NATS = "nats";
-    
     private Message nextMessage;
     private boolean closed;
     

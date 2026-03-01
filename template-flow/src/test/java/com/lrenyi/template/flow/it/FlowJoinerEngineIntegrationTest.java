@@ -103,6 +103,19 @@ class FlowJoinerEngineIntegrationTest {
         );
     }
     
+    private static void awaitCondition(Supplier<Boolean> condition, long timeoutMs) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (condition.get()) {
+                return;
+            }
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+            java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+        }
+    }
+    
     @Test
     void IT_PULL_MULTI_STREAM() throws Exception {
         int pairCount = 10;
@@ -131,6 +144,8 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(0, joiner.getOnFailedCount(FailureReason.EVICTION));
     }
     
+    // ---------- 3.2 推送模式 ----------
+    
     @Test
     void IT_PULL_QUEUE_FIFO() throws Exception {
         int total = 15;
@@ -157,8 +172,6 @@ class FlowJoinerEngineIntegrationTest {
         }
         assertEquals(expectedIds, consumedIds, "Queue 消费应包含全部条目");
     }
-    
-    // ---------- 3.2 推送模式 ----------
     
     @Test
     void IT_FlowLauncher_getters() {
@@ -195,6 +208,8 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(count, joiner.getOnConsumeCount());
     }
     
+    // ---------- 3.3 存储与失败原因 ----------
+    
     @Test
     void IT_PUSH_STOP_BEFORE_FINISH() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
@@ -215,8 +230,6 @@ class FlowJoinerEngineIntegrationTest {
             assertTrue(snapshot.getPassiveEgressByReason(FailureReason.SHUTDOWN.name()) >= 0);
         }
     }
-    
-    // ---------- 3.3 存储与失败原因 ----------
     
     @Test
     void IT_CAFFEINE_REPLACE() throws Exception {
@@ -282,6 +295,8 @@ class FlowJoinerEngineIntegrationTest {
         assertTrue(snapshot.getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1);
     }
     
+    // ---------- 3.4 进度与指标 ----------
+    
     @Test
     void IT_QUEUE_DRAIN_AFTER_STOP() throws Exception {
         flowConfig.getProducer().setMaxCacheSize(2);
@@ -300,8 +315,6 @@ class FlowJoinerEngineIntegrationTest {
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
         assertTrue(snapshot.getPassiveEgressByReason(FailureReason.SHUTDOWN.name()) >= 0);
     }
-    
-    // ---------- 3.4 进度与指标 ----------
     
     @Test
     void IT_SNAPSHOT_COMPLETION_AND_SUCCESS() throws Exception {
@@ -324,6 +337,8 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(total, snapshot.activeEgress());
     }
     
+    // ---------- 3.5 资源与生命周期 ----------
+    
     @Test
     void IT_METRICS_AND_HEALTH() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
@@ -344,8 +359,6 @@ class FlowJoinerEngineIntegrationTest {
                            com.lrenyi.template.flow.health.HealthStatus.UNHEALTHY
         ).contains(status));
     }
-    
-    // ---------- 3.5 资源与生命周期 ----------
     
     @Test
     void IT_MULTI_JOB_ISOLATION() throws Exception {
@@ -404,18 +417,5 @@ class FlowJoinerEngineIntegrationTest {
         inlet2.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitCondition(() -> joiner2.getOnConsumeCount() >= 1, 10_000);
         assertEquals(1, joiner2.getOnConsumeCount());
-    }
-    
-    private static void awaitCondition(Supplier<Boolean> condition, long timeoutMs) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-        while (System.nanoTime() < deadline) {
-            if (condition.get()) {
-                return;
-            }
-            if (Thread.interrupted()) {
-                throw new InterruptedException();
-            }
-            java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
-        }
     }
 }

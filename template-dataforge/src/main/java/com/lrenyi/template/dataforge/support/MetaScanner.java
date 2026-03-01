@@ -179,6 +179,37 @@ public class MetaScanner {
         return ann.crudEnabled() && (ann.enableList() || ann.enableGet() || ann.enableExport());
     }
     
+    private static List<Class<?>> buildClassHierarchy(Class<?> clazz) {
+        List<Class<?>> hierarchy = new ArrayList<>();
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            hierarchy.add(c);
+        }
+        Collections.reverse(hierarchy);
+        return hierarchy;
+    }
+    
+    private static List<String> collectSearchableFieldNames(List<Class<?>> hierarchy) {
+        List<String> annotated = new ArrayList<>();
+        for (Class<?> c : hierarchy) {
+            for (Field f : c.getDeclaredFields()) {
+                DataforgeField df = f.getAnnotation(DataforgeField.class);
+                if (df != null && df.searchable()) {
+                    annotated.add(f.getName());
+                }
+            }
+        }
+        return annotated;
+    }
+    
+    private static boolean isPrimaryKeyField(Field f) {
+        if (!"id".equalsIgnoreCase(f.getName())) {
+            return false;
+        }
+        Class<?> t = f.getType();
+        return t == Long.class || t == long.class || t == String.class || t == UUID.class || t == Integer.class
+                || t == int.class;
+    }
+    
     /**
      * 仅扫描并注册 @DataforgeEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
      * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @DataforgeEntity）；
@@ -394,28 +425,6 @@ public class MetaScanner {
         return list;
     }
     
-    private static List<Class<?>> buildClassHierarchy(Class<?> clazz) {
-        List<Class<?>> hierarchy = new ArrayList<>();
-        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            hierarchy.add(c);
-        }
-        Collections.reverse(hierarchy);
-        return hierarchy;
-    }
-    
-    private static List<String> collectSearchableFieldNames(List<Class<?>> hierarchy) {
-        List<String> annotated = new ArrayList<>();
-        for (Class<?> c : hierarchy) {
-            for (Field f : c.getDeclaredFields()) {
-                DataforgeField df = f.getAnnotation(DataforgeField.class);
-                if (df != null && df.searchable()) {
-                    annotated.add(f.getName());
-                }
-            }
-        }
-        return annotated;
-    }
-    
     private FieldMeta createBaseFieldMeta(Field f, List<String> searchableFields) {
         FieldMeta fm = new FieldMeta();
         fm.setName(f.getName());
@@ -425,15 +434,6 @@ public class MetaScanner {
         fm.setRequired(fm.isPrimaryKey());
         fm.setQueryable(searchableFields.contains(f.getName()));
         return fm;
-    }
-    
-    private static boolean isPrimaryKeyField(Field f) {
-        if (!"id".equalsIgnoreCase(f.getName())) {
-            return false;
-        }
-        Class<?> t = f.getType();
-        return t == Long.class || t == long.class || t == String.class || t == UUID.class || t == Integer.class
-                || t == int.class;
     }
     
     private void applyDataforgeField(Field f, FieldMeta fm) {

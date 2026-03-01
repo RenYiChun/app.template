@@ -121,9 +121,10 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             Object id = getEntityId(entity, entityMeta);
             if (id != null) {
                 Object updated = map.computeIfPresent(id, (k, v) -> {
-                    setEntityId(entity, id, entityMeta);
-                    return entity;
-                });
+                                                          setEntityId(entity, id, entityMeta);
+                                                          return entity;
+                                                      }
+                );
                 if (updated != null) {
                     result.add(entity);
                 }
@@ -304,12 +305,11 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         Comparator<Object> comp = null;
         for (Sort.Order o : pageableSort) {
             boolean desc = o.isDescending();
-            Comparator<Object> c =
-                    Comparator.comparing(e -> getFieldValue(e, o.getProperty(), meta), (a, b) -> {
-                                             int r = compareForOp(a, b);
-                                             return desc ? -r : r;
-                                         }
-                    );
+            Comparator<Object> c = Comparator.comparing(e -> getFieldValue(e, o.getProperty(), meta), (a, b) -> {
+                                                            int r = compareForOp(a, b);
+                                                            return desc ? -r : r;
+                                                        }
+            );
             comp = comp == null ? c : comp.thenComparing(c);
         }
         return comp;

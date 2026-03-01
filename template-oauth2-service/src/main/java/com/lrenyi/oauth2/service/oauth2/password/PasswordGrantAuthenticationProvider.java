@@ -47,6 +47,7 @@ import org.springframework.util.StringUtils;
 
 public class PasswordGrantAuthenticationProvider implements AuthenticationProvider {
     
+    private static final String MISSING_USER_PASSWORD = UUID.randomUUID().toString();
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
     private final PasswordEncoder passwordEncoder;
@@ -134,8 +135,6 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
         }
         throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
     }
-    
-    private static final String MISSING_USER_PASSWORD = UUID.randomUUID().toString();
     
     private UserDetails validateAndLoadUser(String username, String type, Map<String, Object> parameters) {
         String password = (String) parameters.get(OAuth2ParameterNames.PASSWORD);
@@ -236,7 +235,8 @@ public class PasswordGrantAuthenticationProvider implements AuthenticationProvid
             builder.token(accessToken,
                           metadata -> metadata.put(OAuth2Authorization.Token.CLAIMS_METADATA_NAME,
                                                    claimAccessor.getClaims()
-                          ));
+                          )
+            );
         } else {
             builder.accessToken(accessToken);
         }
