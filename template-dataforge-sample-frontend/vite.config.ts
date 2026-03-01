@@ -1,6 +1,9 @@
 import {defineConfig} from 'vite';
 import vue from '@vitejs/plugin-vue';
-import {resolve} from 'node:path';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     plugins: [vue()],
@@ -29,19 +32,19 @@ export default defineConfig({
         host: true, // 监听所有网卡，避免 localhost 访问异常
         proxy: {
             '/api': {
-                target: 'http://localhost:8080',
+                target: 'http://127.0.0.1:8080',
                 changeOrigin: true,
             },
             '/oauth2': {
-                target: 'http://localhost:8080',
+                target: 'http://127.0.0.1:8080',
                 changeOrigin: true,
             },
             '/jwt': {
-                target: 'http://localhost:8080',
+                target: 'http://127.0.0.1:8080',
                 changeOrigin: true,
             },
             '/docs': {
-                target: 'http://localhost:8080',
+                target: 'http://127.0.0.1:8080',
                 changeOrigin: true,
             },
         },
