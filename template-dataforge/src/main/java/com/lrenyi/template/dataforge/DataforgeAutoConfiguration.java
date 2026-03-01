@@ -86,13 +86,11 @@ public class DataforgeAutoConfiguration {
         }
         Map<String, EntityCrudService> storageTypeToDelegate = new LinkedHashMap<>();
         List<StorageTypeAwareCrudService> storageTypeAwareServices =
-                storageTypeAwareServicesProvider.getIfAvailable(() -> List.of());
-        if (storageTypeAwareServices != null) {
-            for (StorageTypeAwareCrudService service : storageTypeAwareServices) {
-                String st = service.getStorageType();
-                if (st != null && !st.isBlank() && !storageTypeToDelegate.containsKey(st)) {
-                    storageTypeToDelegate.put(st, service);
-                }
+                storageTypeAwareServicesProvider.getIfAvailable(List::of);
+        for (StorageTypeAwareCrudService service : storageTypeAwareServices) {
+            String st = service.getStorageType();
+            if (st != null && !st.isBlank() && !storageTypeToDelegate.containsKey(st)) {
+                storageTypeToDelegate.put(st, service);
             }
         }
         return new EntityCrudServiceRouter(defaultService, pathSegmentToDelegate, storageTypeToDelegate);

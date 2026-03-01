@@ -1,7 +1,9 @@
 package com.lrenyi.template.core.json;
 
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
@@ -12,13 +14,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public record JsonService(JsonProcessor processor) {
-    public JsonService(JsonProcessor processor) {
-        this.processor = processor;
-        log.info("JsonService initialized with processor: {} ({})",
-                 processor.getProcessorName(),
-                 processor.getProcessorName()
-        );
-    }
     
     /**
      * 序列化对象为JSON字符串
@@ -26,9 +21,9 @@ public record JsonService(JsonProcessor processor) {
     public String serialize(Object obj) {
         try {
             return processor.toJson(obj);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON serialization failed for object: {}", obj.getClass().getSimpleName(), e);
-            throw new RuntimeException("JSON serialization failed", e);
+            throw new UncheckedIOException("JSON serialization failed", e);
         }
     }
     
@@ -38,9 +33,9 @@ public record JsonService(JsonProcessor processor) {
     public <T> T deserialize(String json, Class<T> type) {
         try {
             return processor.fromJson(json, type);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON deserialization failed for type: {}", type.getSimpleName(), e);
-            throw new RuntimeException("JSON deserialization failed", e);
+            throw new UncheckedIOException("JSON deserialization failed", e);
         }
     }
     
@@ -50,9 +45,9 @@ public record JsonService(JsonProcessor processor) {
     public <T> T deserialize(String json, TypeReference<T> typeReference) {
         try {
             return processor.fromJson(json, typeReference);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON deserialization failed for TypeReference: {}", typeReference.getType(), e);
-            throw new RuntimeException("JSON deserialization failed", e);
+            throw new UncheckedIOException("JSON deserialization failed", e);
         }
     }
     
@@ -62,9 +57,9 @@ public record JsonService(JsonProcessor processor) {
     public JsonNode parseToNode(String json) {
         try {
             return processor.parse(json);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON parsing to JsonNode failed", e);
-            throw new RuntimeException("JSON parsing failed", e);
+            throw new UncheckedIOException("JSON parsing failed", e);
         }
     }
     
@@ -74,9 +69,9 @@ public record JsonService(JsonProcessor processor) {
     public String prettyPrint(Object obj) {
         try {
             return processor.prettyPrint(obj);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON pretty printing failed for object: {}", obj.getClass().getSimpleName(), e);
-            throw new RuntimeException("JSON pretty printing failed", e);
+            throw new UncheckedIOException("JSON pretty printing failed", e);
         }
     }
     
@@ -86,9 +81,9 @@ public record JsonService(JsonProcessor processor) {
     public Map<String, Object> toMap(String json) {
         try {
             return processor.toMap(json);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON to Map conversion failed", e);
-            throw new RuntimeException("JSON to Map conversion failed", e);
+            throw new UncheckedIOException("JSON to Map conversion failed", e);
         }
     }
     
@@ -98,9 +93,9 @@ public record JsonService(JsonProcessor processor) {
     public <T> List<T> toList(String json, Class<T> elementType) {
         try {
             return processor.toList(json, elementType);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("JSON to List conversion failed for element type: {}", elementType.getSimpleName(), e);
-            throw new RuntimeException("JSON to List conversion failed", e);
+            throw new UncheckedIOException("JSON to List conversion failed", e);
         }
     }
     
@@ -111,9 +106,9 @@ public record JsonService(JsonProcessor processor) {
         try {
             processor.registerTypeAdapter(type, adapter);
             log.info("Registered custom adapter for type: {}", type.getSimpleName());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             log.error("Failed to register custom adapter for type: {}", type.getSimpleName(), e);
-            throw new RuntimeException("Failed to register custom adapter", e);
+            throw new IllegalStateException("Failed to register custom adapter", e);
         }
     }
     

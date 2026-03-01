@@ -19,6 +19,6 @@ public class TemplatePrincipalHandshakeHandler extends DefaultHandshakeHandler {
             @NonNull WebSocketHandler wsHandler,
             Map<String, Object> attributes) {
         Object principal = attributes.get(DefaultTemplateHandshakeInterceptor.PRINCIPAL_ATTRIBUTE);
-        return principal instanceof Principal ? (Principal) principal : null;
+        return principal instanceof Principal p ? p : null;
     }
 }

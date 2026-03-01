@@ -12,7 +12,7 @@ public interface OAuth2AuditRecorder {
     /**
      * 记录一条审计日志。
      */
-    void record(HttpServletRequest request, String userName, String desc, boolean success, String exception);
+    void recordAuditLog(HttpServletRequest request, String userName, String desc, boolean success, String exception);
     
     /**
      * 从 Authentication 提取用户名，用于 Bearer/JWT 等类型。默认返回 auth.getName()。

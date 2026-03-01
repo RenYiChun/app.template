@@ -29,7 +29,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         if (defaultPasswordEncoder instanceof DelegatingPasswordEncoder delegatingPasswordEncoder) {
             try {
                 Field encoder = DelegatingPasswordEncoder.class.getDeclaredField("idToPasswordEncoder");
-                encoder.setAccessible(true);
+                encoder.setAccessible(true); //NOSONAR
                 Object mapValue = encoder.get(delegatingPasswordEncoder);
                 if (mapValue instanceof Map<?, ?> map) {
                     map.forEach((key, value) -> {

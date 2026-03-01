@@ -153,35 +153,62 @@ public class OpenApiController {
         private final String responseSchemaRef;
         private final String methodName;
         private final Map<String, Object> queryableFields;
-        
-        private OperationSpec(String path,
-                String httpMethod,
-                String summary,
-                String operationId,
-                boolean requestBody,
-                Object permissions,
-                String tag,
-                EntityMeta entity,
-                String requestSchemaRef,
-                boolean requestSchemaArray,
-                boolean requestSchemaArrayOfIds,
-                String responseSchemaRef,
-                String methodName,
-                Map<String, Object> queryableFields) {
-            this.path = path;
-            this.httpMethod = httpMethod;
-            this.summary = summary;
-            this.operationId = operationId;
-            this.requestBody = requestBody;
-            this.permissions = permissions;
-            this.tag = tag;
-            this.entity = entity;
-            this.requestSchemaRef = requestSchemaRef;
-            this.requestSchemaArray = requestSchemaArray;
-            this.requestSchemaArrayOfIds = requestSchemaArrayOfIds;
-            this.responseSchemaRef = responseSchemaRef;
-            this.methodName = methodName;
-            this.queryableFields = queryableFields;
+
+        private OperationSpec(Builder b) {
+            this.path = b.path;
+            this.httpMethod = b.httpMethod;
+            this.summary = b.summary;
+            this.operationId = b.operationId;
+            this.requestBody = b.requestBody;
+            this.permissions = b.permissions;
+            this.tag = b.tag;
+            this.entity = b.entity;
+            this.requestSchemaRef = b.requestSchemaRef;
+            this.requestSchemaArray = b.requestSchemaArray;
+            this.requestSchemaArrayOfIds = b.requestSchemaArrayOfIds;
+            this.responseSchemaRef = b.responseSchemaRef;
+            this.methodName = b.methodName;
+            this.queryableFields = b.queryableFields;
+        }
+
+        static Builder builder() {
+            return new Builder();
+        }
+
+        static final class Builder {
+            String path;
+            String httpMethod;
+            String summary;
+            String operationId;
+            boolean requestBody;
+            Object permissions;
+            String tag;
+            EntityMeta entity;
+            String requestSchemaRef;
+            boolean requestSchemaArray;
+            boolean requestSchemaArrayOfIds;
+            String responseSchemaRef;
+            String methodName;
+            Map<String, Object> queryableFields;
+
+            Builder path(String v) { path = v; return this; }
+            Builder httpMethod(String v) { httpMethod = v; return this; }
+            Builder summary(String v) { summary = v; return this; }
+            Builder operationId(String v) { operationId = v; return this; }
+            Builder requestBody(boolean v) { requestBody = v; return this; }
+            Builder permissions(Object v) { permissions = v; return this; }
+            Builder tag(String v) { tag = v; return this; }
+            Builder entity(EntityMeta v) { entity = v; return this; }
+            Builder requestSchemaRef(String v) { requestSchemaRef = v; return this; }
+            Builder requestSchemaArray(boolean v) { requestSchemaArray = v; return this; }
+            Builder requestSchemaArrayOfIds(boolean v) { requestSchemaArrayOfIds = v; return this; }
+            Builder responseSchemaRef(String v) { responseSchemaRef = v; return this; }
+            Builder methodName(String v) { methodName = v; return this; }
+            Builder queryableFields(Map<String, Object> v) { queryableFields = v; return this; }
+
+            OperationSpec build() {
+                return new OperationSpec(this);
+            }
         }
     }
 
@@ -322,7 +349,7 @@ public class OpenApiController {
         return switch (type) {
             case "String" -> List.of(OP_EQ, OP_NE, OP_LIKE);
             case "Integer", "int", "Long", "long" -> List.of(OP_EQ, OP_NE, OP_GT, OP_GTE, OP_LT, OP_LTE, OP_IN);
-            case "Boolean", "boolean" -> List.of(OP_EQ, OP_NE);
+            case "Boolean", TYPE_BOOLEAN -> List.of(OP_EQ, OP_NE);
             case "LocalDate", "LocalDateTime", "Date", "Instant" -> List.of(OP_EQ, OP_GT, OP_GTE, OP_LT, OP_LTE);
             default -> List.of(OP_EQ, OP_NE, OP_IN);
         };
@@ -427,7 +454,7 @@ public class OpenApiController {
     
     private static List<String> extractPatternStrings(RequestMappingInfo info) {
         var pathCondition = info.getPathPatternsCondition();
-        if (pathCondition != null && pathCondition.getPatterns() != null) {
+        if (pathCondition != null) {
             List<String> list = new ArrayList<>();
             for (PathPattern pp : pathCondition.getPatterns()) {
                 list.add(pp.getPatternString());
@@ -435,7 +462,7 @@ public class OpenApiController {
             return list;
         }
         var legacy = info.getPatternsCondition();
-        if (legacy != null && legacy.getPatterns() != null) {
+        if (legacy != null) {
             return new ArrayList<>(legacy.getPatterns());
         }
         return List.of();
@@ -471,8 +498,16 @@ public class OpenApiController {
                 String tag = tagForEntity(entity);
                 String opId = buildActionOperationId(entity, action);
                 Object perms = action.getPermissions().isEmpty() ? null : action.getPermissions();
-                OperationSpec spec = new OperationSpec(path, httpMethod, action.getSummary(), opId, needBody, perms, tag,
-                        entity, null, false, false, null, null, null);
+                OperationSpec spec = OperationSpec.builder()
+                        .path(path)
+                        .httpMethod(httpMethod)
+                        .summary(action.getSummary())
+                        .operationId(opId)
+                        .requestBody(needBody)
+                        .permissions(perms)
+                        .tag(tag)
+                        .entity(entity)
+                        .build();
                 putOperation(pathsMap, spec);
             }
         }
@@ -525,20 +560,22 @@ public class OpenApiController {
             if ((METHOD_SEARCH.equals(methodName) || METHOD_EXPORT.equals(methodName)) && entity != null) {
                 queryableFields = buildQueryableFields(entity);
             }
-            OperationSpec spec = new OperationSpec(path,
-                    httpMethod,
-                    summary,
-                    operationId,
-                    hasRequestBody,
-                    permissions != null && !"".equals(permissions) ? permissions : null,
-                    tag,
-                    entity,
-                    requestSchema,
-                    requestSchemaArray,
-                    requestSchemaArrayOfIds,
-                    responseSchema,
-                    methodName,
-                    queryableFields);
+            OperationSpec spec = OperationSpec.builder()
+                    .path(path)
+                    .httpMethod(httpMethod)
+                    .summary(summary)
+                    .operationId(operationId)
+                    .requestBody(hasRequestBody)
+                    .permissions(permissions != null && !"".equals(permissions) ? permissions : null)
+                    .tag(tag)
+                    .entity(entity)
+                    .requestSchemaRef(requestSchema)
+                    .requestSchemaArray(requestSchemaArray)
+                    .requestSchemaArrayOfIds(requestSchemaArrayOfIds)
+                    .responseSchemaRef(responseSchema)
+                    .methodName(methodName)
+                    .queryableFields(queryableFields)
+                    .build();
             putOperation(pathsMap, spec);
         }
     }

@@ -52,7 +52,7 @@ public class DataforgeBackendConfig {
                 http.cors(c -> c.configurationSource(corsConfigurationSource));
                 http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new IllegalStateException("HttpSecurity config failed", e);
             }
         };
     }

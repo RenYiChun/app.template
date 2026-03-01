@@ -4,6 +4,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
@@ -21,7 +22,7 @@ public class CaptchaService {
     private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
     private static final int CODE_LEN = 4;
-    private static final long TTL_MS = 5 * 60 * 1000;
+    private static final long TTL_MS = 5 * 60 * 1000L;
     private static final String CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
     
     private final Map<String, CaptchaEntry> store = new ConcurrentHashMap<>();
@@ -71,7 +72,7 @@ public class CaptchaService {
             javax.imageio.ImageIO.write(img, "png", baos);
             return baos.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
     

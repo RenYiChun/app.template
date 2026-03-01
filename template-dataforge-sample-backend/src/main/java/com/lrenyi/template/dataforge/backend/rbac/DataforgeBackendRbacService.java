@@ -48,7 +48,7 @@ public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oa
             return List.of();
         }
         String jpql = """
-                SELECT DISTINCT p.permission FROM RolePermission rp
+                SELECT DISTINCT p.permissionCode FROM RolePermission rp
                 JOIN rp.role r
                 JOIN rp.permission p
                 WHERE r.id IN (SELECT ur.role.id FROM UserRole ur WHERE ur.userId = :userId)

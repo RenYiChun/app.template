@@ -59,7 +59,8 @@ class FlowSourceAdaptersTest {
     @Test
     void fromFlowSources_nullOrEmpty_throws() {
         assertThrows(IllegalArgumentException.class, () -> FlowSourceAdapters.fromFlowSources(null));
-        assertThrows(IllegalArgumentException.class, () -> FlowSourceAdapters.fromFlowSources(List.of()));
+        List<FlowSource<String>> empty = List.of();
+        assertThrows(IllegalArgumentException.class, () -> FlowSourceAdapters.fromFlowSources(empty));
     }
     
     @Test

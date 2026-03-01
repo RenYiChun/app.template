@@ -78,13 +78,12 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     @Override
     public Object update(EntityMeta entityMeta, Object id, Object body) {
         Map<Object, Object> map = store.get(entityMeta.getPathSegment());
-        if (map == null || !map.containsKey(id)) {
+        if (map == null) {
             return null;
         }
         Object entity = objectMapper.convertValue(body, entityMeta.getEntityClass());
         setEntityId(entity, id);
-        map.put(id, entity);
-        return entity;
+        return map.computeIfPresent(id, (k, v) -> entity);
     }
     
     @Override
@@ -120,10 +119,14 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         List<Object> result = new ArrayList<>(entities.size());
         for (Object entity : entities) {
             Object id = getEntityId(entity);
-            if (id != null && map.containsKey(id)) {
-                setEntityId(entity, id);
-                map.put(id, entity);
-                result.add(entity);
+            if (id != null) {
+                Object updated = map.computeIfPresent(id, (k, v) -> {
+                    setEntityId(entity, id);
+                    return entity;
+                });
+                if (updated != null) {
+                    result.add(entity);
+                }
             }
         }
         return result;
@@ -138,7 +141,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             if (idField2 == null) {
                 return null;
             }
-            idField2.setAccessible(true);
+            idField2.setAccessible(true); //NOSONAR
             return idField2.get(entity);
         } catch (IllegalAccessException e) {
             return null;
@@ -169,8 +172,8 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         }
         try {
             if (idField2 != null) {
-                idField2.setAccessible(true);
-                idField2.set(entity, id);
+                idField2.setAccessible(true); //NOSONAR
+                idField2.set(entity, id);   //NOSONAR
             }
         } catch (IllegalAccessException e) {
             // ignore
@@ -256,7 +259,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             if (f == null) {
                 return null;
             }
-            f.setAccessible(true);
+            f.setAccessible(true); //NOSONAR
             return f.get(entity);
         } catch (IllegalAccessException e) {
             return null;

@@ -80,7 +80,7 @@ public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2Authori
         );
         String metadataName = OAuth2Authorization.Token.CLAIMS_METADATA_NAME;
         Consumer<Map<String, Object>> mapConsumer =
-                (metadata) -> metadata.put(metadataName, accessTokenToken.getClaims());
+                metadata -> metadata.put(metadataName, accessTokenToken.getClaims());
         OAuth2Authorization updated =
                 OAuth2Authorization.from(authorization).token(newAccessToken, mapConsumer).build();
         delegate.save(updated);

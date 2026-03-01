@@ -1,7 +1,9 @@
 package com.lrenyi.template.dataforge.support;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +28,8 @@ public final class ExcelExportSupport {
      * 生成 Excel 字节数组。第一行为表头（字段名），后续为数据行；仅包含未标记 exportExcluded 的字段。
      * 运行时需存在 poi-ooxml，否则抛出异常。
      */
-    public static byte[] toExcel(EntityMeta meta, List<?> data, ObjectMapper objectMapper) throws Exception {
+    public static byte[] toExcel(EntityMeta meta, List<?> data, ObjectMapper objectMapper)
+            throws ReflectiveOperationException {
         List<FieldMeta> exportFields = meta.getFields().stream().filter(f -> !f.isExportExcluded()).toList();
         PoiReflect reflect = PoiReflect.create();
         if (exportFields.isEmpty()) {
@@ -98,7 +101,7 @@ public final class ExcelExportSupport {
         PoiReflect(Class<?> workbookClass,
                 Class<?> sheetClass,
                 Class<?> rowClass,
-                Class<?> cellClass) throws Exception {
+                Class<?> cellClass) throws ReflectiveOperationException {
             this.workbookClass = workbookClass;
             this.createSheet = workbookClass.getMethod("createSheet", String.class);
             this.createRow = sheetClass.getMethod("createRow", int.class);
@@ -111,7 +114,7 @@ public final class ExcelExportSupport {
             this.write = workbookClass.getMethod("write", OutputStream.class);
         }
         
-        static PoiReflect create() throws Exception {
+        static PoiReflect create() throws ReflectiveOperationException {
             Class<?> wbClass = Class.forName("org.apache.poi.xssf.usermodel.XSSFWorkbook");
             Class<?> sheetClass = Class.forName("org.apache.poi.ss.usermodel.Sheet");
             Class<?> rowClass = Class.forName("org.apache.poi.ss.usermodel.Row");
@@ -119,46 +122,49 @@ public final class ExcelExportSupport {
             return new PoiReflect(wbClass, sheetClass, rowClass, cellClass);
         }
         
-        Object newWorkbook() throws Exception {
+        Object newWorkbook() throws ReflectiveOperationException {
             return workbookClass.getDeclaredConstructor().newInstance();
         }
         
-        Object createSheet(Object workbook) throws Exception {
+        Object createSheet(Object workbook) throws ReflectiveOperationException {
             return createSheet.invoke(workbook, ExcelExportSupport.SHEET_NAME);
         }
         
-        Object createRow(Object sheet, int rowNum) throws Exception {
+        Object createRow(Object sheet, int rowNum) throws ReflectiveOperationException {
             return createRow.invoke(sheet, rowNum);
         }
         
-        void createCellSetValue(Object row, int colIndex, String value) throws Exception {
+        void createCellSetValue(Object row, int colIndex, String value) throws ReflectiveOperationException {
             Object cell = createCell.invoke(row, colIndex);
             setCellValueStr.invoke(cell, value != null ? value : "");
         }
         
-        void setCellValue(Object row, int colIndex, Object value) throws Exception {
+        void setCellValue(Object row, int colIndex, Object value) throws ReflectiveOperationException {
             Object cell = createCell.invoke(row, colIndex);
             switch (value) {
-                case null -> {
-                    setBlank.invoke(cell);
-                    return;
-                }
+                case null -> setBlank.invoke(cell);
                 case Number n -> setCellValueNum.invoke(cell, n.doubleValue());
                 case Boolean b -> setCellValueBool.invoke(cell, b);
                 default -> setCellValueStr.invoke(cell, value.toString());
             }
         }
         
-        byte[] writeToBytes(Object workbook) throws Exception {
+        byte[] writeToBytes(Object workbook) throws ReflectiveOperationException {
             try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 write.invoke(workbook, out);
                 return out.toByteArray();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         
-        void close(Object workbook) throws Exception {
+        void close(Object workbook) {
             if (workbook instanceof AutoCloseable ac) {
-                ac.close();
+                try {
+                    ac.close();
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to close workbook", e);
+                }
             }
         }
     }

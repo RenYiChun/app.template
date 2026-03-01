@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -22,10 +23,13 @@ public class AuthLogoutAction implements EntityActionExecutor {
     @Override
     public Object execute(Object entityId, Object request) {
         SecurityContextHolder.clearContext();
-        HttpServletRequest req = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-        HttpSession session = req.getSession(false);
-        if (session != null) {
-            session.invalidate();
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            HttpServletRequest req = ((ServletRequestAttributes) attributes).getRequest();
+            HttpSession session = req.getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
         }
         return null;
     }

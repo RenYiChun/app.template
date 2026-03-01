@@ -200,8 +200,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
     
     @SuppressWarnings("unchecked")
     private static String getTokenValue(OAuth2Authorization authorization, Class<?> tokenClass) {
-        OAuth2Authorization.Token<?> t =
-                (OAuth2Authorization.Token<?>) authorization.getToken((Class) tokenClass);
+        OAuth2Authorization.Token<?> t = authorization.getToken((Class) tokenClass);
         if (t == null || t.getToken() == null) {
             return null;
         }

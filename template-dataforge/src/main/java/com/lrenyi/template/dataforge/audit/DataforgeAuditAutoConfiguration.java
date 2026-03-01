@@ -33,7 +33,7 @@ public class DataforgeAuditAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(AuditLogProcessor.class)
     public AuditLogProcessor defaultAuditLogProcessor() {
-        return logInfo -> System.out.println("[Audit] " + logInfo);
+        return logInfo -> System.out.println("[Audit] " + logInfo); //NOSONAR
     }
     
     @Bean
@@ -59,15 +59,16 @@ public class DataforgeAuditAutoConfiguration {
     
     private static String resolve(ProceedingJoinPoint joinPoint, HttpServletRequest request) {
         Object target = joinPoint.getTarget();
-        if (!(target instanceof GenericEntityController)) {
-            return null;
+        if (target instanceof GenericEntityController
+                && joinPoint.getSignature() instanceof MethodSignature signature) {
+            return resolveWithSignature(signature, joinPoint.getArgs());
         }
-        if (!(joinPoint.getSignature() instanceof MethodSignature signature)) {
-            return null;
-        }
+        return null;
+    }
+    
+    private static String resolveWithSignature(MethodSignature signature, Object[] args) {
         String methodName = signature.getMethod().getName();
-        Object[] args = joinPoint.getArgs();
-        String entity = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+        String entity = args.length > 0 && args[0] instanceof String value ? value : null;
         if (entity == null || entity.isEmpty()) {
             return null;
         }
@@ -125,34 +126,35 @@ public class DataforgeAuditAutoConfiguration {
     
     private static void enrich(ProceedingJoinPoint joinPoint, HttpServletRequest request, AuditLogInfo logInfo) {
         Object target = joinPoint.getTarget();
-        if (!(target instanceof GenericEntityController)) {
-            return;
+        if (target instanceof GenericEntityController
+                && joinPoint.getSignature() instanceof MethodSignature signature) {
+            enrichWithSignature(signature, joinPoint.getArgs(), logInfo);
         }
-        if (!(joinPoint.getSignature() instanceof MethodSignature signature)) {
-            return;
-        }
+    }
+    
+    private static void enrichWithSignature(MethodSignature signature, Object[] args, AuditLogInfo logInfo) {
         String methodName = signature.getMethod().getName();
-        Object[] args = joinPoint.getArgs();
         String entity = args.length > 0 && args[0] instanceof String string ? string : null;
         if (entity == null || entity.isEmpty()) {
             return;
         }
         logInfo.setTargetType(entity);
         switch (methodName) {
-            case "get":
-            case "update":
-            case "delete":
-                if (args.length > 1 && args[1] != null) {
-                    logInfo.setTargetId(String.valueOf(args[1]));
+            case "get", "update", "delete" -> {
+                Object arg = args.length > 1 ? args[1] : null;
+                switch (arg) {
+                    case null -> {/*ignore*/}
+                    case Object id -> logInfo.setTargetId(String.valueOf(id));
                 }
-                break;
-            case "executeAction":
-                if (args.length > 2 && args[2] != null) {
-                    logInfo.setTargetId(String.valueOf(args[2]));
+            }
+            case "executeAction" -> {
+                Object arg = args.length > 2 ? args[2] : null;
+                switch (arg) {
+                    case null -> { /*ignore*/ }
+                    case Object targetId -> logInfo.setTargetId(String.valueOf(targetId));
                 }
-                break;
-            default:
-                break;
+            }
+            default -> { /* search/create/deleteBatch/updateBatch/export 无需设置 targetId */ }
         }
     }
 }

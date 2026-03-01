@@ -12,24 +12,24 @@ class TokenBeanTest {
         TokenBean bean = new TokenBean();
         assertNull(bean.getId());
         assertEquals("", bean.getError());
-        assertEquals("", bean.getError_description());
+        assertEquals("", bean.getErrorDescription());
         
         bean.setId("id1");
-        bean.setAccess_token("access");
-        bean.setRefresh_token("refresh");
-        bean.setToken_type("Bearer");
-        bean.setExpires_in("3600");
+        bean.setAccessToken("access");
+        bean.setRefreshToken("refresh");
+        bean.setTokenType("Bearer");
+        bean.setExpiresIn("3600");
         bean.setError("err");
-        bean.setError_description("desc");
+        bean.setErrorDescription("desc");
         bean.setUserName("user");
         
         assertEquals("id1", bean.getId());
-        assertEquals("access", bean.getAccess_token());
-        assertEquals("refresh", bean.getRefresh_token());
-        assertEquals("Bearer", bean.getToken_type());
-        assertEquals("3600", bean.getExpires_in());
+        assertEquals("access", bean.getAccessToken());
+        assertEquals("refresh", bean.getRefreshToken());
+        assertEquals("Bearer", bean.getTokenType());
+        assertEquals("3600", bean.getExpiresIn());
         assertEquals("err", bean.getError());
-        assertEquals("desc", bean.getError_description());
+        assertEquals("desc", bean.getErrorDescription());
         assertEquals("user", bean.getUserName());
     }
 }

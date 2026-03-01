@@ -67,7 +67,9 @@ public class TemplateConfigProperties implements InitializingBean {
     
     @Override
     public void afterPropertiesSet() {
-        List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), "/favicon");
+        String faviconPath = StringUtils.hasText(security.getFaviconPath()) ? security.getFaviconPath() :
+                SecurityProperties.DEFAULT_FAVICON_PATH;
+        List<String> list = Arrays.asList(security.getNetJwtPublicKeyPath(), faviconPath);
         security.defaultPermitUrls.addAll(list);
         security.allPermitUrls.addAll(security.defaultPermitUrls);
         security.permitUrls.forEach((key, vales) -> security.allPermitUrls.addAll(vales));
@@ -189,11 +191,16 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class AuditLogProperties {
+        /** OAuth2 Token 端点默认路径，可通过 app.template.audit.oauth2-endpoints 自定义。 */
+        public static final String DEFAULT_OAUTH2_TOKEN_ENDPOINT = "/oauth2/token";
+        /** OAuth2 审计路径前缀默认值，可通过 app.template.audit.oauth2-audit-path-prefix 自定义。 */
+        public static final String DEFAULT_OAUTH2_AUDIT_PATH_PREFIX = "/oauth2";
+        
         private boolean enabled = false;
         /** 需审计的 OAuth2 端点 URI 列表（与 oauth2AuditPathPrefix 二选一或同时生效） */
-        private List<String> oauth2Endpoints = Collections.singletonList("/oauth2/token");
+        private List<String> oauth2Endpoints = Collections.singletonList(DEFAULT_OAUTH2_TOKEN_ENDPOINT);
         /** 审计该路径前缀下的所有请求（如 /oauth2 表示 /oauth2/authorize、/oauth2/token、/oauth2/revoke 等全部审计），为空则仅按 oauth2Endpoints 列表 */
-        private String oauth2AuditPathPrefix = "/oauth2";
+        private String oauth2AuditPathPrefix = DEFAULT_OAUTH2_AUDIT_PATH_PREFIX;
     }
     
     @Setter
@@ -266,7 +273,10 @@ public class TemplateConfigProperties implements InitializingBean {
         @Setter
         @Getter
         public static class OpaqueTokenConfig {
-            private String introspectionUri = "http://127.0.0.1/oauth2/introspect";
+            /** Opaque Token 内省 URI 默认值，可通过 app.template.oauth2.opaque-token.introspection-uri 自定义。 */
+            public static final String DEFAULT_INTROSPECTION_URI = "http://127.0.0.1/oauth2/introspect";
+            
+            private String introspectionUri = DEFAULT_INTROSPECTION_URI;
             private boolean enabled = false;
             private String clientId = "default-client-id";
             private String clientSecret = "app.template";
@@ -279,6 +289,11 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class SecurityProperties {
+        /** JWT 公钥路径默认值（与 application.properties 一致），可通过 app.template.security.net-jwt-public-key-path 自定义。 */
+        public static final String DEFAULT_NET_JWT_PUBLIC_KEY_PATH = "/jwt/public/key"; //NOSONAR
+        /** Favicon 路径默认值，可通过 app.template.security.favicon-path 自定义。 */
+        public static final String DEFAULT_FAVICON_PATH = "/favicon";
+        
         private boolean enabled = true;
         private String securityKey = "default";
         private Set<String> allPermitUrls = new HashSet<>();
@@ -305,7 +320,11 @@ public class TemplateConfigProperties implements InitializingBean {
          * JWT 公钥路径，与 net-jwt-public-key-domain 拼接。
          * 默认 /jwt/public/key，与 template-oauth2-service 的端点一致。
          */
-        private String netJwtPublicKeyPath = "/jwt/public/key";
+        private String netJwtPublicKeyPath = DEFAULT_NET_JWT_PUBLIC_KEY_PATH;
+        /**
+         * Favicon 路径，加入默认放行列表。可通过 app.template.security.favicon-path 自定义。
+         */
+        private String faviconPath = DEFAULT_FAVICON_PATH;
         private String customizeLoginPage;
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;

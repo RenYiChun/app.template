@@ -13,6 +13,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class DataforgeProperties {
     
     /**
+     * API 文档界面入口路径的默认值，可通过 app.dataforge.docs-ui-path 自定义。
+     */
+    public static final String DEFAULT_DOCS_UI_PATH = "/docs";
+    
+    /**
      * API 路径前缀，如 /api。所有实体 CRUD 与 Action 路径均在此前缀下。
      */
     private String apiPrefix = "/api";
@@ -49,8 +54,9 @@ public class DataforgeProperties {
     
     /**
      * API 文档界面入口路径，默认 /docs。仅当 docs-ui-enabled 为 true 时生效。
+     * 可通过 app.dataforge.docs-ui-path 自定义。
      */
-    private String docsUiPath = "/docs";
+    private String docsUiPath = DEFAULT_DOCS_UI_PATH;
     
     /**
      * 列表接口每页最大条数。超过此值的 size 请求将被截断，避免大表全量查询导致 OOM。
@@ -83,6 +89,6 @@ public class DataforgeProperties {
     }
     
     public void setDocsUiPath(String docsUiPath) {
-        this.docsUiPath = docsUiPath != null ? docsUiPath : "/docs";
+        this.docsUiPath = docsUiPath != null ? docsUiPath : DEFAULT_DOCS_UI_PATH;
     }
 }

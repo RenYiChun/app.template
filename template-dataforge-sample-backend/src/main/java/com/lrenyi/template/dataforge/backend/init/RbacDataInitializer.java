@@ -93,7 +93,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
             return;
         }
         TypedQuery<Permission> permQ = entityManager.createQuery(
-                "SELECT p FROM com.lrenyi.template.dataforge.backend.domain.Permission p WHERE p.permission LIKE "
+                "SELECT p FROM com.lrenyi.template.dataforge.backend.domain.Permission p WHERE p.permissionCode LIKE "
                         + "'users:%'",
                 Permission.class
         );

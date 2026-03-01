@@ -24,7 +24,7 @@ public class RbacQueryServiceImpl implements RbacQueryService {
             return Collections.emptySet();
         }
         String jpql = """
-                select distinct p.permission from RolePermission rp
+                select distinct p.permissionCode from RolePermission rp
                 join rp.role r
                 join rp.permission p
                 where r.id in (select ur.role.id from UserRole ur where ur.userId = :userId)

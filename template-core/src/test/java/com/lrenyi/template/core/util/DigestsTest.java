@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,7 +71,7 @@ class DigestsTest {
     void generateSalt() {
         byte[] salt = Digests.generateSalt(32);
         assertNotNull(salt);
-        assertTrue(salt.length == 32);
+        assertEquals(32, salt.length);
     }
     
     @Test

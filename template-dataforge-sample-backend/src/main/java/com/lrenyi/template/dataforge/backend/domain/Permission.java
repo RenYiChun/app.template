@@ -20,8 +20,8 @@ import lombok.Setter;
 )
 public class Permission extends BaseEntity<Long> {
     
-    @Column(nullable = false, unique = true, length = 128)
-    private String permission;
+    @Column(name = "permission", nullable = false, unique = true, length = 128)
+    private String permissionCode;
     
     @Column(length = 128)
     private String name;

@@ -1,5 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2.token;
 
+import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -117,6 +118,24 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         this.accessTokenCustomizer = accessTokenCustomizer;
     }
     
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        UuidOAuth2TokenGenerator other = (UuidOAuth2TokenGenerator) obj;
+        return Objects.equals(accessTokenCustomizer, other.accessTokenCustomizer)
+                && Objects.equals(templateConfigProperties, other.templateConfigProperties);
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(accessTokenCustomizer, templateConfigProperties);
+    }
+    
     private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements ClaimAccessor {
         private final transient Map<String, Object> claims;
         
@@ -135,5 +154,21 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
             return this.claims;
         }
         
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            OAuth2AccessTokenClaims other = (OAuth2AccessTokenClaims) obj;
+            return super.equals(obj) && Objects.equals(claims, other.claims);
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), claims);
+        }
     }
 }

@@ -65,18 +65,18 @@ public class OAuth2ClientPropertiesMapper {
         map.from(registration::getClientId).to(builder::clientId);
         map.from(registration::getClientSecret).to(builder::clientSecret);
         map.from(registration::getClientName).to(builder::clientName);
-        Consumer<String> consumer = (clientAuthenticationMethod) -> map.from(clientAuthenticationMethod)
+        Consumer<String> consumer = clientAuthenticationMethod -> map.from(clientAuthenticationMethod)
                                                                        .as(ClientAuthenticationMethod::new)
                                                                        .to(builder::clientAuthenticationMethod);
         registration.getClientAuthenticationMethods().forEach(consumer);
         registration.getAuthorizationGrantTypes()
-                    .forEach((authorizationGrantType) -> map.from(authorizationGrantType)
+                    .forEach(authorizationGrantType -> map.from(authorizationGrantType)
                                                             .as(AuthorizationGrantType::new)
                                                             .to(builder::authorizationGrantType));
-        registration.getRedirectUris().forEach((redirectUri) -> map.from(redirectUri).to(builder::redirectUri));
+        registration.getRedirectUris().forEach(redirectUri -> map.from(redirectUri).to(builder::redirectUri));
         registration.getPostLogoutRedirectUris()
-                    .forEach((redirectUri) -> map.from(redirectUri).to(builder::postLogoutRedirectUri));
-        registration.getScopes().forEach((scope) -> map.from(scope).to(builder::scope));
+                    .forEach(redirectUri -> map.from(redirectUri).to(builder::postLogoutRedirectUri));
+        registration.getScopes().forEach(scope -> map.from(scope).to(builder::scope));
         builder.clientSettings(getClientSettings(client, map));
         builder.tokenSettings(getTokenSettings(client, map));
         return builder.build();

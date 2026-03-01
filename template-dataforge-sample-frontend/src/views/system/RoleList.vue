@@ -252,7 +252,7 @@ const loadPermissions = async () => {
     // 简单平铺展示
     permTreeData.value = perms.map((p: any) => ({
       id: p.id,
-      name: `${p.name} (${p.permission})`,
+      name: `${p.name} (${p.permissionCode})`,
     }));
   } catch {
     ElMessage.error(t('system.role.loadPermsFailed'));

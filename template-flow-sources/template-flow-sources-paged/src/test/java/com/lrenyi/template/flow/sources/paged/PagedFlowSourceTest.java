@@ -129,8 +129,6 @@ class PagedFlowSourceTest {
             try {
                 Thread.currentThread().interrupt();
                 source.hasNext();
-            } catch (InterruptedException e) {
-                thrown.set(e);
             } catch (Throwable e) {
                 thrown.set(e);
             }

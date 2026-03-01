@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.storage;
 
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -97,8 +98,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                    .increment();
             return;
         }
-        @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
-                (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+        FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         try (entry) {
             if (!cause.wasEvicted() || launcher == null) {
                 return;
@@ -131,9 +131,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     
     private boolean handleOverwriteMode(String key, FlowEntry<T> entry) {
         FlowEntry<T> oldEntry = cache.asMap().put(key, entry);
-        if (oldEntry != null) {
-            handleReplacedEntry(oldEntry);
-        }
+        Optional.ofNullable(oldEntry).ifPresent(this::handleReplacedEntry);
         return true;
     }
     
@@ -193,8 +191,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             partner.close();
             return;
         }
-        @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
-                (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+        FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             log.warn("No active launcher found for job id {}", entry.getJobId());
             partner.close();

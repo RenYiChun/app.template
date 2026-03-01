@@ -47,7 +47,7 @@ class RedisRegisteredClientRepositoryTest {
         RegisteredClient client = createClient("id-1", "client-a");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq(ID_KEY), eq("id-1"))).thenReturn(hexed);
+        when(hashOperations.get(ID_KEY, "id-1")).thenReturn(hexed);
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
@@ -74,7 +74,7 @@ class RedisRegisteredClientRepositoryTest {
         RegisteredClient client = createClient("id-2", "client-b");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq(CLIENT_ID_KEY), eq("client-b"))).thenReturn(hexed);
+        when(hashOperations.get(CLIENT_ID_KEY, "client-b")).thenReturn(hexed);
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
@@ -116,8 +116,7 @@ class RedisRegisteredClientRepositoryTest {
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
         
         RegisteredClient client = createClient("id-init", "client-init");
-        RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate, client);
-        
+        new RedisRegisteredClientRepository(redisTemplate, client);
         verify(hashOperations).put(eq(CLIENT_ID_KEY), eq("client-init"), anyString());
     }
 }

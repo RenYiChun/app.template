@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,7 +43,7 @@ class RbacUserDetailsServiceTest {
     void loadUserByUsername_whenValidUser_returnsUserDetails() {
         RbacUserCredentials credentials = new RbacUserCredentials("testuser", "encoded", List.of("read", "write"));
         
-        when(rbacService.loadUserCredentials(eq("testuser"), eq(IdentifierType.USERNAME))).thenReturn(credentials);
+        when(rbacService.loadUserCredentials("testuser", IdentifierType.USERNAME)).thenReturn(credentials);
         
         UserDetails details = service.loadUserByUsername("USERNAME:testuser");
         
@@ -61,7 +60,7 @@ class RbacUserDetailsServiceTest {
     void loadUserByUsername_whenEmptyPermissions_usesEmptyList() {
         RbacUserCredentials credentials = new RbacUserCredentials("noroles", "encoded", Collections.emptyList());
         
-        when(rbacService.loadUserCredentials(eq("noroles"), eq(IdentifierType.USERNAME))).thenReturn(credentials);
+        when(rbacService.loadUserCredentials("noroles", IdentifierType.USERNAME)).thenReturn(credentials);
         
         UserDetails details = service.loadUserByUsername("USERNAME:noroles");
         
@@ -82,7 +81,7 @@ class RbacUserDetailsServiceTest {
     
     @Test
     void loadUserByUsername_whenUserNotFound_throws() {
-        when(rbacService.loadUserCredentials(eq("unknown"), eq(IdentifierType.USERNAME))).thenReturn(null);
+        when(rbacService.loadUserCredentials("unknown", IdentifierType.USERNAME)).thenReturn(null);
         
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("USERNAME:unknown"));
     }
@@ -91,7 +90,7 @@ class RbacUserDetailsServiceTest {
     void loadUserByUsername_whenEmployeeId_usesCorrectType() {
         RbacUserCredentials credentials = new RbacUserCredentials("emp", "pwd", List.of());
         
-        when(rbacService.loadUserCredentials(eq("E001"), eq(IdentifierType.EMPLOYEE_ID))).thenReturn(credentials);
+        when(rbacService.loadUserCredentials("E001", IdentifierType.EMPLOYEE_ID)).thenReturn(credentials);
         
         UserDetails details = service.loadUserByUsername("EMPLOYEE_ID:E001");
         

@@ -19,7 +19,8 @@ class FlowProgressSnapshotTest {
         Map<String, Long> map = new java.util.HashMap<>(Map.of("TIMEOUT", 1L));
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, map);
         assertEquals(1, s.passiveEgressByReason().size());
-        assertThrows(UnsupportedOperationException.class, () -> s.passiveEgressByReason().put("x", 1L));
+        Map<String, Long> passiveMap = s.passiveEgressByReason();
+        assertThrows(UnsupportedOperationException.class, () -> passiveMap.put("x", 1L));
     }
     
     @Test

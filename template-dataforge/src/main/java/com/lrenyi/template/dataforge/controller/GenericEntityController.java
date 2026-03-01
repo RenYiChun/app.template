@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.controller;
 
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -264,7 +265,7 @@ public class GenericEntityController {
         try {
             Object dto = objectMapper.convertValue(body, dtoClass);
             return validateAndReturnError(dto, validator);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
@@ -443,8 +444,8 @@ public class GenericEntityController {
         }
         try {
             java.lang.reflect.Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true);
-            idField.set(entity, id);
+            idField.setAccessible(true); //NOSONAR
+            idField.set(entity, id);     //NOSONAR
         } catch (NoSuchFieldException | IllegalAccessException ignored) {
             // ignore
         }
@@ -478,8 +479,8 @@ public class GenericEntityController {
                                  .contentType(MediaType.parseMediaType(
                                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                                  .body(bytes);
-        } catch (Exception e) {
-            throw new RuntimeException("导出 Excel 失败", e);
+        } catch (ReflectiveOperationException | UncheckedIOException | IllegalStateException e) {
+            throw new IllegalStateException("导出 Excel 失败", e);
         }
     }
     

@@ -59,6 +59,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class ApiAutoConfiguration {
     
+    private ApiAutoConfiguration() {
+        throw  new IllegalStateException("Utility class");
+    }
+    
     @EnableMethodSecurity()
     @ConditionalOnExpression(
             "'${app.template.enabled:true}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'"

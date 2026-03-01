@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import com.lrenyi.template.api.feign.InternalRequestMatcher;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.TemplateConfigProperties.SecurityProperties;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.util.MCode;
 import com.lrenyi.template.core.util.Result;
@@ -40,6 +41,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
@@ -70,7 +72,7 @@ public class DefaultSecurityFilterChainBuilder {
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
-        if (isSecurityDisabled(security)) {
+        if (isSecurityDisabled()) {
             http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
             return http.build();
         }
@@ -83,7 +85,7 @@ public class DefaultSecurityFilterChainBuilder {
         return http.build();
     }
     
-    private boolean isSecurityDisabled(TemplateConfigProperties.SecurityProperties security) {
+    private boolean isSecurityDisabled() {
         return !templateConfigProperties.isSecurityEffectivelyEnabled();
     }
     
@@ -228,10 +230,11 @@ public class DefaultSecurityFilterChainBuilder {
     /**
      * 解析 JWT 公钥 JWK Set 的 URI。
      * 优先使用 netJwtPublicKeyUri（完整 URI）；否则用 netJwtPublicKeyDomain + netJwtPublicKeyPath 拼接。
+     * 路径可通过 app.template.security.net-jwt-public-key-path 自定义。
      *
      * @throws IllegalStateException 当 domain 未配置且非完整 URI 模式时
      */
-    private String resolveJwkSetUri(TemplateConfigProperties.SecurityProperties security) {
+    private String resolveJwkSetUri(SecurityProperties security) {
         if (StringUtils.hasLength(security.getNetJwtPublicKeyUri())) {
             return security.getNetJwtPublicKeyUri();
         }
@@ -239,16 +242,11 @@ public class DefaultSecurityFilterChainBuilder {
         if (!StringUtils.hasLength(domain)) {
             throw new IllegalStateException("远程 JWT 模式下未配置 net-jwt-public-key-uri 或 net-jwt-public-key-domain");
         }
-        if (domain.charAt(domain.length() - 1) == '/') {
-            domain = domain.substring(0, domain.length() - 1);
-        }
         String path = security.getNetJwtPublicKeyPath();
-        if (path == null || path.isEmpty()) {
-            path = "/jwt/public/key";
-        } else if (!path.startsWith("/")) {
-            path = "/" + path;
+        if (!StringUtils.hasText(path)) {
+            path = SecurityProperties.DEFAULT_NET_JWT_PUBLIC_KEY_PATH;
         }
-        return domain + path;
+        return UriComponentsBuilder.fromUriString(domain).path(path).build().toUriString();
     }
     
     private String inferAuthFailureReason(AuthenticationException authException) {

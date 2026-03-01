@@ -22,6 +22,10 @@ public class Digests {
     
     private static final SecureRandom random = new SecureRandom();
     
+    private Digests() {
+        throw new IllegalStateException("Utility class");
+    }
+    
     /**
      * 对输入进行 MD5 散列。仅用于非安全场景（如校验和），不用于密码等敏感数据。
      */

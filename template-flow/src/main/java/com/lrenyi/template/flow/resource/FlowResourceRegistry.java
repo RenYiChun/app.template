@@ -4,6 +4,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -18,7 +20,6 @@ import com.lrenyi.template.flow.model.FlowConstants;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -27,15 +28,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Getter
 public class FlowResourceRegistry implements ResourceLifecycle {
-    private static volatile FlowResourceRegistry instance;
-    private static int lastConcurrencyLimit = -1;
+    private static final AtomicReference<FlowResourceRegistry> instanceRef = new AtomicReference<>();
+    private static final AtomicInteger lastConcurrencyLimitRef = new AtomicInteger(-1);
     
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (instance != null && instance.isInitialized() && !instance.isShutdown()) {
+            FlowResourceRegistry inst = instanceRef.get();
+            if (inst != null && inst.isInitialized() && !inst.isShutdown()) {
                 log.info("FlowResourceRegistry: JVM shutdown hook 触发兜底关闭");
                 try {
-                    instance.shutdown();
+                    inst.shutdown();
                 } catch (Exception e) {
                     log.error("FlowResourceRegistry shutdown hook failed.", e);
                 }
@@ -56,8 +58,15 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final MeterRegistry meterRegistry;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
-    @Setter
-    private volatile ActiveLauncherLookup launcherLookup;
+    private final AtomicReference<ActiveLauncherLookup> launcherLookupRef = new AtomicReference<>();
+
+    public ActiveLauncherLookup getLauncherLookup() {
+        return launcherLookupRef.get();
+    }
+
+    public void setLauncherLookup(ActiveLauncherLookup launcherLookup) {
+        launcherLookupRef.set(launcherLookup);
+    }
     
     FlowResourceRegistry(TemplateConfigProperties.Flow flowConfig, MeterRegistry meterRegistry, boolean unused) {
         this(flowConfig, meterRegistry);
@@ -96,33 +105,37 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     public static FlowResourceRegistry getInstance(TemplateConfigProperties.Flow globalConfig,
             MeterRegistry meterRegistry) {
-        if (instance == null || configChanged(globalConfig)) {
+        FlowResourceRegistry current = instanceRef.get();
+        if (current == null || configChanged(globalConfig)) {
             synchronized (FlowResourceRegistry.class) {
-                if (instance == null || configChanged(globalConfig)) {
-                    if (instance != null) {
+                current = instanceRef.get();
+                if (current == null || configChanged(globalConfig)) {
+                    if (current != null) {
                         log.info("检测到配置变更 [Limit: {} -> {}], 正在重新初始化资源...",
-                                 lastConcurrencyLimit,
+                                 lastConcurrencyLimitRef.get(),
                                  globalConfig.getConsumer().getConcurrencyLimit()
                         );
                         try {
-                            instance.shutdown();
+                            current.shutdown();
                         } catch (Exception e) {
                             log.error("关闭旧资源失败", e);
                         }
                     }
-                    instance = create(globalConfig, meterRegistry);
-                    lastConcurrencyLimit = globalConfig.getConsumer().getConcurrencyLimit();
+                    FlowResourceRegistry newInstance = create(globalConfig, meterRegistry);
+                    instanceRef.set(newInstance);
+                    lastConcurrencyLimitRef.set(globalConfig.getConsumer().getConcurrencyLimit());
+                    return newInstance;
                 }
             }
         }
-        return instance;
+        return instanceRef.get();
     }
     
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
         if (config == null) {
             return false;
         }
-        return config.getConsumer().getConcurrencyLimit() != lastConcurrencyLimit;
+        return config.getConsumer().getConcurrencyLimit() != lastConcurrencyLimitRef.get();
     }
     
     private static FlowResourceRegistry create(TemplateConfigProperties.Flow globalConfig,
@@ -165,14 +178,15 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     public static void reset() {
         synchronized (FlowResourceRegistry.class) {
-            if (instance != null) {
+            FlowResourceRegistry inst = instanceRef.get();
+            if (inst != null) {
                 try {
-                    instance.shutdown();
+                    inst.shutdown();
                 } catch (Exception e) {
                     log.warn("重置时关闭实例失败", e);
                 }
             }
-            instance = null;
+            instanceRef.set(null);
         }
     }
     

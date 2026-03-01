@@ -9,13 +9,13 @@ import java.time.LocalDateTime;
  * JPA 实体通过 BaseEntity 实现，Mongo 实体通过 MongoBaseDocument 实现。
  * </p>
  *
- * @param <ID> 主键类型
+ * @param <I> 主键类型
  */
-public interface DataforgePersistable<ID extends Serializable> extends Serializable {
+public interface DataforgePersistable<I extends Serializable> extends Serializable {
     
-    ID getId();
+    I getId();
     
-    void setId(ID id);
+    void setId(I id);
     
     LocalDateTime getCreateTime();
     

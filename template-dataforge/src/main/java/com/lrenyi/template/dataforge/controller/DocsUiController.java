@@ -5,6 +5,7 @@ import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 访问 docs-ui-path（默认 /docs）返回 Scalar 文档页，并加载 GET ${api-prefix}/docs 的 OpenAPI JSON。
  */
 @RestController
-@RequestMapping("${app.dataforge.docs-ui-path:/docs}")
+@RequestMapping("${app.dataforge.docs-ui-path:" + DataforgeProperties.DEFAULT_DOCS_UI_PATH + "}")
 @ConditionalOnProperty(name = "app.dataforge.docs-ui-enabled", havingValue = "true", matchIfMissing = true)
 public class DocsUiController {
     
@@ -29,9 +30,11 @@ public class DocsUiController {
     @GetMapping(produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<byte[]> docs() {
         String apiPrefix = properties.getApiPrefix();
-        String specUrl = (apiPrefix == null || apiPrefix.isEmpty() ? "/api" :
-                apiPrefix.startsWith("/") ? apiPrefix : "/" + apiPrefix) + "/docs";
-        
+        String specUrl = "/api";
+        if (StringUtils.hasText(apiPrefix)) {
+            specUrl = apiPrefix.startsWith("/") ? apiPrefix : "/" + apiPrefix;
+        }
+        specUrl += "/docs";
         StringBuilder html = new StringBuilder();
         html.append("<!DOCTYPE html>\n");
         html.append("<html>\n");

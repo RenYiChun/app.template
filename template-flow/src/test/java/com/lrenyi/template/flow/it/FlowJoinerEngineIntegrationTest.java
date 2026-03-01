@@ -99,7 +99,8 @@ class FlowJoinerEngineIntegrationTest {
             ProgressTracker tracker,
             long expected) throws InterruptedException {
         awaitCondition(() -> consumedSupplier.get() >= expected || tracker.getSnapshot().terminated() >= expected,
-                10_000);
+                       10_000
+        );
     }
     
     @Test
@@ -184,7 +185,8 @@ class FlowJoinerEngineIntegrationTest {
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitCondition(() -> joiner.getOnConsumeCount() >= count
-                && inlet.getProgressTracker().getSnapshot().terminated() >= count, 10_000);
+                && inlet.getProgressTracker().getSnapshot().terminated() >= count, 10_000
+        );
         
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
         assertEquals(0, snapshot.activeConsumers());
@@ -225,8 +227,9 @@ class FlowJoinerEngineIntegrationTest {
         inlet.push(new PairItem(sameKey, "new", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        awaitCondition(() -> joiner.getOnFailedCount(FailureReason.REPLACE) >= 1
-                && joiner.getOnConsumeCount() >= 1, 10_000);
+        awaitCondition(() -> joiner.getOnFailedCount(FailureReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1,
+                       10_000
+        );
         
         assertTrue(joiner.getOnFailedCount(FailureReason.REPLACE) >= 1);
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
@@ -269,8 +272,10 @@ class FlowJoinerEngineIntegrationTest {
         inlet.push(new PairItem("r1", "v2", null));
         inlet.markSourceFinished();
         inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        awaitCondition(() -> inlet.getProgressTracker().getSnapshot()
-                .getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1, 10_000);
+        awaitCondition(() -> inlet.getProgressTracker()
+                                  .getSnapshot()
+                                  .getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1, 10_000
+        );
         
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
         assertNotNull(snapshot.passiveEgressByReason());
@@ -362,7 +367,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_STOP_JOB_AND_RESET() throws Exception {
+    void IT_STOP_JOB_AND_RESET() {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-stop-reset", joiner, flowConfig);
         inlet.push(new PairItem("x1", "v1", null));
@@ -400,7 +405,7 @@ class FlowJoinerEngineIntegrationTest {
         awaitCondition(() -> joiner2.getOnConsumeCount() >= 1, 10_000);
         assertEquals(1, joiner2.getOnConsumeCount());
     }
-
+    
     private static void awaitCondition(Supplier<Boolean> condition, long timeoutMs) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (System.nanoTime() < deadline) {

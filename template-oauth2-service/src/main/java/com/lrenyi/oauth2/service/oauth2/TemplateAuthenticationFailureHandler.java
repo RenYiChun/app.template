@@ -42,7 +42,7 @@ public class TemplateAuthenticationFailureHandler implements AuthenticationFailu
             TokenBean result = new TokenBean();
             result.setError(errorCode);
             if (StringUtils.hasLength(description)) {
-                result.setError_description(description);
+                result.setErrorDescription(description);
             }
             response.setContentType(MediaType.APPLICATION_JSON.toString());
             ServletOutputStream outputStream = response.getOutputStream();

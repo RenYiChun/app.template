@@ -77,7 +77,7 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         if (userName == null) {
             userName = "";
         }
-        recorder.record(request, userName, desc, success, message);
+        recorder.recordAuditLog(request, userName, desc, success, message);
     }
     
     private static final class StatusCapturingResponseWrapper extends HttpServletResponseWrapper {

@@ -2,10 +2,14 @@ package com.lrenyi.template.core.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -32,35 +36,40 @@ public class RsaUtils {
     /** 旧格式兼容（PKCS#1 v1.5），仅用于解密已有数据 */
     private static final String RSA_LEGACY = "RSA";
     private static final String OAEP_PREFIX = "OAEP:";
-    private static volatile PrivateKey privateKey;
-    private static volatile PublicKey publicKey;
-    private static volatile boolean keysLoaded;
+    private static final AtomicReference<PrivateKey> privateKeyRef = new AtomicReference<>();
+    private static final AtomicReference<PublicKey> publicKeyRef = new AtomicReference<>();
+    private static final AtomicBoolean keysLoaded = new AtomicBoolean(false);
+    
+    private RsaUtils() {
+        throw new IllegalStateException("Utility class");
+    }
     
     public static PrivateKey getPrivateKey() {
         ensureKeysLoaded();
-        return privateKey;
+        return privateKeyRef.get();
     }
     
     private static void ensureKeysLoaded() {
-        if (keysLoaded) {
+        if (keysLoaded.get()) {
             return;
         }
         synchronized (loadLock) {
-            if (keysLoaded) {
+            if (keysLoaded.get()) {
                 return;
             }
             try {
-                publicKey = loadPublicKeyFromFile("rsa_public.pem");
-                privateKey = loadPrivateKeyFromFile("rsa_private.pem");
-                keysLoaded = true;
-            } catch (Throwable cause) {
+                publicKeyRef.set(loadPublicKeyFromFile("rsa_public.pem"));
+                privateKeyRef.set(loadPrivateKeyFromFile("rsa_private.pem"));
+                keysLoaded.set(true);
+            } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException cause) {
                 log.error("加载系统所需要的RSA公钥，私钥过程中出现异常", cause);
                 throw new IllegalStateException("Failed to load RSA keys", cause);
             }
         }
     }
     
-    public static RSAPublicKey loadPublicKeyFromFile(String publicKeyFileName) throws Exception {
+    public static RSAPublicKey loadPublicKeyFromFile(String publicKeyFileName) throws IOException,
+            NoSuchAlgorithmException, InvalidKeySpecException {
         if (FileUtil.isResourceFileNotExists(publicKeyFileName)) {
             publicKeyFileName = "default_rsa_public.pem";
         }
@@ -77,7 +86,8 @@ public class RsaUtils {
         }
     }
     
-    public static RSAPrivateKey loadPrivateKeyFromFile(String privateKeyFileName) throws Exception {
+    public static RSAPrivateKey loadPrivateKeyFromFile(String privateKeyFileName) throws IOException,
+            NoSuchAlgorithmException, InvalidKeySpecException {
         if (FileUtil.isResourceFileNotExists(privateKeyFileName)) {
             privateKeyFileName = "default_rsa_private.pem";
         }
@@ -112,20 +122,21 @@ public class RsaUtils {
     
     public static PublicKey getPublicKey() {
         ensureKeysLoaded();
-        return publicKey;
+        return publicKeyRef.get();
     }
     
     public static String encryption(String data) {
         ensureKeysLoaded();
-        if (publicKey == null) {
+        PublicKey pk = publicKeyRef.get();
+        if (pk == null) {
             return data;
         }
         try {
             Cipher cipher = Cipher.getInstance(RSA_OAEP);
-            cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+            cipher.init(Cipher.ENCRYPT_MODE, pk);
             byte[] encrypted = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return OAEP_PREFIX + Base64.encodeBase64String(encrypted);
-        } catch (Throwable cause) {
+        } catch (GeneralSecurityException cause) {
             log.error("RSA encryption failed", cause);
             throw new IllegalStateException("RSA encryption failed", cause);
         }
@@ -133,7 +144,8 @@ public class RsaUtils {
     
     public static String decrypt(String data) {
         ensureKeysLoaded();
-        if (privateKey == null) {
+        PrivateKey sk = privateKeyRef.get();
+        if (sk == null) {
             return data;
         }
         boolean useOaep = data.startsWith(OAEP_PREFIX);
@@ -142,10 +154,10 @@ public class RsaUtils {
         String transformation = useOaep ? RSA_OAEP : RSA_LEGACY;
         try {
             Cipher cipher = Cipher.getInstance(transformation);
-            cipher.init(Cipher.DECRYPT_MODE, privateKey);
+            cipher.init(Cipher.DECRYPT_MODE, sk);
             byte[] decrypted = cipher.doFinal(decoded);
             return new String(decrypted, StandardCharsets.UTF_8);
-        } catch (Throwable cause) {
+        } catch (GeneralSecurityException cause) {
             log.error("RSA decryption failed", cause);
             throw new IllegalStateException("RSA decryption failed", cause);
         }
@@ -159,9 +171,9 @@ public class RsaUtils {
             }
             byte[] keyBytes = inputStream.readAllBytes();
             return new String(keyBytes, StandardCharsets.UTF_8);
-        } catch (Throwable cause) {
+        } catch (IOException cause) {
             log.error("Failed to load public key from file: {}", publicKeyFileName, cause);
-            throw new IllegalStateException("Failed to load public key from file: " + publicKeyFileName, cause);
+            throw new UncheckedIOException("Failed to load public key from file: " + publicKeyFileName, cause);
         }
     }
     
@@ -171,7 +183,7 @@ public class RsaUtils {
         try {
             kpg = KeyPairGenerator.getInstance("RSA");
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalArgumentException("No such algorithm-->[" + "RSA" + "]");
+            throw new IllegalStateException("No such algorithm: RSA", e);
         }
         //初始化KeyPairGenerator对象,密钥长度
         kpg.initialize(keySize);
@@ -198,7 +210,7 @@ public class RsaUtils {
         try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write(publicKeyPem);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
     
@@ -212,7 +224,7 @@ public class RsaUtils {
         try (var writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             writer.write(privateKeyPem);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
     

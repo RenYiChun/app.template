@@ -4,6 +4,11 @@ import java.util.Collection;
 import java.util.Map;
 
 public class EmptyUtil {
+    
+    private EmptyUtil() {
+        throw new IllegalStateException("Utility class");
+    }
+    
     /**
      * * 判断一个Collection是否非空，包含List，Set，Queue
      *

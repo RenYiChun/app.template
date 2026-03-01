@@ -200,22 +200,20 @@ public class MetaScanner {
             return;
         }
         for (Object bean : actionExecutorBeans) {
-            if (!(bean instanceof EntityActionExecutor executor)) {
-                continue;
+            if (bean instanceof EntityActionExecutor executor) {
+                Class<?> clazz = ClassUtils.getUserClass(bean.getClass());
+                EntityAction ann = clazz.getAnnotation(EntityAction.class);
+                if (ann != null) {
+                    String entityPathSegment = pathSegmentFor(ann.entity());
+                    ActionMeta actionMeta = buildActionMeta(ann);
+                    actionRegistry.register(entityPathSegment, ann.actionName(), actionMeta, executor);
+                    EntityMeta entityMeta = entityRegistry.getByEntityName(ann.entity().getSimpleName());
+                    if (entityMeta != null) {
+                        entityMeta.getActions().add(actionMeta);
+                    }
+                    log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
+                }
             }
-            Class<?> clazz = ClassUtils.getUserClass(bean.getClass());
-            EntityAction ann = clazz.getAnnotation(EntityAction.class);
-            if (ann == null) {
-                continue;
-            }
-            String entityPathSegment = pathSegmentFor(ann.entity());
-            ActionMeta actionMeta = buildActionMeta(ann);
-            actionRegistry.register(entityPathSegment, ann.actionName(), actionMeta, executor);
-            EntityMeta entityMeta = entityRegistry.getByEntityName(ann.entity().getSimpleName());
-            if (entityMeta != null) {
-                entityMeta.getActions().add(actionMeta);
-            }
-            log.debug("Registered action: {}:{}", entityPathSegment, ann.actionName());
         }
     }
     
@@ -272,22 +270,29 @@ public class MetaScanner {
         ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
         provider.addIncludeFilter(new AnnotationTypeFilter(DataforgeEntity.class));
         for (String pkg : packages) {
-            String trimmed = pkg.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            for (BeanDefinition bd : provider.findCandidateComponents(trimmed)) {
-                String className = bd.getBeanClassName();
-                if (className == null) {
-                    continue;
-                }
-                try {
-                    Class<?> clazz = ClassUtils.forName(className, null);
-                    registerEntity(clazz);
-                } catch (ClassNotFoundException e) {
-                    log.warn("Cannot load entity class: {}", className, e);
-                }
-            }
+            scanPackageForEntities(provider, pkg.trim());
+        }
+    }
+    
+    private void scanPackageForEntities(ClassPathScanningCandidateComponentProvider provider, String trimmedPkg) {
+        if (trimmedPkg.isEmpty()) {
+            return;
+        }
+        for (BeanDefinition bd : provider.findCandidateComponents(trimmedPkg)) {
+            registerEntityFromBeanDefinition(bd);
+        }
+    }
+    
+    private void registerEntityFromBeanDefinition(BeanDefinition bd) {
+        String className = bd.getBeanClassName();
+        if (className == null) {
+            return;
+        }
+        try {
+            Class<?> clazz = ClassUtils.forName(className, null);
+            registerEntity(clazz);
+        } catch (ClassNotFoundException e) {
+            log.warn("Cannot load entity class: {}", className, e);
         }
     }
     
@@ -571,7 +576,7 @@ public class MetaScanner {
         meta.setDescription(ann.description());
         meta.setRequireId(ann.requireId());
         if (ann.permissions() != null && ann.permissions().length > 0) {
-            meta.setPermissions(Arrays.stream(ann.permissions()).collect(Collectors.toList()));
+            meta.setPermissions(Arrays.stream(ann.permissions()).toList());
         }
         return meta;
     }

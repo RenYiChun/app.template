@@ -43,14 +43,14 @@ class NatsFlowSourceTest {
     
     @Test
     void constructor_nullSubscription_throws() {
-        assertThrows(IllegalArgumentException.class, () -> new NatsFlowSource<>(null, m -> "x", Duration.ofSeconds(1)));
+        Duration timeout = Duration.ofSeconds(1);
+        assertThrows(IllegalArgumentException.class, () -> new NatsFlowSource<>(null, m -> "x", timeout));
     }
     
     @Test
     void constructor_nullMapper_throws() {
-        assertThrows(IllegalArgumentException.class,
-                     () -> new NatsFlowSource<>(subscription, null, Duration.ofSeconds(1))
-        );
+        Duration timeout = Duration.ofSeconds(1);
+        assertThrows(IllegalArgumentException.class, () -> new NatsFlowSource<>(subscription, null, timeout));
     }
     
     @Test

@@ -95,15 +95,12 @@ public final class ListCriteria {
                 entityMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
         List<SortOrder> valid = new ArrayList<>();
         for (SortOrder so : req.sort()) {
-            if (so == null || so.field() == null || so.field().isBlank()) {
-                continue;
-            }
-            if (!allowedFields.contains(so.field())) {
+            if (so != null && so.field() != null && !so.field().isBlank() && allowedFields.contains(so.field())) {
+                String dir = (so.dir() != null && so.dir().equalsIgnoreCase("desc")) ? "desc" : "asc";
+                valid.add(new SortOrder(so.field(), dir));
+            } else if (so != null && so.field() != null && !so.field().isBlank() && !allowedFields.contains(so.field())) {
                 log.debug("Sort field '{}' not in allowedFields, skip", so.field());
-                continue;
             }
-            String dir = (so.dir() != null && so.dir().equalsIgnoreCase("desc")) ? "desc" : "asc";
-            valid.add(new SortOrder(so.field(), dir));
         }
         return valid;
     }

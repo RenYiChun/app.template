@@ -180,41 +180,96 @@ public class AuditLogService {
             String desc,
             boolean success,
             String exception) {
-        self.recordAuditLog(request, userName, desc, success, exception, null, null, null, null);
+        self.recordAuditLog(RecordParams.builder()
+                .request(request)
+                .userName(userName)
+                .desc(desc)
+                .success(success)
+                .exception(exception)
+                .build());
     }
-    
+
+    /**
+     * 参数对象，用于减少 recordAuditLog 方法参数数量。
+     */
+    public static final class RecordParams {
+        private final HttpServletRequest request;
+        private final String userName;
+        private final String desc;
+        private final boolean success;
+        private final String exception;
+        private final String reason;
+        private final String targetType;
+        private final String targetId;
+        private final Long affectedCount;
+
+        private RecordParams(Builder b) {
+            this.request = b.request;
+            this.userName = b.userName;
+            this.desc = b.desc;
+            this.success = b.success;
+            this.exception = b.exception;
+            this.reason = b.reason;
+            this.targetType = b.targetType;
+            this.targetId = b.targetId;
+            this.affectedCount = b.affectedCount;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            HttpServletRequest request;
+            String userName;
+            String desc;
+            boolean success;
+            String exception;
+            String reason;
+            String targetType;
+            String targetId;
+            Long affectedCount;
+
+            public Builder request(HttpServletRequest v) { request = v; return this; }
+            public Builder userName(String v) { userName = v; return this; }
+            public Builder desc(String v) { desc = v; return this; }
+            public Builder success(boolean v) { success = v; return this; }
+            public Builder exception(String v) { exception = v; return this; }
+            public Builder reason(String v) { reason = v; return this; }
+            public Builder targetType(String v) { targetType = v; return this; }
+            public Builder targetId(String v) { targetId = v; return this; }
+            public Builder affectedCount(Long v) { affectedCount = v; return this; }
+
+            public RecordParams build() {
+                return new RecordParams(this);
+            }
+        }
+    }
+
     @Async
-    public void recordAuditLog(HttpServletRequest request,
-            String userName,
-            String desc,
-            boolean success,
-            String exception,
-            String reason,
-            String targetType,
-            String targetId,
-            Long affectedCount) {
+    public void recordAuditLog(RecordParams params) {
         AuditLogInfo logInfo = new AuditLogInfo();
-        logInfo.setUserName(userName);
-        logInfo.setDescription(desc);
+        logInfo.setUserName(params.userName);
+        logInfo.setDescription(params.desc);
         logInfo.setOperationTime(new Date());
-        logInfo.setSuccess(success);
-        logInfo.setExceptionDetails(exception);
-        if (StringUtils.hasText(reason)) {
-            logInfo.setReason(reason);
+        logInfo.setSuccess(params.success);
+        logInfo.setExceptionDetails(params.exception);
+        if (StringUtils.hasText(params.reason)) {
+            logInfo.setReason(params.reason);
         }
-        if (StringUtils.hasText(targetType)) {
-            logInfo.setTargetType(targetType);
+        if (StringUtils.hasText(params.targetType)) {
+            logInfo.setTargetType(params.targetType);
         }
-        if (StringUtils.hasText(targetId)) {
-            logInfo.setTargetId(targetId);
+        if (StringUtils.hasText(params.targetId)) {
+            logInfo.setTargetId(params.targetId);
         }
-        if (affectedCount != null) {
-            logInfo.setAffectedCount(affectedCount);
+        if (params.affectedCount != null) {
+            logInfo.setAffectedCount(params.affectedCount);
         }
-        if (request != null) {
-            logInfo.setRequestIp(getIpAddress(request));
-            logInfo.setRequestUri(request.getRequestURI());
-            logInfo.setRequestMethod(request.getMethod());
+        if (params.request != null) {
+            logInfo.setRequestIp(getIpAddress(params.request));
+            logInfo.setRequestUri(params.request.getRequestURI());
+            logInfo.setRequestMethod(params.request.getMethod());
         }
         logInfo.setServiceName(serviceName);
         logInfo.setServerIp(serverIp);

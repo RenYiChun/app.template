@@ -27,7 +27,7 @@ class BackendRbacPermissionSyncConfig {
             RbacPermissionSync {
         private static final String COUNT_JPQL =
                 "SELECT COUNT(p) FROM com.lrenyi.template.dataforge.backend.domain.Permission p "
-                        + "WHERE p.permission = :perm";
+                        + "WHERE p.permissionCode = :perm";
         
         @Override
         public int ensurePermissionsExist(Map<String, String> codeToDescription) {
@@ -41,7 +41,7 @@ class BackendRbacPermissionSyncConfig {
                                               .getSingleResult();
                     if (count != null && count == 0) {
                         Permission p = new Permission();
-                        p.setPermission(perm);
+                        p.setPermissionCode(perm);
                         p.setName(perm);
                         p.setDescription(
                                 description != null && description.length() > 256 ? description.substring(0, 256) :

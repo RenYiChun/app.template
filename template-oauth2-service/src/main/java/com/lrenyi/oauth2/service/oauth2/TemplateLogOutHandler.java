@@ -70,7 +70,7 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
         } finally {
             OAuth2AuditRecorder recorder = auditRecorderProvider.getIfAvailable();
             if (recorder != null) {
-                recorder.record(request, userName != null ? userName : "", "logout", success, exceptionDetails);
+                recorder.recordAuditLog(request, userName != null ? userName : "", "logout", success, exceptionDetails);
             }
         }
     }

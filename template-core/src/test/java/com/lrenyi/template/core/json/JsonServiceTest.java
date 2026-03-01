@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,12 +28,12 @@ class JsonServiceTest {
     
     @BeforeEach
     void setUp() {
-        when(processor.getProcessorName()).thenReturn("test-processor");
         jsonService = new JsonService(processor);
     }
     
     @Test
     void getProcessorName_returnsProcessorName() {
+        when(processor.getProcessorName()).thenReturn("test-processor");
         assertEquals("test-processor", jsonService.getProcessorName());
     }
     
@@ -54,7 +53,7 @@ class JsonServiceTest {
     
     @Test
     void deserialize_class_success_returnsObject() throws JsonProcessingException {
-        when(processor.fromJson(eq("{}"), eq(String.class))).thenReturn("ok");
+        when(processor.fromJson("{}", String.class)).thenReturn("ok");
         assertEquals("ok", jsonService.deserialize("{}", String.class));
     }
     
@@ -67,7 +66,7 @@ class JsonServiceTest {
     @Test
     void deserialize_typeReference_success_returnsObject() throws JsonProcessingException {
         TypeReference<List<String>> ref = new TypeReference<>() {};
-        when(processor.fromJson(eq("[]"), eq(ref))).thenReturn(List.of("a"));
+        when(processor.fromJson("[]", ref)).thenReturn(List.of("a"));
         assertEquals(List.of("a"), jsonService.deserialize("[]", ref));
     }
     
@@ -81,7 +80,7 @@ class JsonServiceTest {
     @Test
     void parseToNode_success_returnsNode() throws JsonProcessingException {
         JsonNode node = org.mockito.Mockito.mock(JsonNode.class);
-        when(processor.parse(eq("{}"))).thenReturn(node);
+        when(processor.parse("{}")).thenReturn(node);
         assertEquals(node, jsonService.parseToNode("{}"));
     }
     
@@ -106,7 +105,7 @@ class JsonServiceTest {
     @Test
     void toMap_success_returnsMap() throws JsonProcessingException {
         Map<String, Object> map = Map.of("k", "v");
-        when(processor.toMap(eq("{}"))).thenReturn(map);
+        when(processor.toMap("{}")).thenReturn(map);
         assertEquals(map, jsonService.toMap("{}"));
     }
     
@@ -119,7 +118,7 @@ class JsonServiceTest {
     @Test
     void toList_success_returnsList() throws JsonProcessingException {
         List<String> list = List.of("a");
-        when(processor.toList(eq("[]"), eq(String.class))).thenReturn(list);
+        when(processor.toList("[]", String.class)).thenReturn(list);
         assertEquals(list, jsonService.toList("[]", String.class));
     }
     

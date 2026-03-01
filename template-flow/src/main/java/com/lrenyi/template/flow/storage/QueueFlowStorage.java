@@ -77,8 +77,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
-            @SuppressWarnings("unchecked") FlowLauncher<Object> launcher =
-                    (FlowLauncher<Object>) launcherLookup.getActiveLauncher(entry.getJobId());
+            FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
                     progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
