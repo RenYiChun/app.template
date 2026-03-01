@@ -1,2 +1,0 @@
-org.springframework.boot.BootstrapRegistryInitializer=\
-  com.lrenyi.oauth2.service.boot.Oauth2BootstrapInitializer
