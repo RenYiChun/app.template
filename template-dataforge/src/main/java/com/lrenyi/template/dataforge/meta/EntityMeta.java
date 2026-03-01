@@ -3,6 +3,7 @@ package com.lrenyi.template.dataforge.meta;
 import java.util.ArrayList;
 import java.util.List;
 import com.lrenyi.template.dataforge.annotation.SortDirection;
+import com.lrenyi.template.dataforge.support.BeanAccessor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -78,6 +79,14 @@ public class EntityMeta {
     private boolean enableImport = true;
     private String importTemplate = "";
     private String exportTemplate = "";
+    
+    // ==================== 运行时支持 ====================
+    
+    /** 
+     * 高性能属性访问器（JDK 9+ VarHandle 或反射回退）。
+     * 在 MetaScanner 扫描时注入。
+     */
+    private BeanAccessor accessor;
     
     public void setPermissionCreate(String permissionCreate) {
         this.permissionCreate = permissionCreate != null ? permissionCreate : "";

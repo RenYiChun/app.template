@@ -8,7 +8,6 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
 
@@ -28,8 +27,7 @@ public final class ExcelExportSupport {
      * 生成 Excel 字节数组。第一行为表头（字段名），后续为数据行；仅包含未标记 exportExcluded 的字段。
      * 运行时需存在 poi-ooxml，否则抛出异常。
      */
-    public static byte[] toExcel(EntityMeta meta, List<?> data, ObjectMapper objectMapper)
-            throws ReflectiveOperationException {
+    public static byte[] toExcel(EntityMeta meta, List<?> data) throws ReflectiveOperationException {
         List<FieldMeta> exportFields = meta.getFields().stream().filter(f -> !f.isExportExcluded()).toList();
         PoiReflect reflect = PoiReflect.create();
         if (exportFields.isEmpty()) {
@@ -53,11 +51,12 @@ public final class ExcelExportSupport {
             for (int i = 0; i < columnNames.size(); i++) {
                 reflect.createCellSetValue(headerRow, i, columnNames.get(i));
             }
+            BeanAccessor accessor = meta.getAccessor();
             for (Object entity : data) {
-                @SuppressWarnings("unchecked") Map<String, Object> map = objectMapper.convertValue(entity, Map.class);
                 Object row = reflect.createRow(sheet, rowNum++);
                 for (int i = 0; i < columnNames.size(); i++) {
-                    Object value = map.get(columnNames.get(i));
+                    String propName = columnNames.get(i);
+                    Object value = accessor != null ? accessor.get(entity, propName) : null;
                     FieldMeta field = exportFields.get(i);
                     Object exportValue = applyConverter(field, value, converterCache);
                     reflect.setCellValue(row, i, exportValue);

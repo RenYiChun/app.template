@@ -260,8 +260,20 @@ public class MetaScanner {
         validateImplementsDataforgePersistable(clazz);
         EntityMeta meta = buildEntityMeta(clazz, ann);
         meta.setEntityClass(clazz);
+        // 构建并注入 BeanAccessor（使用 VarHandle 或回退）
+        meta.setAccessor(new VarHandleBeanAccessor(clazz));
+        // 预加载 DTO 类
+        preloadDtos(meta);
+        
         entityRegistry.register(meta);
         log.debug("Registered entity: {}", meta.getPathSegment());
+    }
+    
+    private void preloadDtos(EntityMeta meta) {
+        EntityDtoResolver.resolveCreateDto(meta);
+        EntityDtoResolver.resolveUpdateDto(meta);
+        EntityDtoResolver.resolveResponseDto(meta);
+        EntityDtoResolver.resolvePageResponseDto(meta);
     }
     
     /** 回退：通过 classpath 扫描（在长 classpath 下可能较慢）。 */

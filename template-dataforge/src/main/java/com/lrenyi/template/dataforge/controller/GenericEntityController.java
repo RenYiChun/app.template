@@ -456,7 +456,7 @@ public class GenericEntityController {
      * 默认更大；仅导出未标注 @DataforgeExport(enabled=false) 的字段。
      */
     @PostMapping("/{entity}/export")
-    public ResponseEntity<byte[]> export(@PathVariable("entity") String entity,
+    public ResponseEntity<byte[]> export(@PathVariable String entity,
             @RequestBody(required = false) SearchRequest req) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isExportEnabled()) {
@@ -472,7 +472,7 @@ public class GenericEntityController {
         ListCriteria criteria = ListCriteria.from(request, meta);
         Page<?> pageResult = crudService.list(meta, pageable, criteria);
         try {
-            byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent(), objectMapper);
+            byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent());
             String filename = entity + "-export.xlsx";
             return ResponseEntity.ok()
                                  .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")

@@ -48,8 +48,8 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         }
         List<Object> list = new ArrayList<>(map.values());
         ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
-        list = filterList(list, c.getFilters(), entityMeta.getEntityClass());
-        list = sortList(list, c.getSortOrders(), pageable.getSort());
+        list = filterList(list, c.getFilters(), entityMeta);
+        list = sortList(list, c.getSortOrders(), pageable.getSort(), entityMeta);
         long total = list.size();
         int from = (int) pageable.getOffset();
         int to = Math.min(from + pageable.getPageSize(), list.size());
@@ -70,7 +70,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         }
         Object entity = objectMapper.convertValue(body, entityMeta.getEntityClass());
         Object id = nextId(entityMeta.getPathSegment(), entityMeta.getPrimaryKeyType());
-        setEntityId(entity, id);
+        setEntityId(entity, id, entityMeta);
         store.computeIfAbsent(entityMeta.getPathSegment(), k -> new ConcurrentHashMap<>()).put(id, entity);
         return entity;
     }
@@ -82,7 +82,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             return null;
         }
         Object entity = objectMapper.convertValue(body, entityMeta.getEntityClass());
-        setEntityId(entity, id);
+        setEntityId(entity, id, entityMeta);
         return map.computeIfPresent(id, (k, v) -> entity);
     }
     
@@ -118,10 +118,10 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         }
         List<Object> result = new ArrayList<>(entities.size());
         for (Object entity : entities) {
-            Object id = getEntityId(entity);
+            Object id = getEntityId(entity, entityMeta);
             if (id != null) {
                 Object updated = map.computeIfPresent(id, (k, v) -> {
-                    setEntityId(entity, id);
+                    setEntityId(entity, id, entityMeta);
                     return entity;
                 });
                 if (updated != null) {
@@ -132,7 +132,10 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return result;
     }
     
-    private Object getEntityId(Object entity) {
+    private Object getEntityId(Object entity, EntityMeta meta) {
+        if (meta != null && meta.getAccessor() != null) {
+            return meta.getAccessor().get(entity, "id");
+        }
         return getValueOfObject(entity, findIdField(entity.getClass()));
     }
     
@@ -162,7 +165,11 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return longIdGen.computeIfAbsent(pathSegment, k -> new AtomicLong(0)).incrementAndGet();
     }
     
-    private void setEntityId(Object entity, Object id) {
+    private void setEntityId(Object entity, Object id, EntityMeta meta) {
+        if (meta != null && meta.getAccessor() != null) {
+            meta.getAccessor().set(entity, "id", id);
+            return;
+        }
         setValueOfObject(entity, id, findIdField(entity.getClass()));
     }
     
@@ -191,19 +198,19 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return null;
     }
     
-    private List<Object> filterList(List<Object> list, List<FilterCondition> filters, Class<?> entityClass) {
+    private List<Object> filterList(List<Object> list, List<FilterCondition> filters, EntityMeta meta) {
         if (filters == null || filters.isEmpty()) {
             return list;
         }
-        return list.stream().filter(e -> matchesAll(e, filters, entityClass)).toList();
+        return list.stream().filter(e -> matchesAll(e, filters, meta)).toList();
     }
     
-    private boolean matchesAll(Object entity, List<FilterCondition> filters, Class<?> entityClass) {
+    private boolean matchesAll(Object entity, List<FilterCondition> filters, EntityMeta meta) {
         for (FilterCondition fc : filters) {
             if (fc == null || fc.op() == null) {
                 continue;
             }
-            Object fieldVal = getFieldValue(entity, fc.field(), entityClass);
+            Object fieldVal = getFieldValue(entity, fc.field(), meta);
             if (!matches(fc.op(), fieldVal, fc.value())) {
                 return false;
             }
@@ -250,12 +257,20 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return a.toString().compareTo(b.toString());
     }
     
-    private Object getFieldValue(Object entity, String fieldName, Class<?> entityClass) {
+    private Object getFieldValue(Object entity, String fieldName, EntityMeta meta) {
         if (entity == null || fieldName == null) {
             return null;
         }
+        if (meta != null && meta.getAccessor() != null) {
+            try {
+                return meta.getAccessor().get(entity, fieldName);
+            } catch (Exception e) {
+                // ignore
+                return null;
+            }
+        }
         try {
-            Field f = findField(entityClass, fieldName);
+            Field f = findField(entity.getClass(), fieldName);
             if (f == null) {
                 return null;
             }
@@ -268,15 +283,16 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     
     private List<Object> sortList(List<Object> list,
             List<SortOrder> sortOrders,
-            org.springframework.data.domain.Sort pageableSort) {
+            org.springframework.data.domain.Sort pageableSort,
+            EntityMeta meta) {
         if (sortOrders != null && !sortOrders.isEmpty()) {
-            Comparator<Object> comp = getObjectComparator(sortOrders);
+            Comparator<Object> comp = getObjectComparator(sortOrders, meta);
             if (comp != null) {
                 return list.stream().sorted(comp).toList();
             }
         }
         if (pageableSort != null && pageableSort.isSorted()) {
-            Comparator<Object> comp = getComparator(pageableSort);
+            Comparator<Object> comp = getComparator(pageableSort, meta);
             if (comp != null) {
                 return list.stream().sorted(comp).toList();
             }
@@ -284,12 +300,12 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return list;
     }
     
-    private Comparator<Object> getComparator(Sort pageableSort) {
+    private Comparator<Object> getComparator(Sort pageableSort, EntityMeta meta) {
         Comparator<Object> comp = null;
         for (Sort.Order o : pageableSort) {
             boolean desc = o.isDescending();
             Comparator<Object> c =
-                    Comparator.comparing(e -> getFieldValue(e, o.getProperty(), e.getClass()), (a, b) -> {
+                    Comparator.comparing(e -> getFieldValue(e, o.getProperty(), meta), (a, b) -> {
                                              int r = compareForOp(a, b);
                                              return desc ? -r : r;
                                          }
@@ -299,14 +315,14 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         return comp;
     }
     
-    private Comparator<Object> getObjectComparator(List<SortOrder> sortOrders) {
+    private Comparator<Object> getObjectComparator(List<SortOrder> sortOrders, EntityMeta meta) {
         Comparator<Object> comp = null;
         for (SortOrder so : sortOrders) {
             if (so == null || so.field() == null) {
                 continue;
             }
             boolean desc = "desc".equalsIgnoreCase(so.dir());
-            Comparator<Object> c = Comparator.comparing(e -> getFieldValue(e, so.field(), e.getClass()), (a, b) -> {
+            Comparator<Object> c = Comparator.comparing(e -> getFieldValue(e, so.field(), meta), (a, b) -> {
                                                             int r = compareForOp(a, b);
                                                             return desc ? -r : r;
                                                         }
