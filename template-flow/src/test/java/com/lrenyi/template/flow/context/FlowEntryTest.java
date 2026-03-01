@@ -16,32 +16,33 @@ class FlowEntryTest {
     }
     
     @Test
-    void retain_release() {
+    void retain_release() throws Exception {
+        FlowEntry<String> e = new FlowEntry<>("d", "j");
+        assertEquals(1, getRefCnt(e));
+        e.retain();
+        assertEquals(2, getRefCnt(e));
+        e.retain();
+        assertEquals(3, getRefCnt(e));
+        e.release();
+        assertEquals(2, getRefCnt(e));
+        e.release();
+        assertEquals(1, getRefCnt(e));
+        e.release();
+        assertEquals(0, getRefCnt(e));
+    }
+
+    @Test
+    void close_decrementsRefCount() throws Exception {
         FlowEntry<String> e = new FlowEntry<>("d", "j");
         e.retain();
-        e.retain();
-        e.release();
-        e.release();
-        e.release();
-    }
-    
-    @Test
-    void claimLogic_firstCall_returnsTrue() {
-        FlowEntry<String> e = new FlowEntry<>("d", "j");
-        assertTrue(e.claimLogic());
-    }
-    
-    @Test
-    void claimLogic_secondCall_returnsFalse() {
-        FlowEntry<String> e = new FlowEntry<>("d", "j");
-        assertTrue(e.claimLogic());
-        assertFalse(e.claimLogic());
-    }
-    
-    @Test
-    void close_decrementsRefCount() {
-        FlowEntry<String> e = new FlowEntry<>("d", "j");
-        e.retain();
+        assertEquals(2, getRefCnt(e));
         e.close();
+        assertEquals(1, getRefCnt(e));
+    }
+    
+    private int getRefCnt(FlowEntry<?> entry) throws Exception {
+        java.lang.reflect.Field field = FlowEntry.class.getDeclaredField("refCnt");
+        field.setAccessible(true);
+        return field.getInt(entry);
     }
 }

@@ -121,44 +121,69 @@ watch(
     {immediate: true}
 );
 
+const generateFieldRules = (key: string, prop: SchemaProperty): any[] => {
+  const rs: any[] = [];
+  const trigger = prop.enum || prop.type === 'boolean' || isDateType(prop) ? 'change' : 'blur';
+  if (prop.required) {
+    rs.push({required: true, message: formatText(requiredText.value, {label: key}), trigger});
+  }
+  const fmt = (prop.format ?? '').toLowerCase();
+  if (fmt === 'email') {
+    rs.push({type: 'email', message: formatText(emailText.value, {label: key}), trigger: 'blur'});
+  }
+  return rs;
+};
+
+const mergeRules = (key: string, generatedRules: any[]) => {
+  const ov = props.rulesOverride?.[key] as any[] | undefined;
+  
+  if (props.rulesMode === 'replace') {
+    if (ov) {
+      rules[key] = ov;
+    } else if (generatedRules.length) {
+      rules[key] = generatedRules;
+    }
+    return;
+  }
+  
+  // merge mode
+  const newRules = [...(generatedRules || [])];
+  if (ov?.length) {
+    newRules.push(...ov);
+  }
+  if (newRules.length) {
+    rules[key] = newRules;
+  }
+};
+
+const applyOverrideRules = () => {
+  if (!props.rulesOverride || props.rulesMode !== 'merge') return;
+  for (const [k, v] of Object.entries(props.rulesOverride)) {
+    if (!rules[k as any]) (rules as any)[k] = v as any;
+  }
+};
+
+const updateRulesAndData = (s: Record<string, SchemaProperty>) => {
+  for (const k of Object.keys(rules)) {
+    delete (rules as any)[k];
+  }
+  for (const key of Object.keys(s)) {
+    const prop = s[key];
+    if (!prop) continue;
+
+    if (!(key in formData)) {
+      formData[key] = prop.type === 'boolean' ? false : '';
+    }
+
+    const generatedRules = generateFieldRules(key, prop);
+    mergeRules(key, generatedRules);
+  }
+  applyOverrideRules();
+};
+
 watch(
     formFields,
-    (s) => {
-      for (const k of Object.keys(rules)) {
-        delete (rules as any)[k];
-      }
-      for (const key of Object.keys(s)) {
-        if (!(key in formData)) {
-          formData[key] = s[key].type === 'boolean' ? false : '';
-        }
-        const prop = s[key];
-        if (prop) {
-          const rs: any[] = [];
-          const trigger = prop.enum || prop.type === 'boolean' || isDateType(prop) ? 'change' : 'blur';
-          if (prop.required) {
-            rs.push({required: true, message: formatText(requiredText.value, {label: key}), trigger});
-          }
-          const fmt = (prop.format ?? '').toLowerCase();
-          if (fmt === 'email') {
-            rs.push({type: 'email', message: formatText(emailText.value, {label: key}), trigger: 'blur'});
-          }
-          const ov = props.rulesOverride?.[key] as any[] | undefined;
-          if (props.rulesMode === 'replace') {
-            if (ov) rules[key] = ov;
-            else if (rs.length) rules[key] = rs;
-          } else {
-            if (rs.length && ov?.length) rules[key] = [...rs, ...ov];
-            else if (rs.length) rules[key] = rs;
-            else if (ov?.length) rules[key] = ov;
-          }
-        }
-      }
-      if (props.rulesOverride && props.rulesMode === 'merge') {
-        for (const [k, v] of Object.entries(props.rulesOverride)) {
-          if (!rules[k as any]) (rules as any)[k] = v as any;
-        }
-      }
-    },
+    (s) => updateRulesAndData(s),
     {immediate: true}
 );
 

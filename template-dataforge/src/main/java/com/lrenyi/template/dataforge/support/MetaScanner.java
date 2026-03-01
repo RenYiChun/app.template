@@ -26,6 +26,7 @@ import com.lrenyi.template.dataforge.meta.FieldMeta;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.metamodel.ManagedType;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -142,36 +143,42 @@ public class MetaScanner {
         }
         return lower + "s";
     }
-
+    
     private static boolean shouldUseIesSuffix(String lower) {
-        return lower.endsWith("y") && lower.length() > 1
-                && !isVowel(lower.charAt(lower.length() - 2));
+        return lower.endsWith("y") && lower.length() > 1 && !isVowel(lower.charAt(lower.length() - 2));
     }
-
+    
     private static boolean shouldUseEsSuffix(String lower) {
-        return lower.endsWith("s") || lower.endsWith("x")
-                || lower.endsWith("ch") || lower.endsWith("sh");
+        return lower.endsWith("s") || lower.endsWith("x") || lower.endsWith("ch") || lower.endsWith("sh");
     }
-
+    
     private static boolean isVowel(char c) {
         return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
     }
-
+    
     private static void applyPermissionDefaults(EntityMeta meta, DataforgeEntity ann, String pathSeg) {
-        meta.setPermissionCreate(defaultPermission(ann.permissionCreate(), pathSeg,
-                ann.crudEnabled() && ann.enableCreate(), "create"));
-        meta.setPermissionRead(defaultPermission(ann.permissionRead(), pathSeg,
-                isReadEnabled(ann), "read"));
-        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(), pathSeg,
-                ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()), "update"));
-        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(), pathSeg,
-                ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()), "delete"));
+        meta.setPermissionCreate(defaultPermission(ann.permissionCreate(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && ann.enableCreate(),
+                                                   "create"
+        ));
+        meta.setPermissionRead(defaultPermission(ann.permissionRead(), pathSeg, isReadEnabled(ann), "read"));
+        meta.setPermissionUpdate(defaultPermission(ann.permissionUpdate(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && (ann.enableUpdate() || ann.enableUpdateBatch()),
+                                                   "update"
+        ));
+        meta.setPermissionDelete(defaultPermission(ann.permissionDelete(),
+                                                   pathSeg,
+                                                   ann.crudEnabled() && (ann.enableDelete() || ann.enableDeleteBatch()),
+                                                   "delete"
+        ));
     }
-
+    
     private static boolean isReadEnabled(DataforgeEntity ann) {
         return ann.crudEnabled() && (ann.enableList() || ann.enableGet() || ann.enableExport());
     }
-
+    
     /**
      * 仅扫描并注册 @DataforgeEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
      * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @DataforgeEntity）；
@@ -227,20 +234,24 @@ public class MetaScanner {
                                                                                .map(String::trim)
                                                                                .filter(s -> !s.isEmpty())
                                                                                .collect(Collectors.toSet());
-        for (var managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
+        for (ManagedType<?> managedType : entityManagerFactory.getMetamodel().getManagedTypes()) {
             Class<?> clazz = managedType.getJavaType();
-            if (clazz == null) {
-                continue;
-            }
-            if (!packagePrefixes.isEmpty()) {
-                String pkg = clazz.getPackageName();
-                boolean inScope = packagePrefixes.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."));
-                if (!inScope) {
-                    continue;
-                }
-            }
-            registerEntity(clazz);
+            registerEntityIfValid(clazz, packagePrefixes);
         }
+    }
+    
+    private void registerEntityIfValid(Class<?> clazz, Set<String> packagePrefixes) {
+        if (clazz == null) {
+            return;
+        }
+        if (!packagePrefixes.isEmpty()) {
+            String pkg = clazz.getPackageName();
+            boolean inScope = packagePrefixes.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."));
+            if (!inScope) {
+                return;
+            }
+        }
+        registerEntity(clazz);
     }
     
     private void registerEntity(Class<?> clazz) {
@@ -351,7 +362,7 @@ public class MetaScanner {
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
         List<Class<?>> hierarchy = buildClassHierarchy(clazz);
         List<String> searchableFields = collectSearchableFieldNames(hierarchy);
-
+        
         List<FieldMeta> list = new ArrayList<>();
         for (Class<?> c : hierarchy) {
             for (Field f : c.getDeclaredFields()) {
@@ -365,7 +376,7 @@ public class MetaScanner {
         }
         return list;
     }
-
+    
     private static List<Class<?>> buildClassHierarchy(Class<?> clazz) {
         List<Class<?>> hierarchy = new ArrayList<>();
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
@@ -374,7 +385,7 @@ public class MetaScanner {
         Collections.reverse(hierarchy);
         return hierarchy;
     }
-
+    
     private static List<String> collectSearchableFieldNames(List<Class<?>> hierarchy) {
         List<String> annotated = new ArrayList<>();
         for (Class<?> c : hierarchy) {
@@ -387,7 +398,7 @@ public class MetaScanner {
         }
         return annotated;
     }
-
+    
     private FieldMeta createBaseFieldMeta(Field f, List<String> searchableFields) {
         FieldMeta fm = new FieldMeta();
         fm.setName(f.getName());
@@ -398,16 +409,16 @@ public class MetaScanner {
         fm.setQueryable(searchableFields.contains(f.getName()));
         return fm;
     }
-
+    
     private static boolean isPrimaryKeyField(Field f) {
         if (!"id".equalsIgnoreCase(f.getName())) {
             return false;
         }
         Class<?> t = f.getType();
-        return t == Long.class || t == long.class || t == String.class
-                || t == UUID.class || t == Integer.class || t == int.class;
+        return t == Long.class || t == long.class || t == String.class || t == UUID.class || t == Integer.class
+                || t == int.class;
     }
-
+    
     private void applyDataforgeField(Field f, FieldMeta fm) {
         DataforgeField df = f.getAnnotation(DataforgeField.class);
         if (df == null) {
@@ -464,13 +475,13 @@ public class MetaScanner {
         fm.setDisplayField(df.displayField());
         fm.setValueField(df.valueField());
         fm.setLazyLoad(df.lazyLoad());
-
+        
         if (df.searchable()) {
             fm.setQueryable(true);
             fm.setSearchOrder(fm.getSearchOrder() == 0 ? fm.getOrder() : fm.getSearchOrder());
         }
     }
-
+    
     private void applyDataforgeExport(Field f, FieldMeta fm) {
         DataforgeExport exp = f.getAnnotation(DataforgeExport.class);
         if (exp == null) {
@@ -495,7 +506,7 @@ public class MetaScanner {
         fm.setExportHyperlinkFormula(exp.hyperlinkFormula());
         fm.setExportExcluded(!exp.enabled());
     }
-
+    
     private void applyDataforgeImport(Field f, FieldMeta fm) {
         DataforgeImport imp = f.getAnnotation(DataforgeImport.class);
         if (imp == null) {
@@ -523,7 +534,7 @@ public class MetaScanner {
         fm.setImportTrim(imp.trim());
         fm.setImportErrorPolicy(imp.errorPolicy().name());
     }
-
+    
     private void applyDataforgeDto(Field f, FieldMeta fm) {
         DataforgeDto dto = f.getAnnotation(DataforgeDto.class);
         if (dto == null) {

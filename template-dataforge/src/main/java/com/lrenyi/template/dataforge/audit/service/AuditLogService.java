@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -33,6 +35,13 @@ public class AuditLogService {
     private final ObjectProvider<AuditLogEnricher> enricherProvider;
     private static final String UNKNOWN = "unknown";
     private final String serverIp;
+    
+    private AuditLogService self;
+    
+    @Autowired
+    public void setSelf(@Lazy AuditLogService self) {
+        this.self = self;
+    }
     
     public AuditLogService(AuditLogProcessor auditLogProcessor,
             String serviceName,
@@ -55,22 +64,22 @@ public class AuditLogService {
     }
     
     @Async
-     public void saveLog(ProceedingJoinPoint joinPoint,
-                        String ipAddress,
-                        String uri,
-                        String httpMethod,
-                        SecurityContext context,
-                        long time,
-                        Throwable e) {
+    public void saveLog(ProceedingJoinPoint joinPoint,
+            String ipAddress,
+            String uri,
+            String httpMethod,
+            SecurityContext context,
+            long time,
+            Throwable e) {
         AuditLogInfo logInfo = new AuditLogInfo();
         logInfo.setExecutionTimeMs(time);
         logInfo.setOperationTime(new Date());
-
+        
         logInfo.setSuccess(e == null);
         if (e != null) {
             logInfo.setExceptionDetails(e.getMessage());
         }
-
+        
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Method method = signature.getMethod();
         String description = resolveDescription(joinPoint, method);
@@ -81,21 +90,20 @@ public class AuditLogService {
         Authentication authentication = context.getAuthentication();
         String name = extractUserName(authentication);
         if (!StringUtils.hasLength(name)) {
-            log.warn("not find user info, the type of Authentication is: {}",
-                    authentication.getClass().getName());
+            log.warn("not find user info, the type of Authentication is: {}", authentication.getClass().getName());
         }
         logInfo.setUserName(name);
-
+        
         fillAnnotationInfo(logInfo, method);
-
+        
         enrichLogInfo(joinPoint, logInfo);
-
+        
         logInfo.setServiceName(serviceName);
         logInfo.setServerIp(serverIp);
-
+        
         auditLogProcessor.process(logInfo);
     }
-
+    
     private String resolveDescription(ProceedingJoinPoint joinPoint, Method method) {
         String description = null;
         AuditDescriptionResolver resolver = descriptionResolverProvider.getIfAvailable();
@@ -117,7 +125,7 @@ public class AuditLogService {
         }
         return description;
     }
-
+    
     private HttpServletRequest getCurrentRequest() {
         try {
             var attrs = RequestContextHolder.getRequestAttributes();
@@ -129,7 +137,7 @@ public class AuditLogService {
         }
         return null;
     }
-
+    
     private void fillAnnotationInfo(AuditLogInfo logInfo, Method method) {
         AuditLog auditLogAnnotation = method.getAnnotation(AuditLog.class);
         if (auditLogAnnotation != null) {
@@ -141,15 +149,14 @@ public class AuditLogService {
             }
         }
     }
-
+    
     private void enrichLogInfo(ProceedingJoinPoint joinPoint, AuditLogInfo logInfo) {
         HttpServletRequest request = getCurrentRequest();
         if (request != null && enricherProvider != null) {
-            enricherProvider.orderedStream()
-                    .forEach(enricher -> enricher.enrich(joinPoint, request, logInfo));
+            enricherProvider.orderedStream().forEach(enricher -> enricher.enrich(joinPoint, request, logInfo));
         }
     }
-
+    
     public String extractUserName(Authentication authentication) {
         String name = authentication.getName();
         final String username = OAuth2TokenIntrospectionClaimNames.USERNAME;
@@ -173,7 +180,7 @@ public class AuditLogService {
             String desc,
             boolean success,
             String exception) {
-        recordAuditLog(request, userName, desc, success, exception, null, null, null, null);
+        self.recordAuditLog(request, userName, desc, success, exception, null, null, null, null);
     }
     
     @Async
@@ -214,14 +221,9 @@ public class AuditLogService {
         auditLogProcessor.process(logInfo);
     }
     
-    private static final String[] IP_HEADERS = {
-        "x-forwarded-for",
-        "Proxy-Client-IP",
-        "WL-Proxy-Client-IP",
-        "HTTP_CLIENT_IP",
-        "HTTP_X_FORWARDED_FOR"
-    };
-
+    private static final String[] IP_HEADERS =
+            {"x-forwarded-for", "Proxy-Client-IP", "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"};
+    
     public String getIpAddress(HttpServletRequest request) {
         for (String header : IP_HEADERS) {
             String ip = request.getHeader(header);

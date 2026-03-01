@@ -14,7 +14,6 @@ import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.SortOrder;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,7 +38,7 @@ public class JpaEntityCrudService implements EntityCrudService {
     
     @Override
     @Transactional(readOnly = true)
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
@@ -131,7 +130,7 @@ public class JpaEntityCrudService implements EntityCrudService {
     
     @Override
     @Transactional
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         if (entities == null || entities.isEmpty()) {
             throw new IllegalArgumentException("Entities cannot be null or empty");
         }

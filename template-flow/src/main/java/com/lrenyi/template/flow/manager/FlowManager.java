@@ -42,7 +42,7 @@ public class FlowManager implements ActiveLauncherLookup {
     private final MeterRegistry meterRegistry;
     
     private final Map<String, Registration> registry = new ConcurrentHashMap<>();
-    private final Map<String, FlowLauncher<?>> activeLaunchers = new ConcurrentHashMap<>();
+    private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
     
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -182,7 +182,7 @@ public class FlowManager implements ActiveLauncherLookup {
             registry.put(jobId, registration);
             
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
-            activeLaunchers.put(jobId, launcher);
+            activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             
             Counter.builder(FlowMetricNames.JOB_STARTED)
                    .tag(FlowMetricNames.TAG_JOB_ID, jobId)
@@ -206,7 +206,7 @@ public class FlowManager implements ActiveLauncherLookup {
     }
     
     public void stopById(String jobId, boolean force) {
-        for (Map.Entry<String, FlowLauncher<?>> entry : activeLaunchers.entrySet()) {
+        for (Map.Entry<String, FlowLauncher<Object>> entry : activeLaunchers.entrySet()) {
             String key = entry.getKey();
             FlowLauncher<?> launcher = entry.getValue();
             if (launcher.getJobId().equals(jobId)) {
@@ -216,20 +216,20 @@ public class FlowManager implements ActiveLauncherLookup {
         }
     }
     
-    public Map<String, FlowLauncher<?>> getActiveLaunchers() {
+    public Map<String, FlowLauncher<Object>> getActiveLaunchers() {
         return Collections.unmodifiableMap(activeLaunchers);
     }
     
     public ProgressTracker getProgressTracker(String jobId) {
-        @SuppressWarnings("unchecked") FlowLauncher<Object> activeLauncher =
-                (FlowLauncher<Object>) getActiveLauncher(jobId);
+        FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
         Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
         return taskOrchestrator.tracker();
     }
     
     @Override
-    public FlowLauncher<?> getActiveLauncher(String jobId) {
-        return activeLaunchers.get(jobId);
+    @SuppressWarnings("unchecked")
+    public <T> FlowLauncher<T> getActiveLauncher(String jobId) {
+        return (FlowLauncher<T>) activeLaunchers.get(jobId);
     }
     
     public int getActiveJobCount() {

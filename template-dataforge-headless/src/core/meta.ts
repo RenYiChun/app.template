@@ -115,220 +115,277 @@ export class MetaService {
 
         for (const [path, pathItem] of Object.entries(paths)) {
             if (typeof pathItem !== 'object') continue;
-            const parts = path.replace(/^\//, '').split('/').filter(Boolean);
-            const segment = parts[0] === 'api' ? parts[1] : parts[0];
-            if (!segment || segment.startsWith('{')) continue;
-
-            for (const [method, op] of Object.entries(pathItem)) {
-                if (method === 'parameters' || typeof op !== 'object') continue;
-                const operation = op as OpenApiOperation;
-                const opTags = operation.tags ?? [];
-                const tag = opTags[0];
-                const displayName = tag ?? segment;
-                if (tag && !tagToPathSegment.has(tag)) {
-                    tagToPathSegment.set(tag, segment);
-                }
-                const pathSeg = (tag ? tagToPathSegment.get(tag) : undefined) ?? segment;
-
-                let meta: EntityMeta;
-                const existingMeta = entityBySegment.get(pathSeg);
-                if (existingMeta) {
-                    meta = existingMeta;
-                } else {
-                    const pluralName = displayName.endsWith('s') ? displayName : displayName + 's';
-                    meta = {
-                        name: pathSeg,
-                        displayName,
-                        pluralName,
-                        pathSegment: pathSeg, // Add pathSegment here
-                        properties: {},
-                        operations: {},
-                        actions: [],
-                        schemas: {},
-                        queryableFields: undefined,
-                    };
-                    entityBySegment.set(pathSeg, meta);
-                }
-
-                // 尝试从 schemas 中找到对应的实体定义，填充 properties
-                if (Object.keys(meta.properties).length === 0) {
-                    const possibleSchemaNames = [displayName, pathSeg, tag].filter(Boolean) as string[];
-                    for (const schemaName of possibleSchemaNames) {
-                        const schema = schemas[schemaName];
-                        if (schema?.properties) {
-                            const requiredSet = new Set<string>((schema.required ?? []) as string[]);
-                            const props = schema.properties as Record<string, SchemaProperty>;
-                            const enriched: Record<string, SchemaProperty> = {};
-                            for (const [k, v] of Object.entries(props)) {
-                                enriched[k] = {...v, required: requiredSet.has(k)};
-                            }
-                            meta.properties = enriched;
-                            break;
-                        }
-                    }
-                }
-
-                const operationId = operation.operationId ?? `${pathSeg}_${method}`;
-                const opIdParts = operationId.split('_');
-                const last = opIdParts[opIdParts.length - 1];
-                const knownOps = ['search', 'get', 'create', 'update', 'delete', 'deleteBatch', 'updateBatch', 'export'];
-                const actionIdx = parts.indexOf('_action');
-                const actionFromPath = actionIdx >= 0 ? parts[actionIdx + 1] : undefined;
-                const hasActionInPath = actionIdx >= 0 || path.includes('/_action/');
-                const isAction =
-                    hasActionInPath ||
-                    path.includes('{actionName}') ||
-                    (opIdParts.length > 2 && !knownOps.includes(last));
-                const actionName =
-                    (actionFromPath && !actionFromPath.startsWith('{') ? actionFromPath : undefined) ?? last;
-
-                if (isAction) {
-                    if (!meta.actions!.some((a) => a.actionName === actionName)) {
-                        meta.actions!.push({
-                            actionName,
-                            summary: operation.summary,
-                            permissions: (operation as OpenApiOperation & {
-                                'x-permissions'?: string | string[]
-                            })['x-permissions'] as string[] | undefined,
-                        });
-                    }
-                } else {
-                    const opMeta: OperationMeta = {
-                        method: method.toUpperCase(),
-                        path,
-                        summary: operation.summary,
-                        operationId,
-                        permissions: (operation as OpenApiOperation & {
-                            'x-permissions'?: string | string[]
-                        })['x-permissions'] as string[] | undefined,
-                    };
-                    const qf = (operation as OpenApiOperation & {
-                        'x-queryable-fields'?: Record<string, {
-                            type: string;
-                            operators: string[];
-                            label?: string;
-                            order?: number
-                        }>
-                    })['x-queryable-fields'];
-                    if (qf) {
-                        opMeta.queryableFields = {};
-                        for (const [f, v] of Object.entries(qf)) {
-                            opMeta.queryableFields[f] = {
-                                type: v?.type ?? 'string',
-                                operators: (v?.operators ?? []) as Op[],
-                                label: v?.label,
-                                order: v?.order,
-                            };
-                        }
-                    }
-
-                    // 如果是 export 操作，且有 queryableFields，则尝试将其复制给 search 操作
-                    if (last === 'export' && opMeta.queryableFields) {
-                        // 查找对应的 search 操作
-                        let searchOp = meta.operations!['search'];
-                        if (!searchOp) {
-                            // 如果 search 操作不存在（可能是因为 methodName 映射问题），尝试查找与 export 同路径但方法为 POST 的操作作为 search
-                            // 这里的假设是：search 和 export 通常在同一层级，或者 search 是列表页的默认查询接口
-                            // 但在 GenericEntityController 中，search 是 /{entity}/search，export 是 /{entity}/export
-                            // 如果我们找不到 'search' key，可能是 operationId 解析问题
-                            // 暂时只处理 key 为 'search' 的情况，因为这是标准约定
-                        }
-
-                        if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
-                            searchOp.queryableFields = {...opMeta.queryableFields};
-                            // 同时更新 entity 级别的 queryableFields，确保 UI 能读到
-                            meta.queryableFields = searchOp.queryableFields;
-                        }
-
-                        // 如果 entity 级别还没有 queryableFields，直接使用 export 的配置作为默认
-                        if (!meta.queryableFields) {
-                            meta.queryableFields = {...opMeta.queryableFields};
-                        }
-                    }
-
-                    meta.operations![last] = opMeta;
-                    if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
-                    if (last === 'export') meta.exportEnabled = true;
-                }
-
-                // 解析请求体 schema：仅 create/update 的 requestBody 写入 schemas，避免把 search 的请求体（filters/sort/page/size）误当作 response 列
-                const reqBody = operation.requestBody as {
-                    content?: { 'application/json'?: { schema?: { $ref?: string } } }
-                } | undefined;
-                const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
-                if (schemaRef && (last === 'create' || last === 'update' || last === 'updateBatch')) {
-                    const schemaName = schemaRef.replace('#/components/schemas/', '');
-                    const schema = schemas[schemaName];
-                    if (schema?.properties) {
-                        const requiredSet = new Set<string>((schema.required ?? []) as string[]);
-                        const props = schema.properties as Record<string, SchemaProperty>;
-                        const enriched: Record<string, SchemaProperty> = {};
-                        for (const [k, v] of Object.entries(props)) {
-                            enriched[k] = {...v, required: requiredSet.has(k)};
-                        }
-                        meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
-                    }
-                }
-
-                const resp = operation.responses?.['200'] as {
-                    content?: {
-                        'application/json'?: { schema?: { $ref?: string; properties?: Record<string, unknown> } }
-                    }
-                } | undefined;
-                const respSchema = resp?.content?.['application/json']?.schema;
-                const respRef = respSchema?.$ref;
-                if (respRef || respSchema?.properties) {
-                    const schemaName = respRef?.replace('#/components/schemas/', '');
-                    const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
-                    const props = schema?.properties;
-                    if (last === 'search') {
-                        // 列表接口：若为 PagedResult，用 content.items 的 schema 作为 pageResponse（表格列）
-                        const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
-                            ? (props.content as { items?: { $ref?: string } })?.items?.$ref
-                            : undefined;
-                        const itemRef = contentSchema?.replace('#/components/schemas/', '');
-                        const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
-                        if (itemSchema?.properties) {
-                            meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;
-                        } else if (props && typeof props === 'object') {
-                            meta.schemas!.pageResponse = props as Record<string, SchemaProperty>;
-                        }
-                    } else if (last === 'get') {
-                        // 详情接口：200 响应 schema 作为 detail（单条展示/表单回显）
-                        if (props && typeof props === 'object') {
-                            meta.schemas!.detail = props as Record<string, SchemaProperty>;
-                        }
-                    }
-                }
-            }
+            this.parsePathItem(path, pathItem, tagToPathSegment, entityBySegment, schemas);
         }
 
-        // 补充 queryableFields 的默认 operators
-        for (const meta of entityBySegment.values()) {
-            if (meta.queryableFields) {
-                for (const [f, v] of Object.entries(meta.queryableFields)) {
-                    const fieldMeta = v as { type: string; operators: Op[]; label?: string; order?: number };
-                    if (!fieldMeta.operators?.length) fieldMeta.operators = opsForType(fieldMeta.type);
-                }
-            }
-        }
-
-        // 若 properties 为空但有 schemas.pageResponse，用其填充 properties，便于列解析与元数据页展示
-        for (const meta of entityBySegment.values()) {
-            if (Object.keys(meta.properties).length === 0 && meta.schemas?.pageResponse && typeof meta.schemas.pageResponse === 'object') {
-                meta.properties = {...meta.schemas.pageResponse} as Record<string, SchemaProperty>;
-            }
-            if (Object.keys(meta.properties).length === 0) {
-                console.warn(
-                    '[MetaService] entity pathSegment=%s has empty properties → list columns will be empty. ' +
-                    'Cause: backend GET /api/docs returned empty schema for list item (PageResponseDTO not found at runtime). ' +
-                    'Fix: mvn clean compile -pl template-dataforge-sample-backend so annotation processor generates *PageResponseDTO.',
-                    meta.pathSegment
-                );
-            }
-        }
+        this.postProcessEntities(entityBySegment);
 
         return Array.from(entityBySegment.values());
+    }
+
+    private parsePathItem(
+        path: string,
+        pathItem: Record<string, unknown>,
+        tagToPathSegment: Map<string, string>,
+        entityBySegment: Map<string, EntityMeta>,
+        schemas: Record<string, OpenApiSchema>
+    ) {
+        const parts = path.replace(/^\//, '').split('/').filter(Boolean);
+        const segment = parts[0] === 'api' ? parts[1] : parts[0];
+        if (!segment || segment.startsWith('{')) return;
+
+        for (const [method, op] of Object.entries(pathItem)) {
+            if (method === 'parameters' || typeof op !== 'object') continue;
+            const operation = op as OpenApiOperation;
+            const opTags = operation.tags ?? [];
+            const tag = opTags[0];
+            const displayName = tag ?? segment;
+            if (tag && !tagToPathSegment.has(tag)) {
+                tagToPathSegment.set(tag, segment);
+            }
+            const pathSeg = (tag ? tagToPathSegment.get(tag) : undefined) ?? segment;
+
+            let meta = entityBySegment.get(pathSeg);
+            if (!meta) {
+                meta = this.createEntityMeta(pathSeg, displayName);
+                entityBySegment.set(pathSeg, meta);
+            }
+
+            this.ensureProperties(meta, schemas, displayName, pathSeg, tag);
+            this.processOperation(meta, operation, method, path, parts, schemas);
+        }
+    }
+
+    private createEntityMeta(pathSeg: string, displayName: string): EntityMeta {
+        const pluralName = displayName.endsWith('s') ? displayName : displayName + 's';
+        return {
+            name: pathSeg,
+            displayName,
+            pluralName,
+            pathSegment: pathSeg,
+            properties: {},
+            operations: {},
+            actions: [],
+            schemas: {},
+            queryableFields: undefined,
+        };
+    }
+
+    private ensureProperties(meta: EntityMeta, schemas: Record<string, OpenApiSchema>, displayName: string, pathSeg: string, tag?: string) {
+        if (Object.keys(meta.properties).length > 0) return;
+        const possibleSchemaNames = [displayName, pathSeg, tag].filter(Boolean) as string[];
+        for (const schemaName of possibleSchemaNames) {
+            const schema = schemas[schemaName];
+            if (schema?.properties) {
+                const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                const props = schema.properties as Record<string, SchemaProperty>;
+                const enriched: Record<string, SchemaProperty> = {};
+                for (const [k, v] of Object.entries(props)) {
+                    enriched[k] = {...v, required: requiredSet.has(k)};
+                }
+                meta.properties = enriched;
+                break;
+            }
+        }
+    }
+
+    private processOperation(
+        meta: EntityMeta,
+        operation: OpenApiOperation,
+        method: string,
+        path: string,
+        parts: string[],
+        schemas: Record<string, OpenApiSchema>
+    ) {
+        const operationId = operation.operationId ?? `${meta.pathSegment}_${method}`;
+        const opIdParts = operationId.split('_');
+        const last = opIdParts[opIdParts.length - 1];
+        const knownOps = ['search', 'get', 'create', 'update', 'delete', 'deleteBatch', 'updateBatch', 'export'];
+        const actionIdx = parts.indexOf('_action');
+        const actionFromPath = actionIdx >= 0 ? parts[actionIdx + 1] : undefined;
+        const hasActionInPath = actionIdx >= 0 || path.includes('/_action/');
+        const isAction =
+            hasActionInPath ||
+            path.includes('{actionName}') ||
+            (opIdParts.length > 2 && !knownOps.includes(last));
+        const actionName =
+            (actionFromPath && !actionFromPath.startsWith('{') ? actionFromPath : undefined) ?? last;
+
+        if (isAction) {
+            this.addAction(meta, actionName, operation);
+        } else {
+            this.addStandardOperation(meta, last, method, path, operationId, operation);
+        }
+
+        this.processRequestBody(meta, last, operation, schemas);
+        this.processResponse(meta, last, operation, schemas);
+    }
+
+    private addAction(meta: EntityMeta, actionName: string, operation: OpenApiOperation) {
+        if (!meta.actions!.some((a) => a.actionName === actionName)) {
+            meta.actions!.push({
+                actionName,
+                summary: operation.summary,
+                permissions: (operation as OpenApiOperation & {
+                    'x-permissions'?: string | string[]
+                })['x-permissions'] as string[] | undefined,
+            });
+        }
+    }
+
+    private addStandardOperation(
+        meta: EntityMeta,
+        last: string,
+        method: string,
+        path: string,
+        operationId: string,
+        operation: OpenApiOperation
+    ) {
+        const opMeta: OperationMeta = {
+            method: method.toUpperCase(),
+            path,
+            summary: operation.summary,
+            operationId,
+            permissions: (operation as OpenApiOperation & {
+                'x-permissions'?: string | string[]
+            })['x-permissions'] as string[] | undefined,
+        };
+        const qf = (operation as OpenApiOperation & {
+            'x-queryable-fields'?: Record<string, {
+                type: string;
+                operators: string[];
+                label?: string;
+                order?: number
+            }>
+        })['x-queryable-fields'];
+        if (qf) {
+            opMeta.queryableFields = {};
+            for (const [f, v] of Object.entries(qf)) {
+                opMeta.queryableFields[f] = {
+                    type: v?.type ?? 'string',
+                    operators: (v?.operators ?? []) as Op[],
+                    label: v?.label,
+                    order: v?.order,
+                };
+            }
+        }
+
+        this.handleExportOperation(meta, last, opMeta);
+
+        meta.operations![last] = opMeta;
+        if (opMeta.queryableFields) meta.queryableFields = opMeta.queryableFields;
+        if (last === 'export') meta.exportEnabled = true;
+    }
+
+    private handleExportOperation(meta: EntityMeta, last: string, opMeta: OperationMeta) {
+        if (last === 'export' && opMeta.queryableFields) {
+            let searchOp = meta.operations!['search'];
+            if (searchOp && (!searchOp.queryableFields || Object.keys(searchOp.queryableFields).length === 0)) {
+                searchOp.queryableFields = {...opMeta.queryableFields};
+                meta.queryableFields = searchOp.queryableFields;
+            }
+            if (!meta.queryableFields) {
+                meta.queryableFields = {...opMeta.queryableFields};
+            }
+        }
+    }
+
+    private processRequestBody(meta: EntityMeta, last: string, operation: OpenApiOperation, schemas: Record<string, OpenApiSchema>) {
+        const reqBody = operation.requestBody as {
+            content?: { 'application/json'?: { schema?: { $ref?: string } } }
+        } | undefined;
+        const schemaRef = reqBody?.content?.['application/json']?.schema?.$ref;
+        if (schemaRef && (last === 'create' || last === 'update' || last === 'updateBatch')) {
+            const schemaName = schemaRef.replace('#/components/schemas/', '');
+            const schema = schemas[schemaName];
+            if (schema?.properties) {
+                const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                const props = schema.properties as Record<string, SchemaProperty>;
+                const enriched: Record<string, SchemaProperty> = {};
+                for (const [k, v] of Object.entries(props)) {
+                    enriched[k] = {...v, required: requiredSet.has(k)};
+                }
+                meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
+            }
+        }
+    }
+
+    private processResponse(meta: EntityMeta, last: string, operation: OpenApiOperation, schemas: Record<string, OpenApiSchema>) {
+        const resp = operation.responses?.['200'] as {
+            content?: {
+                'application/json'?: { schema?: { $ref?: string; properties?: Record<string, unknown> } }
+            }
+        } | undefined;
+        const respSchema = resp?.content?.['application/json']?.schema;
+        const respRef = respSchema?.$ref;
+
+        if (!respRef && !respSchema?.properties) {
+            return;
+        }
+
+        const schemaName = respRef?.replace('#/components/schemas/', '');
+        const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
+        const props = schema?.properties;
+
+        if (last === 'search') {
+            this.processSearchResponse(meta, props, schemas);
+        } else if (last === 'get') {
+            this.processGetResponse(meta, props);
+        }
+    }
+
+    private processSearchResponse(
+        meta: EntityMeta,
+        props: Record<string, unknown> | undefined,
+        schemas: Record<string, OpenApiSchema>
+    ) {
+        const contentSchema = props && typeof props === 'object' && props.content && typeof (props.content as any) === 'object'
+            ? (props.content as { items?: { $ref?: string } })?.items?.$ref
+            : undefined;
+        const itemRef = contentSchema?.replace('#/components/schemas/', '');
+        const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
+
+        if (itemSchema?.properties) {
+            meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;
+        } else if (props && typeof props === 'object') {
+            meta.schemas!.pageResponse = props as Record<string, SchemaProperty>;
+        }
+    }
+
+    private processGetResponse(meta: EntityMeta, props: Record<string, unknown> | undefined) {
+        if (props && typeof props === 'object') {
+            meta.schemas!.detail = props as Record<string, SchemaProperty>;
+        }
+    }
+
+    private postProcessEntities(entityBySegment: Map<string, EntityMeta>) {
+        for (const meta of entityBySegment.values()) {
+            this.fillDefaultOperators(meta);
+            this.fillDefaultProperties(meta);
+        }
+    }
+
+    private fillDefaultOperators(meta: EntityMeta) {
+        if (meta.queryableFields) {
+            for (const v of Object.values(meta.queryableFields)) {
+                const fieldMeta = v as { type: string; operators: Op[]; label?: string; order?: number };
+                if (!fieldMeta.operators?.length) fieldMeta.operators = opsForType(fieldMeta.type);
+            }
+        }
+    }
+
+    private fillDefaultProperties(meta: EntityMeta) {
+        if (Object.keys(meta.properties).length === 0 && meta.schemas?.pageResponse && typeof meta.schemas.pageResponse === 'object') {
+            meta.properties = {...meta.schemas.pageResponse} as Record<string, SchemaProperty>;
+        }
+        if (Object.keys(meta.properties).length === 0) {
+            console.warn(
+                '[MetaService] entity pathSegment=%s has empty properties → list columns will be empty. ' +
+                'Cause: backend GET /api/docs returned empty schema for list item (PageResponseDTO not found at runtime). ' +
+                'Fix: mvn clean compile -pl template-dataforge-sample-backend so annotation processor generates *PageResponseDTO.',
+                meta.pathSegment
+            );
+        }
     }
 }
 

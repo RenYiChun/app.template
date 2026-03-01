@@ -23,6 +23,7 @@ import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.PagedResult;
 import com.lrenyi.template.dataforge.support.SearchRequest;
 import com.lrenyi.template.dataforge.support.SortOrder;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.springframework.beans.factory.ObjectProvider;
@@ -62,6 +63,12 @@ public class GenericEntityController {
     private final ObjectProvider<Validator> validatorProvider;
     private final ConversionService conversionService;
     
+    private static final String CRUD_READ = "read";
+    private static final String CRUD_CREATE = "create";
+    private static final String CRUD_UPDATE = "update";
+    private static final String CRUD_DELETE = "delete";
+    private static final String ERR_ID_FORMAT = "id 格式错误";
+    
     public GenericEntityController(DataforgeServices services) {
         this.entityRegistry = services.entityRegistry();
         this.actionRegistry = services.actionRegistry();
@@ -77,17 +84,17 @@ public class GenericEntityController {
      * 搜索。POST 请求体为 SearchRequest（filters、sort、page、size），body 为空时使用默认值。
      */
     @PostMapping("/{entity}/search")
-    public Result<?> search(@PathVariable("entity") String entity, @RequestBody(required = false) SearchRequest req) {
+    public Result<Object> search(@PathVariable String entity, @RequestBody(required = false) SearchRequest req) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isListEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "read"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_READ));
         if (forbidden != null) {
             return forbidden;
         }
         SearchRequest request = req != null ? req : SearchRequest.empty();
-        int safeSize = Math.min(Math.max(1, request.size()), properties.getMaxPageSize());
+        int safeSize = Math.clamp(request.size(), 1, properties.getMaxPageSize());
         Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
         ListCriteria criteria = ListCriteria.from(request, meta);
         Page<?> pageResult = crudService.list(meta, pageable, criteria);
@@ -127,10 +134,10 @@ public class GenericEntityController {
     
     private static List<String> getRequiredPermissionsForCrud(EntityMeta meta, String crudOp) {
         String p = switch (crudOp) {
-            case "read" -> meta.getPermissionRead();
-            case "create" -> meta.getPermissionCreate();
-            case "update" -> meta.getPermissionUpdate();
-            case "delete" -> meta.getPermissionDelete();
+            case CRUD_READ -> meta.getPermissionRead();
+            case CRUD_CREATE -> meta.getPermissionCreate();
+            case CRUD_UPDATE -> meta.getPermissionUpdate();
+            case CRUD_DELETE -> meta.getPermissionDelete();
             default -> "";
         };
         if (p == null || p.isBlank()) {
@@ -164,7 +171,7 @@ public class GenericEntityController {
         }
         if (dtoClass != null) {
             Class<?> finalDtoClass = dtoClass;
-            return list.stream().map(e -> objectMapper.convertValue(e, finalDtoClass)).collect(Collectors.toList());
+            return list.stream().map(e -> objectMapper.convertValue(e, finalDtoClass)).toList();
         }
         return list;
     }
@@ -176,18 +183,18 @@ public class GenericEntityController {
     }
     
     @GetMapping("/{entity}/{id}")
-    public Result<?> get(@PathVariable("entity") String entity, @PathVariable("id") String id) {
+    public Result<Object> get(@PathVariable String entity, @PathVariable String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isGetEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "read"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_READ));
         if (forbidden != null) {
             return forbidden;
         }
         Object idObj = parseIdOrBadRequest(meta, id);
         if (idObj == null) {
-            return badRequest("id 格式错误");
+            return badRequest(ERR_ID_FORMAT);
         }
         Object one = crudService.get(meta, idObj);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
@@ -220,12 +227,12 @@ public class GenericEntityController {
     }
     
     @PostMapping("/{entity}")
-    public Result<?> create(@PathVariable("entity") String entity, @RequestBody Map<String, Object> body) {
+    public Result<Object> create(@PathVariable String entity, @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isCreateEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "create"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_CREATE));
         if (forbidden != null) {
             return forbidden;
         }
@@ -288,43 +295,44 @@ public class GenericEntityController {
     }
     
     @PutMapping("/{entity}/{id}")
-    public Result<?> update(@PathVariable("entity") String entity,
-            @PathVariable("id") String id,
+    public Result<Object> update(@PathVariable String entity,
+            @PathVariable String id,
             @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "update"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_UPDATE));
         if (forbidden != null) {
             return forbidden;
         }
         Object idObj = parseIdOrBadRequest(meta, id);
         if (idObj == null) {
-            return badRequest("id 格式错误");
+            return badRequest(ERR_ID_FORMAT);
         }
         Result<Object> validationError = validateBody(meta, body, true);
         if (validationError != null) {
             return validationError;
         }
         Object bodyEntity = bodyToEntity(meta, body, true);
+        setEntityId(bodyEntity, idObj);
         Object updated = crudService.update(meta, idObj, bodyEntity);
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
     }
     
     @DeleteMapping("/{entity}/{id}")
-    public Result<?> delete(@PathVariable("entity") String entity, @PathVariable("id") String id) {
+    public Result<Object> delete(@PathVariable String entity, @PathVariable String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "delete"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_DELETE));
         if (forbidden != null) {
             return forbidden;
         }
         Object idObj = parseIdOrBadRequest(meta, id);
         if (idObj == null) {
-            return badRequest("id 格式错误");
+            return badRequest(ERR_ID_FORMAT);
         }
         crudService.delete(meta, idObj);
         return Result.getSuccess(null);
@@ -334,12 +342,12 @@ public class GenericEntityController {
      * 删除。请求体为 ID 列表，例如 [1, 2, 3] 或 ["uuid1", "uuid2"]，按实体主键类型解析。
      */
     @DeleteMapping("/{entity}/batch")
-    public Result<?> deleteBatch(@PathVariable("entity") String entity, @RequestBody List<Object> ids) {
+    public Result<Object> deleteBatch(@PathVariable String entity, @RequestBody List<Object> ids) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isDeleteBatchEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "delete"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_DELETE));
         if (forbidden != null) {
             return forbidden;
         }
@@ -366,7 +374,7 @@ public class GenericEntityController {
             }
             return result;
         } catch (ConversionException | IllegalArgumentException e) {
-            return null;
+            return List.of();
         }
     }
     
@@ -374,12 +382,12 @@ public class GenericEntityController {
      * 更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
     @PutMapping("/{entity}/batch")
-    public Result<?> updateBatch(@PathVariable("entity") String entity, @RequestBody List<Map<String, Object>> body) {
+    public Result<Object> updateBatch(@PathVariable String entity, @RequestBody List<Map<String, Object>> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateBatchEnabled()) {
             return notFound();
         }
-        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, "update"));
+        Result<Object> forbidden = requirePermission(getRequiredPermissionsForCrud(meta, CRUD_UPDATE));
         if (forbidden != null) {
             return forbidden;
         }
@@ -391,29 +399,42 @@ public class GenericEntityController {
         Class<?> updateDtoClass = EntityDtoResolver.resolveUpdateDto(meta);
         Validator validator = validatorProvider.getIfAvailable();
         for (Map<String, Object> map : body) {
-            Object idObj = map.get("id");
-            if (idObj == null) {
-                return badRequest("批量更新项缺少 id");
+            Result<Object> error = processBatchUpdateItem(map, meta, pkType, updateDtoClass, validator, entities);
+            if (error != null) {
+                return error;
             }
-            Object idParsed;
-            try {
-                idParsed = conversionService.convert(idObj, pkType);
-            } catch (ConversionException | IllegalArgumentException e) {
-                return badRequest("id 格式错误: " + e.getMessage());
-            }
-            if (properties.isValidationEnabled() && validator != null && updateDtoClass != null) {
-                Object dto = objectMapper.convertValue(map, updateDtoClass);
-                Result<Object> ve = validateAndReturnError(dto, validator);
-                if (ve != null) {
-                    return ve;
-                }
-            }
-            Object bodyEntity = bodyToEntity(meta, map, true);
-            setEntityId(bodyEntity, idParsed);
-            entities.add(bodyEntity);
         }
         List<?> updated = crudService.updateBatch(meta, entities);
         return Result.getSuccess(toResponseList(meta, updated));
+    }
+    
+    private Result<Object> processBatchUpdateItem(Map<String, Object> map,
+            EntityMeta meta,
+            Class<?> pkType,
+            Class<?> updateDtoClass,
+            Validator validator,
+            List<Object> entities) {
+        Object idObj = map.get("id");
+        if (idObj == null) {
+            return badRequest("批量更新项缺少 id");
+        }
+        Object idParsed;
+        try {
+            idParsed = conversionService.convert(idObj, pkType);
+        } catch (ConversionException | IllegalArgumentException e) {
+            return badRequest("id 格式错误: " + e.getMessage());
+        }
+        if (properties.isValidationEnabled() && validator != null && updateDtoClass != null) {
+            Object dto = objectMapper.convertValue(map, updateDtoClass);
+            Result<Object> ve = validateAndReturnError(dto, validator);
+            if (ve != null) {
+                return ve;
+            }
+        }
+        Object bodyEntity = bodyToEntity(meta, map, true);
+        setEntityId(bodyEntity, idParsed);
+        entities.add(bodyEntity);
+        return null;
     }
     
     private static void setEntityId(Object entity, Object id) {
@@ -445,7 +466,7 @@ public class GenericEntityController {
             return forbiddenResp;
         }
         SearchRequest request = req != null ? req : SearchRequest.emptyForExport();
-        int safeSize = Math.min(Math.max(1, request.size()), properties.getMaxExportSize());
+        int safeSize = Math.clamp(request.size(), 1, properties.getMaxExportSize());
         Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
         ListCriteria criteria = ListCriteria.from(request, meta);
         Page<?> pageResult = crudService.list(meta, pageable, criteria);
@@ -476,10 +497,10 @@ public class GenericEntityController {
             path = "/{entity}/{id}/_action/{actionName}",
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
     )
-    public Result<?> executeAction(jakarta.servlet.http.HttpServletRequest request,
-            @PathVariable("entity") String entity,
-            @PathVariable("id") String id,
-            @PathVariable("actionName") String actionName,
+    public Result<Object> executeAction(jakarta.servlet.http.HttpServletRequest request,
+            @PathVariable String entity,
+            @PathVariable String id,
+            @PathVariable String actionName,
             @RequestBody(required = false) Map<String, Object> body) {
         return executeActionInternal(request, entity, id, actionName, body);
     }
@@ -497,7 +518,7 @@ public class GenericEntityController {
         if (id != null) {
             idObj = parseIdOrBadRequest(entityMeta, id);
             if (idObj == null) {
-                return badRequest("id 格式错误");
+                return badRequest(ERR_ID_FORMAT);
             }
         }
         EntityActionExecutor executor = actionRegistry.getExecutor(entity, actionName);
@@ -534,7 +555,7 @@ public class GenericEntityController {
             path = "/{entity}/_action/{actionName}",
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
     )
-    public Result<Object> executeActionNoId(jakarta.servlet.http.HttpServletRequest request,
+    public Result<Object> executeActionNoId(HttpServletRequest request,
             @PathVariable String entity,
             @PathVariable String actionName,
             @RequestBody(required = false) Map<String, Object> body) {

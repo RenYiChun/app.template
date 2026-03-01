@@ -40,7 +40,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     }
     
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         String path = entityMeta.getPathSegment();
         Map<Object, Object> map = store.get(path);
         if (map == null) {
@@ -109,7 +109,7 @@ public class InMemoryEntityCrudService implements EntityCrudService {
     }
     
     @Override
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         if (entities == null || entities.isEmpty()) {
             return List.of();
         }

@@ -11,5 +11,5 @@ public interface ActiveLauncherLookup {
     /**
      * 根据 jobId 获取当前活跃的 Launcher，不存在则返回 null。
      */
-    FlowLauncher<?> getActiveLauncher(String jobId);
+    <T> FlowLauncher<T> getActiveLauncher(String jobId);
 }

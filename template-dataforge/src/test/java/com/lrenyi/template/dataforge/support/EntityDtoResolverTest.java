@@ -19,7 +19,7 @@ class EntityDtoResolverTest {
     @Test
     void resolve_whenDtoClassNotExists() {
         EntityMeta meta = new EntityMeta();
-        meta.setEntityClass(String.class);
+        meta.setEntityClass(Object.class);
         assertThat(EntityDtoResolver.resolveCreateDto(meta)).isNull();
         assertThat(EntityDtoResolver.resolveUpdateDto(meta)).isNull();
         assertThat(EntityDtoResolver.resolveResponseDto(meta)).isNull();

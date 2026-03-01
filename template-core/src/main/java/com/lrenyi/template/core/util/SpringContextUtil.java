@@ -57,6 +57,10 @@ public class SpringContextUtil implements ApplicationContextAware {
     
     @Override
     public void setApplicationContext(@NonNull ApplicationContext context) throws BeansException {
+        setContext(context);
+    }
+    
+    private static void setContext(ApplicationContext context) {
         if (SpringContextUtil.applicationContext == null) {
             SpringContextUtil.applicationContext = context;
         }

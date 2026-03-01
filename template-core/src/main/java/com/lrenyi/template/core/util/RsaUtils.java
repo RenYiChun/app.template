@@ -70,7 +70,7 @@ public class RsaUtils {
             }
             byte[] keyBytes = inputStream.readAllBytes();
             String publicKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
-            publicKeyContent = publicKeyContent.replaceAll("\\n", "")
+            publicKeyContent = publicKeyContent.replace("\\n", "")
                                                .replace("-----BEGIN PUBLIC KEY-----", "")
                                                .replace("-----END PUBLIC KEY-----", "");
             return makeRSAPublicKeyFromString(publicKeyContent);
@@ -87,7 +87,7 @@ public class RsaUtils {
             }
             byte[] keyBytes = inputStream.readAllBytes();
             String privateKeyContent = new String(keyBytes, StandardCharsets.UTF_8);
-            privateKeyContent = privateKeyContent.replaceAll("\\n", "")
+            privateKeyContent = privateKeyContent.replace("\\n", "")
                                                  .replace("-----BEGIN PRIVATE KEY-----", "")
                                                  .replace("-----END PRIVATE KEY-----", "");
             return makeRSAPrivateKeyFromString(privateKeyContent);
@@ -153,9 +153,6 @@ public class RsaUtils {
     
     public static String publicKeyString() {
         String publicKeyFileName = "rsa_public.pem";
-        if (FileUtil.isResourceFileNotExists(publicKeyFileName)) {
-            publicKeyFileName = "default_rsa_public.pem";
-        }
         try (InputStream inputStream = RsaUtils.class.getClassLoader().getResourceAsStream(publicKeyFileName)) {
             if (inputStream == null) {
                 throw new NullPointerException("loader file：" + publicKeyFileName + " failed");

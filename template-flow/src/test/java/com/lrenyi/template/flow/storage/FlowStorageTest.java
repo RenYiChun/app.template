@@ -68,6 +68,7 @@ class FlowStorageTest {
         
         @Override
         public void shutdown() {
+            throw new UnsupportedOperationException("Not supported yet.");
         }
     }
 }

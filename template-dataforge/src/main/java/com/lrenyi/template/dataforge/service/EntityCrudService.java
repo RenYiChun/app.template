@@ -4,7 +4,6 @@ import java.util.List;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.support.ListCriteria;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 /**
@@ -17,7 +16,7 @@ public interface EntityCrudService {
      *
      * @param criteria 过滤与排序条件，可为 ListCriteria.empty()
      */
-    Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria);
+    Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria);
     
     Object get(EntityMeta entityMeta, Object id);
     
@@ -35,5 +34,5 @@ public interface EntityCrudService {
     /**
      * 更新：按传入的实体列表（每条需带 id）执行更新，返回更新后的实体列表。
      */
-    List<?> updateBatch(EntityMeta entityMeta, List<Object> entities);
+    List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities);
 }

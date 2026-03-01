@@ -103,9 +103,10 @@ public final class ExcelExportSupport {
             this.createSheet = workbookClass.getMethod("createSheet", String.class);
             this.createRow = sheetClass.getMethod("createRow", int.class);
             this.createCell = rowClass.getMethod("createCell", int.class);
-            this.setCellValueStr = cellClass.getMethod("setCellValue", String.class);
-            this.setCellValueNum = cellClass.getMethod("setCellValue", double.class);
-            this.setCellValueBool = cellClass.getMethod("setCellValue", boolean.class);
+            String setCellValue = "setCellValue";
+            this.setCellValueStr = cellClass.getMethod(setCellValue, String.class);
+            this.setCellValueNum = cellClass.getMethod(setCellValue, double.class);
+            this.setCellValueBool = cellClass.getMethod(setCellValue, boolean.class);
             this.setBlank = cellClass.getMethod("setBlank");
             this.write = workbookClass.getMethod("write", OutputStream.class);
         }

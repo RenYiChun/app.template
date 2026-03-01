@@ -27,7 +27,7 @@ public class EntityCrudServiceRouter implements EntityCrudService {
     }
     
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         return target(entityMeta).list(entityMeta, pageable, criteria);
     }
     
@@ -69,7 +69,7 @@ public class EntityCrudServiceRouter implements EntityCrudService {
     }
     
     @Override
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         return target(entityMeta).updateBatch(entityMeta, entities);
     }
 }

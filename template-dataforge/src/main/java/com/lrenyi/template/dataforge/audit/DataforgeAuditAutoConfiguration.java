@@ -133,7 +133,7 @@ public class DataforgeAuditAutoConfiguration {
         }
         String methodName = signature.getMethod().getName();
         Object[] args = joinPoint.getArgs();
-        String entity = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+        String entity = args.length > 0 && args[0] instanceof String string ? string : null;
         if (entity == null || entity.isEmpty()) {
             return;
         }

@@ -386,7 +386,7 @@ public class OpenApiController {
         for (EntityMeta entity : entityRegistry.getAll()) {
             Map<String, String> tagDoc = new HashMap<>();
             tagDoc.put("name", tagForEntity(entity));
-            tagDoc.put("description", "pathSegment: " + entity.getPathSegment());
+            tagDoc.put(KEY_DESCRIPTION, "pathSegment: " + entity.getPathSegment());
             tagsList.add(tagDoc);
         }
         Map<String, Object> schemas = buildSchemas();
@@ -747,31 +747,65 @@ public class OpenApiController {
         Map<String, Object> fieldSchema = new LinkedHashMap<>();
         if (fieldType == String.class) {
             fieldSchema.put(KEY_TYPE, TYPE_STRING);
-        } else if (fieldType == Integer.class || fieldType == int.class) {
+        } else if (isIntegerType(fieldType)) {
             fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
             fieldSchema.put(FORMAT, "int32");
-        } else if (fieldType == Long.class || fieldType == long.class) {
+        } else if (isLongType(fieldType)) {
             fieldSchema.put(KEY_TYPE, TYPE_INTEGER);
             fieldSchema.put(FORMAT, "int64");
-        } else if (fieldType == Boolean.class || fieldType == boolean.class) {
+        } else if (isBooleanType(fieldType)) {
             fieldSchema.put(KEY_TYPE, TYPE_BOOLEAN);
-        } else if (fieldType == Double.class || fieldType == double.class) {
+        } else if (isDoubleType(fieldType)) {
             fieldSchema.put(KEY_TYPE, NUMBER);
             fieldSchema.put(FORMAT, "double");
-        } else if (fieldType == Float.class || fieldType == float.class) {
+        } else if (isFloatType(fieldType)) {
             fieldSchema.put(KEY_TYPE, NUMBER);
             fieldSchema.put(FORMAT, "float");
-        } else if (fieldType.isEnum()) {
+        } else if (fieldType == java.math.BigDecimal.class) {
+            fieldSchema.put(KEY_TYPE, NUMBER);
+        } else if (isDateType(fieldType)) {
             fieldSchema.put(KEY_TYPE, TYPE_STRING);
-            List<String> enumValues = new ArrayList<>();
-            for (Object e : fieldType.getEnumConstants()) {
-                enumValues.add(e.toString());
-            }
-            fieldSchema.put(KEY_ENUM, enumValues);
+            fieldSchema.put(FORMAT, fieldType == java.time.LocalDate.class ? "date" : "date-time");
+        } else if (fieldType.isEnum()) {
+            buildEnumSchema(fieldSchema, fieldType);
         } else {
             fieldSchema.put(KEY_TYPE, TYPE_OBJECT);
         }
         return fieldSchema;
+    }
+
+    private static boolean isIntegerType(Class<?> type) {
+        return type == Integer.class || type == int.class;
+    }
+
+    private static boolean isLongType(Class<?> type) {
+        return type == Long.class || type == long.class;
+    }
+
+    private static boolean isBooleanType(Class<?> type) {
+        return type == Boolean.class || type == boolean.class;
+    }
+
+    private static boolean isDoubleType(Class<?> type) {
+        return type == Double.class || type == double.class;
+    }
+
+    private static boolean isFloatType(Class<?> type) {
+        return type == Float.class || type == float.class;
+    }
+
+    private static boolean isDateType(Class<?> type) {
+        return type == java.time.LocalDate.class || type == java.time.LocalDateTime.class
+                || type == java.util.Date.class || type == java.time.Instant.class;
+    }
+
+    private static void buildEnumSchema(Map<String, Object> schema, Class<?> type) {
+        schema.put(KEY_TYPE, TYPE_STRING);
+        List<String> enumValues = new ArrayList<>();
+        for (Object e : type.getEnumConstants()) {
+            enumValues.add(e.toString());
+        }
+        schema.put(KEY_ENUM, enumValues);
     }
     
     private String getRequestSchemaForMethod(String methodName, EntityMeta entity) {

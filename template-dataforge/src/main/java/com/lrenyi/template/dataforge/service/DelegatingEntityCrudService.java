@@ -23,7 +23,7 @@ public class DelegatingEntityCrudService implements EntityCrudService {
     }
     
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         return defaultService.list(entityMeta, pageable, criteria);
     }
     
@@ -53,7 +53,7 @@ public class DelegatingEntityCrudService implements EntityCrudService {
     }
     
     @Override
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         return defaultService.updateBatch(entityMeta, entities);
     }
 }

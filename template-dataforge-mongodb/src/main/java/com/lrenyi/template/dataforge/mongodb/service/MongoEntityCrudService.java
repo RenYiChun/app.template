@@ -55,8 +55,8 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
     
     @Override
     @Transactional(readOnly = true)
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
-        Class<?> entityClass = entityMeta.getEntityClass();
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+        Class<Object> entityClass = (Class<Object>) entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
@@ -69,14 +69,14 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         query.with(sort);
         query.skip(pageable.getOffset());
         query.limit(pageable.getPageSize());
-        List<?> content = mongoTemplate.find(query, entityClass, collection);
+        List<Object> content = mongoTemplate.find(query, entityClass, collection);
         return new PageImpl<>(content, pageable, total);
     }
     
     @Override
     @Transactional(readOnly = true)
     public Object get(EntityMeta entityMeta, Object id) {
-        Class<?> entityClass = entityMeta.getEntityClass();
+        Class<Object> entityClass = (Class<Object>) entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
@@ -205,7 +205,7 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
     
     @Override
     @Transactional
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         if (entities == null || entities.isEmpty()) {
             throw new IllegalArgumentException("Entities cannot be null or empty");
         }

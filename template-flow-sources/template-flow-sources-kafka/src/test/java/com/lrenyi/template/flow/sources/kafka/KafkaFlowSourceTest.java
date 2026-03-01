@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,7 +91,7 @@ class KafkaFlowSourceTest {
         doThrow(new RuntimeException("close failed")).when(consumer).close();
         
         source = new KafkaFlowSource<>(consumer, mapper, Duration.ofMillis(100));
-        source.close(); // 不抛异常
+        assertDoesNotThrow(() -> source.close()); // 不抛异常
     }
     
     @Test

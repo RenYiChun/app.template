@@ -7,11 +7,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-public class TestPassword {
+class TestPassword {
     
     /** Spring DelegatingPasswordEncoder 默认编码 id 为 "bcrypt"，非 "default"。 */
     @Test
-    public void testEncoder() {
+    void testEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("bcrypt");
         String rawPassword = "app.template";
         String encode = DefaultTemplateEncryptService.encodeStatic(rawPassword);
@@ -20,7 +20,7 @@ public class TestPassword {
     }
     
     @Test
-    public void defaultCoder() {
+    void defaultCoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("bcrypt");
         String rawPassword = "123456";
         String encode = DefaultTemplateEncryptService.encodeStatic(rawPassword);
@@ -30,7 +30,7 @@ public class TestPassword {
     
     /** RSA2048 依赖 ServiceLoader 加载 TemplateRsa2048Coder 且 RsaUtils 需密钥；测试环境可能不可用则跳过。 */
     @Test
-    public void testRsaEncoder() {
+    void testRsaEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("RSA2048");
         try {
             String rawP = "app.template";
@@ -48,7 +48,7 @@ public class TestPassword {
     }
     
     @Test
-    public void testNoopEncoder() {
+    void testNoopEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("noop");
         String rawP = "app.template";
         String encode = DefaultTemplateEncryptService.encodeStatic(rawP);
@@ -57,7 +57,7 @@ public class TestPassword {
     }
     
     @Test
-    public void testSHA() {
+    void testSHA() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("SHA-1");
         String encoded = DefaultTemplateEncryptService.encodeStatic("app.template");
         String rawP = "app.template";
