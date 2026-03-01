@@ -27,6 +27,7 @@ public class EntityMeta {
     private boolean deleteEnabled = true;
     private boolean deleteBatchEnabled = true;
     private boolean exportEnabled = true;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> primaryKeyType = Long.class;
     private String storageType = "jpa";
     private String permissionCreate = "";
@@ -35,6 +36,7 @@ public class EntityMeta {
     private String permissionDelete = "";
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> entityClass;
     
     // ==================== 新增生产级属性 ====================
