@@ -6,9 +6,9 @@ type StateChangeListener<T> = (state: CrudState<T>) => void;
 
 export class EntityCrudManager<T extends { id: string | number }> {
     private subscribers: StateChangeListener<T>[] = [];
-    private entityName: string;
-    private entityClient: EntityClient;
-    private metaService: MetaService;
+    private readonly entityName: string;
+    private readonly entityClient: EntityClient;
+    private readonly metaService: MetaService;
 
     constructor(entityName: string, entityClient: EntityClient, metaService: MetaService) {
         this.entityName = entityName;

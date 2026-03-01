@@ -4,10 +4,10 @@
 export function joinPath(...parts: (string | number | undefined)[]): string {
     const result = parts
         .filter((p) => p !== undefined && p !== null && p !== '')
-        .map((p) => String(p).replace(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, ''))
+        .map((p) => String(p).replaceAll(/\/+/g, '/').replace(/^\//, '').replace(/\/$/, ''))
         .join('/');
 
-    const first = parts.find((p) => p);
+    const first = parts.find(Boolean);
     if (first && String(first).startsWith('/')) {
         return `/${result}`;
     }

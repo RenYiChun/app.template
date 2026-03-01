@@ -27,7 +27,7 @@
               active-text-color="#ffffff"
               background-color="transparent"
               class="el-menu-vertical"
-              text-color="#94a3b8"
+              text-color="#cbd5e1"
               @select="handleSelect"
           >
             <!-- Console is removed as requested -->
@@ -242,7 +242,7 @@ onMounted(() => {
 .logo-icon {
   width: 32px;
   height: 32px;
-  color: #6366f1;
+  color: #818cf8; /* Indigo 400 - 满足 WCAG AA 对比度（深色背景） */
   flex-shrink: 0;
 }
 
@@ -267,7 +267,7 @@ onMounted(() => {
 
 .version-tag {
   font-size: 11px;
-  color: #475569;
+  color: #cbd5e1; /* Slate 300 - 满足 WCAG AA 对比度 */
   background: #1e293b;
   padding: 2px 8px;
   border-radius: 10px;
@@ -302,10 +302,10 @@ onMounted(() => {
 }
 
 :deep(.el-menu-item.is-active) {
-  background-color: #6366f1 !important; /* Indigo 500 */
+  background-color: #4338ca !important; /* Indigo 700 - 满足 WCAG AA 对比度（白字） */
   color: #fff !important;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 12px rgba(67, 56, 202, 0.4);
 }
 
 :deep(.el-menu-item:hover) {
@@ -343,7 +343,7 @@ onMounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #64748b;
+  color: #475569; /* Slate 600 - 满足 WCAG AA 对比度 */
   padding: 8px;
   border-radius: 8px;
   display: flex;
@@ -354,7 +354,19 @@ onMounted(() => {
 
 .toggle-btn:hover {
   background: #f1f5f9;
+  color: #1e293b; /* Slate 800 - 满足 WCAG AA 对比度 */
+}
+
+/* Breadcrumb */
+:deep(.el-breadcrumb__inner),
+:deep(.el-breadcrumb__inner.is-link),
+:deep(.el-breadcrumb__separator) {
   color: #334155;
+}
+
+:deep(.el-breadcrumb__inner:hover),
+:deep(.el-breadcrumb__inner.is-link:hover) {
+  color: #1e293b;
 }
 
 .header-right {
@@ -365,12 +377,12 @@ onMounted(() => {
 
 .icon-btn {
   cursor: pointer;
-  color: #64748b;
+  color: #475569; /* Slate 600 - 满足 WCAG AA 对比度 */
   transition: color 0.2s;
 }
 
 .icon-btn:hover {
-  color: #334155;
+  color: #1e293b; /* Slate 800 - 满足 WCAG AA 对比度 */
 }
 
 .user-profile {
@@ -388,7 +400,7 @@ onMounted(() => {
 }
 
 .user-avatar {
-  background: #6366f1;
+  background: #4338ca; /* Indigo 700 - 满足 WCAG AA 对比度（白字） */
   font-weight: 600;
 }
 
@@ -413,12 +425,12 @@ onMounted(() => {
 
 .dh-email {
   font-size: 12px;
-  color: #94a3b8;
+  color: #475569; /* Slate 600 - 满足 WCAG AA 对比度（白底） */
   margin: 0;
 }
 
 .danger-item {
-  color: #ef4444 !important;
+  color: #b91c1c !important; /* Red 700 - 满足 WCAG AA 对比度 */
 }
 
 /* Content Area */

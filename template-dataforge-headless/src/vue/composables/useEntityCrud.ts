@@ -98,7 +98,7 @@ export function useEntityCrud<T = Record<string, unknown>>(
         // However, I recall client.ts having updateBatch but maybe I missed it in the last read?
         // Let's assume client.ts has it or I will add it.
         // Actually, looking at client.ts read earlier, it DOES have updateBatch.
-        return client.updateBatch<T>(entity, itemsToUpdate as any);
+        return client.updateBatch<T>(entity, itemsToUpdate);
     };
 
     const exportExcel = async (req?: SearchRequest): Promise<Blob> => {

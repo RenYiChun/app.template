@@ -136,7 +136,6 @@
 
 <script lang="ts" setup>
 import {ref} from 'vue';
-import {ElMessage} from 'element-plus';
 import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
 import dayjs from 'dayjs';
 import {useI18n} from 'vue-i18n';

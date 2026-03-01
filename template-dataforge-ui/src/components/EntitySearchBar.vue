@@ -100,7 +100,7 @@ interface SearchField {
 
 const formatText = (template: string, vars?: Record<string, string | number>) => {
   if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+  return template.replaceAll(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
 };
 
 const searchText = computed(() => props.locale?.common?.search ?? '查询');
@@ -121,8 +121,6 @@ const isDateField = (f: SearchField) =>
 const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;
   const qf = meta?.queryableFields ?? {};
-
-  // console.log('[EntitySearchBar] computing fields', { meta, qf, propsFields: props.fields });
 
   // 如果提供了 fields prop，则优先使用，并保持顺序
   if (props.fields?.length) {

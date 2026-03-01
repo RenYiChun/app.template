@@ -91,9 +91,7 @@ const props = withDefaults(
     {readonlyFields: () => [], rulesMode: 'merge'}
 );
 
-const emit = defineEmits<{
-  (e: 'submit', data: Record<string, unknown>): void;
-}>();
+const emit = defineEmits<(e: 'submit', data: Record<string, unknown>) => void>();
 
 const formRef = ref<FormInstance>();
 const formData = reactive<Record<string, unknown>>({});
@@ -103,7 +101,7 @@ const formFields = computed(() => props.schema ?? {});
 
 const formatText = (template: string, vars?: Record<string, string | number>) => {
   if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
+  return template.replaceAll(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ''));
 };
 
 const inputPlaceholder = computed(() => props.locale?.form?.inputPlaceholder ?? '请输入{label}');

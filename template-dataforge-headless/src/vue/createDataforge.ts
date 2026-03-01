@@ -59,7 +59,9 @@ export function createDataforge(options: DataforgeOptions = {}): DataforgeInstan
                 headers.set('Authorization', `Bearer ${newToken}`);
                 return await baseRequest(url, {...opts, headers});
             } catch (e) {
-                // 刷新失败，返回原始 401 响应，由后续逻辑触发登出
+                // 刷新失败，通知认证层并返回原始 401 响应
+                console.warn('Token refresh failed:', e);
+                options.auth?.onUnauthorized?.();
                 return res;
             }
         }

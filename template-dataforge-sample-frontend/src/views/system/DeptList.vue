@@ -264,9 +264,6 @@ const handleDelete = async (row: any) => {
 
 const handleExport = async () => {
   try {
-    // 导出逻辑需要根据实际后端API调整
-    // const blob = await deptClient.exportExcel();
-    // download(blob, 'departments.xlsx');
     ElMessage.success('导出功能待实现');
   } catch {
     ElMessage.error(t('system.dept.deleteFailed').replace('删除', '导出'));

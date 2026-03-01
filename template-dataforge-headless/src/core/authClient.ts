@@ -61,14 +61,14 @@ export class AuthClient {
         this.clientSecret = config.oauth2ClientSecret ?? 'dataforge-secret';
         const baseRequest = config.request ?? fetch.bind(globalThis);
         this.requestFn = (url, opts = {}) =>
-            baseRequest(url, {...opts, credentials: (opts.credentials as RequestCredentials) ?? 'include'});
+            baseRequest(url, {...opts, credentials: opts.credentials ?? 'include'});
         this.onUnauthorized = config.onUnauthorized;
 
         // 优先使用传入的 storage，否则尝试使用 localStorage
         if (config.storage) {
             this.storage = config.storage;
-        } else if (typeof window !== 'undefined' && window.localStorage) {
-            this.storage = window.localStorage;
+        } else if (globalThis.window?.localStorage) {
+            this.storage = globalThis.window.localStorage;
         }
 
         // 从存储加载 token
@@ -251,10 +251,10 @@ export class AuthClient {
             throw new HttpError(res);
         }
 
-        const result = (await this.json<Result<T>>(res)) as Result<T>;
+        const result = await this.json<Result<T>>(res);
         if (result.code !== SUCCESS_CODE && result.code !== 200) {
             throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
         }
-        return result.data as T;
+        return result.data;
     }
 }

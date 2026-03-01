@@ -88,10 +88,12 @@ async function main() {
     console.log('\n=== 全部通过 ===');
 }
 
-main().catch((e) => {
+try {
+    await main();
+} catch (e) {
     console.error('Error:', e.message);
     if (e.cause?.code === 'ECONNREFUSED') {
         console.error('请先启动后端: mvnw.cmd spring-boot:run -pl template-dataforge-sample-backend');
     }
     process.exit(1);
-});
+}

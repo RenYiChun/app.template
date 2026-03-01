@@ -67,10 +67,10 @@ router.beforeEach(async (to, _from, next) => {
         }
     }
 
-    if (!authStore.user) {
-        next({path: '/login', query: {redirect: to.fullPath}});
-    } else {
+    if (authStore.user) {
         next();
+    } else {
+        next({path: '/login', query: {redirect: to.fullPath}});
     }
 });
 

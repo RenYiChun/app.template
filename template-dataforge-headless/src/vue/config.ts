@@ -9,7 +9,7 @@ export interface ColumnConfig {
     label?: string;
     width?: number | string;
     sortable?: boolean;
-    formatter?: (value: unknown, row?: Record<string, unknown>) => string | unknown;
+    formatter?: (value: unknown, row?: Record<string, unknown>) => string;
 }
 
 export interface EntityConfig {

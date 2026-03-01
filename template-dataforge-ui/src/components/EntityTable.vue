@@ -154,11 +154,8 @@ const calculatedActionsWidth = computed(() => {
       const textWidth = label.length * 14;
       const btnWidth = textWidth + 12;
 
-      // 按钮之间的间距（Element Plus 默认 margin-left: 12px）
-      // 文字链接可能更紧凑，但保持一致性
-      const margin = index > 0 ? 0 : 0; // margin 包含在 btnWidth 估算里了，或者忽略
-
-      return acc + btnWidth + margin;
+      // 按钮之间的间距已包含在 btnWidth 估算中
+      return acc + btnWidth;
     }, 0);
 
     // 加上单元格左右 padding (通常是 12px * 2 = 24px)

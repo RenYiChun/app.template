@@ -11,7 +11,7 @@ const props = defineProps<{
   entity: string;
 }>();
 
-const emit = defineEmits<{ (e: 'batch-update'): void }>();
+const emit = defineEmits<(e: 'batch-update') => void>();
 
 const {
   items,

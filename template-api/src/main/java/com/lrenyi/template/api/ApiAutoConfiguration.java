@@ -60,7 +60,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApiAutoConfiguration {
     
     private ApiAutoConfiguration() {
-        throw  new IllegalStateException("Utility class");
+        //ignore
     }
     
     @EnableMethodSecurity()

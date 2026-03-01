@@ -90,6 +90,6 @@ export interface CrudState<T> {
     size: number;
     selectedIds: (string | number)[];
     loading: boolean;
-    error: any | null;
+    error: unknown;
     // 可以根据需要添加其他状态，例如表单数据、编辑模式等
 }

@@ -26,7 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class CoreAutoConfiguration {
     
     private CoreAutoConfiguration() {
-        throw new IllegalStateException("Utility class");
+        //ignore
     }
     
     @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")

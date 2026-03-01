@@ -31,7 +31,7 @@ export class EntityClient {
         this.dataforgeId = config.dataforgeId;
         const baseRequest = config.request ?? fetch.bind(globalThis);
         this.requestFn = (url, opts) =>
-            baseRequest(url, {...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include'});
+            baseRequest(url, {...opts, credentials: opts?.credentials ?? 'include'});
     }
 
     /**
@@ -229,11 +229,11 @@ export class EntityClient {
     }
 
     private async handleResult<T>(res: Response): Promise<T> {
-        const result = (await this.json<Result<T>>(res)) as Result<T>;
+        const result = await this.json<Result<T>>(res);
         // 检查业务状态码
         if (result.code !== SUCCESS_CODE && result.code !== 200) {
             throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
         }
-        return result.data as T;
+        return result.data;
     }
 }

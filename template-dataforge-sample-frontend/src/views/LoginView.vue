@@ -51,7 +51,6 @@
                   :placeholder="$t('login.username')"
                   :prefix-icon="UserIcon"
                   class="modern-input"
-                  tabindex="1"
               />
             </el-form-item>
 
@@ -62,7 +61,6 @@
                   :prefix-icon="LockIcon"
                   class="modern-input"
                   show-password
-                  tabindex="2"
                   type="password"
                   @keyup.enter="handleLogin"
               />
@@ -75,7 +73,6 @@
                     :placeholder="$t('login.captcha')"
                     :prefix-icon="KeyIcon"
                     class="modern-input captcha-input"
-                    tabindex="3"
                     @keyup.enter="handleLogin"
                 />
                 <div class="captcha-image-box" title="Click to refresh" @click="fetchCaptcha">
@@ -88,7 +85,6 @@
               <el-button
                   :loading="loading"
                   class="login-btn"
-                  tabindex="4"
                   type="primary"
                   @click="handleLogin"
               >
@@ -162,7 +158,6 @@ const handleLogin = async () => {
         const redirect = (route.query.redirect as string) || '/';
         router.push(redirect);
       } catch (err: any) {
-        // console.error(err);
         errorMsg.value = err.message || t('login.failed');
         fetchCaptcha();
       }
@@ -232,7 +227,7 @@ onMounted(() => {
 .brand-logo {
   width: 36px;
   height: 36px;
-  color: #a5b4fc;
+  color: #c7d2fe; /* Indigo 200 - 满足 WCAG AA 对比度（深色渐变背景） */
 }
 
 .brand-name {
@@ -251,7 +246,7 @@ onMounted(() => {
 
 .brand-slogan p {
   font-size: 16px;
-  color: #c7d2fe;
+  color: #e0e7ff; /* Indigo 100 - 满足 WCAG AA 对比度（深色背景） */
   line-height: 1.6;
   max-width: 360px;
 }
@@ -260,9 +255,8 @@ onMounted(() => {
   position: absolute;
   bottom: 40px;
   left: 60px;
-  color: #6366f1;
+  color: #a5b4fc; /* Indigo 300 - 满足 WCAG AA 对比度（深色背景） */
   font-size: 12px;
-  opacity: 0.8;
 }
 
 /* Shapes & Effects */
@@ -329,7 +323,7 @@ onMounted(() => {
 }
 
 .login-header p {
-  color: #6b7280;
+  color: #4b5563; /* Gray 600 - 满足 WCAG AA 对比度 */
   font-size: 14px;
 }
 
@@ -361,7 +355,11 @@ onMounted(() => {
 }
 
 :deep(.el-input__prefix-inner) {
-  color: #9ca3af;
+  color: #4b5563; /* Gray 600 - 满足 WCAG AA 对比度（灰底/白底） */
+}
+
+:deep(.modern-input .el-input__inner::placeholder) {
+  color: #4b5563;
 }
 
 /* Captcha */
@@ -410,16 +408,16 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   border-radius: 8px;
-  background: #4f46e5;
+  background: #4338ca; /* Indigo 700 - 满足 WCAG AA 对比度（白字） */
   border: none;
   transition: all 0.2s;
-  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 4px 6px -1px rgba(67, 56, 202, 0.4);
 }
 
 .login-btn:hover {
-  background: #4338ca;
+  background: #3730a3; /* Indigo 800 - 满足 WCAG AA 对比度 */
   transform: translateY(-1px);
-  box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.5);
+  box-shadow: 0 6px 8px -1px rgba(55, 48, 163, 0.5);
 }
 
 .login-btn:active {
@@ -432,13 +430,14 @@ onMounted(() => {
 }
 
 .forgot-password {
-  color: #6366f1;
+  color: #4338ca; /* Indigo 700 - 满足 WCAG AA 对比度 */
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
 }
 
 .forgot-password:hover {
+  color: #3730a3;
   text-decoration: underline;
 }
 
@@ -447,7 +446,7 @@ onMounted(() => {
   padding: 10px 14px;
   background-color: #fee2e2;
   border-radius: 6px;
-  color: #dc2626;
+  color: #b91c1c; /* Red 700 - 满足 WCAG AA 对比度 */
   font-size: 13px;
   text-align: center;
   border: 1px solid #fecaca;

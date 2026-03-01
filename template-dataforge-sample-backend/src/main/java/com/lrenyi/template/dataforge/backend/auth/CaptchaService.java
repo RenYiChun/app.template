@@ -59,7 +59,7 @@ public class CaptchaService {
         for (int i = 0; i < 6; i++) {
             g.drawLine(RANDOM.nextInt(WIDTH), RANDOM.nextInt(HEIGHT), RANDOM.nextInt(WIDTH), RANDOM.nextInt(HEIGHT));
         }
-        g.setFont(new Font("Arial", Font.BOLD, 24));
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
         int x = 12;
         for (char c : code.toCharArray()) {
             g.setColor(new Color(RANDOM.nextInt(100) + 50, RANDOM.nextInt(100) + 50, RANDOM.nextInt(100) + 50));
@@ -87,13 +87,5 @@ public class CaptchaService {
     
     public record CaptchaResult(String key, String imageBase64) {}
     
-    private static class CaptchaEntry {
-        final String code;
-        final long createTime;
-        
-        CaptchaEntry(String code, long createTime) {
-            this.code = code;
-            this.createTime = createTime;
-        }
-    }
+    private record CaptchaEntry(String code, long createTime) {}
 }

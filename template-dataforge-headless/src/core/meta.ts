@@ -107,7 +107,7 @@ export class MetaService {
         const tagToPathSegment = new Map<string, string>();
         for (const t of tags) {
             const desc = t.description ?? '';
-            const match = desc.match(/pathSegment:\s*(\S+)/);
+            const match = /pathSegment:\s*(\S+)/.exec(desc);
             if (match) tagToPathSegment.set(t.name, match[1].trim());
         }
 
@@ -177,7 +177,7 @@ export class MetaService {
         for (const schemaName of possibleSchemaNames) {
             const schema = schemas[schemaName];
             if (schema?.properties) {
-                const requiredSet = new Set<string>((schema.required ?? []) as string[]);
+                const requiredSet = new Set<string>(schema.required ?? []);
                 const props = schema.properties as Record<string, SchemaProperty>;
                 const enriched: Record<string, SchemaProperty> = {};
                 for (const [k, v] of Object.entries(props)) {
@@ -199,7 +199,7 @@ export class MetaService {
     ) {
         const operationId = operation.operationId ?? `${meta.pathSegment}_${method}`;
         const opIdParts = operationId.split('_');
-        const last = opIdParts[opIdParts.length - 1];
+        const last = opIdParts.at(-1) ?? '';
         const knownOps = ['search', 'get', 'create', 'update', 'delete', 'deleteBatch', 'updateBatch', 'export'];
         const actionIdx = parts.indexOf('_action');
         const actionFromPath = actionIdx >= 0 ? parts[actionIdx + 1] : undefined;
@@ -284,9 +284,7 @@ export class MetaService {
                 searchOp.queryableFields = {...opMeta.queryableFields};
                 meta.queryableFields = searchOp.queryableFields;
             }
-            if (!meta.queryableFields) {
-                meta.queryableFields = {...opMeta.queryableFields};
-            }
+            meta.queryableFields ??= {...opMeta.queryableFields};
         }
     }
 
@@ -299,11 +297,11 @@ export class MetaService {
             const schemaName = schemaRef.replace('#/components/schemas/', '');
             const schema = schemas[schemaName];
             if (schema?.properties) {
-                const requiredSet = new Set<string>((schema.required ?? []) as string[]);
-                const props = schema.properties as Record<string, SchemaProperty>;
+                const requiredSet = new Set<string>(schema.required ?? []);
+                const props = schema.properties;
                 const enriched: Record<string, SchemaProperty> = {};
                 for (const [k, v] of Object.entries(props)) {
-                    enriched[k] = {...v, required: requiredSet.has(k)};
+                    enriched[k] = {...(typeof v === 'object' && v !== null ? v : {}), required: requiredSet.has(k)};
                 }
                 meta.schemas![last === 'create' ? 'create' : 'update'] = enriched;
             }
@@ -324,7 +322,7 @@ export class MetaService {
         }
 
         const schemaName = respRef?.replace('#/components/schemas/', '');
-        const schema = schemaName ? (schemas[schemaName] as OpenApiSchema) : undefined;
+        const schema = schemaName ? schemas[schemaName] : undefined;
         const props = schema?.properties;
 
         if (last === 'search') {
@@ -343,7 +341,7 @@ export class MetaService {
             ? (props.content as { items?: { $ref?: string } })?.items?.$ref
             : undefined;
         const itemRef = contentSchema?.replace('#/components/schemas/', '');
-        const itemSchema = itemRef ? (schemas[itemRef] as OpenApiSchema) : undefined;
+        const itemSchema = itemRef ? schemas[itemRef] : undefined;
 
         if (itemSchema?.properties) {
             meta.schemas!.pageResponse = itemSchema.properties as Record<string, SchemaProperty>;

@@ -1,11 +1,11 @@
 import {computed, onMounted, onUnmounted, reactive, toRefs, watch} from 'vue';
-import {CrudState, EntityClient, EntityCrudManager, EntityMeta, MetaService} from '@lrenyi/dataforge-headless';
+import {CrudState, EntityCrudManager, EntityMeta} from '@lrenyi/dataforge-headless';
 import {ColumnConfig, resolveColumns, useDataforge} from '@lrenyi/dataforge-headless/vue';
 
 export function useEntityCrud<T extends { id: string | number }>(entityName: string) {
     const {client, meta} = useDataforge();
 
-    const entityCrudManager = new EntityCrudManager<T>(entityName, client as EntityClient, meta as MetaService);
+    const entityCrudManager = new EntityCrudManager<T>(entityName, client, meta);
 
     const crudState = reactive<CrudState<T> & {
         entityMeta: EntityMeta | null;
