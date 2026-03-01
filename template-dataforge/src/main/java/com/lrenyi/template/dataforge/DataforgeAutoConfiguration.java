@@ -9,6 +9,7 @@ import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import com.lrenyi.template.dataforge.controller.DocsUiController;
 import com.lrenyi.template.dataforge.controller.GenericEntityController;
+import com.lrenyi.template.dataforge.controller.MetadataController;
 import com.lrenyi.template.dataforge.controller.OpenApiController;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.permission.DefaultDataforgePermissionChecker;
@@ -117,6 +118,11 @@ public class DataforgeAutoConfiguration {
             @Qualifier("requestMappingHandlerMapping")
             org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
         return new OpenApiController(entityRegistry, handlerMapping);
+    }
+    
+    @Bean
+    public MetadataController metadataController(EntityRegistry entityRegistry) {
+        return new MetadataController(entityRegistry);
     }
     
     @Bean

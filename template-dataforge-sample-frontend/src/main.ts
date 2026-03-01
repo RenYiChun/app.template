@@ -12,6 +12,16 @@ import {BusinessError, createDataforge, DataforgeError, NetworkError} from '@lre
 
 const dataforge = createDataforge({
     client: {baseURL: '', apiPrefix: '/api'},
+    meta: {
+        services: [
+            {
+                name: 'default',
+                baseUrl: '/api',
+                default: true,
+                metadata: {type: 'remote'}
+            }
+        ]
+    },
     auth: {
         onUnauthorized: () => {
             router.push({path: '/login', query: {redirect: router.currentRoute.value.fullPath}});

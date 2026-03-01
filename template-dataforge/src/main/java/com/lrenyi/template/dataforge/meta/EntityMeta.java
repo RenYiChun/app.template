@@ -86,6 +86,7 @@ public class EntityMeta {
      * 高性能属性访问器（JDK 9+ VarHandle 或反射回退）。
      * 在 MetaScanner 扫描时注入。
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private BeanAccessor accessor;
     
     public void setPermissionCreate(String permissionCreate) {
