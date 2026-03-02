@@ -567,9 +567,6 @@ public class MetaScanner {
         if (dto.include().length > 0) {
             fm.setDtoIncludeTypes(Arrays.stream(dto.include()).map(DtoType::name).toArray(String[]::new));
         }
-        if (dto.exclude().length > 0) {
-            fm.setDtoExcludeTypes(Arrays.stream(dto.exclude()).map(DtoType::name).toArray(String[]::new));
-        }
         fm.setDtoFieldName(dto.fieldName());
         fm.setDtoFieldType(dto.fieldType());
         if (dto.converter() != null && dto.converter() != void.class) {
@@ -577,11 +574,6 @@ public class MetaScanner {
         }
         fm.setDtoFormat(dto.format());
         fm.setDtoValidationGroups(dto.validationGroups());
-        fm.setDtoReadOnly(dto.readOnly());
-        fm.setDtoWriteOnly(dto.writeOnly());
-        fm.setDtoCreateOnly(dto.createOnly());
-        fm.setDtoUpdateOnly(dto.updateOnly());
-        fm.setDtoQueryOnly(dto.queryOnly());
     }
     
     private ActionMeta buildActionMeta(EntityAction ann) {

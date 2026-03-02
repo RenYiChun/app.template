@@ -29,7 +29,7 @@ public class User extends BaseEntity<Long> {
     private String nickname;
     
     @Column(nullable = false, length = 128)
-    @DataforgeDto(exclude = {DtoType.RESPONSE})
+    @DataforgeDto(include = {DtoType.CREATE, DtoType.UPDATE})
     private String password;
     
     @Column(length = 128)

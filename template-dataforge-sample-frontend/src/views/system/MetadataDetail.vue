@@ -214,24 +214,12 @@ const getDtoFields = (dtoType: 'CREATE' | 'UPDATE' | 'RESPONSE' | 'PAGE_RESPONSE
 
     // Determine Includes
     const includes = new Set(f.dtoIncludeTypes || []);
-    if (f.dtoCreateOnly) includes.add('CREATE');
-    if (f.dtoUpdateOnly) includes.add('UPDATE');
-
-    // Determine Excludes
-    const excludes = new Set(f.dtoExcludeTypes || []);
-    if (f.dtoReadOnly) {
-      excludes.add('CREATE');
-      excludes.add('UPDATE');
-    }
-    if (f.dtoWriteOnly) {
-      excludes.add('RESPONSE');
-    }
 
     // Check inclusion
     if (includes.size > 0) {
       return includes.has(dtoType);
     } else {
-      return !excludes.has(dtoType);
+      return true;
     }
   });
 };

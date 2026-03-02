@@ -82,41 +82,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return sb.toString();
     }
     
-    private static Object getAnnotationValue(AnnotationMirror mirror, String elementName) {
-        for (var entry : mirror.getElementValues().entrySet()) {
-            if (elementName.equals(entry.getKey().getSimpleName().toString())) {
-                return entry.getValue().getValue();
-            }
-        }
-        return null;
-    }
-    
-    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field,
-            String annotationFqn,
-            String elementName) {
-        AnnotationMirror mirror = findAnnotationMirror(field, annotationFqn);
+    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field) {
+        AnnotationMirror mirror = findAnnotationMirror(field);
         if (mirror == null) {
             return new HashSet<>();
         }
-        // Handle boolean shortcuts
-        Set<String> excludes = new HashSet<>();
-        if ("exclude".equals(elementName)) {
-            if (Boolean.TRUE.equals(getAnnotationValue(mirror, "readOnly"))) {
-                excludes.add(DTO_TYPE_CREATE);
-                excludes.add("UPDATE");
-                excludes.add("BATCH_CREATE");
-                excludes.add("BATCH_UPDATE");
-            }
-            if (Boolean.TRUE.equals(getAnnotationValue(mirror, "writeOnly"))) {
-                excludes.add("RESPONSE");
-            }
-        }
-        if ("include".equals(elementName) && Boolean.TRUE.equals(getAnnotationValue(mirror, "createOnly"))) {
-            excludes.add(DTO_TYPE_CREATE);
-        }
-
-        List<? extends AnnotationValue> values = getAnnotationValues(mirror, elementName);
-        Set<String> out = new HashSet<>(excludes);
+        
+        List<? extends AnnotationValue> values = getAnnotationValues(mirror);
+        Set<String> out = new HashSet<>();
         for (AnnotationValue av : values) {
             Object ev = av.getValue();
             if (ev instanceof Element el) {
@@ -128,18 +101,18 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return out;
     }
     
-    private static AnnotationMirror findAnnotationMirror(VariableElement field, String annotationFqn) {
+    private static AnnotationMirror findAnnotationMirror(VariableElement field) {
         for (var mirror : field.getAnnotationMirrors()) {
-            if (annotationFqn.equals(mirror.getAnnotationType().toString())) {
+            if ("com.lrenyi.template.dataforge.annotation.DataforgeDto".equals(mirror.getAnnotationType().toString())) {
                 return mirror;
             }
         }
         return null;
     }
     
-    private static List<? extends AnnotationValue> getAnnotationValues(AnnotationMirror mirror, String elementName) {
+    private static List<? extends AnnotationValue> getAnnotationValues(AnnotationMirror mirror) {
         for (var entry : mirror.getElementValues().entrySet()) {
-            if (elementName.equals(entry.getKey().getSimpleName().toString())) {
+            if ("include".equals(entry.getKey().getSimpleName().toString())) {
                 Object val = entry.getValue().getValue();
                 if (val instanceof List<?> list) {
                     List<AnnotationValue> out = new ArrayList<>();
@@ -230,14 +203,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     private FieldSpec withGroup(FieldSpec f, String group) {
         Set<String> newGroups = new HashSet<>(f.validationGroups);
         newGroups.add(group);
-        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.excludeTypes, f.notNull, f.maxSize, newGroups);
+        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, newGroups);
     }
     
     private boolean shouldInclude(FieldSpec f, String dtoTypeName) {
         if (!f.includeTypes().isEmpty()) {
             return f.includeTypes().contains(dtoTypeName);
         }
-        return !f.excludeFrom().contains(dtoTypeName);
+        return true;
     }
     
     private List<FieldSpec> collectFields(TypeElement entityType) {
@@ -285,16 +258,13 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         TypeMirror fieldType = typeInContext != null ? typeUtils.asMemberOf(typeInContext, field) : field.asType();
         String typeName = toSourceTypeName(fieldType);
         String name = field.getSimpleName().toString();
-        Set<String> includeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "include");
-        Set<String> excludeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "exclude");
-        Set<String> legacyExcludeFrom = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom", "value");
-        Set<String> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
+        Set<String> includeTypes = getDtoTypeNamesFromMirrors(field);
         
         Set<String> validationGroups = new HashSet<>(); 
         
         boolean notNull = hasColumnNullableFalse(field);
         int maxSize = getColumnLength(field);
-        list.add(new FieldSpec(typeName, name, includeTypes, finalExcludeTypes, notNull, maxSize, validationGroups));
+        list.add(new FieldSpec(typeName, name, includeTypes, notNull, maxSize, validationGroups));
     }
     
     private String toSourceTypeName(TypeMirror mirror) {
@@ -371,26 +341,20 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return fqn.substring(fqn.lastIndexOf('.') + 1);
     }
     
-    private record FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes,
+    private record FieldSpec(String typeName, String name, Set<String> includeTypes,
                              boolean notNull, int maxSize, Set<String> validationGroups) {
         private FieldSpec(String typeName,
                 String name,
                 Set<String> includeTypes,
-                Set<String> excludeTypes,
                 boolean notNull,
                 int maxSize,
                 Set<String> validationGroups) {
             this.typeName = typeName;
             this.name = name;
             this.includeTypes = includeTypes != null ? includeTypes : Set.of();
-            this.excludeTypes = excludeTypes != null ? excludeTypes : Set.of();
             this.notNull = notNull;
             this.maxSize = Math.max(maxSize, 0);
             this.validationGroups = validationGroups != null ? validationGroups : Set.of();
-        }
-        
-        Set<String> excludeFrom() {
-            return excludeTypes;
         }
     }
 }
