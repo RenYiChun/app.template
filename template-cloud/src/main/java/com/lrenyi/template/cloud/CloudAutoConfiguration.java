@@ -64,15 +64,10 @@ public class CloudAutoConfiguration {
         String clientSecret = opaqueToken.getClientSecret();
         
         RestTemplate client = new RestTemplate();
-        URI url = URI.create(uri);
-        // 如果端口是 -1，说明没有指定端口，可能需要负载均衡
-        if (url.getPort() == -1) {
-            LoadBalancerInterceptor interceptor = loadBalancerInterceptorProvider.getIfAvailable();
-            if (interceptor != null) {
-                client.setInterceptors(Collections.singletonList(interceptor));
-            }
+        LoadBalancerInterceptor interceptor = loadBalancerInterceptorProvider.getIfAvailable();
+        if (interceptor != null) {
+            client.setInterceptors(Collections.singletonList(interceptor));
         }
-        
         client.getInterceptors().add(new BasicAuthenticationInterceptor(clientId, clientSecret));
         SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, client);
         return securityAutoConfiguration.makeSpringOpaqueTokenIntrospector(introspector);
