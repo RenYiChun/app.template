@@ -1,8 +1,8 @@
 package com.lrenyi.template.dataforge.service;
 
+import java.util.List;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.support.ListCriteria;
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -14,45 +14,45 @@ import org.springframework.data.domain.Pageable;
  * 在需要自定义的逻辑里编写业务，否则调用 {@code defaultService.list/create/...}。
  */
 public class DelegatingEntityCrudService implements EntityCrudService {
-
+    
     protected final EntityCrudService defaultService;
-
+    
     public DelegatingEntityCrudService(EntityCrudService defaultService) {
         this.defaultService = defaultService;
     }
-
+    
     @Override
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         return defaultService.list(entityMeta, pageable, criteria);
     }
-
+    
     @Override
     public Object get(EntityMeta entityMeta, Object id) {
         return defaultService.get(entityMeta, id);
     }
-
+    
     @Override
     public Object create(EntityMeta entityMeta, Object body) {
         return defaultService.create(entityMeta, body);
     }
-
+    
     @Override
     public Object update(EntityMeta entityMeta, Object id, Object body) {
         return defaultService.update(entityMeta, id, body);
     }
-
+    
     @Override
     public void delete(EntityMeta entityMeta, Object id) {
         defaultService.delete(entityMeta, id);
     }
-
+    
     @Override
     public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
         defaultService.deleteBatch(entityMeta, ids);
     }
-
+    
     @Override
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         return defaultService.updateBatch(entityMeta, entities);
     }
 }

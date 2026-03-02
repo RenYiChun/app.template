@@ -1,13 +1,33 @@
 -- OAuth2 授权表，与 Spring Authorization Server 官方 schema 一致，支持 IF NOT EXISTS 幂等执行
 -- PostgreSQL 需将 blob 改为 bytea 或 text，可按需提供方言脚本
-CREATE TABLE IF NOT EXISTS oauth2_authorization (
-    id varchar(100) NOT NULL,
-    registered_client_id varchar(100) NOT NULL,
-    principal_name varchar(200) NOT NULL,
-    authorization_grant_type varchar(100) NOT NULL,
-    authorized_scopes varchar(1000) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS oauth2_authorization
+(
+    id
+    varchar
+(
+    100
+) NOT NULL,
+    registered_client_id varchar
+(
+    100
+) NOT NULL,
+    principal_name varchar
+(
+    200
+) NOT NULL,
+    authorization_grant_type varchar
+(
+    100
+) NOT NULL,
+    authorized_scopes varchar
+(
+    1000
+) DEFAULT NULL,
     attributes blob DEFAULT NULL,
-    state varchar(500) DEFAULT NULL,
+    state varchar
+(
+    500
+) DEFAULT NULL,
     authorization_code_value blob DEFAULT NULL,
     authorization_code_issued_at timestamp DEFAULT NULL,
     authorization_code_expires_at timestamp DEFAULT NULL,
@@ -16,8 +36,14 @@ CREATE TABLE IF NOT EXISTS oauth2_authorization (
     access_token_issued_at timestamp DEFAULT NULL,
     access_token_expires_at timestamp DEFAULT NULL,
     access_token_metadata blob DEFAULT NULL,
-    access_token_type varchar(100) DEFAULT NULL,
-    access_token_scopes varchar(1000) DEFAULT NULL,
+    access_token_type varchar
+(
+    100
+) DEFAULT NULL,
+    access_token_scopes varchar
+(
+    1000
+) DEFAULT NULL,
     oidc_id_token_value blob DEFAULT NULL,
     oidc_id_token_issued_at timestamp DEFAULT NULL,
     oidc_id_token_expires_at timestamp DEFAULT NULL,
@@ -34,5 +60,8 @@ CREATE TABLE IF NOT EXISTS oauth2_authorization (
     device_code_issued_at timestamp DEFAULT NULL,
     device_code_expires_at timestamp DEFAULT NULL,
     device_code_metadata blob DEFAULT NULL,
-    PRIMARY KEY (id)
-);
+    PRIMARY KEY
+(
+    id
+)
+    );

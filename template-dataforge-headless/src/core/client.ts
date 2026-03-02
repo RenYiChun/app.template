@@ -2,7 +2,7 @@
  * 通用 EntityClient：按 pathSegment 调用 template-dataforge REST API
  */
 
-import type {PagedResult, Result, SearchRequest} from './types.js';
+import type {PagedResult, Result, SearchRequest, ServiceConfig} from './types.js';
 import {SUCCESS_CODE} from './types.js';
 import {ensureSlash, joinPath} from './utils.js';
 import {AuthError, BusinessError, HttpError, NetworkError} from './errors.js';
@@ -24,6 +24,8 @@ export class EntityClient {
     private readonly apiPrefix: string;
     private readonly dataforgeId?: string | number;
     private readonly requestFn: (url: string, options: RequestInit) => Promise<Response>;
+    private services: ServiceConfig[] = [];
+    private serviceMap: Record<string, string> = {};
 
     constructor(config: EntityClientConfig = {}) {
         this.baseURL = (config.baseURL ?? '').replace(/\/$/, '');
@@ -31,7 +33,21 @@ export class EntityClient {
         this.dataforgeId = config.dataforgeId;
         const baseRequest = config.request ?? fetch.bind(globalThis);
         this.requestFn = (url, opts) =>
-            baseRequest(url, {...opts, credentials: (opts?.credentials as RequestCredentials) ?? 'include'});
+            baseRequest(url, {...opts, credentials: opts?.credentials ?? 'include'});
+    }
+
+    /**
+     * 注册服务配置，用于多后端支持
+     */
+    public registerServices(services: ServiceConfig[]) {
+        this.services = services;
+    }
+
+    /**
+     * 注册实体到服务的映射关系
+     */
+    public registerServiceMap(map: Record<string, string>) {
+        this.serviceMap = map;
     }
 
     /**
@@ -69,25 +85,6 @@ export class EntityClient {
     public getDocsUrl(): string {
         //这里不拼接前缀，统一在url方法中拼接
         return joinPath(this.baseURL, '', 'docs');
-    }
-
-    private url(path: string): string {
-        return joinPath(this.baseURL, this.apiPrefix, path);
-    }
-
-    private async json<T>(res: Response): Promise<T> {
-        const text = await res.text();
-        if (!text) return {} as T;
-        return JSON.parse(text) as T;
-    }
-
-    private async handleResult<T>(res: Response): Promise<T> {
-        const result = (await this.json<Result<T>>(res)) as Result<T>;
-        // 检查业务状态码
-        if (result.code !== SUCCESS_CODE && result.code !== 200) {
-            throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
-        }
-        return result.data as T;
     }
 
     /** 分页搜索 */
@@ -235,5 +232,33 @@ export class EntityClient {
             deleteBatch: (ids: (string | number)[]) => this.deleteBatch(name, ids),
             updateBatch: (items: Array<{ id: string | number } & Partial<T>>) => this.updateBatch<T>(name, items),
         };
+    }
+
+    private url(path: string): string {
+        const parts = path.split('/');
+        const entity = parts[0];
+        const serviceName = this.serviceMap[entity];
+        if (serviceName) {
+            const service = this.services.find(s => s.name === serviceName);
+            if (service) {
+                return joinPath(service.baseUrl, path);
+            }
+        }
+        return joinPath(this.baseURL, this.apiPrefix, path);
+    }
+
+    private async json<T>(res: Response): Promise<T> {
+        const text = await res.text();
+        if (!text) return {} as T;
+        return JSON.parse(text) as T;
+    }
+
+    private async handleResult<T>(res: Response): Promise<T> {
+        const result = await this.json<Result<T>>(res);
+        // 检查业务状态码
+        if (result.code !== SUCCESS_CODE && result.code !== 200) {
+            throw new BusinessError(result.code, result.message ?? `请求失败: ${res.status}`, result.data);
+        }
+        return result.data;
     }
 }

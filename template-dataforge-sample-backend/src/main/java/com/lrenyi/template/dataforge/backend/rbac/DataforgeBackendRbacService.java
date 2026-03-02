@@ -9,6 +9,7 @@ import com.lrenyi.template.dataforge.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,17 +18,18 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oauth2.password.IRbacService {
-
+    
     private final UserRepository userRepository;
     private final EntityManager entityManager;
-
+    
     public DataforgeBackendRbacService(UserRepository userRepository, EntityManager entityManager) {
         this.userRepository = userRepository;
         this.entityManager = entityManager;
     }
-
+    
     @Override
-    public RbacUserCredentials loadUserCredentials(@NonNull String identifier, @NonNull IdentifierType identifierType) {
+    public @Nullable RbacUserCredentials loadUserCredentials(@NonNull String identifier,
+            @NonNull IdentifierType identifierType) {
         if (identifier.isBlank()) {
             return null;
         }
@@ -40,13 +42,13 @@ public class DataforgeBackendRbacService implements com.lrenyi.oauth2.service.oa
             return new RbacUserCredentials(user.getUsername(), user.getPassword(), permissions);
         }).orElse(null);
     }
-
+    
     private List<String> getPermissionStringsByUsername(String username) {
         if (username == null || username.isBlank()) {
             return List.of();
         }
         String jpql = """
-                SELECT DISTINCT p.permission FROM RolePermission rp
+                SELECT DISTINCT p.permissionCode FROM RolePermission rp
                 JOIN rp.role r
                 JOIN rp.permission p
                 WHERE r.id IN (SELECT ur.role.id FROM UserRole ur WHERE ur.userId = :userId)

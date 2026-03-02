@@ -33,20 +33,20 @@ App Template 框架包含以下模块：
 
 ```yaml
 spring:
-   application:
-      name: your-application-name
-   profiles:
-      active: dev
+  application:
+    name: your-application-name
+  profiles:
+    active: dev
 
 server:
-   port: 8080
-   servlet:
-      context-path: /api
+  port: 8080
+  servlet:
+    context-path: /api
 
 # 框架总开关
 app:
-   template:
-      enabled: true  # 默认为 true，设置为 false 可禁用整个框架
+  template:
+    enabled: true  # 默认为 true，设置为 false 可禁用整个框架
 ```
 
 ### Maven 依赖配置
@@ -59,43 +59,43 @@ app:
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
-   <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-   <parent>
-      <groupId>com.lrenyi</groupId>
-      <artifactId>template-dependencies</artifactId>
-      <version>2.4.0</version>
-      <relativePath/>
-   </parent>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-dependencies</artifactId>
+        <version>2.4.0</version>
+        <relativePath/>
+    </parent>
 
-   <groupId>com.example</groupId>
-   <artifactId>my-app</artifactId>
-   <version>1.0.0</version>
-   <packaging>jar</packaging>
+    <groupId>com.example</groupId>
+    <artifactId>my-app</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
 
-   <dependencies>
-      <!-- 选择一个应用类型 -->
+    <dependencies>
+        <!-- 选择一个应用类型 -->
 
-      <!-- 独立单应用 -->
-      <dependency>
-         <groupId>com.lrenyi</groupId>
-         <artifactId>template-api</artifactId>
-      </dependency>
+        <!-- 独立单应用 -->
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-api</artifactId>
+        </dependency>
 
-      <!-- 或者 OAuth2 认证服务 -->
-      <!--
-	  <dependency>
-		  <groupId>com.lrenyi</groupId>
-		  <artifactId>template-oauth2-service</artifactId>
-	  </dependency>
-	  -->
+        <!-- 或者 OAuth2 认证服务 -->
+        <!--
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-oauth2-service</artifactId>
+        </dependency>
+        -->
 
-      <!-- 可选：Redis 支持 -->
-      <dependency>
-         <groupId>org.springframework.boot</groupId>
-         <artifactId>spring-boot-starter-data-redis</artifactId>
-      </dependency>
-   </dependencies>
+        <!-- 可选：Redis 支持 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+    </dependencies>
 </project>
 ```
 
@@ -113,14 +113,14 @@ app:
         store-type: "memory"  # 授权存储类型: memory, redis, jdbc
       local-jwt-public-key: true  # 是否使用本地 JWT 公钥
       net-jwt-public-key-domain: "http://auth-server.com"  # 远程 JWT 公钥域名
-      
+
       # 免认证 URL 配置
       permit-urls:
-        your-app-name:  # 应用名称
+        your-app-name: # 应用名称
           - "/public/**"
           - "/health"
           - "/info"
-      
+
       # 不透明令牌配置
       oauth2:
         opaque-token:
@@ -133,6 +133,7 @@ app:
 ### 自定义安全配置
 
 ```java
+
 @Configuration
 public class CustomSecurityConfig {
     
@@ -141,14 +142,11 @@ public class CustomSecurityConfig {
         return http -> {
             try {
                 // 自定义安全配置
-                http.sessionManagement(session -> 
-                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                );
+                http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
                 
                 // 添加自定义过滤器
-                http.addFilterBefore(new CustomAuthFilter(), 
-                    UsernamePasswordAuthenticationFilter.class);
-                    
+                http.addFilterBefore(new CustomAuthFilter(), UsernamePasswordAuthenticationFilter.class);
+            
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -159,13 +157,16 @@ public class CustomSecurityConfig {
 
 ## Feign 配置与内部调用安全
 
-引入 `template-cloud` 后，Feign 请求会经过 `TemplateRequestInterceptor`：打标内部调用（`X-Internal-Call: true`）、透传配置的 Header、无用户上下文时使用 Client 凭证。下游服务在 `app.template.feign.not-oauth=true` 时，会对带 `X-Internal-Call: true` 的请求执行 `permitAll()`，视为内部调用免认证。
+引入 `template-cloud` 后，Feign 请求会经过 `TemplateRequestInterceptor`：打标内部调用（`X-Internal-Call: true`）、透传配置的
+Header、无用户上下文时使用 Client 凭证。下游服务在 `app.template.feign.not-oauth=true` 时，会对带 `X-Internal-Call: true`
+的请求执行 `permitAll()`，视为内部调用免认证。
 
 ### 内部调用 IP 白名单（防伪造）
 
 **风险**：客户端可伪造请求头 `X-Internal-Call: true`，若不做限制会绕过认证。
 
-**应对**：配置 `app.template.feign.internal-call-allowed-ip-patterns`，仅当请求来源 IP 落在白名单内且带 `X-Internal-Call: true` 时才视为内部调用。支持单 IP 或 CIDR。
+**应对**：配置 `app.template.feign.internal-call-allowed-ip-patterns`，仅当请求来源 IP 落在白名单内且带
+`X-Internal-Call: true` 时才视为内部调用。支持单 IP 或 CIDR。
 
 ```yaml
 app:
@@ -181,12 +182,14 @@ app:
 ```
 
 - **未配置**：只校验请求头，存在伪造风险。
-- **Docker / K8s**：使用集群内网网段即可（如 `10.0.0.0/8`、`172.16.0.0/12`），容器 IP 虽动态但通常落在固定网段；若流量经网关，可只配置网关或 Ingress 所在网段。
+- **Docker / K8s**：使用集群内网网段即可（如 `10.0.0.0/8`、`172.16.0.0/12`），容器 IP 虽动态但通常落在固定网段；若流量经网关，可只配置网关或
+  Ingress 所在网段。
 - **无法区分来源时**：可不配（仅非生产），或关闭“内部调用免认证”、统一走 OAuth2 校验。
 
 ### Header 透传配置
 
-`app.template.feign.headers` 指定从当前请求透传到 Feign 下游的 Header 名称（如 `Authorization`）。仅配置**可信且需透传**的 Header，避免透传客户端可控且下游信任的 Header（如自定义 `X-User-Id`）导致越权。
+`app.template.feign.headers` 指定从当前请求透传到 Feign 下游的 Header 名称（如 `Authorization`）。仅配置**可信且需透传**的
+Header，避免透传客户端可控且下游信任的 Header（如自定义 `X-User-Id`）导致越权。
 
 ```yaml
 app:
@@ -198,7 +201,8 @@ app:
 
 ### 无请求上下文时
 
-定时任务、异步调用等无 `ServletRequestAttributes` 时，拦截器会使用 Client 凭证（`OauthUtilService.fetchToken("server")`）请求下游，下游收到的是**服务身份**而非用户身份，若下游依赖“当前用户”需在业务侧区分。
+定时任务、异步调用等无 `ServletRequestAttributes` 时，拦截器会使用 Client 凭证（`OauthUtilService.fetchToken("server")`
+）请求下游，下游收到的是**服务身份**而非用户身份，若下游依赖“当前用户”需在业务侧区分。
 
 ## OAuth2 配置
 
@@ -235,7 +239,7 @@ spring:
               access-token-time-to-live: "PT1H"  # 1小时
               refresh-token-time-to-live: "P30D"  # 30天
               access-token-format: "self-contained"  # 或 "reference"
-              
+
           mobile-client:
             registration:
               client-id: "mobile-client"
@@ -257,6 +261,7 @@ spring:
 ### 实现用户认证服务
 
 ```java
+
 @Service
 public class DatabaseLoginNameUserDetailService implements IRbacService {
     
@@ -274,8 +279,8 @@ public class DatabaseLoginNameUserDetailService implements IRbacService {
     @Override
     public UserDetails loadUserDetail(String username) throws AuthenticationException {
         User user = userRepository.findByUsername(username)
-            .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
-            
+                                  .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + username));
+        
         if (!user.isEnabled()) {
             throw new DisabledException("用户已被禁用");
         }
@@ -285,14 +290,14 @@ public class DatabaseLoginNameUserDetailService implements IRbacService {
         }
         
         return org.springframework.security.core.userdetails.User.builder()
-            .username(user.getUsername())
-            .password(user.getPassword())
-            .authorities(user.getAuthorities())
-            .accountExpired(!user.isAccountNonExpired())
-            .accountLocked(!user.isAccountNonLocked())
-            .credentialsExpired(!user.isCredentialsNonExpired())
-            .disabled(!user.isEnabled())
-            .build();
+                                                                 .username(user.getUsername())
+                                                                 .password(user.getPassword())
+                                                                 .authorities(user.getAuthorities())
+                                                                 .accountExpired(!user.isAccountNonExpired())
+                                                                 .accountLocked(!user.isAccountNonLocked())
+                                                                 .credentialsExpired(!user.isCredentialsNonExpired())
+                                                                 .disabled(!user.isEnabled())
+                                                                 .build();
     }
 }
 
@@ -331,6 +336,7 @@ public class PhoneLoginNameUserDetailService implements IRbacService {
 ### OAuth2 客户端使用示例
 
 ```java
+
 @RestController
 public class AuthController {
     
@@ -339,9 +345,9 @@ public class AuthController {
     
     @PostMapping("/login")
     public Result<TokenBean> login(@RequestParam String username,
-                                   @RequestParam String password,
-                                   @RequestParam(defaultValue = "username") String loginType,
-                                   HttpServletRequest request) {
+            @RequestParam String password,
+            @RequestParam(defaultValue = "username") String loginType,
+            HttpServletRequest request) {
         
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "authorization_password");
@@ -372,7 +378,9 @@ public class AuthController {
 
 ## 数据加密配置
 
-框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用 `aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2 等）可插拔。  
+框架将**密码编码**与**配置解密**统一在一套 Coder（`TemplateEncryptService`）中：密码使用 `encode`/`matches`，配置密文使用
+`aENC(...)` 包装后在启动时自动 `decode`。格式与 Spring Security 的 `{id}...` 一致，支持多算法（bcrypt、RSA2048、PBKDF2
+等）可插拔。  
 设计说明、与 Jasypt/Spring Cloud 的差异及优势详见 [加密与 Coder 设计说明](../design/encryption-and-coder.md)。
 
 ### 密码加密配置
@@ -385,7 +393,7 @@ spring:
   datasource:
     username: admin
     password: "aENC(encrypted-password-here)"  # 使用 aENC() 包装加密密码
-    
+
 app:
   template:
     security:
@@ -395,6 +403,7 @@ app:
 ### 自定义 RSA 密钥
 
 ```java
+
 @Configuration
 public class CustomRsaConfig {
     
@@ -464,6 +473,7 @@ app:
 ### Redis 自定义配置
 
 ```java
+
 @Configuration
 public class RedisConfig {
     
@@ -492,7 +502,7 @@ app:
   template:
     audit:
       enabled: true  # 是否启用审计日志
-      oauth2-endpoints:  # 需审计的 OAuth2 端点列表（与下方前缀二选一或同时生效）
+      oauth2-endpoints: # 需审计的 OAuth2 端点列表（与下方前缀二选一或同时生效）
         - "/oauth2/token"
       oauth2-audit-path-prefix: "/oauth2"  # 审计该前缀下所有请求（默认 /oauth2，即 authorize、token、revoke、introspect 等全审计）
 
@@ -518,16 +528,16 @@ import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 
 @Component
 public class CustomLogProcessor implements AuditLogProcessor {
-
+    
     @Override
     public void process(AuditLogInfo auditLogInfo) {
         // 自定义日志处理逻辑
         System.out.println("审计日志: " + auditLogInfo);
-
+        
         // 可以保存到数据库或其他存储
         saveLogToDatabase(auditLogInfo);
     }
-
+    
     private void saveLogToDatabase(AuditLogInfo auditLogInfo) {
         // 实现日志保存逻辑
     }
@@ -548,6 +558,7 @@ app:
 ### 全局异常处理
 
 ```java
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
     
@@ -582,6 +593,7 @@ public class GlobalExceptionHandler {
 ### WebSocket 处理器
 
 ```java
+
 @Component
 public class ChatWebSocketHandler implements TemplateWebSocketHandler {
     
@@ -625,14 +637,15 @@ public class ChatWebSocketHandler implements TemplateWebSocketHandler {
 ### WebSocket 拦截器
 
 ```java
+
 @Component
 public class AuthWebSocketInterceptor implements TemplateHandshakeInterceptor {
     
     @Override
-    public boolean beforeHandshake(ServerHttpRequest request, 
-                                   ServerHttpResponse response,
-                                   WebSocketHandler wsHandler, 
-                                   Map<String, Object> attributes) throws Exception {
+    public boolean beforeHandshake(ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Map<String, Object> attributes) throws Exception {
         // 握手前的认证检查
         String token = request.getHeaders().getFirst("Authorization");
         if (token != null && validateToken(token)) {
@@ -643,10 +656,10 @@ public class AuthWebSocketInterceptor implements TemplateHandshakeInterceptor {
     }
     
     @Override
-    public void afterHandshake(ServerHttpRequest request, 
-                               ServerHttpResponse response,
-                               WebSocketHandler wsHandler, 
-                               Exception exception) {
+    public void afterHandshake(ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Exception exception) {
         // 握手后的处理
     }
     
@@ -739,6 +752,7 @@ public class UserService {
 ### 接口权限控制
 
 ```java
+
 @RestController
 public class UserController {
     
@@ -784,6 +798,7 @@ public class DatabaseTemplateInterface implements TemplateInterface {
 框架默认使用 Jackson 作为 JSON 序列化工具，你也可以自定义：
 
 ```java
+
 @Configuration
 public class MessageConverterConfig {
     
@@ -793,10 +808,9 @@ public class MessageConverterConfig {
         FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
         
         FastJsonConfig config = new FastJsonConfig();
-        config.setSerializerFeatures(
-            SerializerFeature.WriteMapNullValue,
-            SerializerFeature.WriteNullStringAsEmpty,
-            SerializerFeature.WriteNullListAsEmpty
+        config.setSerializerFeatures(SerializerFeature.WriteMapNullValue,
+                                     SerializerFeature.WriteNullStringAsEmpty,
+                                     SerializerFeature.WriteNullListAsEmpty
         );
         config.setDateFormat("yyyy-MM-dd HH:mm:ss");
         
@@ -808,7 +822,8 @@ public class MessageConverterConfig {
 
 ### JSON 处理器配置
 
-框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson 等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
+框架通过 `JsonProcessor` 抽象支持**全局切换 JSON 框架**。默认使用 Jackson；可通过配置或自定义 Bean 切换为 Gson、Fastjson
+等，业务代码无需修改。详见 [JSON 处理器与框架切换能力](../design/json-processor.md)。
 
 ```yaml
 app:
@@ -820,9 +835,10 @@ app:
 自定义实现时，提供 `JsonProcessor` Bean 即可全局接管：
 
 ```java
+
 @Configuration
 public class CustomJsonConfig {
-
+    
     @Bean
     @Primary
     public JsonProcessor customJsonProcessor() {
@@ -838,7 +854,8 @@ public class CustomJsonConfig {
 
 #### RSA 密钥配置（重要）
 
-框架在 `template-core` 资源中提供 `default_rsa_public.pem` 和 `default_rsa_private.pem` 作为开发/测试默认密钥。**生产环境严禁使用默认密钥**，必须：
+框架在 `template-core` 资源中提供 `default_rsa_public.pem` 和 `default_rsa_private.pem` 作为开发/测试默认密钥。*
+*生产环境严禁使用默认密钥**，必须：
 
 1. 自行生成 RSA 密钥对（如 `openssl genrsa -out rsa_private.pem 2048`）
 2. 将 `rsa_public.pem`、`rsa_private.pem` 置于 classpath 或配置指定路径
@@ -851,7 +868,7 @@ public class CustomJsonConfig {
 spring:
   profiles:
     active: prod
-    
+
 server:
   port: 8080
   ssl:
@@ -859,7 +876,7 @@ server:
     key-store: classpath:keystore.p12
     key-store-password: your-keystore-password
     key-store-type: PKCS12
-    
+
 app:
   template:
     enabled: true
@@ -869,21 +886,21 @@ app:
       net-jwt-public-key-domain: "https://auth.yourcompany.com"
       authorization:
         store-type: "redis"  # 生产环境建议使用 Redis
-      
+
     oauth2:
       enabled: true
       skip-pre-authentication: false
-      
+
     method-security:
       enabled: true  # 方法级安全（@PreAuthorize 等）
-      
+
     audit:
       enabled: true
-      
+
     web:
       export-exception-detail: false  # 生产环境不暴露异常详情
       json-processor-type: "jackson"
-      
+
 logging:
   level:
     root: WARN
@@ -939,7 +956,7 @@ services:
     depends_on:
       - db
       - redis
-      
+
   db:
     image: mysql:8.0
     environment:
@@ -947,12 +964,12 @@ services:
       MYSQL_DATABASE: myapp
     volumes:
       - mysql_data:/var/lib/mysql
-      
+
   redis:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
-      
+
 volumes:
   mysql_data:
   redis_data:
@@ -963,24 +980,24 @@ volumes:
 ### 常见问题
 
 1. **启动失败**
-   - 检查 JDK 版本是否为 21
-   - 检查依赖版本是否兼容
-   - 查看启动日志中的错误信息
+    - 检查 JDK 版本是否为 21
+    - 检查依赖版本是否兼容
+    - 查看启动日志中的错误信息
 
 2. **认证失败**
-   - 确保实现了 `IRbacService` 接口
-   - 检查 OAuth2 客户端配置
-   - 验证用户名密码是否正确
+    - 确保实现了 `IRbacService` 接口
+    - 检查 OAuth2 客户端配置
+    - 验证用户名密码是否正确
 
 3. **权限拒绝**
-   - 检查 URL 是否在免认证列表中
-   - 验证 JWT 令牌是否有效
-   - 检查用户权限配置
+    - 检查 URL 是否在免认证列表中
+    - 验证 JWT 令牌是否有效
+    - 检查用户权限配置
 
 4. **Redis 连接失败**
-   - 检查 Redis 服务是否启动
-   - 验证连接配置是否正确
-   - 检查网络连通性
+    - 检查 Redis 服务是否启动
+    - 验证连接配置是否正确
+    - 检查网络连通性
 
 ### 调试技巧
 
@@ -1016,6 +1033,7 @@ public class DebugSecurityEventListener {
 App Template 框架提供了丰富的功能和灵活的配置选项，可以快速构建安全、高性能的微服务应用。通过合理的配置和自定义实现，可以满足各种业务需求。
 
 建议在开发过程中：
+
 1. 先使用最小配置快速启动项目
 2. 根据业务需求逐步添加高级功能
 3. 在生产环境中注意安全配置

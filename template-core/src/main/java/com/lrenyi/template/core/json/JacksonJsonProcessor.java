@@ -59,14 +59,15 @@ public record JacksonJsonProcessor(ObjectMapper objectMapper) implements JsonPro
     }
     
     @Override
+    @SuppressWarnings("unchecked")
     public <T> void registerTypeAdapter(Class<T> type, Object adapter) {
         if (adapter instanceof JsonSerializer || adapter instanceof JsonDeserializer) {
             SimpleModule module = new SimpleModule();
-            if (adapter instanceof JsonSerializer jsonSerializer) {
-                module.addSerializer(type, jsonSerializer);
+            if (adapter instanceof JsonSerializer<?> jsonSerializer) {
+                module.addSerializer(type, (JsonSerializer<T>) jsonSerializer);
             }
-            if (adapter instanceof JsonDeserializer jsonDeserializer) {
-                module.addDeserializer(type, jsonDeserializer);
+            if (adapter instanceof JsonDeserializer<?> jsonDeserializer) {
+                module.addDeserializer(type, (JsonDeserializer<? extends T>) jsonDeserializer);
             }
             objectMapper.registerModule(module);
         }

@@ -11,7 +11,7 @@ public class FeignClientConfiguration {
     @Bean
     @ConditionalOnProperty(name = "app.template.feign.enabled", havingValue = "true", matchIfMissing = true)
     public RequestInterceptor requestInterceptor(TemplateConfigProperties templateConfigProperties,
-                                                 OauthUtilService oauthUtilService) {
+            OauthUtilService oauthUtilService) {
         return new TemplateRequestInterceptor(templateConfigProperties, oauthUtilService);
     }
 }

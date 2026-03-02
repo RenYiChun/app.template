@@ -25,6 +25,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @EnableConfigurationProperties(TemplateConfigProperties.class)
 public class CoreAutoConfiguration {
     
+    private CoreAutoConfiguration() {
+        //ignore
+    }
+    
     @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
     static class WebConfig {
         @Bean

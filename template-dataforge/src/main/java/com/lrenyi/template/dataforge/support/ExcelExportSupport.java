@@ -1,16 +1,19 @@
 package com.lrenyi.template.dataforge.support;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
 
 /**
- * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled=false)）导出为 Excel（.xlsx）。
+ * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled
+ * =false)）导出为 Excel（.xlsx）。
  * 通过反射使用 Apache POI，避免编译期强依赖，运行时需 classpath 存在 poi-ooxml。
  */
 public final class ExcelExportSupport {
@@ -24,7 +27,7 @@ public final class ExcelExportSupport {
      * 生成 Excel 字节数组。第一行为表头（字段名），后续为数据行；仅包含未标记 exportExcluded 的字段。
      * 运行时需存在 poi-ooxml，否则抛出异常。
      */
-    public static byte[] toExcel(EntityMeta meta, List<?> data, ObjectMapper objectMapper) throws Exception {
+    public static byte[] toExcel(EntityMeta meta, List<?> data) throws ReflectiveOperationException {
         List<FieldMeta> exportFields = meta.getFields().stream().filter(f -> !f.isExportExcluded()).toList();
         PoiReflect reflect = PoiReflect.create();
         if (exportFields.isEmpty()) {
@@ -48,11 +51,12 @@ public final class ExcelExportSupport {
             for (int i = 0; i < columnNames.size(); i++) {
                 reflect.createCellSetValue(headerRow, i, columnNames.get(i));
             }
+            BeanAccessor accessor = meta.getAccessor();
             for (Object entity : data) {
-                @SuppressWarnings("unchecked") Map<String, Object> map = objectMapper.convertValue(entity, Map.class);
                 Object row = reflect.createRow(sheet, rowNum++);
                 for (int i = 0; i < columnNames.size(); i++) {
-                    Object value = map.get(columnNames.get(i));
+                    String propName = columnNames.get(i);
+                    Object value = accessor != null ? accessor.get(entity, propName) : null;
                     FieldMeta field = exportFields.get(i);
                     Object exportValue = applyConverter(field, value, converterCache);
                     reflect.setCellValue(row, i, exportValue);
@@ -93,7 +97,23 @@ public final class ExcelExportSupport {
         private final Method setBlank;
         private final Method write;
         
-        static PoiReflect create() throws Exception {
+        PoiReflect(Class<?> workbookClass,
+                Class<?> sheetClass,
+                Class<?> rowClass,
+                Class<?> cellClass) throws ReflectiveOperationException {
+            this.workbookClass = workbookClass;
+            this.createSheet = workbookClass.getMethod("createSheet", String.class);
+            this.createRow = sheetClass.getMethod("createRow", int.class);
+            this.createCell = rowClass.getMethod("createCell", int.class);
+            String setCellValue = "setCellValue";
+            this.setCellValueStr = cellClass.getMethod(setCellValue, String.class);
+            this.setCellValueNum = cellClass.getMethod(setCellValue, double.class);
+            this.setCellValueBool = cellClass.getMethod(setCellValue, boolean.class);
+            this.setBlank = cellClass.getMethod("setBlank");
+            this.write = workbookClass.getMethod("write", OutputStream.class);
+        }
+        
+        static PoiReflect create() throws ReflectiveOperationException {
             Class<?> wbClass = Class.forName("org.apache.poi.xssf.usermodel.XSSFWorkbook");
             Class<?> sheetClass = Class.forName("org.apache.poi.ss.usermodel.Sheet");
             Class<?> rowClass = Class.forName("org.apache.poi.ss.usermodel.Row");
@@ -101,61 +121,49 @@ public final class ExcelExportSupport {
             return new PoiReflect(wbClass, sheetClass, rowClass, cellClass);
         }
         
-        PoiReflect(Class<?> workbookClass,
-                Class<?> sheetClass,
-                Class<?> rowClass,
-                Class<?> cellClass) throws Exception {
-            this.workbookClass = workbookClass;
-            this.createSheet = workbookClass.getMethod("createSheet", String.class);
-            this.createRow = sheetClass.getMethod("createRow", int.class);
-            this.createCell = rowClass.getMethod("createCell", int.class);
-            this.setCellValueStr = cellClass.getMethod("setCellValue", String.class);
-            this.setCellValueNum = cellClass.getMethod("setCellValue", double.class);
-            this.setCellValueBool = cellClass.getMethod("setCellValue", boolean.class);
-            this.setBlank = cellClass.getMethod("setBlank");
-            this.write = workbookClass.getMethod("write", java.io.OutputStream.class);
-        }
-        
-        Object newWorkbook() throws Exception {
+        Object newWorkbook() throws ReflectiveOperationException {
             return workbookClass.getDeclaredConstructor().newInstance();
         }
         
-        Object createSheet(Object workbook) throws Exception {
+        Object createSheet(Object workbook) throws ReflectiveOperationException {
             return createSheet.invoke(workbook, ExcelExportSupport.SHEET_NAME);
         }
         
-        Object createRow(Object sheet, int rowNum) throws Exception {
+        Object createRow(Object sheet, int rowNum) throws ReflectiveOperationException {
             return createRow.invoke(sheet, rowNum);
         }
         
-        void createCellSetValue(Object row, int colIndex, String value) throws Exception {
+        void createCellSetValue(Object row, int colIndex, String value) throws ReflectiveOperationException {
             Object cell = createCell.invoke(row, colIndex);
             setCellValueStr.invoke(cell, value != null ? value : "");
         }
         
-        void setCellValue(Object row, int colIndex, Object value) throws Exception {
+        void setCellValue(Object row, int colIndex, Object value) throws ReflectiveOperationException {
             Object cell = createCell.invoke(row, colIndex);
             switch (value) {
-                case null -> {
-                    setBlank.invoke(cell);
-                    return;
-                }
+                case null -> setBlank.invoke(cell);
                 case Number n -> setCellValueNum.invoke(cell, n.doubleValue());
                 case Boolean b -> setCellValueBool.invoke(cell, b);
                 default -> setCellValueStr.invoke(cell, value.toString());
             }
         }
         
-        byte[] writeToBytes(Object workbook) throws Exception {
+        byte[] writeToBytes(Object workbook) throws ReflectiveOperationException {
             try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 write.invoke(workbook, out);
                 return out.toByteArray();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
         
-        void close(Object workbook) throws Exception {
+        void close(Object workbook) {
             if (workbook instanceof AutoCloseable ac) {
-                ac.close();
+                try {
+                    ac.close();
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to close workbook", e);
+                }
             }
         }
     }

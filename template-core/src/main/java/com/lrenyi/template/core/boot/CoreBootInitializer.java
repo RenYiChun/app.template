@@ -12,7 +12,7 @@ import org.springframework.core.env.MutablePropertySources;
  */
 public class CoreBootInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext>, Ordered {
     protected static final String DECRYPTED_PROPERTY_SOURCE_NAME = "decryptedProperties";
-
+    
     @Override
     public void initialize(ConfigurableApplicationContext applicationContext) {
         ConfigurableEnvironment environment = applicationContext.getEnvironment();

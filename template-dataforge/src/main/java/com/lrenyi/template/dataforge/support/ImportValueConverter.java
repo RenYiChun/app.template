@@ -5,7 +5,7 @@ package com.lrenyi.template.dataforge.support;
  */
 @FunctionalInterface
 public interface ImportValueConverter {
-
+    
     /**
      * 将导入的字符串值转换为目标类型。
      *

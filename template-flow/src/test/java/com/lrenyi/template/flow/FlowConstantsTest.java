@@ -1,15 +1,16 @@
 package com.lrenyi.template.flow;
 
-import com.lrenyi.template.flow.model.FlowConstants;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.concurrent.TimeUnit;
+import com.lrenyi.template.flow.model.FlowConstants;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FlowConstantsTest {
-
+    
     @Test
     void constructor_throwsUnsupportedOperationException() throws Exception {
         Constructor<FlowConstants> c = FlowConstants.class.getDeclaredConstructor();
@@ -17,11 +18,11 @@ class FlowConstantsTest {
         InvocationTargetException e = assertThrows(InvocationTargetException.class, c::newInstance);
         assertEquals(UnsupportedOperationException.class, e.getCause().getClass());
     }
-
+    
     @Test
     void constants_values() {
         assertEquals(5L, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_SECONDS);
-        assertEquals(java.util.concurrent.TimeUnit.SECONDS, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_UNIT);
+        assertEquals(TimeUnit.SECONDS, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_UNIT);
         assertEquals(2L, FlowConstants.FORCE_SHUTDOWN_WAIT_SECONDS);
         assertEquals(50L, FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS);
         assertEquals(100L, FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS);

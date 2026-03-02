@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 @Getter
 @Setter
 public class ActionMeta {
-
+    
     private String actionName;
     private String entityName;
     /** HTTP 方法，默认 POST。 */
@@ -23,7 +23,7 @@ public class ActionMeta {
     private String description;
     private boolean requireId = true;
     private List<String> permissions = new ArrayList<>();
-
+    
     public void setPermissions(List<String> permissions) {
         this.permissions = permissions != null ? permissions : new ArrayList<>();
     }

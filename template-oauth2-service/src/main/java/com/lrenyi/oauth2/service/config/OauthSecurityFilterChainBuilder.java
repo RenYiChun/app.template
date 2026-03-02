@@ -44,6 +44,8 @@ import org.springframework.util.StringUtils;
 @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
 public class OauthSecurityFilterChainBuilder {
     
+    private static final String LOGIN_URL = "/login";
+    
     private final TemplateConfigProperties templateConfigProperties;
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<?> tokenGenerator;
@@ -53,7 +55,7 @@ public class OauthSecurityFilterChainBuilder {
     private final ObjectProvider<OAuth2AuditFilter> oauth2AuditFilterProvider;
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsService userDetailsService;
-
+    
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         String loginPage = security.getCustomizeLoginPage();
@@ -95,27 +97,8 @@ public class OauthSecurityFilterChainBuilder {
     private void applyFormLogin(HttpSecurity http, String loginPage) throws Exception {
         String loginFormUrl = ensureLoginPagePath(loginPage);
         Customizer<FormLoginConfigurer<HttpSecurity>> customizer =
-                "/login".equals(loginFormUrl) ? Customizer.withDefaults() : form -> form.loginPage(loginFormUrl);
+                LOGIN_URL.equals(loginFormUrl) ? Customizer.withDefaults() : form -> form.loginPage(loginFormUrl);
         http.formLogin(customizer);
-    }
-
-    /**
-     * 仅接受相对路径，拒绝绝对 URL 与 protocol-relative URL，防止开放重定向。
-     * 非法值时回退为 "/login" 并打日志。
-     */
-    private String ensureLoginPagePath(String loginPage) {
-        if (!StringUtils.hasLength(loginPage)) {
-            return "/login";
-        }
-        if (loginPage.startsWith("//") || loginPage.contains("://")) {
-            log.warn("[安全] 登录页不允许配置为绝对 URL，已忽略 app.template.security.customize-login-page={}", loginPage);
-            return "/login";
-        }
-        if (!loginPage.startsWith("/")) {
-            log.warn("[安全] 登录页必须为以 / 开头的路径，已忽略 app.template.security.customize-login-page={}", loginPage);
-            return "/login";
-        }
-        return loginPage;
     }
     
     private void applyCorsAndLogout(HttpSecurity http) throws Exception {
@@ -153,5 +136,28 @@ public class OauthSecurityFilterChainBuilder {
     private void configureIntrospectionAndOidc(OAuth2AuthorizationServerConfigurer configurer) {
         configurer.tokenIntrospectionEndpoint(Customizer.withDefaults());
         configurer.oidc(Customizer.withDefaults());
+    }
+    
+    /**
+     * 仅接受相对路径，拒绝绝对 URL 与 protocol-relative URL，防止开放重定向。
+     * 非法值时回退为 "/login" 并打日志。
+     */
+    private String ensureLoginPagePath(String loginPage) {
+        if (!StringUtils.hasLength(loginPage)) {
+            return LOGIN_URL;
+        }
+        if (loginPage.startsWith("//") || loginPage.contains("://")) {
+            log.warn("[安全] 登录页不允许配置为绝对 URL，已忽略 app.template.security.customize-login-page={}",
+                     loginPage
+            );
+            return LOGIN_URL;
+        }
+        if (!loginPage.startsWith("/")) {
+            log.warn("[安全] 登录页必须为以 / 开头的路径，已忽略 app.template.security.customize-login-page={}",
+                     loginPage
+            );
+            return LOGIN_URL;
+        }
+        return loginPage;
     }
 }

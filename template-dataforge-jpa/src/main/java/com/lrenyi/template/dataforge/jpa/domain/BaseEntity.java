@@ -1,5 +1,7 @@
 package com.lrenyi.template.dataforge.jpa.domain;
 
+import java.io.Serializable;
+import java.time.LocalDateTime;
 import com.lrenyi.template.dataforge.domain.DataforgePersistable;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -8,8 +10,6 @@ import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Version;
-import java.io.Serializable;
-import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedBy;
@@ -23,42 +23,42 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * 主键类型支持：Long、Integer、UUID、String。
  * </p>
  *
- * @param <ID> 主键类型
+ * @param <I> 主键类型
  */
 @Getter
 @Setter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
-public abstract class BaseEntity<ID extends Serializable> implements DataforgePersistable<ID> {
-
+public abstract class BaseEntity<I extends Serializable> implements DataforgePersistable<I> {
+    
     @Id
     @DataforgeId
-    private ID id;
-
+    private I id;
+    
     @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
-
+    
     @Column(name = "update_time")
     private LocalDateTime updateTime;
-
+    
     @CreatedBy
     @Column(name = "create_by", updatable = false, length = 64)
     private String createBy;
-
+    
     @LastModifiedBy
     @Column(name = "update_by", length = 64)
     private String updateBy;
-
+    
     @Column(name = "deleted", nullable = false)
     private Boolean deleted = false;
-
+    
     @Column(name = "remark", length = 512)
     private String remark;
-
+    
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
-
+    
     @PrePersist
     protected void onPrePersist() {
         LocalDateTime now = LocalDateTime.now();
@@ -69,7 +69,7 @@ public abstract class BaseEntity<ID extends Serializable> implements DataforgePe
             updateTime = now;
         }
     }
-
+    
     @PreUpdate
     protected void onPreUpdate() {
         updateTime = LocalDateTime.now();

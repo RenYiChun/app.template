@@ -1,6 +1,7 @@
 package com.lrenyi.template.core.coder.coder;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.spec.KeySpec;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -22,17 +23,17 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
     private static final int PBKDF2_ITERATIONS = 100_000;
     private static final int SALT_LENGTH = 16;
     private static final int KEY_LENGTH = 256;
-
+    
     @Override
     public String type() {
         return TemplateEncryptService.DEFAULT_ENCODER_KEY;
     }
-
+    
     @Override
     public String decode(String encodedPassword) {
         return encodedPassword;
     }
-
+    
     @Override
     public String encode(CharSequence rawPassword) {
         String plain = StringEscapeUtils.unescapeHtml4(rawPassword.toString());
@@ -70,7 +71,7 @@ public class DefaultTemplateDataCoder implements TemplateEncryptService {
         byte[] expectedHash = Hex.decodeHex(parts[2].toCharArray());
         char[] plainChars = new String(plainBytes, StandardCharsets.UTF_8).toCharArray();
         byte[] actualHash = pbkdf2(plainChars, salt, iterations);
-        return java.util.Arrays.equals(expectedHash, actualHash);
+        return MessageDigest.isEqual(expectedHash, actualHash);
     }
     
     private boolean matchesLegacySha1(byte[] plainBytes, String encoded) throws DecoderException {

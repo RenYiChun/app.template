@@ -1,8 +1,8 @@
 package com.lrenyi.template.flow.exception;
 
-import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -13,11 +13,15 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowExceptionHelper {
     
     private static final List<FlowExceptionHandler> handlers = new CopyOnWriteArrayList<>();
-    private static volatile FlowExceptionHandler defaultHandler = new DefaultFlowExceptionHandler();
+    private static final java.util.concurrent.atomic.AtomicReference<FlowExceptionHandler> defaultHandler =
+            new java.util.concurrent.atomic.AtomicReference<>(new DefaultFlowExceptionHandler());
     
     static {
         // 注册默认处理器
-        handlers.add(defaultHandler);
+        handlers.add(defaultHandler.get());
+    }
+    
+    private FlowExceptionHelper() {
     }
     
     /**
@@ -41,7 +45,7 @@ public class FlowExceptionHelper {
      */
     public static void setDefaultHandler(FlowExceptionHandler handler) {
         if (handler != null) {
-            defaultHandler = handler;
+            defaultHandler.set(handler);
             // 如果默认处理器不在列表中，添加它
             if (!handlers.contains(handler)) {
                 handlers.add(handler);
@@ -85,6 +89,6 @@ public class FlowExceptionHelper {
      */
     public static void clearHandlers() {
         handlers.clear();
-        handlers.add(defaultHandler);
+        handlers.add(defaultHandler.get());
     }
 }

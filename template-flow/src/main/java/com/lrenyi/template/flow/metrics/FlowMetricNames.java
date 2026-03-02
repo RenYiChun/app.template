@@ -7,19 +7,15 @@ package com.lrenyi.template.flow.metrics;
  * Prometheus 导出时 '.' 转为 '_'，Counter 自动追加 {@code _total}。
  */
 public final class FlowMetricNames {
-    private FlowMetricNames() {}
-
     public static final String PREFIX = "app.template.flow";
-
-    // ==================== Counters ====================
-
     /** Job 启动次数。每次 FlowJoinerEngine.run() 调用时 +1。高：任务触发活跃 */
     public static final String JOB_STARTED = PREFIX + ".job.started";
+    
+    // ==================== Counters ====================
     /** Job 正常完成次数。run() 正常返回时 +1。completed/started 即任务成功率 */
     public static final String JOB_COMPLETED = PREFIX + ".job.completed";
     /** Job 被手动停止次数。高：频繁人工干预，正常应接近 0 */
     public static final String JOB_STOPPED = PREFIX + ".job.stopped";
-
     /** 已获取生产许可的数据条数（进场量）。高：数据源产出快 */
     public static final String PRODUCTION_ACQUIRED = PREFIX + ".production.acquired";
     /** 已成功存入 Storage 的数据条数（入库量）。acquired - released = 在途生产中 */
@@ -42,7 +38,6 @@ public final class FlowMetricNames {
     public static final String EGRESS_PASSIVE = PREFIX + ".egress.passive";
     /** 物理终结累计数。数据彻底离场、信号量释放时 +1。{@code rate(terminated[1m])} 即 TPS */
     public static final String TERMINATED = PREFIX + ".terminated";
-
     /**
      * 统一错误计数器，按 errorType + phase 维度聚合。
      * <p>errorType 值域：job_failed / deposit_failed / onConsume_failed / match_process_failed 等。
@@ -51,11 +46,10 @@ public final class FlowMetricNames {
      * <br>高：系统异常频繁，需按 errorType 和 phase 下钻定位。
      */
     public static final String ERRORS = PREFIX + ".errors";
-
-    // ==================== Timers ====================
-
     /** 单条数据存入 Storage 的耗时。高：Storage 写入瓶颈（锁争用/队列满） */
     public static final String DEPOSIT_DURATION = PREFIX + ".deposit.duration";
+    
+    // ==================== Timers ====================
     /**
      * Caffeine 配对处理的端到端耗时（含消费许可获取等待）。
      * 高：消费端饱和导致 acquire 久，或 onSuccess 回调慢。
@@ -70,11 +64,10 @@ public final class FlowMetricNames {
     public static final String FINALIZE_DURATION = PREFIX + ".finalize.duration";
     /** 背压等待总耗时。生产者因缓存满/许可耗尽阻塞。高：生产远超消费，系统过载 */
     public static final String BACKPRESSURE_DURATION = PREFIX + ".backpressure.duration";
-
-    // ==================== Gauges ====================
-
     /** 全局消费信号量已占用许可数。高（接近 limit）：消费端饱和 */
     public static final String SEMAPHORE_USED = PREFIX + ".semaphore.used";
+    
+    // ==================== Gauges ====================
     /** 全局消费信号量上限（配置值）。用于计算利用率 = used / limit */
     public static final String SEMAPHORE_LIMIT = PREFIX + ".semaphore.limit";
     /** 当前正在运行的 Job 数量。为 0 时系统空闲 */
@@ -83,11 +76,10 @@ public final class FlowMetricNames {
     public static final String STORAGE_SIZE = PREFIX + ".storage.size";
     /** 任务完成率 = terminated / totalExpected。仅 totalExpected &gt; 0 时注册 */
     public static final String COMPLETION_RATE = PREFIX + ".completion.rate";
-
-    // ==================== Tags ====================
-
     /** 任务标识。注意高基数风险，仅在任务数可控时使用 */
     public static final String TAG_JOB_ID = "jobId";
+    
+    // ==================== Tags ====================
     /** 错误类型。如 job_failed / deposit_failed / onConsume_failed 等 */
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
@@ -96,4 +88,6 @@ public final class FlowMetricNames {
     public static final String TAG_REASON = "reason";
     /** 存储引擎类型。caffeine / queue */
     public static final String TAG_STORAGE_TYPE = "storageType";
+    
+    private FlowMetricNames() {}
 }

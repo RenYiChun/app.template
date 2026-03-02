@@ -16,28 +16,21 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class Digests {
-
+    
     private static final String SHA1 = "SHA-1";
     private static final String MD5 = "MD5";
-
+    
     private static final SecureRandom random = new SecureRandom();
-
+    
+    private Digests() {
+        throw new IllegalStateException("Utility class");
+    }
+    
     /**
      * 对输入进行 MD5 散列。仅用于非安全场景（如校验和），不用于密码等敏感数据。
      */
     public static byte[] md5(byte[] input) {
         return digest(input, MD5, null, 1);
-    }
-    
-    public static byte[] md5(byte[] input, int iterations) {
-        return digest(input, MD5, null, iterations);
-    }
-    
-    /**
-     * 对文件进行 MD5 散列。仅用于非安全场景（如文件校验和）。
-     */
-    public static byte[] md5(InputStream input) throws IOException {
-        return digest(input, MD5);
     }
     
     /**
@@ -59,6 +52,17 @@ public class Digests {
             log.error("Digest failed for algorithm: {}", algorithm, e);
             throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
+    }
+    
+    public static byte[] md5(byte[] input, int iterations) {
+        return digest(input, MD5, null, iterations);
+    }
+    
+    /**
+     * 对文件进行 MD5 散列。仅用于非安全场景（如文件校验和）。
+     */
+    public static byte[] md5(InputStream input) throws IOException {
+        return digest(input, MD5);
     }
     
     private static byte[] digest(InputStream input, String algorithm) throws IOException {
@@ -118,7 +122,9 @@ public class Digests {
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
-            return original;
+            throw new IllegalStateException("SHA-256 algorithm not available.  This is required for Digest.shorten.",
+                                            e
+            );
         }
         byte[] hashBytes = digest.digest(original.getBytes(StandardCharsets.UTF_8));
         

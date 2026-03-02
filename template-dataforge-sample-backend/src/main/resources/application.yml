@@ -55,5 +55,6 @@ app:
           - /oauth2/token
           - /oauth2/introspect
           - /jwt/public/key
+          - /api/metadata/entities
     audit:
       enabled: true

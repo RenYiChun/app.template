@@ -23,21 +23,21 @@ import org.springframework.context.annotation.Configuration;
 @AutoConfigureAfter(name = "org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration")
 @AutoConfigureBefore(DataforgeAutoConfiguration.class)
 public class RbacAutoConfiguration {
-
+    
     @Bean
     @ConditionalOnClass(EntityManager.class)
     @ConditionalOnBean(EntityManager.class)
     public RbacQueryService rbacQueryService(EntityManager entityManager) {
         return new RbacQueryServiceImpl(entityManager);
     }
-
+    
     @Bean
     @ConditionalOnBean(RbacQueryService.class)
     public UserPermissionResolver defaultUserPermissionResolver(RbacQueryService rbacQueryService,
-                                                                DataforgeProperties properties) {
+            DataforgeProperties properties) {
         return new DefaultUserPermissionResolver(rbacQueryService, properties);
     }
-
+    
     @Bean
     @ConditionalOnBean(UserPermissionResolver.class)
     public DataforgePermissionChecker rbacPermissionChecker(UserPermissionResolver userPermissionResolver) {

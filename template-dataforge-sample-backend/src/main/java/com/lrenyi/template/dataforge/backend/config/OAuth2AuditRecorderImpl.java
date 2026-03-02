@@ -21,7 +21,11 @@ public class OAuth2AuditRecorderImpl implements OAuth2AuditRecorder {
     }
     
     @Override
-    public void record(HttpServletRequest request, String userName, String desc, boolean success, String exception) {
+    public void recordAuditLog(HttpServletRequest request,
+            String userName,
+            String desc,
+            boolean success,
+            String exception) {
         auditLogService.recordAuditLog(request, userName, desc, success, exception);
     }
     

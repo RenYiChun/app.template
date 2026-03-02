@@ -46,8 +46,13 @@ public final class FilterConditionSpecification {
             case EQ -> cb.equal(path, value);
             case NE -> cb.notEqual(path, value);
             case LIKE -> {
-                String pattern = value instanceof String s ? "%" + s.toLowerCase() + "%" :
-                        "%" + (value != null ? value : "") + "%";
+                String pattern;
+                if (value instanceof String s) {
+                    pattern = "%" + s.toLowerCase() + "%";
+                } else {
+                    String v = value != null ? value.toString() : "";
+                    pattern = "%" + v + "%";
+                }
                 yield cb.like(cb.lower(path.as(String.class)), pattern);
             }
             case GT ->

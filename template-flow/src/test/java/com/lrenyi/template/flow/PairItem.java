@@ -18,13 +18,18 @@ public class PairItem {
     private String id;
     private String value;
     private String side;
-
+    
     public PairItem(String id) {
         this.id = id;
         this.value = null;
         this.side = null;
     }
-
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -35,10 +40,5 @@ public class PairItem {
         }
         PairItem pairItem = (PairItem) o;
         return Objects.equals(id, pairItem.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
     }
 }

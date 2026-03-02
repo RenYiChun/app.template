@@ -15,7 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class FieldMeta {
-
+    
     private String name;
     private String type;
     private String columnName;
@@ -104,19 +104,24 @@ public class FieldMeta {
     private String exportFormat = "";
     private String exportConverterClassName = "";
     private int exportWidth = 0;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String exportCellStyle = "";
     private boolean exportWrapText = false;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private int exportColumnType = 0;
     private String exportComment = "";
     private boolean exportHidden = false;
     private String exportGroup = "";
     private boolean exportFrozen = false;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String exportDataValidation = "";
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String exportHyperlinkFormula = "";
     
     private boolean importEnabled = true;
     private boolean importRequired = false;
     private String importSample = "";
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String importConverterClassName = "";
     private String importValidationRegex = "";
     private String importValidationMessage = "";
@@ -132,15 +137,21 @@ public class FieldMeta {
     private String importDateFormat = "";
     private boolean importIgnoreCase = false;
     private boolean importTrim = true;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String importErrorPolicy = "STOP";
     
     // DTO控制
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String[] dtoIncludeTypes = {};
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String[] dtoExcludeTypes = {};
     private String dtoFieldName = "";
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> dtoFieldType = void.class;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String dtoConverterClassName = "";
     private String dtoFormat = "";
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?>[] dtoValidationGroups = {};
     private boolean dtoReadOnly = false;
     private boolean dtoWriteOnly = false;

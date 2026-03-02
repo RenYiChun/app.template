@@ -1,5 +1,6 @@
 package com.lrenyi.template.core.boot;
 
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import org.jspecify.annotations.NonNull;
@@ -47,15 +48,11 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
     
     private Object resolveFromChain(String name) {
         for (PropertySource<?> ps : propertySources) {
-            if (ps == this) {
-                continue;
-            }
-            if (CONFIGURATION_PROPERTIES_SOURCE_NAME.equals(ps.getName())) {
-                continue;
-            }
-            Object value = ps.getProperty(name);
-            if (value != null) {
-                return value;
+            if (ps != this && !CONFIGURATION_PROPERTIES_SOURCE_NAME.equals(ps.getName())) {
+                Object value = ps.getProperty(name);
+                if (value != null) {
+                    return value;
+                }
             }
         }
         return null;
@@ -64,5 +61,22 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
     private static String decryptValue(String encryptedValue) {
         String ciphertext = encryptedValue.substring(PREFIX.length(), encryptedValue.length() - SUFFIX.length());
         return DefaultTemplateEncryptService.decodeStatic(ciphertext);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        LazyDecryptingPropertySource other = (LazyDecryptingPropertySource) obj;
+        return Objects.equals(getName(), other.getName()) && propertySources == other.propertySources;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(getName(), propertySources);
     }
 }

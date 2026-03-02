@@ -16,16 +16,13 @@ import lombok.Setter;
 @Entity
 @Table(name = "sys_role")
 @DataforgeEntity(
-        pathSegment = "roles",
-        displayName = "角色",
-        table = "sys_role",
-        enableExport = false
+        pathSegment = "roles", displayName = "角色", table = "sys_role", enableExport = false
 )
 public class Role extends BaseEntity<Long> {
-
+    
     @Column(nullable = false, unique = true, length = 64)
     private String roleCode;
-
+    
     @Column(length = 128)
     private String roleName;
 }

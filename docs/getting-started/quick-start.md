@@ -83,39 +83,39 @@ spring:
 app:
   template:
     enabled: true  # 如果不需要框架所有功能，可以禁用
-    
+
     # 安全配置
     security:
       enabled: true  # 如果不需要安全功能，可以禁用
       security-key: "default"  # 密码编码器密钥
       authorization:
         store-type: "memory"  # 授权存储类型: memory, redis, jdbc
-      
+
       # 免认证 URL 配置
       permit-urls:
-        your-app-name:  # 应用名称
+        your-app-name: # 应用名称
           - "/public/**"
           - "/health"
           - "/info"
-    
+
     # OAuth2 配置
     oauth2:
       enabled: true  # 是否启用 OAuth2 功能
       skip-pre-authentication: false  # 是否跳过预认证检查
-    
+
     # 方法级安全（@PreAuthorize 等是否生效）
     method-security:
       enabled: true
-    
+
     # 审计日志配置
     audit:
       enabled: true  # 是否启用审计日志
-    
+
     # Feign 配置（引入 template-cloud 时生效）
     feign:
       enabled: true  # 是否启用 Feign 客户端
       # 内部调用放行：生产环境建议配置 internal-call-allowed-ip-patterns（如 10.0.0.0/8）防伪造，详见《详细配置教程》Feign 配置与内部调用安全
-    
+
     # Web 配置
     web:
       json-processor-type: "jackson"  # JSON 处理器类型: jackson, gson
@@ -150,11 +150,8 @@ public class DefaultLoginNameUserDetailService implements IRbacService {
     public UserDetails loadUserDetail(String username) throws UsernameNotFoundException {
         // 根据用户名加载用户信息
         // 这里需要实现你的用户查询逻辑
-        return User.builder()
-                   .username(username)
-                   .password("{noop}app.template") // 使用明文密码，生产环境请使用加密
-                   .authorities("ROLE_USER")
-                   .build();
+        return User.builder().username(username).password("{noop}app.template") // 使用明文密码，生产环境请使用加密
+                   .authorities("ROLE_USER").build();
     }
 }
 ```
@@ -201,11 +198,13 @@ mvn spring-boot:run
 
 ### 获取访问令牌
 
-在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`来获取访问令牌。
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`
+来获取访问令牌。
 
 ### 访问受保护资源
 
-在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`来测试受保护的接口。
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`
+来测试受保护的接口。
 
 ## 常见问题
 

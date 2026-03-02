@@ -7,6 +7,6 @@ import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
  */
 @FunctionalInterface
 public interface AuditLogProcessor {
-
+    
     void process(AuditLogInfo auditLogInfo);
 }

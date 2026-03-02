@@ -8,7 +8,7 @@ import org.apache.commons.io.IOUtils;
 
 @Slf4j
 public class FeignClientErrorDecoder implements ErrorDecoder {
-
+    
     @Override
     public Exception decode(String methodKey, Response response) {
         String body = "";
@@ -17,11 +17,8 @@ public class FeignClientErrorDecoder implements ErrorDecoder {
         } catch (Exception e) {
             log.debug("Could not read response body for {}: {}", methodKey, e.getMessage());
         }
-        String message = String.format("feign[%s] invocation fail, status= %s, body= %s",
-                                       methodKey,
-                                       response.status(),
-                                       body
-        );
+        String message =
+                String.format("feign[%s] invocation fail, status= %s, body= %s", methodKey, response.status(), body);
         return new RuntimeException(message);
     }
 }

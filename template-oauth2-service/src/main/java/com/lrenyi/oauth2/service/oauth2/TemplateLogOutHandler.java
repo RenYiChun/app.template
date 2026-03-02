@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
@@ -23,16 +22,18 @@ import org.springframework.util.StringUtils;
 public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandler {
     private final OAuth2AuthorizationService oAuth2AuthorizationService;
     private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;
-    private final MeterRegistry meterRegistry;
+    private final Counter logoutCounter;
     
     public TemplateLogOutHandler(OAuth2AuthorizationService oAuth2AuthorizationService,
             ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             MeterRegistry meterRegistry) {
         this.oAuth2AuthorizationService = oAuth2AuthorizationService;
         this.auditRecorderProvider = auditRecorderProvider;
-        this.meterRegistry = meterRegistry;
+        this.logoutCounter = Counter.builder("app.template.oauth2.logout")
+                                    .description("Total number of successful logouts")
+                                    .register(meterRegistry);
     }
-
+    
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         String userName = authentication != null ? authentication.getName() : null;
@@ -50,11 +51,17 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
             OAuth2TokenType token = OAuth2TokenType.ACCESS_TOKEN;
             OAuth2Authorization authorization = oAuth2AuthorizationService.findByToken(split[1], token);
             if (authorization != null) {
-                userName = authorization.getAttribute(OAuth2TokenIntrospectionClaimNames.USERNAME);
+                // 如果 Authentication 为空，尝试从 Authorization 中恢复用户名
+                if (userName == null) {
+                    userName = authorization.getPrincipalName();
+                    // 如果还是为空（如 client_credentials 模式），尝试取 client_id
+                    if (userName == null && authorization.getRegisteredClientId() != null) {
+                        userName = "client:" + authorization.getRegisteredClientId();
+                    }
+                }
                 oAuth2AuthorizationService.remove(authorization);
                 success = true;
-                Counter.builder("app.template.oauth2.logout")
-                       .register(meterRegistry).increment();
+                logoutCounter.increment();
                 log.info("User {} logout successfully", userName);
             }
         } catch (Exception e) {
@@ -63,15 +70,15 @@ public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandle
         } finally {
             OAuth2AuditRecorder recorder = auditRecorderProvider.getIfAvailable();
             if (recorder != null) {
-                recorder.record(request, userName != null ? userName : "", "logout", success, exceptionDetails);
+                recorder.recordAuditLog(request, userName != null ? userName : "", "logout", success, exceptionDetails);
             }
         }
     }
     
     @Override
     public void onLogoutSuccess(HttpServletRequest request,
-                                HttpServletResponse response,
-                                Authentication authentication) throws IOException {
+            HttpServletResponse response,
+            Authentication authentication) throws IOException {
         response.setStatus(HttpServletResponse.SC_OK);
         response.getWriter().write("{\"message\":\"Logout successful\"}");
     }

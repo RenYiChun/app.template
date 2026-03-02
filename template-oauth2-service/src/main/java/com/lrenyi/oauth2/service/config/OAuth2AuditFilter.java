@@ -27,7 +27,7 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     private final TemplateConfigProperties properties;
     private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;
     private final ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider;
-
+    
     public OAuth2AuditFilter(TemplateConfigProperties properties,
             ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {
@@ -38,10 +38,10 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
     
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        TemplateConfigProperties.AuditLogProperties audit = properties.getAudit();
-        if (!audit.isEnabled()) {
+        if (!properties.isAuditEffectivelyEnabled()) {
             return true;
         }
+        TemplateConfigProperties.AuditLogProperties audit = properties.getAudit();
         String uri = request.getRequestURI();
         if (StringUtils.hasText(audit.getOauth2AuditPathPrefix()) && uri.startsWith(audit.getOauth2AuditPathPrefix())) {
             return false;
@@ -77,7 +77,7 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         if (userName == null) {
             userName = "";
         }
-        recorder.record(request, userName, desc, success, message);
+        recorder.recordAuditLog(request, userName, desc, success, message);
     }
     
     private static final class StatusCapturingResponseWrapper extends HttpServletResponseWrapper {
@@ -88,9 +88,9 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         }
         
         @Override
-        public void setStatus(int sc) {
+        public void sendError(int sc, String msg) throws IOException {
             this.status = sc;
-            super.setStatus(sc);
+            super.sendError(sc, msg);
         }
         
         @Override
@@ -100,10 +100,11 @@ public class OAuth2AuditFilter extends OncePerRequestFilter {
         }
         
         @Override
-        public void sendError(int sc, String msg) throws IOException {
+        public void setStatus(int sc) {
             this.status = sc;
-            super.sendError(sc, msg);
+            super.setStatus(sc);
         }
+        
         
         @Override
         public int getStatus() {

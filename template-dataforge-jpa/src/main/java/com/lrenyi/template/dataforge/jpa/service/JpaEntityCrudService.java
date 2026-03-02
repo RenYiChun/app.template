@@ -38,7 +38,7 @@ public class JpaEntityCrudService implements EntityCrudService {
     
     @Override
     @Transactional(readOnly = true)
-    public Page<?> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
         Class<?> entityClass = entityMeta.getEntityClass();
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
@@ -130,7 +130,7 @@ public class JpaEntityCrudService implements EntityCrudService {
     
     @Override
     @Transactional
-    public List<?> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
         if (entities == null || entities.isEmpty()) {
             throw new IllegalArgumentException("Entities cannot be null or empty");
         }
@@ -154,9 +154,23 @@ public class JpaEntityCrudService implements EntityCrudService {
         return new ArrayList<>(repo.saveAll(toSave));
     }
     
-    @SuppressWarnings("unchecked")
-    private SimpleJpaRepository<Object, Object> repositoryFor(Class<?> entityClass) {
-        return new SimpleJpaRepository<>((Class<Object>) entityClass, entityManager);
+    private Object getEntityId(Object entity) {
+        return InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass()));
+    }
+    
+    private void setEntityId(Object entity, Object id) {
+        InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
+    }
+    
+    private static Field findIdField(Class<?> clazz) {
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                return c.getDeclaredField("id");
+            } catch (NoSuchFieldException ignored) {
+                // continue
+            }
+        }
+        return null;
     }
     
     private static Set<String> getEntityFieldNames(Class<?> entityClass) {
@@ -183,22 +197,8 @@ public class JpaEntityCrudService implements EntityCrudService {
         return pageableSort;
     }
     
-    private Object getEntityId(Object entity) {
-        return InMemoryEntityCrudService.getValueOfObject(entity, findIdField(entity.getClass()));
-    }
-    
-    private void setEntityId(Object entity, Object id) {
-        InMemoryEntityCrudService.setValueOfObject(entity, id, findIdField(entity.getClass()));
-    }
-    
-    private static Field findIdField(Class<?> clazz) {
-        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            try {
-                return c.getDeclaredField("id");
-            } catch (NoSuchFieldException ignored) {
-                // continue
-            }
-        }
-        return null;
+    @SuppressWarnings("unchecked")
+    private SimpleJpaRepository<Object, Object> repositoryFor(Class<?> entityClass) {
+        return new SimpleJpaRepository<>((Class<Object>) entityClass, entityManager);
     }
 }

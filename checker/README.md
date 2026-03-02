@@ -21,10 +21,10 @@
 1. 打开 [spotbugs-exclude.xml](spotbugs-exclude.xml)。
 2. 在 `<FindBugsFilter>` 内增加 `<Match>...</Match>`。
 3. 常用写法示例：
-   - 按 bug 类型排除：`<Match><Bug code="EI"/></Match>`（EI 为暴露可变引用等）
-   - 按类排除：`<Match><Class name="com.example.MyClass"/><Bug pattern="NP_NULL_ON_SOME_PATH"/></Match>`
-   - 按包正则排除：`<Match><Package name="~com\.example\.gen\.*"/></Match>`
-   - 按置信度排除：`<Match><Confidence value="3"/></Match>`（3=low）
+    - 按 bug 类型排除：`<Match><Bug code="EI"/></Match>`（EI 为暴露可变引用等）
+    - 按类排除：`<Match><Class name="com.example.MyClass"/><Bug pattern="NP_NULL_ON_SOME_PATH"/></Match>`
+    - 按包正则排除：`<Match><Package name="~com\.example\.gen\.*"/></Match>`
+    - 按置信度排除：`<Match><Confidence value="3"/></Match>`（3=low）
 4. 语法详见：<https://spotbugs.readthedocs.io/en/stable/filter.html>
 
 ### 与 Checkstyle 的关系

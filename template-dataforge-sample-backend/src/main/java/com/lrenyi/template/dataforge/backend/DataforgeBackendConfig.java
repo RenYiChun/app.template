@@ -1,20 +1,19 @@
 package com.lrenyi.template.dataforge.backend;
 
+import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * 平台后端扩展配置。安全由 template-api 的 DefaultSecurityFilterChainBuilder 统一处理，
@@ -26,12 +25,12 @@ import java.util.function.Consumer;
 @Configuration
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class DataforgeBackendConfig {
-
+    
     @Bean("passwordEncoder")
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
-
+    
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -43,7 +42,7 @@ public class DataforgeBackendConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
-
+    
     /** 通过 template-api 的 httpConfigurerProvider 注入 CORS 与 Session 策略 */
     @Bean
     public Consumer<HttpSecurity> dataforgeHttpConfigurer(
@@ -53,7 +52,7 @@ public class DataforgeBackendConfig {
                 http.cors(c -> c.configurationSource(corsConfigurationSource));
                 http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new IllegalStateException("HttpSecurity config failed", e);
             }
         };
     }

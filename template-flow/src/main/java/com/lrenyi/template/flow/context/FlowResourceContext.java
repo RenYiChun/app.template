@@ -55,17 +55,17 @@ public class FlowResourceContext {
      * Job级资源：背压控制器
      */
     private final BackpressureController backpressureController;
-
+    
     /**
      * Job级资源：生产者执行器（信号量受控）
      */
     private final ExecutorService producerExecutor;
-
+    
     /**
      * 在途生产信号量：限制同时「已 acquire 未 release」的 launch 数，封顶 Wait(Q)，达限时 launch() 入口阻塞从而背压到上层
      */
     private final Semaphore inFlightProductionSemaphore;
-
+    
     // ========== 全局资源访问便捷方法 ==========
     
     /**

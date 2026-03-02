@@ -12,7 +12,7 @@ import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 class ResultTest {
-
+    
     @Test
     void constructor_noArgs_setsDefaults() {
         Result<String> r = new Result<>();
@@ -20,13 +20,13 @@ class ResultTest {
         assertNull(r.getData());
         assertNull(r.getMessage());
     }
-
+    
     @Test
     void constructor_messageOnly() {
         Result<String> r = new Result<>("msg");
         assertEquals("msg", r.getMessage());
     }
-
+    
     @Test
     void getSuccess_setsCodeMessageAndData() {
         Result<String> r = Result.getSuccess("data");
@@ -34,7 +34,7 @@ class ResultTest {
         assertEquals(MCode.SUCCESS.getMessage(), r.getMessage());
         assertEquals("data", r.getData());
     }
-
+    
     @Test
     void getError_setsCodeDataAndMessage() {
         Result<String> r = Result.getError("errData", "error msg");
@@ -42,7 +42,7 @@ class ResultTest {
         assertEquals("errData", r.getData());
         assertEquals("error msg", r.getMessage());
     }
-
+    
     @Test
     void makeThrowable_configNull_usesClassAndDefaultMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
@@ -54,7 +54,7 @@ class ResultTest {
             assertEquals("java.lang.RuntimeException->default", r.getMessage());
         }
     }
-
+    
     @Test
     void makeThrowable_exportExceptionDetailFalse_usesClassAndDefaultMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
@@ -66,7 +66,7 @@ class ResultTest {
             assertEquals("java.lang.RuntimeException->default", r.getMessage());
         }
     }
-
+    
     @Test
     void makeThrowable_exportExceptionDetailTrue_hasMessage_usesCauseMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
@@ -78,7 +78,7 @@ class ResultTest {
             assertEquals("visible message", r.getMessage());
         }
     }
-
+    
     @Test
     void makeThrowable_exportExceptionDetailTrue_emptyMessage_usesClassAndDefault() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
@@ -90,7 +90,7 @@ class ResultTest {
             assertEquals("java.lang.RuntimeException->default", r.getMessage());
         }
     }
-
+    
     @Test
     void makeThrowable_exportExceptionDetailTrue_nullMessage_usesClassAndDefault() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {

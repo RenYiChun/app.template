@@ -1,6 +1,7 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import com.lrenyi.template.core.util.TemplateConstant;
 import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.HashOperations;
@@ -10,8 +11,9 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 
 @Slf4j
 public class RedisRegisteredClientRepository implements RegisteredClientRepository {
-    private static final String REGISTERED_CLIENT_ID_KEY = "registered-client:client_id";
-    private static final String REGISTERED_ID_KEY = "registered-client:id";
+    private static final String REGISTERED_CLIENT_ID_KEY =
+            TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
+    private static final String REGISTERED_ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
     private final JdkSerializationStrategy strategy = new JdkSerializationStrategy();
     
     private final RedisTemplate<String, String> stringRedisTemplate;
@@ -19,10 +21,65 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     
     public RedisRegisteredClientRepository(RedisTemplate<String, String> stringRedisTemplate,
-                                           RegisteredClient... registrations) {
+            RegisteredClient... registrations) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.initialClients = registrations != null ? registrations.clone() : new RegisteredClient[0];
         ensureClientsInitialized();
+    }
+    
+    /**
+     * 确保客户端已初始化
+     * 如果 Redis 中没有数据，则从配置重新初始化
+     */
+    private void ensureClientsInitialized() {
+        lock.writeLock().lock();
+        try {
+            // 双重检查，避免重复初始化
+            if (hasClientsInRedis()) {
+                return;
+            }
+            
+            if (initialClients == null || initialClients.length == 0) {
+                log.debug("没有初始客户端配置需要初始化");
+                return;
+            }
+            
+            log.warn("检测到 Redis 中缺少客户端配置，正在从配置重新初始化 {} 个客户端...", initialClients.length);
+            initializeClients();
+            log.info("客户端配置重新初始化完成");
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+    
+    /**
+     * 检查 Redis 中是否已有客户端数据
+     */
+    private boolean hasClientsInRedis() {
+        try {
+            HashOperations<String, String, String> hashOperations = stringRedisTemplate.opsForHash();
+            Long size = hashOperations.size(REGISTERED_CLIENT_ID_KEY);
+            return size > 0;
+        } catch (Exception e) {
+            log.warn("检查 Redis 中的客户端配置时发生异常", e);
+            return false;
+        }
+    }
+    
+    /**
+     * 从初始配置初始化所有客户端
+     */
+    private void initializeClients() {
+        for (RegisteredClient registration : initialClients) {
+            if (registration != null) {
+                try {
+                    save(registration);
+                    log.debug("已初始化客户端: {}", registration.getClientId());
+                } catch (Exception e) {
+                    log.error("初始化客户端 {} 时发生异常", registration.getClientId(), e);
+                }
+            }
+        }
     }
     
     @Override
@@ -64,60 +121,5 @@ public class RedisRegisteredClientRepository implements RegisteredClientReposito
             return strategy.deserialize(value, RegisteredClient.class);
         }
         return null;
-    }
-    
-    /**
-     * 检查 Redis 中是否已有客户端数据
-     */
-    private boolean hasClientsInRedis() {
-        try {
-            HashOperations<String, String, String> hashOperations = stringRedisTemplate.opsForHash();
-            Long size = hashOperations.size(REGISTERED_CLIENT_ID_KEY);
-            return size > 0;
-        } catch (Exception e) {
-            log.warn("检查 Redis 中的客户端配置时发生异常", e);
-            return false;
-        }
-    }
-    
-    /**
-     * 确保客户端已初始化
-     * 如果 Redis 中没有数据，则从配置重新初始化
-     */
-    private void ensureClientsInitialized() {
-        lock.writeLock().lock();
-        try {
-            // 双重检查，避免重复初始化
-            if (hasClientsInRedis()) {
-                return;
-            }
-            
-            if (initialClients == null || initialClients.length == 0) {
-                log.debug("没有初始客户端配置需要初始化");
-                return;
-            }
-            
-            log.warn("检测到 Redis 中缺少客户端配置，正在从配置重新初始化 {} 个客户端...", initialClients.length);
-            initializeClients();
-            log.info("客户端配置重新初始化完成");
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-    
-    /**
-     * 从初始配置初始化所有客户端
-     */
-    private void initializeClients() {
-        for (RegisteredClient registration : initialClients) {
-            if (registration != null) {
-                try {
-                    save(registration);
-                    log.debug("已初始化客户端: {}", registration.getClientId());
-                } catch (Exception e) {
-                    log.error("初始化客户端 {} 时发生异常", registration.getClientId(), e);
-                }
-            }
-        }
     }
 }

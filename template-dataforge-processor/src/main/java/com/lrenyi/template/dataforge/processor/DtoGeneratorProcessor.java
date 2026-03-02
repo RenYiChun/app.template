@@ -6,12 +6,12 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
@@ -22,6 +22,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
 /**
@@ -32,57 +33,147 @@ import javax.tools.JavaFileObject;
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class DtoGeneratorProcessor extends AbstractProcessor {
     
+    private static boolean hasColumnNullableFalse(VariableElement field) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
+                for (var entry : mirror.getElementValues().entrySet()) {
+                    if ("nullable".equals(entry.getKey().getSimpleName().toString())) {
+                        Object v = entry.getValue().getValue();
+                        return Boolean.FALSE.equals(v);
+                    }
+                }
+                return false;
+            }
+        }
+        return false;
+    }
+    
+    private static int getColumnLength(VariableElement field) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
+                for (var entry : mirror.getElementValues().entrySet()) {
+                    if ("length".equals(entry.getKey().getSimpleName().toString())) {
+                        Object v = entry.getValue().getValue();
+                        return v instanceof Integer i ? i : 0;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+    
+    private static String fieldAnnotations(FieldSpec f) {
+        StringBuilder sb = new StringBuilder();
+        if (f.notNull()) {
+            sb.append("    @jakarta.validation.constraints.NotNull\n");
+        }
+        if (f.maxSize() > 0 && "String".equals(f.typeName())) {
+            sb.append("    @jakarta.validation.constraints.Size(max = ").append(f.maxSize()).append(")\n");
+        }
+        return sb.toString();
+    }
+    
+    private static String cap(String name) {
+        return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
+    }
+    
+    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field,
+            String annotationFqn,
+            String elementName) {
+        AnnotationMirror mirror = findAnnotationMirror(field, annotationFqn);
+        if (mirror == null) {
+            return Set.of();
+        }
+        List<? extends AnnotationValue> values = getAnnotationValues(mirror, elementName);
+        Set<String> out = new HashSet<>();
+        for (AnnotationValue av : values) {
+            Object ev = av.getValue();
+            if (ev instanceof Element el) {
+                out.add(el.getSimpleName().toString());
+            }
+        }
+        return out;
+    }
+    
+    private static AnnotationMirror findAnnotationMirror(VariableElement field, String annotationFqn) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if (annotationFqn.equals(mirror.getAnnotationType().toString())) {
+                return mirror;
+            }
+        }
+        return null;
+    }
+    
+    private static List<? extends AnnotationValue> getAnnotationValues(AnnotationMirror mirror, String elementName) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (elementName.equals(entry.getKey().getSimpleName().toString())) {
+                Object val = entry.getValue().getValue();
+                if (val instanceof List<?> list) {
+                    List<AnnotationValue> out = new ArrayList<>();
+                    for (Object item : list) {
+                        if (item instanceof AnnotationValue av) {
+                            out.add(av);
+                        }
+                    }
+                    return out;
+                }
+                return List.of();
+            }
+        }
+        return List.of();
+    }
+    
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (roundEnv.processingOver()) {
             return false;
         }
+        boolean claimed = false;
         for (TypeElement ann : annotations) {
-            if (!"com.lrenyi.template.dataforge.annotation.DataforgeEntity".equals(ann.getQualifiedName()
-                                                                                          .toString())) {
+            if (!"com.lrenyi.template.dataforge.annotation.DataforgeEntity".equals(ann.getQualifiedName().toString())) {
                 continue;
             }
             for (Element el : roundEnv.getElementsAnnotatedWith(ann)) {
-                if (el instanceof TypeElement type) {
-                    // 通过反射读取 DataforgeEntity 注解的 generateDtos 属性
-                    try {
-                        Object generateDtos = type.getAnnotationMirrors().stream()
-                            .filter(am -> am.getAnnotationType().toString().equals("com.lrenyi.template.dataforge.annotation.DataforgeEntity"))
-                            .flatMap(am -> am.getElementValues().entrySet().stream())
-                            .filter(e -> e.getKey().getSimpleName().toString().equals("generateDtos"))
-                            .map(e -> e.getValue().getValue())
-                            .findFirst()
-                            .orElse(true); // 默认为 true
-                        
-                        if (Boolean.TRUE.equals(generateDtos)) {
-                            generateDtos(type);
-                        }
-                    } catch (Exception e) {
-                        // 如果读取失败，默认生成
-                        generateDtos(type);
-                    }
+                if (el instanceof TypeElement type && shouldGenerateDtos(type)) {
+                    generateDtos(type);
+                    claimed = true;
                 }
             }
         }
-        return false;
+        return claimed;
+    }
+    
+    private boolean shouldGenerateDtos(TypeElement type) {
+        for (var am : type.getAnnotationMirrors()) {
+            if (!"com.lrenyi.template.dataforge.annotation.DataforgeEntity".equals(am.getAnnotationType().toString())) {
+                continue;
+            }
+            for (var entry : am.getElementValues().entrySet()) {
+                if ("generateDtos".equals(entry.getKey().getSimpleName().toString())) {
+                    Object v = entry.getValue().getValue();
+                    if (v instanceof Boolean b) {
+                        return b;
+                    }
+                }
+            }
+            return true;
+        }
+        return true;
     }
     
     private void generateDtos(TypeElement entityType) {
         String pkg = processingEnv.getElementUtils().getPackageOf(entityType).getQualifiedName().toString();
         String simpleName = entityType.getSimpleName().toString();
         List<FieldSpec> allFields = collectFields(entityType);
-        List<FieldSpec> createFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, "CREATE"))
-                                                .collect(Collectors.toList());
-        List<FieldSpec> updateFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE"))
-                                                .collect(Collectors.toList());
-        List<FieldSpec> responseFields = allFields.stream()
-                                                .filter(f -> shouldInclude(f, "RESPONSE"))
-                                                .collect(Collectors.toList());
+        List<FieldSpec> createFields =
+                allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, "CREATE")).toList();
+        List<FieldSpec> updateFields =
+                allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE")).toList();
+        List<FieldSpec> responseFields = allFields.stream().filter(f -> shouldInclude(f, "RESPONSE")).toList();
         List<FieldSpec> pageResponseFields = allFields.stream()
-                                                .filter(f -> "id".equals(f.name) || f.includeTypes().contains("PAGE_RESPONSE"))
-                                                .collect(Collectors.toList());
+                                                      .filter(f -> "id".equals(f.name) || f.includeTypes()
+                                                                                           .contains("PAGE_RESPONSE"))
+                                                      .toList();
         
         String dtoPackage = pkg + ".dto";
         try {
@@ -92,7 +183,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             writeClass(dtoPackage, simpleName + "PageResponseDTO", pageResponseFields);
         } catch (IOException e) {
             processingEnv.getMessager()
-                         .printMessage(javax.tools.Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
+                         .printMessage(Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
         }
     }
     
@@ -113,21 +204,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
         return list;
     }
-
+    
     /**
      * 在 typeInContext 上下文中收集字段，使基类泛型（如 BaseEntity 的 ID）解析为实际类型（如 Long）。
      */
     private void collectFieldsRecursive(TypeElement type, DeclaredType typeInContext, List<FieldSpec> list) {
-        TypeMirror superType = type.getSuperclass();
-        if (superType.getKind() == TypeKind.DECLARED) {
-            DeclaredType superDeclared = (DeclaredType) superType;
-            Element superEl = superDeclared.asElement();
-            if (superEl instanceof TypeElement superTe) {
-                String superName = superTe.getQualifiedName().toString();
-                if (!"java.lang.Object".equals(superName)) {
-                    collectFieldsRecursive(superTe, superDeclared, list);
-                }
-            }
+        TypeElement superTe = getSuperTypeElement(type);
+        if (superTe != null && !"java.lang.Object".equals(superTe.getQualifiedName().toString())) {
+            collectFieldsRecursive(superTe, (DeclaredType) superTe.asType(), list);
         }
         Types typeUtils = processingEnv.getTypeUtils();
         for (Element member : type.getEnclosedElements()) {
@@ -135,77 +219,67 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 if (field.getModifiers().contains(Modifier.STATIC) || field.getModifiers().contains(Modifier.FINAL)) {
                     continue;
                 }
-                TypeMirror fieldType = typeInContext != null
-                    ? typeUtils.asMemberOf(typeInContext, field)
-                    : field.asType();
-                String typeName = toSourceTypeName(fieldType);
-                String name = field.getSimpleName().toString();
-                Set<String> includeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "include");
-                Set<String> excludeTypes = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "exclude");
-                Set<String> legacyExcludeFrom = getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom", "value");
-                Set<String> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
-                boolean notNull = hasColumnNullableFalse(field);
-                int maxSize = getColumnLength(field);
-                list.add(new FieldSpec(typeName, name, includeTypes, finalExcludeTypes, notNull, maxSize));
+                addFieldSpec(field, typeInContext, typeUtils, list);
             }
         }
     }
-
-    private static boolean hasColumnNullableFalse(VariableElement field) {
-        for (var mirror : field.getAnnotationMirrors()) {
-            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
-                for (var entry : mirror.getElementValues().entrySet()) {
-                    if ("nullable".equals(entry.getKey().getSimpleName().toString())) {
-                        Object v = entry.getValue().getValue();
-                        return Boolean.FALSE.equals(v);
-                    }
-                }
-                return false;
+    
+    private TypeElement getSuperTypeElement(TypeElement type) {
+        TypeMirror superType = type.getSuperclass();
+        if (superType.getKind() == TypeKind.DECLARED) {
+            Element superEl = ((DeclaredType) superType).asElement();
+            if (superEl instanceof TypeElement te) {
+                return te;
             }
         }
-        return false;
+        return null;
     }
-
-    private static int getColumnLength(VariableElement field) {
-        for (var mirror : field.getAnnotationMirrors()) {
-            if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
-                for (var entry : mirror.getElementValues().entrySet()) {
-                    if ("length".equals(entry.getKey().getSimpleName().toString())) {
-                        Object v = entry.getValue().getValue();
-                        return v instanceof Integer i ? i : 0;
-                    }
-                }
-            }
-        }
-        return 0;
+    
+    private void addFieldSpec(VariableElement field,
+            DeclaredType typeInContext,
+            Types typeUtils,
+            List<FieldSpec> list) {
+        TypeMirror fieldType = typeInContext != null ? typeUtils.asMemberOf(typeInContext, field) : field.asType();
+        String typeName = toSourceTypeName(fieldType);
+        String name = field.getSimpleName().toString();
+        Set<String> includeTypes =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "include");
+        Set<String> excludeTypes =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DataforgeDto", "exclude");
+        Set<String> legacyExcludeFrom =
+                getDtoTypeNamesFromMirrors(field, "com.lrenyi.template.dataforge.annotation.DtoExcludeFrom", "value");
+        Set<String> finalExcludeTypes = excludeTypes.isEmpty() ? legacyExcludeFrom : excludeTypes;
+        boolean notNull = hasColumnNullableFalse(field);
+        int maxSize = getColumnLength(field);
+        list.add(new FieldSpec(typeName, name, includeTypes, finalExcludeTypes, notNull, maxSize));
     }
     
     private String toSourceTypeName(TypeMirror mirror) {
-        if (mirror.getKind() == TypeKind.LONG) {
-            return "Long";
-        }
-        if (mirror.getKind() == TypeKind.INT) {
-            return "Integer";
-        }
-        if (mirror.getKind() == TypeKind.BOOLEAN) {
-            return "Boolean";
-        }
-        if (mirror.getKind() == TypeKind.TYPEVAR) {
-            TypeMirror upper = ((TypeVariable) mirror).getUpperBound();
-            if (upper.getKind() == TypeKind.DECLARED
-                && "java.io.Serializable".equals(upper.toString())) {
+        TypeKind kind = mirror.getKind();
+        switch (kind) {
+            case LONG:
                 return "Long";
+            case INT:
+                return "Integer";
+            case BOOLEAN:
+                return "Boolean";
+            case TYPEVAR: {
+                TypeMirror upper = ((TypeVariable) mirror).getUpperBound();
+                if (upper.getKind() == TypeKind.DECLARED && "java.io.Serializable".equals(upper.toString())) {
+                    return "Long";
+                }
+                return toSourceTypeName(upper);
             }
-            return toSourceTypeName(upper);
-        }
-        if (mirror.getKind() == TypeKind.DECLARED) {
-            String q = mirror.toString();
-            if (q.startsWith("java.lang.")) {
-                return q.substring("java.lang.".length());
+            case DECLARED: {
+                String q = mirror.toString();
+                if (q.startsWith("java.lang.")) {
+                    return q.substring("java.lang.".length());
+                }
+                return q;
             }
-            return q;
+            default:
+                return mirror.toString();
         }
-        return mirror.toString();
     }
     
     private void writeClass(String pkg, String className, List<FieldSpec> fields) throws IOException {
@@ -226,52 +300,14 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
     }
     
-    private static String fieldAnnotations(FieldSpec f) {
-        StringBuilder sb = new StringBuilder();
-        if (f.notNull()) {
-            sb.append("    @jakarta.validation.constraints.NotNull\n");
-        }
-        if (f.maxSize() > 0 && "String".equals(f.typeName())) {
-            sb.append("    @jakarta.validation.constraints.Size(max = ").append(f.maxSize()).append(")\n");
-        }
-        return sb.toString();
-    }
-
-    private static String cap(String name) {
-        return name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1);
-    }
-    
-    /** 从字段的注解镜像中读取某注解的某属性（枚举数组），返回枚举常量名集合，如 "CREATE","PAGE_RESPONSE"。 */
-    private static Set<String> getDtoTypeNamesFromMirrors(VariableElement field, String annotationFqn, String elementName) {
-        Set<String> out = new HashSet<>();
-        for (var mirror : field.getAnnotationMirrors()) {
-            if (!annotationFqn.equals(mirror.getAnnotationType().toString())) {
-                continue;
-            }
-            for (var entry : mirror.getElementValues().entrySet()) {
-                if (!elementName.equals(entry.getKey().getSimpleName().toString())) {
-                    continue;
-                }
-                Object val = entry.getValue().getValue();
-                if (val instanceof List<?> list) {
-                    for (Object item : list) {
-                        if (item instanceof AnnotationValue av) {
-                            Object ev = av.getValue();
-                            if (ev instanceof Element el) {
-                                out.add(el.getSimpleName().toString());
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-            break;
-        }
-        return out;
-    }
-
-    private record FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes, boolean notNull, int maxSize) {
-        private FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes, boolean notNull, int maxSize) {
+    private record FieldSpec(String typeName, String name, Set<String> includeTypes, Set<String> excludeTypes,
+                             boolean notNull, int maxSize) {
+        private FieldSpec(String typeName,
+                String name,
+                Set<String> includeTypes,
+                Set<String> excludeTypes,
+                boolean notNull,
+                int maxSize) {
             this.typeName = typeName;
             this.name = name;
             this.includeTypes = includeTypes != null ? includeTypes : Set.of();
@@ -279,7 +315,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             this.notNull = notNull;
             this.maxSize = Math.max(maxSize, 0);
         }
-
+        
         Set<String> excludeFrom() {
             return excludeTypes;
         }

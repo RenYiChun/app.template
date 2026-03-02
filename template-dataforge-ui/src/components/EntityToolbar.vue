@@ -1,9 +1,9 @@
-<script setup lang="ts">
-import { ElButton, ElSpace, ElTooltip, ElIcon } from 'element-plus';
-import { computed } from 'vue';
-import { Plus, Delete, Edit, Download, Search, Refresh } from '@element-plus/icons-vue';
+<script lang="ts" setup>
+import {ElButton, ElIcon, ElTooltip} from 'element-plus';
+import {computed} from 'vue';
+import {Delete, Download, Edit, Plus, Refresh, Search} from '@element-plus/icons-vue';
 import EntityColumnConfigurator from './EntityColumnConfigurator.vue';
-import type { ColumnConfig } from '@lrenyi/dataforge-headless/vue';
+import type {ColumnConfig} from '@lrenyi/dataforge-headless/vue';
 
 const props = withDefaults(defineProps<{
   selectedIds?: (string | number)[];
@@ -39,7 +39,8 @@ const props = withDefaults(defineProps<{
   allColumns: () => [],
   displayColumns: () => [],
   visibleColumnProps: () => [],
-  setVisibleColumnProps: () => {},
+  setVisibleColumnProps: () => {
+  },
   loading: false,
 });
 
@@ -58,53 +59,62 @@ const hasSelected = computed(() => props.selectedIds.length > 0);
 <template>
   <div class="entity-toolbar">
     <div class="toolbar-left">
-      <ElButton 
-        v-if="canCreate" 
-        type="primary" 
-        :disabled="createDisabled"
-        @click="emit('create')"
+      <ElButton
+          v-if="canCreate"
+          :disabled="createDisabled"
+          type="primary"
+          @click="emit('create')"
       >
-        <ElIcon class="el-icon--left"><Plus /></ElIcon>{{ createText }}
+        <ElIcon class="el-icon--left">
+          <Plus/>
+        </ElIcon>
+        {{ createText }}
       </ElButton>
-      <ElButton 
-        v-if="canBatchDelete && hasSelected" 
-        type="danger" 
-        plain 
-        @click="emit('batch-delete')"
+      <ElButton
+          v-if="canBatchDelete && hasSelected"
+          plain
+          type="danger"
+          @click="emit('batch-delete')"
       >
-        <ElIcon class="el-icon--left"><Delete /></ElIcon>{{ batchDeleteText }}
+        <ElIcon class="el-icon--left">
+          <Delete/>
+        </ElIcon>
+        {{ batchDeleteText }}
       </ElButton>
-      <ElButton 
-        v-if="canBatchUpdate && hasSelected" 
-        type="primary" 
-        plain 
-        @click="emit('batch-update')"
+      <ElButton
+          v-if="canBatchUpdate && hasSelected"
+          plain
+          type="primary"
+          @click="emit('batch-update')"
       >
-        <ElIcon class="el-icon--left"><Edit /></ElIcon>{{ batchUpdateText }}
+        <ElIcon class="el-icon--left">
+          <Edit/>
+        </ElIcon>
+        {{ batchUpdateText }}
       </ElButton>
       <slot name="left-actions"></slot>
     </div>
 
     <div class="toolbar-right">
       <slot name="right-actions"></slot>
-      
+
       <ElTooltip v-if="canExport" :content="exportText" placement="top">
-        <ElButton circle :icon="Download" @click="emit('export')" />
+        <ElButton :icon="Download" circle @click="emit('export')"/>
       </ElTooltip>
-      
+
       <ElTooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
-        <ElButton circle :icon="Search" @click="emit('toggle-search')" />
+        <ElButton :icon="Search" circle @click="emit('toggle-search')"/>
       </ElTooltip>
-      
+
       <ElTooltip :content="refreshText" placement="top">
-        <ElButton circle :icon="Refresh" @click="emit('refresh')" />
+        <ElButton :icon="Refresh" circle @click="emit('refresh')"/>
       </ElTooltip>
-      
+
       <EntityColumnConfigurator
-        :all-columns="props.allColumns"
-        :display-columns="props.displayColumns"
-        :visible-column-props="props.visibleColumnProps"
-        :set-visible-column-props="props.setVisibleColumnProps"
+          :all-columns="props.allColumns"
+          :display-columns="props.displayColumns"
+          :set-visible-column-props="props.setVisibleColumnProps"
+          :visible-column-props="props.visibleColumnProps"
       />
     </div>
   </div>

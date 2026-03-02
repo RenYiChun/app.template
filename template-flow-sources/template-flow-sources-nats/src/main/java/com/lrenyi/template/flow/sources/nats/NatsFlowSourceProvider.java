@@ -32,8 +32,8 @@ public final class NatsFlowSourceProvider<T> implements FlowSourceProvider<T> {
      * @param nextMessageTimeout 单次 nextMessage 等待时长，非 null
      */
     public NatsFlowSourceProvider(List<Subscription> subscriptions,
-                                  java.util.function.Function<Message, T> mapper,
-                                  Duration nextMessageTimeout) {
+            java.util.function.Function<Message, T> mapper,
+            Duration nextMessageTimeout) {
         if (subscriptions == null || subscriptions.isEmpty()) {
             throw new IllegalArgumentException("subscriptions 非空");
         }

@@ -1,5 +1,6 @@
 package com.lrenyi.oauth2.service.oauth2.redis;
 
+import com.lrenyi.template.core.util.TemplateConstant;
 import io.netty.buffer.ByteBufUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,99 +26,97 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class RedisRegisteredClientRepositoryTest {
-
+    
+    private static final String CLIENT_ID_KEY =
+            TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
+    private static final String ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
+    
     @Mock
     private RedisTemplate<String, String> redisTemplate;
-
+    
     @Mock
     private HashOperations<String, String, String> hashOperations;
-
-    private static RegisteredClient createClient(String id, String clientId) {
-        return RegisteredClient.withId(id)
-                .clientId(clientId)
-                .clientSecret("secret")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("read")
-                .build();
-    }
-
+    
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForHash()).thenAnswer(invocation -> hashOperations);
     }
-
+    
     @Test
     void findById_whenInRedis_returnsClient() {
         RegisteredClient client = createClient("id-1", "client-a");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq("registered-client:id"), eq("id-1"))).thenReturn(hexed);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
-
-        RedisRegisteredClientRepository repo =
-                new RedisRegisteredClientRepository(redisTemplate);
-
+        when(hashOperations.get(ID_KEY, "id-1")).thenReturn(hexed);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
+        
+        RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
+        
         RegisteredClient found = repo.findById("id-1");
-
+        
         assertNotNull(found);
         assertEquals("id-1", found.getId());
         assertEquals("client-a", found.getClientId());
     }
-
+    
+    private static RegisteredClient createClient(String id, String clientId) {
+        return RegisteredClient.withId(id)
+                               .clientId(clientId)
+                               .clientSecret("secret")
+                               .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                               .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                               .scope("read")
+                               .build();
+    }
+    
     @Test
     void findByClientId_whenInRedis_returnsClient() {
         RegisteredClient client = createClient("id-2", "client-b");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(eq("registered-client:client_id"), eq("client-b"))).thenReturn(hexed);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
-
-        RedisRegisteredClientRepository repo =
-                new RedisRegisteredClientRepository(redisTemplate);
-
+        when(hashOperations.get(CLIENT_ID_KEY, "client-b")).thenReturn(hexed);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
+        
+        RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
+        
         RegisteredClient found = repo.findByClientId("client-b");
-
+        
         assertNotNull(found);
         assertEquals("id-2", found.getId());
         assertEquals("client-b", found.getClientId());
     }
-
+    
     @Test
     void findById_whenNotInRedis_returnsNull() {
-        when(hashOperations.get(eq("registered-client:id"), anyString())).thenReturn(null);
-        when(hashOperations.size("registered-client:client_id")).thenReturn(0L);
-
-        RedisRegisteredClientRepository repo =
-                new RedisRegisteredClientRepository(redisTemplate);
-
+        when(hashOperations.get(eq(ID_KEY), anyString())).thenReturn(null);
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
+        
+        RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
+        
         RegisteredClient found = repo.findById("unknown-id");
-
+        
         assertNull(found);
     }
-
+    
     @Test
     void save_persistsToRedis() {
-        when(hashOperations.size("registered-client:client_id")).thenReturn(1L);
-
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
+        
         RegisteredClient client = createClient("id-3", "client-c");
-        RedisRegisteredClientRepository repo =
-                new RedisRegisteredClientRepository(redisTemplate);
-
+        RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
+        
         repo.save(client);
-
-        verify(hashOperations).put(eq("registered-client:client_id"), eq("client-c"), anyString());
-        verify(hashOperations).put(eq("registered-client:id"), eq("id-3"), anyString());
+        
+        verify(hashOperations).put(eq(CLIENT_ID_KEY), eq("client-c"), anyString());
+        verify(hashOperations).put(eq(ID_KEY), eq("id-3"), anyString());
     }
-
+    
     @Test
     void constructor_withInitialClients_initializesWhenRedisEmpty() {
-        when(hashOperations.size("registered-client:client_id")).thenReturn(0L);
-
+        when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
+        
         RegisteredClient client = createClient("id-init", "client-init");
-        RedisRegisteredClientRepository repo =
-                new RedisRegisteredClientRepository(redisTemplate, client);
-
-        verify(hashOperations).put(eq("registered-client:client_id"), eq("client-init"), anyString());
+        new RedisRegisteredClientRepository(redisTemplate, client);
+        verify(hashOperations).put(eq(CLIENT_ID_KEY), eq("client-init"), anyString());
     }
 }

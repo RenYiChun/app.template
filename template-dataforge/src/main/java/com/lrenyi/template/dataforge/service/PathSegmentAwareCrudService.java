@@ -8,9 +8,10 @@ package com.lrenyi.template.dataforge.service;
  * 通常继承 {@link DelegatingEntityCrudService} 并只重写该实体需要的方法；同一 pathSegment 仅应有一个实现。
  */
 public interface PathSegmentAwareCrudService extends EntityCrudService {
-
+    
     /**
-     * 该实现负责的实体 pathSegment（如 "users"、"orders"），与 {@link com.lrenyi.template.dataforge.meta.EntityMeta#getPathSegment()} 一致。
+     * 该实现负责的实体 pathSegment（如 "users"、"orders"），与
+     * {@link com.lrenyi.template.dataforge.meta.EntityMeta#getPathSegment()} 一致。
      */
     String getPathSegment();
 }

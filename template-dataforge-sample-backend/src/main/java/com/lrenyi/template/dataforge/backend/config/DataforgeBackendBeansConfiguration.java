@@ -4,7 +4,7 @@ import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.backend.processor.DataforgeAuditLogProcessor;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -18,7 +18,9 @@ public class DataforgeBackendBeansConfiguration {
     
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
+    @ConditionalOnExpression(
+            "'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'"
+    )
     public AuditLogProcessor dataforgeAuditLogProcessor(EntityRegistry entityRegistry,
             EntityCrudService entityCrudService) {
         return new DataforgeAuditLogProcessor(entityRegistry, entityCrudService);

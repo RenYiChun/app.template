@@ -19,25 +19,26 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public final class NatsFlowSource<T> implements FlowSource<T> {
-
+    
+    private static final String TAG_SOURCE_TYPE = "sourceType";
+    private static final String SOURCE_NATS = "nats";
     private final Subscription subscription;
     private final java.util.function.Function<Message, T> mapper;
     private final Duration nextMessageTimeout;
     private final MeterRegistry meterRegistry;
-
     private Message nextMessage;
     private boolean closed;
-
+    
     public NatsFlowSource(Subscription subscription,
-                          java.util.function.Function<Message, T> mapper,
-                          Duration nextMessageTimeout) {
+            java.util.function.Function<Message, T> mapper,
+            Duration nextMessageTimeout) {
         this(subscription, mapper, nextMessageTimeout, null);
     }
-
+    
     public NatsFlowSource(Subscription subscription,
-                          java.util.function.Function<Message, T> mapper,
-                          Duration nextMessageTimeout,
-                          MeterRegistry meterRegistry) {
+            java.util.function.Function<Message, T> mapper,
+            Duration nextMessageTimeout,
+            MeterRegistry meterRegistry) {
         if (subscription == null) {
             throw new IllegalArgumentException("subscription 非 null");
         }
@@ -48,18 +49,15 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         this.mapper = mapper;
         this.nextMessageTimeout = nextMessageTimeout != null ? nextMessageTimeout : Duration.ofSeconds(1);
         this.meterRegistry = meterRegistry;
-
+        
         if (meterRegistry != null) {
-            Gauge.builder("app.template.source.nats.pending.messages", subscription,
-                         s -> {
-                             try { return s.getPendingMessageCount(); }
-                             catch (Exception e) { return 0; }
-                         })
-                 .description("NATS 订阅中待处理的消息数")
-                 .register(meterRegistry);
+            Gauge.builder("app.template.source.nats.pending.messages", subscription, s -> {
+                              try {return s.getPendingMessageCount();} catch (Exception e) {return 0;}
+                          }
+            ).description("NATS 订阅中待处理的消息数").register(meterRegistry);
         }
     }
-
+    
     @Override
     public boolean hasNext() throws InterruptedException {
         if (closed) {
@@ -78,36 +76,21 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
             long start = System.currentTimeMillis();
             try {
                 Message msg = subscription.nextMessage(nextMessageTimeout);
-                if (meterRegistry != null) {
-                    long elapsed = System.currentTimeMillis() - start;
-                    Timer.builder("app.template.source.poll.duration")
-                         .tag("sourceType", "nats")
-                         .register(meterRegistry)
-                         .record(elapsed, TimeUnit.MILLISECONDS);
-                }
+                recordPollDuration(start);
                 if (msg != null) {
                     nextMessage = msg;
-                    if (meterRegistry != null) {
-                        Counter.builder("app.template.source.received")
-                               .tag("sourceType", "nats")
-                               .register(meterRegistry).increment();
-                    }
+                    incrementReceived();
                     return true;
                 }
             } catch (IllegalStateException e) {
                 closed = true;
-                if (meterRegistry != null) {
-                    Counter.builder("app.template.source.errors")
-                           .tag("sourceType", "nats")
-                           .tag("errorType", "IllegalStateException")
-                           .register(meterRegistry).increment();
-                }
+                incrementError("IllegalStateException");
                 return false;
             }
         }
         return false;
     }
-
+    
     @Override
     public T next() {
         if (closed) {
@@ -120,7 +103,7 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         nextMessage = null;
         return mapper.apply(msg);
     }
-
+    
     @Override
     public void close() {
         if (closed) {
@@ -132,5 +115,37 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         } catch (Exception e) {
             log.debug("NATS subscription unsubscribe failed, ignoring for best-effort release", e);
         }
+    }
+    
+    private void recordPollDuration(long start) {
+        if (meterRegistry == null) {
+            return;
+        }
+        long elapsed = System.currentTimeMillis() - start;
+        Timer.builder("app.template.source.poll.duration")
+             .tag(TAG_SOURCE_TYPE, SOURCE_NATS)
+             .register(meterRegistry)
+             .record(elapsed, TimeUnit.MILLISECONDS);
+    }
+    
+    private void incrementReceived() {
+        if (meterRegistry == null) {
+            return;
+        }
+        Counter.builder("app.template.source.received")
+               .tag(TAG_SOURCE_TYPE, SOURCE_NATS)
+               .register(meterRegistry)
+               .increment();
+    }
+    
+    private void incrementError(String errorType) {
+        if (meterRegistry == null) {
+            return;
+        }
+        Counter.builder("app.template.source.errors")
+               .tag(TAG_SOURCE_TYPE, SOURCE_NATS)
+               .tag("errorType", errorType)
+               .register(meterRegistry)
+               .increment();
     }
 }

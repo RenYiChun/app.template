@@ -9,65 +9,69 @@
             </div>
           </template>
           <EntityCrudPage
-            entity="sys_dicts"
-            :locale="dataforgeUiLocale"
-            @create="handleAddDict"
-            @edit="handleEditDict"
-            @delete="handleDeleteDict"
-            @export="handleExportDict"
+              :locale="dataforgeUiLocale"
+              entity="sys_dicts"
+              @create="handleAddDict"
+              @delete="handleDeleteDict"
+              @edit="handleEditDict"
+              @export="handleExportDict"
           >
             <template #alert="{ error }">
-              <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
+              <el-alert v-if="error" :title="error.message" class="mb-4" show-icon type="error"/>
             </template>
 
             <template #toolbar="scope">
               <EntityToolbar
-                :selected-ids="scope.selectedIds"
-                :can-create="true"
-                :create-text="$t('common.create')"
-                :can-batch-delete="scope.canBatchDelete"
-                :batch-delete-text="$t('common.batchDelete')"
-                :can-batch-update="scope.canBatchUpdate"
-                :batch-update-text="$t('common.batchUpdate')"
-                :can-export="true"
-                :export-text="$t('common.export')"
-                :show-search="scope.showSearch"
-                :all-columns="scope.allColumns"
-                :display-columns="scope.displayColumns"
-                :visible-column-props="scope.visibleColumnProps"
-                :set-visible-column-props="scope.setVisibleColumnProps"
-                @create="handleAddDict"
-                @batch-delete="scope.handleDelete"
-                @batch-update="scope.handleBatchUpdate"
-                @export="scope.handleExport"
-                @toggle-search="scope.toggleSearch"
-                @refresh="scope.handleSearch"
+                  :all-columns="scope.allColumns"
+                  :batch-delete-text="$t('common.batchDelete')"
+                  :batch-update-text="$t('common.batchUpdate')"
+                  :can-batch-delete="scope.canBatchDelete"
+                  :can-batch-update="scope.canBatchUpdate"
+                  :can-create="true"
+                  :can-export="true"
+                  :create-text="$t('common.create')"
+                  :display-columns="scope.displayColumns"
+                  :export-text="$t('common.export')"
+                  :selected-ids="scope.selectedIds"
+                  :set-visible-column-props="scope.setVisibleColumnProps"
+                  :show-search="scope.showSearch"
+                  :visible-column-props="scope.visibleColumnProps"
+                  @create="handleAddDict"
+                  @export="scope.handleExport"
+                  @refresh="scope.handleSearch"
+                  @batch-delete="scope.handleDelete"
+                  @batch-update="scope.handleBatchUpdate"
+                  @toggle-search="scope.toggleSearch"
               />
             </template>
 
             <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
               <EntitySearchBar
-                v-if="showSearch"
-                :entity-meta="entityMeta"
-                :model-value="filters"
-                @update:modelValue="setFilters"
-                @search="handleSearch"
+                  v-if="showSearch"
+                  :entity-meta="entityMeta"
+                  :model-value="filters"
+                  @search="handleSearch"
+                  @update:modelValue="setFilters"
               />
             </template>
 
-            <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
+            <template
+                #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
               <EntityTable
-                :items="items"
-                :loading="loading"
-                :columns="displayColumns"
-                :sort="sort"
-                :selectable="selectable"
-                :handle-sort-change="handleSortChange"
-                @selection-change="handleSelectionChange"
+                  :columns="displayColumns"
+                  :handle-sort-change="handleSortChange"
+                  :items="items"
+                  :loading="loading"
+                  :selectable="selectable"
+                  :sort="sort"
+                  @selection-change="handleSelectionChange"
               >
                 <template #row-actions="{ row }">
                   <el-button link type="primary" @click="handleEditDict(row)">{{ $t('common.edit') }}</el-button>
-                  <el-button link type="primary" @click="handleViewDictItems(row)">{{ $t('system.dict.viewItems') }}</el-button>
+                  <el-button link type="primary" @click="handleViewDictItems(row)">{{
+                      $t('system.dict.viewItems')
+                    }}
+                  </el-button>
                   <el-button link type="danger" @click="handleDeleteDict(row)">{{ $t('common.delete') }}</el-button>
                 </template>
               </EntityTable>
@@ -75,15 +79,15 @@
 
             <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
               <el-pagination
-                class="mt-4"
-                background
-                layout="total, sizes, prev, pager, next, jumper"
-                :total="total"
-                :current-page="page"
-                :page-size="size"
-                :page-sizes="[10, 20, 50, 100]"
-                @update:current-page="handlePageChange"
-                @update:page-size="handleSizeChange"
+                  :current-page="page"
+                  :page-size="size"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="total"
+                  background
+                  class="mt-4"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @update:current-page="handlePageChange"
+                  @update:page-size="handleSizeChange"
               />
             </template>
           </EntityCrudPage>
@@ -98,63 +102,64 @@
             </div>
           </template>
           <EntityCrudPage
-            entity="sys_dict_items"
-            :locale="dataforgeUiLocale"
-            :enable-create="!!currentDict"
-            @create="handleAddDictItem"
-            @edit="handleEditDictItem"
-            @delete="handleDeleteDictItem"
-            @export="handleExportItem"
+              :enable-create="!!currentDict"
+              :locale="dataforgeUiLocale"
+              entity="sys_dict_items"
+              @create="handleAddDictItem"
+              @delete="handleDeleteDictItem"
+              @edit="handleEditDictItem"
+              @export="handleExportItem"
           >
             <template #alert="{ error }">
-              <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
+              <el-alert v-if="error" :title="error.message" class="mb-4" show-icon type="error"/>
             </template>
 
             <template #toolbar="scope">
               <EntityToolbar
-                :selected-ids="scope.selectedIds"
-                :can-create="true"
-                :create-text="$t('common.create')"
-                :create-disabled="!currentDict"
-                :can-batch-delete="scope.canBatchDelete"
-                :batch-delete-text="$t('common.batchDelete')"
-                :can-batch-update="scope.canBatchUpdate"
-                :batch-update-text="$t('common.batchUpdate')"
-                :can-export="true"
-                :export-text="$t('common.export')"
-                :show-search="scope.showSearch"
-                :all-columns="scope.allColumns"
-                :display-columns="scope.displayColumns"
-                :visible-column-props="scope.visibleColumnProps"
-                :set-visible-column-props="scope.setVisibleColumnProps"
-                @create="handleAddDictItem"
-                @batch-delete="scope.handleDelete"
-                @batch-update="scope.handleBatchUpdate"
-                @export="scope.handleExport"
-                @toggle-search="scope.toggleSearch"
-                @refresh="scope.handleSearch"
+                  :all-columns="scope.allColumns"
+                  :batch-delete-text="$t('common.batchDelete')"
+                  :batch-update-text="$t('common.batchUpdate')"
+                  :can-batch-delete="scope.canBatchDelete"
+                  :can-batch-update="scope.canBatchUpdate"
+                  :can-create="true"
+                  :can-export="true"
+                  :create-disabled="!currentDict"
+                  :create-text="$t('common.create')"
+                  :display-columns="scope.displayColumns"
+                  :export-text="$t('common.export')"
+                  :selected-ids="scope.selectedIds"
+                  :set-visible-column-props="scope.setVisibleColumnProps"
+                  :show-search="scope.showSearch"
+                  :visible-column-props="scope.visibleColumnProps"
+                  @create="handleAddDictItem"
+                  @export="scope.handleExport"
+                  @refresh="scope.handleSearch"
+                  @batch-delete="scope.handleDelete"
+                  @batch-update="scope.handleBatchUpdate"
+                  @toggle-search="scope.toggleSearch"
               />
             </template>
 
             <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
               <EntitySearchBar
-                v-if="showSearch"
-                :entity-meta="entityMeta"
-                :model-value="filters"
-                @update:modelValue="setFilters"
-                @search="handleSearch"
+                  v-if="showSearch"
+                  :entity-meta="entityMeta"
+                  :model-value="filters"
+                  @search="handleSearch"
+                  @update:modelValue="setFilters"
               />
             </template>
 
-            <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
+            <template
+                #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
               <EntityTable
-                :items="items"
-                :loading="loading"
-                :columns="displayColumns"
-                :sort="sort"
-                :selectable="selectable"
-                :handle-sort-change="handleSortChange"
-                @selection-change="handleSelectionChange"
+                  :columns="displayColumns"
+                  :handle-sort-change="handleSortChange"
+                  :items="items"
+                  :loading="loading"
+                  :selectable="selectable"
+                  :sort="sort"
+                  @selection-change="handleSelectionChange"
               >
                 <template #row-actions="{ row }">
                   <el-button link type="primary" @click="handleEditDictItem(row)">{{ $t('common.edit') }}</el-button>
@@ -165,15 +170,15 @@
 
             <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
               <el-pagination
-                class="mt-4"
-                background
-                layout="total, sizes, prev, pager, next, jumper"
-                :total="total"
-                :current-page="page"
-                :page-size="size"
-                :page-sizes="[10, 20, 50, 100]"
-                @update:current-page="handlePageChange"
-                @update:page-size="handleSizeChange"
+                  :current-page="page"
+                  :page-size="size"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="total"
+                  background
+                  class="mt-4"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @update:current-page="handlePageChange"
+                  @update:page-size="handleSizeChange"
               />
             </template>
           </EntityCrudPage>
@@ -183,68 +188,81 @@
 
     <!-- 字典新增/编辑对话框 -->
     <el-dialog
-      v-model="dictDialogVisible"
-      :title="dictDialogTitle"
-      width="600px"
-      @close="handleDictDialogClose"
+        v-model="dictDialogVisible"
+        :title="dictDialogTitle"
+        width="600px"
+        @close="handleDictDialogClose"
     >
-      <el-form :model="dictForm" :rules="dictRules" ref="dictFormRef" label-width="100px">
+      <el-form ref="dictFormRef" :model="dictForm" :rules="dictRules" label-width="100px">
         <el-form-item :label="$t('system.dict.name')" prop="name">
-          <el-input v-model="dictForm.name" />
+          <el-input v-model="dictForm.name"/>
         </el-form-item>
         <el-form-item :label="$t('system.dict.code')" prop="code">
-          <el-input v-model="dictForm.code" :disabled="!!dictForm.id" />
+          <el-input v-model="dictForm.code" :disabled="!!dictForm.id"/>
         </el-form-item>
         <el-form-item :label="$t('system.dict.description')" prop="description">
-          <el-input v-model="dictForm.description" type="textarea" />
+          <el-input v-model="dictForm.description" type="textarea"/>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dictDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmitDict" :loading="submitting">{{ $t('common.confirm') }}</el-button>
+        <el-button :loading="submitting" type="primary" @click="handleSubmitDict">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 字典项新增/编辑对话框 -->
     <el-dialog
-      v-model="itemDialogVisible"
-      :title="itemDialogTitle"
-      width="600px"
-      @close="handleItemDialogClose"
+        v-model="itemDialogVisible"
+        :title="itemDialogTitle"
+        width="600px"
+        @close="handleItemDialogClose"
     >
-      <el-form :model="itemForm" :rules="itemRules" ref="itemFormRef" label-width="100px">
+      <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-width="100px">
         <el-form-item :label="$t('system.dict.itemLabel')" prop="label">
-          <el-input v-model="itemForm.label" />
+          <el-input v-model="itemForm.label"/>
         </el-form-item>
         <el-form-item :label="$t('system.dict.itemValue')" prop="value">
-          <el-input v-model="itemForm.value" />
+          <el-input v-model="itemForm.value"/>
         </el-form-item>
         <el-form-item :label="$t('system.dict.itemSort')" prop="sort">
-          <el-input-number v-model="itemForm.sort" :min="0" />
+          <el-input-number v-model="itemForm.sort" :min="0"/>
         </el-form-item>
         <el-form-item :label="$t('system.dict.itemDescription')" prop="description">
-          <el-input v-model="itemForm.description" type="textarea" />
+          <el-input v-model="itemForm.description" type="textarea"/>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="itemDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmitItem" :loading="submitting">{{ $t('common.confirm') }}</el-button>
+        <el-button :loading="submitting" type="primary" @click="handleSubmitItem">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox, ElCard, ElAlert, ElPagination, ElButton, ElInput, ElInputNumber, ElDialog, ElForm, ElFormItem, ElRow, ElCol } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
-import { useDataforge, BusinessError, useEntityCrud } from '@lrenyi/dataforge-headless/vue';
-import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar } from '@lrenyi/dataforge-ui';
-import { useI18n } from 'vue-i18n';
-import { useDataforgeUiLocale } from '@/i18n';
+<script lang="ts" setup>
+import {computed, reactive, ref} from 'vue';
+import {
+  ElAlert,
+  ElButton,
+  ElCard,
+  ElCol,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElInputNumber,
+  ElMessage,
+  ElMessageBox,
+  ElPagination,
+  ElRow
+} from 'element-plus';
+import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
+import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
+import {useI18n} from 'vue-i18n';
+import {useDataforgeUiLocale} from '@/i18n';
 
-const { t } = useI18n();
-const { client } = useDataforge();
+const {t} = useI18n();
+const {client} = useDataforge();
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -267,8 +285,8 @@ interface DictItem {
 const dictClient = client.define<Dict>('dicts');
 const dictItemClient = client.define<DictItem>('sys_dict_items');
 
-const { search: dictSearch } = useEntityCrud<Dict>(client, 'dicts');
-const { search: itemSearch } = useEntityCrud<DictItem>(client, 'sys_dict_items');
+const {search: dictSearch} = useEntityCrud<Dict>(client, 'dicts');
+const {search: itemSearch} = useEntityCrud<DictItem>(client, 'sys_dict_items');
 
 const submitting = ref(false);
 const currentDict = ref<Dict | null>(null);
@@ -284,8 +302,8 @@ const dictForm = reactive({
 });
 
 const dictRules = {
-  name: [{ required: true, message: t('system.dict.inputName'), trigger: 'blur' }],
-  code: [{ required: true, message: t('system.dict.inputCode'), trigger: 'blur' }],
+  name: [{required: true, message: t('system.dict.inputName'), trigger: 'blur'}],
+  code: [{required: true, message: t('system.dict.inputCode'), trigger: 'blur'}],
 };
 
 const itemDialogVisible = ref(false);
@@ -301,12 +319,12 @@ const itemForm = reactive({
 });
 
 const itemRules = {
-  label: [{ required: true, message: t('system.dict.inputItemLabel'), trigger: 'blur' }],
-  value: [{ required: true, message: t('system.dict.inputItemValue'), trigger: 'blur' }],
+  label: [{required: true, message: t('system.dict.inputItemLabel'), trigger: 'blur'}],
+  value: [{required: true, message: t('system.dict.inputItemValue'), trigger: 'blur'}],
 };
 
 const itemFilters = computed(() => {
-  return currentDict.value ? [{ field: 'dictId', op: 'eq', value: currentDict.value.id }] : [];
+  return currentDict.value ? [{field: 'dictId', op: 'eq', value: currentDict.value.id}] : [];
 });
 
 // 字典操作
@@ -323,7 +341,7 @@ const handleAddDict = () => {
 
 const handleEditDict = (row: Dict) => {
   dictDialogTitle.value = t('system.dict.edit');
-  Object.assign(dictForm, { ...row });
+  Object.assign(dictForm, {...row});
   dictDialogVisible.value = true;
 };
 
@@ -335,7 +353,7 @@ const handleSubmitDict = async () => {
   await dictFormRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...dictForm } as Partial<Dict>;
+    const submitData = {...dictForm} as Partial<Dict>;
     if (dictForm.id) {
       await dictClient.update(dictForm.id, submitData);
       ElMessage.success(t('common.updateSuccess'));
@@ -359,7 +377,7 @@ const handleSubmitDict = async () => {
 };
 
 const handleDeleteDict = async (row: Dict) => {
-  await ElMessageBox.confirm(t('system.dict.deleteConfirm'), t('common.tips'), { type: 'warning' });
+  await ElMessageBox.confirm(t('system.dict.deleteConfirm'), t('common.tips'), {type: 'warning'});
   try {
     await dictClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
@@ -408,7 +426,7 @@ const handleAddDictItem = () => {
 
 const handleEditDictItem = (row: DictItem) => {
   itemDialogTitle.value = t('system.dict.editItem');
-  Object.assign(itemForm, { ...row });
+  Object.assign(itemForm, {...row});
   itemDialogVisible.value = true;
 };
 
@@ -420,7 +438,7 @@ const handleSubmitItem = async () => {
   await itemFormRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...itemForm } as Partial<DictItem>;
+    const submitData = {...itemForm} as Partial<DictItem>;
     if (itemForm.id) {
       await dictItemClient.update(itemForm.id, submitData);
       ElMessage.success(t('common.updateSuccess'));
@@ -444,7 +462,7 @@ const handleSubmitItem = async () => {
 };
 
 const handleDeleteDictItem = async (row: DictItem) => {
-  await ElMessageBox.confirm(t('system.dict.deleteItemConfirm'), t('common.tips'), { type: 'warning' });
+  await ElMessageBox.confirm(t('system.dict.deleteItemConfirm'), t('common.tips'), {type: 'warning'});
   try {
     await dictItemClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));

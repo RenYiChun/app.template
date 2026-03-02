@@ -5,10 +5,13 @@
       <div class="brand-section">
         <div class="brand-content">
           <div class="logo-area">
-            <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg class="brand-logo" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
+              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
+              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="2"/>
             </svg>
             <span class="brand-name">Dataforge</span>
           </div>
@@ -35,66 +38,62 @@
           </div>
 
           <el-form
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            class="login-form"
-            size="large"
-            @submit.prevent="handleLogin"
+              ref="formRef"
+              :model="form"
+              :rules="rules"
+              class="login-form"
+              size="large"
+              @submit.prevent="handleLogin"
           >
             <el-form-item prop="username">
               <el-input
-                v-model="form.username"
-                :placeholder="$t('login.username')"
-                class="modern-input"
-                :prefix-icon="UserIcon"
-                tabindex="1"
+                  v-model="form.username"
+                  :placeholder="$t('login.username')"
+                  :prefix-icon="UserIcon"
+                  class="modern-input"
               />
             </el-form-item>
 
             <el-form-item prop="password">
               <el-input
-                v-model="form.password"
-                type="password"
-                :placeholder="$t('login.password')"
-                show-password
-                class="modern-input"
-                :prefix-icon="LockIcon"
-                @keyup.enter="handleLogin"
-                tabindex="2"
+                  v-model="form.password"
+                  :placeholder="$t('login.password')"
+                  :prefix-icon="LockIcon"
+                  class="modern-input"
+                  show-password
+                  type="password"
+                  @keyup.enter="handleLogin"
               />
             </el-form-item>
 
             <el-form-item v-if="captchaImage" prop="captchaCode">
               <div class="captcha-container">
                 <el-input
-                  v-model="form.captchaCode"
-                  :placeholder="$t('login.captcha')"
-                  class="modern-input captcha-input"
-                  :prefix-icon="KeyIcon"
-                  @keyup.enter="handleLogin"
-                  tabindex="3"
+                    v-model="form.captchaCode"
+                    :placeholder="$t('login.captcha')"
+                    :prefix-icon="KeyIcon"
+                    class="modern-input captcha-input"
+                    @keyup.enter="handleLogin"
                 />
-                <div class="captcha-image-box" @click="fetchCaptcha" title="Click to refresh">
-                   <img :src="captchaImage" alt="Captcha" />
+                <div class="captcha-image-box" title="Click to refresh" @click="fetchCaptcha">
+                  <img :src="captchaImage" alt="Captcha"/>
                 </div>
               </div>
             </el-form-item>
 
             <div class="form-actions">
               <el-button
-                type="primary"
-                :loading="loading"
-                class="login-btn"
-                @click="handleLogin"
-                tabindex="4"
+                  :loading="loading"
+                  class="login-btn"
+                  type="primary"
+                  @click="handleLogin"
               >
                 {{ $t('login.loginBtn') }}
               </el-button>
             </div>
-            
+
             <div class="form-footer-links">
-                <a href="#" class="forgot-password">{{ $t('login.forgotPwd') }}</a>
+              <a class="forgot-password" href="#">{{ $t('login.forgotPwd') }}</a>
             </div>
           </el-form>
         </div>
@@ -106,26 +105,26 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted, shallowRef, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { storeToRefs } from 'pinia';
-import { ElMessage } from 'element-plus';
-import { User, Lock, Key } from '@element-plus/icons-vue';
-import { useI18n } from 'vue-i18n';
+<script lang="ts" setup>
+import {computed, onMounted, reactive, ref, shallowRef} from 'vue';
+import {useRoute, useRouter} from 'vue-router';
+import {useAuthStore} from '../stores/auth';
+import {storeToRefs} from 'pinia';
+import {ElMessage} from 'element-plus';
+import {Key, Lock, User} from '@element-plus/icons-vue';
+import {useI18n} from 'vue-i18n';
 
 // Manually mapping icons
 const UserIcon = shallowRef(User);
 const LockIcon = shallowRef(Lock);
 const KeyIcon = shallowRef(Key);
 
-const { t } = useI18n();
+const {t} = useI18n();
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const { captchaKey, captchaImage, loading } = storeToRefs(authStore);
-const { login, fetchCaptcha } = authStore;
+const {captchaKey, captchaImage, loading} = storeToRefs(authStore);
+const {login, fetchCaptcha} = authStore;
 
 const formRef = ref();
 const errorMsg = ref('');
@@ -137,9 +136,9 @@ const form = reactive({
 });
 
 const rules = computed(() => ({
-  username: [{ required: true, message: t('login.username') + ' is required', trigger: 'blur' }],
-  password: [{ required: true, message: t('login.password') + ' is required', trigger: 'blur' }],
-  captchaCode: [{ required: false, message: t('login.captcha') + ' is required', trigger: 'blur' }],
+  username: [{required: true, message: t('login.username') + ' is required', trigger: 'blur'}],
+  password: [{required: true, message: t('login.password') + ' is required', trigger: 'blur'}],
+  captchaCode: [{required: false, message: t('login.captcha') + ' is required', trigger: 'blur'}],
 }));
 
 const handleLogin = async () => {
@@ -154,12 +153,11 @@ const handleLogin = async () => {
           captchaKey: captchaKey.value || undefined,
           captchaCode: form.captchaCode || undefined,
         });
-        
+
         ElMessage.success(t('login.success'));
         const redirect = (route.query.redirect as string) || '/';
         router.push(redirect);
       } catch (err: any) {
-        // console.error(err);
         errorMsg.value = err.message || t('login.failed');
         fetchCaptcha();
       }
@@ -229,7 +227,7 @@ onMounted(() => {
 .brand-logo {
   width: 36px;
   height: 36px;
-  color: #a5b4fc;
+  color: #c7d2fe; /* Indigo 200 - 满足 WCAG AA 对比度（深色渐变背景） */
 }
 
 .brand-name {
@@ -248,7 +246,7 @@ onMounted(() => {
 
 .brand-slogan p {
   font-size: 16px;
-  color: #c7d2fe;
+  color: #e0e7ff; /* Indigo 100 - 满足 WCAG AA 对比度（深色背景） */
   line-height: 1.6;
   max-width: 360px;
 }
@@ -257,9 +255,8 @@ onMounted(() => {
   position: absolute;
   bottom: 40px;
   left: 60px;
-  color: #6366f1;
+  color: #a5b4fc; /* Indigo 300 - 满足 WCAG AA 对比度（深色背景） */
   font-size: 12px;
-  opacity: 0.8;
 }
 
 /* Shapes & Effects */
@@ -269,6 +266,7 @@ onMounted(() => {
   filter: blur(60px);
   opacity: 0.6;
 }
+
 .shape-1 {
   width: 300px;
   height: 300px;
@@ -276,6 +274,7 @@ onMounted(() => {
   top: -80px;
   right: -80px;
 }
+
 .shape-2 {
   width: 250px;
   height: 250px;
@@ -284,14 +283,15 @@ onMounted(() => {
   left: -60px;
   opacity: 0.4;
 }
+
 .shape-glass {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
-    pointer-events: none;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 /* Login Section (Right) */
@@ -323,7 +323,7 @@ onMounted(() => {
 }
 
 .login-header p {
-  color: #6b7280;
+  color: #4b5563; /* Gray 600 - 满足 WCAG AA 对比度 */
   font-size: 14px;
 }
 
@@ -355,7 +355,11 @@ onMounted(() => {
 }
 
 :deep(.el-input__prefix-inner) {
-    color: #9ca3af;
+  color: #4b5563; /* Gray 600 - 满足 WCAG AA 对比度（灰底/白底） */
+}
+
+:deep(.modern-input .el-input__inner::placeholder) {
+  color: #4b5563;
 }
 
 /* Captcha */
@@ -383,7 +387,7 @@ onMounted(() => {
 }
 
 .captcha-image-box:hover {
-    border-color: #d1d5db;
+  border-color: #d1d5db;
 }
 
 .captcha-image-box img {
@@ -404,16 +408,16 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   border-radius: 8px;
-  background: #4f46e5;
+  background: #4338ca; /* Indigo 700 - 满足 WCAG AA 对比度（白字） */
   border: none;
   transition: all 0.2s;
-  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 4px 6px -1px rgba(67, 56, 202, 0.4);
 }
 
 .login-btn:hover {
-  background: #4338ca;
+  background: #3730a3; /* Indigo 800 - 满足 WCAG AA 对比度 */
   transform: translateY(-1px);
-  box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.5);
+  box-shadow: 0 6px 8px -1px rgba(55, 48, 163, 0.5);
 }
 
 .login-btn:active {
@@ -421,18 +425,20 @@ onMounted(() => {
 }
 
 .form-footer-links {
-    margin-top: 16px;
-    text-align: center;
+  margin-top: 16px;
+  text-align: center;
 }
 
 .forgot-password {
-    color: #6366f1;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
+  color: #4338ca; /* Indigo 700 - 满足 WCAG AA 对比度 */
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
 }
+
 .forgot-password:hover {
-    text-decoration: underline;
+  color: #3730a3;
+  text-decoration: underline;
 }
 
 .error-banner {
@@ -440,7 +446,7 @@ onMounted(() => {
   padding: 10px 14px;
   background-color: #fee2e2;
   border-radius: 6px;
-  color: #dc2626;
+  color: #b91c1c; /* Red 700 - 满足 WCAG AA 对比度 */
   font-size: 13px;
   text-align: center;
   border: 1px solid #fecaca;
@@ -453,9 +459,11 @@ onMounted(() => {
     height: auto;
     flex-direction: column;
   }
+
   .brand-section {
     display: none; /* Hide brand on smaller screens or tablets */
   }
+
   .login-section {
     width: 100%;
     padding: 40px 20px;

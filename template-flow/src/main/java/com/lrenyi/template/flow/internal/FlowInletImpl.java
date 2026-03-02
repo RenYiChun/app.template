@@ -11,27 +11,27 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class FlowInletImpl<T> implements FlowInlet<T> {
     private final FlowLauncher<T> launcher;
-
+    
     @Override
     public void push(T item) {
         launcher.launch(item);
     }
-
+    
     @Override
     public void markSourceFinished() {
         launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
     }
-
+    
     @Override
     public ProgressTracker getProgressTracker() {
         return launcher.getTaskOrchestrator().tracker();
     }
-
+    
     @Override
     public CompletableFuture<Void> getCompletionFuture() {
         return getProgressTracker().getCompletionFuture();
     }
-
+    
     @Override
     public void stop(boolean force) {
         launcher.stop(force);

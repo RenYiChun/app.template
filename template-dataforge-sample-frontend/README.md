@@ -9,7 +9,8 @@ npm install
 npm run dev
 ```
 
-访问 `http://localhost:3000`。API 通过 Vite proxy 转发到 `http://localhost:8080`，需先启动 `template-dataforge-sample-backend`（在项目根目录执行 `mvnw.cmd spring-boot:run -pl template-dataforge-sample-backend`）。
+访问 `http://localhost:3000`。API 通过 Vite proxy 转发到 `http://localhost:8080`，需先启动
+`template-dataforge-sample-backend`（在项目根目录执行 `mvnw.cmd spring-boot:run -pl template-dataforge-sample-backend`）。
 
 ## 与后端联调
 

@@ -16,19 +16,16 @@ import lombok.Setter;
 @Entity
 @Table(name = "sys_permission")
 @DataforgeEntity(
-        pathSegment = "permissions",
-        displayName = "权限",
-        table = "sys_permission",
-        enableExport = false
+        pathSegment = "permissions", displayName = "权限", table = "sys_permission", enableExport = false
 )
 public class Permission extends BaseEntity<Long> {
-
-    @Column(nullable = false, unique = true, length = 128)
-    private String permission;
-
+    
+    @Column(name = "permission", nullable = false, unique = true, length = 128)
+    private String permissionCode;
+    
     @Column(length = 128)
     private String name;
-
+    
     @Column(length = 256)
     private String description;
 }

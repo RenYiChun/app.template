@@ -26,36 +26,30 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class FlowJoinerEngine {
+    private static final String PHASE_PRODUCTION = "PRODUCTION";
     private final FlowManager flowManager;
-
-    private MeterRegistry registry() {
-        return flowManager.getMeterRegistry();
-    }
-
+    
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
         run(jobId, joiner, tracker, flowConfig);
     }
-
-    public <T> void run(String jobId,
-            FlowJoiner<T> joiner,
-            ProgressTracker tracker,
-            TemplateConfigProperties.Flow jc) {
+    
+    public <T> void run(String jobId, FlowJoiner<T> joiner, ProgressTracker tracker, TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
-
+        
         Counter.builder(FlowMetricNames.JOB_STARTED)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                .register(registry())
                .increment();
-
+        
         try {
             FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
-
+            
             try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
                 runUntilNoMoreSubSources(provider, jobId, launcher);
             }
-
+            
             Counter.builder(FlowMetricNames.JOB_COMPLETED)
                    .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                    .register(registry())
@@ -64,52 +58,25 @@ public class FlowJoinerEngine {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             throw e;
         }
     }
-
-    /**
-     * 单流 run：业务只有一条流时直接传入 FlowSource
-     */
-    public <T> void run(String jobId,
-            FlowJoiner<T> joiner,
-            FlowSource<T> singleSource,
-            long total,
-            TemplateConfigProperties.Flow flowConfig) {
-        DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
-        tracker.setTotalExpected(jobId, total);
-        run(jobId, joiner, singleSource, tracker, flowConfig);
+    
+    private MeterRegistry registry() {
+        return flowManager.getMeterRegistry();
     }
-
-    public <T> void run(String jobId,
-            FlowJoiner<T> joiner,
-            FlowSource<T> singleSource,
-            ProgressTracker tracker,
-            TemplateConfigProperties.Flow jc) {
-        log.info("驱动流聚合任务开始（单流）: {}", jobId);
-
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
-
-        try (FlowSourceProvider<T> provider = FlowSourceAdapters.singleSourceProvider(singleSource)) {
-            runUntilNoMoreSubSources(provider, jobId, launcher);
-        }
-    }
-
-    private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider,
-            String jobId,
-            FlowLauncher<T> launcher) {
+    
+    private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider, String jobId, FlowLauncher<T> launcher) {
         while (tryRunNextSubSource(provider, jobId, launcher)) {
             Thread.onSpinWait();
         }
         launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
     }
-
-    private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
-            String jobId,
-            FlowLauncher<T> launcher) {
+    
+    private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider, String jobId, FlowLauncher<T> launcher) {
         try {
             if (!provider.hasNextSubSource()) {
                 return false;
@@ -122,7 +89,7 @@ public class FlowJoinerEngine {
         launcher.getProducerExecutor().submit(() -> runSubSourceInVirtualThread(provider, launcher, jobId));
         return true;
     }
-
+    
     private <T> void runSubSourceInVirtualThread(FlowSourceProvider<T> provider,
             FlowLauncher<T> launcher,
             String jobId) {
@@ -133,7 +100,7 @@ public class FlowJoinerEngine {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "subsource_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
                    .increment();
             log.error("子流消费异常 jobId={}", jobId, e);
@@ -147,7 +114,7 @@ public class FlowJoinerEngine {
                 launcher.getTaskOrchestrator().tracker().onProductionReleased();
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
-                       .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
+                       .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
                 return;
@@ -156,7 +123,7 @@ public class FlowJoinerEngine {
             item = pollNext(sub);
         }
     }
-
+    
     private <T> Optional<T> pollNext(FlowSource<T> sub) {
         try {
             if (!sub.hasNext()) {
@@ -169,16 +136,41 @@ public class FlowJoinerEngine {
             return Optional.empty();
         }
     }
-
+    
+    /**
+     * 单流 run：业务只有一条流时直接传入 FlowSource
+     */
+    public <T> void run(String jobId,
+            FlowJoiner<T> joiner,
+            FlowSource<T> singleSource,
+            long total,
+            TemplateConfigProperties.Flow flowConfig) {
+        DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
+        tracker.setTotalExpected(jobId, total);
+        run(jobId, joiner, singleSource, tracker, flowConfig);
+    }
+    
+    public <T> void run(String jobId,
+            FlowJoiner<T> joiner,
+            FlowSource<T> singleSource,
+            ProgressTracker tracker,
+            TemplateConfigProperties.Flow jc) {
+        log.info("驱动流聚合任务开始（单流）: {}", jobId);
+        
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
+        
+        try (FlowSourceProvider<T> provider = FlowSourceAdapters.singleSourceProvider(singleSource)) {
+            runUntilNoMoreSubSources(provider, jobId, launcher);
+        }
+    }
+    
     /**
      * 推送模式：注册任务并返回 FlowInlet
      */
-    public <T> FlowInlet<T> startPush(String jobId,
-            FlowJoiner<T> joiner,
-            TemplateConfigProperties.Flow flowConfig) {
+    public <T> FlowInlet<T> startPush(String jobId, FlowJoiner<T> joiner, TemplateConfigProperties.Flow flowConfig) {
         return startPush(jobId, joiner, -1, flowConfig);
     }
-
+    
     public <T> FlowInlet<T> startPush(String jobId,
             FlowJoiner<T> joiner,
             long total,
@@ -188,7 +180,7 @@ public class FlowJoinerEngine {
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, flowConfig);
         return new FlowInletImpl<>(launcher);
     }
-
+    
     public ProgressTracker getProgressTracker(String jobId) {
         return flowManager.getActiveLauncher(jobId).getTaskOrchestrator().tracker();
     }

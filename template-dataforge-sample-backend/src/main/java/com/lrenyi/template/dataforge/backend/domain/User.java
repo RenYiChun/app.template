@@ -27,7 +27,7 @@ public class User extends BaseEntity<Long> {
     @DataforgeField(searchable = true, label = "昵称", order = 4)
     @DataforgeDto(include = {DtoType.PAGE_RESPONSE})
     private String nickname;
-
+    
     @Column(nullable = false, length = 128)
     @DataforgeDto(exclude = {DtoType.RESPONSE})
     private String password;
@@ -41,7 +41,7 @@ public class User extends BaseEntity<Long> {
     @DataforgeField(searchable = true, label = "电话号码", order = 2)
     @DataforgeDto(include = {DtoType.PAGE_RESPONSE})
     private String phone;
-
+    
     @Column(name = "department_id")
     private Long departmentId;
     

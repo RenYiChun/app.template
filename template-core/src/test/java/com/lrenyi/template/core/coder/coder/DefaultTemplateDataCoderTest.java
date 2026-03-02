@@ -12,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DefaultTemplateDataCoder 单元测试
  */
 class DefaultTemplateDataCoderTest {
-
+    
     private final DefaultTemplateDataCoder coder = new DefaultTemplateDataCoder();
-
+    
     @Test
     void encode_matches_v2Format() {
         String raw = "test-password-123";
@@ -23,7 +23,7 @@ class DefaultTemplateDataCoderTest {
         assertTrue(coder.matches(raw, encoded));
         assertFalse(coder.matches("wrong", encoded));
     }
-
+    
     @Test
     void matches_legacySha1Format() {
         String raw = "legacy-password";

@@ -28,18 +28,21 @@
 ```
 
 - **Headless**：不包含任何 UI 组件，只提供 Core（Client、Meta、EntityCrudManager）和 Vue 层的 composables、config。
-- **UI 包**：基于 Headless 的 composables / Manager，用 Element Plus 实现具体组件；列配置通过 headless 的 `resolveColumns` 取得，不在 UI 里写死。
+- **UI 包**：基于 Headless 的 composables / Manager，用 Element Plus 实现具体组件；列配置通过 headless 的 `resolveColumns`
+  取得，不在 UI 里写死。
 
 ## 二、元数据来源（列配置的真相）
 
 - **主数据源是后端**：`MetaService` 请求 **GET /api/docs** 拿到 OpenAPI 文档，解析出各实体的 **EntityMeta**。
 - **EntityMeta** 里与列相关：
-  - **schemas.pageResponse**：从 OpenAPI 里该实体 **search** 接口的 200 响应解析得到（PagedResult 的 list item schema，如 `UserPageResponseDTO`），用于表格列。
-  - **schemas.detail**：从 **get**（GET by id）接口的 200 响应 schema 解析得到，用于单条详情/表单回显。
-  - **properties**：若为空则由 `schemas.pageResponse` 填充，便于列解析与元数据页展示。
+    - **schemas.pageResponse**：从 OpenAPI 里该实体 **search** 接口的 200 响应解析得到（PagedResult 的 list item schema，如
+      `UserPageResponseDTO`），用于表格列。
+    - **schemas.detail**：从 **get**（GET by id）接口的 200 响应 schema 解析得到，用于单条详情/表单回显。
+    - **properties**：若为空则由 `schemas.pageResponse` 填充，便于列解析与元数据页展示。
 - **resolveColumns(pathSegment, meta)** 的约定：
-  - **列从 meta 来**：列集合与默认展示来自 `meta.schemas.pageResponse ?? meta.properties`（后端提供的结构）。
-  - **registerEntityConfig 只做覆盖**：注册表里的 `config.columns` 只用于按 `prop` 覆盖某几列的 label、width、formatter 等，**不**用 config 决定「有哪些列」；列有哪些、顺序如何，以 meta 为准。
+    - **列从 meta 来**：列集合与默认展示来自 `meta.schemas.pageResponse ?? meta.properties`（后端提供的结构）。
+    - **registerEntityConfig 只做覆盖**：注册表里的 `config.columns` 只用于按 `prop` 覆盖某几列的 label、width、formatter
+      等，**不**用 config 决定「有哪些列」；列有哪些、顺序如何，以 meta 为准。
 
 因此：**列数据是由后端接口提供的元数据解析出来的**；前端只在需要时用 `registerEntityConfig` 做展示层面的覆盖（如中文标签、formatter）。
 
@@ -48,11 +51,11 @@
 ### 1. 应用入口
 
 ```ts
-import { createDataforge } from '@lrenyi/dataforge-headless/vue';
+import {createDataforge} from '@lrenyi/dataforge-headless/vue';
 
 createDataforge({
-  client: { baseURL: '', apiPrefix: '/api' },
-  auth: { onUnauthorized: () => router.push('/login') },
+    client: {baseURL: '', apiPrefix: '/api'},
+    auth: {onUnauthorized: () => router.push('/login')},
 });
 app.use(dataforge);
 ```
@@ -60,18 +63,20 @@ app.use(dataforge);
 ### 2. 零配置列表页（用 UI 包）
 
 ```vue
-<EntityCrudPage entity="users" @create="..." @edit="..." @delete="..." />
+
+<EntityCrudPage entity="users" @create="..." @edit="..." @delete="..."/>
 ```
 
-- 列由 **meta（后端 OpenAPI）** 解析，UI 包的 `useEntityCrud` 内部会：拉 meta → `resolveColumns(entity, meta)` → 得到 `displayColumns` 传给表格。
+- 列由 **meta（后端 OpenAPI）** 解析，UI 包的 `useEntityCrud` 内部会：拉 meta → `resolveColumns(entity, meta)` → 得到
+  `displayColumns` 传给表格。
 - 不需要在页面或某个「实体配置文件」里写死 columns 数组。
 
 ### 3. 组合式用法（仅用 headless 时）
 
 ```ts
-const { client, meta } = getDataforge();
-const { meta: entityMetaRef } = useEntityMeta(meta, entity);
-const { items, total, loading, filters, page, size, search } = useEntityCrud(client, entity);
+const {client, meta} = getDataforge();
+const {meta: entityMetaRef} = useEntityMeta(meta, entity);
+const {items, total, loading, filters, page, size, search} = useEntityCrud(client, entity);
 
 const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []);
 ```
@@ -84,14 +89,14 @@ const columns = computed(() => resolveColumns(entity, entityMetaRef.value) || []
 当后端 schema 没有友好 label，或需要对某几列做格式化时，再用注册表**覆盖**，而不是重新定义整张表：
 
 ```ts
-import { registerEntityConfig } from '@lrenyi/dataforge-headless/vue';
+import {registerEntityConfig} from '@lrenyi/dataforge-headless/vue';
 
 registerEntityConfig('users', {
-  displayName: '用户',
-  columns: [
-    { prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用') },
-  ],
-  searchFields: ['username', 'status'],
+    displayName: '用户',
+    columns: [
+        {prop: 'status', label: '状态', formatter: (v) => (v === 1 ? '启用' : '禁用')},
+    ],
+    searchFields: ['username', 'status'],
 });
 ```
 
@@ -114,9 +119,13 @@ registerEntityConfig('users', {
 
 ## 五、与 UI 包的衔接
 
-- UI 包的 **useEntityCrud(entity)** 内部：创建 EntityCrudManager、订阅 state、在 onMounted 时调用 **refreshMeta()** 和 **init()** 拉取 meta，再用 **resolveColumns(entityName, crudState.entityMeta)** 得到 allColumns/displayColumns。
-- 只要后端 **GET /api/docs** 返回的 OpenAPI 里，该实体的 search 接口有正确的 200 response schema（PagedResult 的 list item），meta 就会带上 **schemas.pageResponse** 或 **properties**，resolveColumns 就能解析出列；表格收到 `:columns="displayColumns"` 即可正常展示。get 接口的 200 响应会写入 **schemas.detail**，供详情/表单回显使用。
+- UI 包的 **useEntityCrud(entity)** 内部：创建 EntityCrudManager、订阅 state、在 onMounted 时调用 **refreshMeta()** 和 *
+  *init()** 拉取 meta，再用 **resolveColumns(entityName, crudState.entityMeta)** 得到 allColumns/displayColumns。
+- 只要后端 **GET /api/docs** 返回的 OpenAPI 里，该实体的 search 接口有正确的 200 response schema（PagedResult 的 list
+  item），meta 就会带上 **schemas.pageResponse** 或 **properties**，resolveColumns 就能解析出列；表格收到
+  `:columns="displayColumns"` 即可正常展示。get 接口的 200 响应会写入 **schemas.detail**，供详情/表单回显使用。
 
 ---
 
-总结：**列数据由后端接口提供的元数据（OpenAPI 解析出的 EntityMeta）解析；resolveColumns 以 meta 为主、registerEntityConfig 仅做按列覆盖；不在前端写死完整列配置。**
+总结：**列数据由后端接口提供的元数据（OpenAPI 解析出的 EntityMeta）解析；resolveColumns 以 meta 为主、registerEntityConfig
+仅做按列覆盖；不在前端写死完整列配置。**

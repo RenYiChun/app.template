@@ -29,7 +29,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
     private final OauthUtilService oauthUtilService;
     
     public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties,
-                                      OauthUtilService oauthUtilService) {
+            OauthUtilService oauthUtilService) {
         this.templateConfigProperties = templateConfigProperties;
         this.oauthUtilService = oauthUtilService;
     }
@@ -62,14 +62,14 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         List<String> lowerHeader = headers.stream().map(String::toLowerCase).toList();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            if ("authorization".equalsIgnoreCase(headerName)) {
-                haveAuthorization = true;
-            }
             if (lowerHeader.contains(headerName.toLowerCase())) {
                 log.debug("headerName:{} passed to downstream", headerName);
                 String headerValue = request.getHeader(headerName);
                 // 将header向下传递
                 template.header(headerName, headerValue);
+                if ("authorization".equalsIgnoreCase(headerName)) {
+                    haveAuthorization = true;
+                }
             }
         }
         if (!haveAuthorization) {
@@ -78,8 +78,8 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
     }
     
     private void makeClientOauth(RequestTemplate template) {
-        boolean enabled = templateConfigProperties.getSecurity().isEnabled();
-        if (!enabled) {
+        if (!templateConfigProperties.isFeignEffectivelyEnabled()
+                || !templateConfigProperties.isSecurityEffectivelyEnabled()) {
             return;
         }
         String token = oauthUtilService.fetchToken("server");

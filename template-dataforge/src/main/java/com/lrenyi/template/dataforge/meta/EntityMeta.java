@@ -3,6 +3,7 @@ package com.lrenyi.template.dataforge.meta;
 import java.util.ArrayList;
 import java.util.List;
 import com.lrenyi.template.dataforge.annotation.SortDirection;
+import com.lrenyi.template.dataforge.support.BeanAccessor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class EntityMeta {
-
+    
     private String entityName;
     private String tableName;
     private String pathSegment;
@@ -26,6 +27,7 @@ public class EntityMeta {
     private boolean deleteEnabled = true;
     private boolean deleteBatchEnabled = true;
     private boolean exportEnabled = true;
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> primaryKeyType = Long.class;
     private String storageType = "jpa";
     private String permissionCreate = "";
@@ -34,6 +36,7 @@ public class EntityMeta {
     private String permissionDelete = "";
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> entityClass;
     
     // ==================== 新增生产级属性 ====================
@@ -78,27 +81,36 @@ public class EntityMeta {
     private boolean enableImport = true;
     private String importTemplate = "";
     private String exportTemplate = "";
-
+    
+    // ==================== 运行时支持 ====================
+    
+    /**
+     * 高性能属性访问器（JDK 9+ VarHandle 或反射回退）。
+     * 在 MetaScanner 扫描时注入。
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private BeanAccessor accessor;
+    
     public void setPermissionCreate(String permissionCreate) {
         this.permissionCreate = permissionCreate != null ? permissionCreate : "";
     }
-
+    
     public void setPermissionRead(String permissionRead) {
         this.permissionRead = permissionRead != null ? permissionRead : "";
     }
-
+    
     public void setPermissionUpdate(String permissionUpdate) {
         this.permissionUpdate = permissionUpdate != null ? permissionUpdate : "";
     }
-
+    
     public void setPermissionDelete(String permissionDelete) {
         this.permissionDelete = permissionDelete != null ? permissionDelete : "";
     }
-
+    
     public void setFields(List<FieldMeta> fields) {
         this.fields = fields != null ? fields : new ArrayList<>();
     }
-
+    
     public void setActions(List<ActionMeta> actions) {
         this.actions = actions != null ? actions : new ArrayList<>();
     }

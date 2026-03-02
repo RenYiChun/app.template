@@ -1,121 +1,121 @@
 <template>
   <div class="dept-list-container">
     <EntityCrudPage
-      entity="departments"
-      :locale="dataforgeUiLocale"
-      @create="handleAdd"
-      @edit="handleEdit"
-      @delete="handleDelete"
-      @export="handleExport"
+        :locale="dataforgeUiLocale"
+        entity="departments"
+        @create="handleAdd"
+        @delete="handleDelete"
+        @edit="handleEdit"
+        @export="handleExport"
     >
       <template #alert="{ error }">
-        <el-alert v-if="error" :title="error.message" type="error" show-icon class="mb-4" />
+        <el-alert v-if="error" :title="error.message" class="mb-4" show-icon type="error"/>
       </template>
 
       <template #toolbar="scope">
-          <EntityToolbar
-            :selected-ids="scope.selectedIds"
-            :can-create="true"
-            :create-text="$t('system.dept.addTop')"
-            :can-batch-delete="scope.canBatchDelete"
-            :batch-delete-text="$t('common.batchDelete')"
-            :can-batch-update="scope.canBatchUpdate"
-            :batch-update-text="$t('common.batchUpdate')"
-            :can-export="true"
-            :export-text="$t('common.export')"
-            :show-search="scope.showSearch"
+        <EntityToolbar
             :all-columns="scope.allColumns"
+            :batch-delete-text="$t('common.batchDelete')"
+            :batch-update-text="$t('common.batchUpdate')"
+            :can-batch-delete="scope.canBatchDelete"
+            :can-batch-update="scope.canBatchUpdate"
+            :can-create="true"
+            :can-export="true"
+            :create-text="$t('system.dept.addTop')"
             :display-columns="scope.displayColumns"
-            :visible-column-props="scope.visibleColumnProps"
+            :export-text="$t('common.export')"
+            :selected-ids="scope.selectedIds"
             :set-visible-column-props="scope.setVisibleColumnProps"
+            :show-search="scope.showSearch"
+            :visible-column-props="scope.visibleColumnProps"
             @create="handleAdd"
+            @export="scope.handleExport"
+            @refresh="scope.handleSearch"
             @batch-delete="scope.handleDelete"
             @batch-update="scope.handleBatchUpdate"
-            @export="scope.handleExport"
             @toggle-search="scope.toggleSearch"
-            @refresh="scope.handleSearch"
-          />
-        </template>
+        />
+      </template>
 
-        <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
-          <EntitySearchBar
+      <template #search="{ filters, setFilters, handleSearch, showSearch, entityMeta }">
+        <EntitySearchBar
             v-if="showSearch"
             :entity-meta="entityMeta"
             :model-value="filters"
-            @update:modelValue="setFilters"
             @search="handleSearch"
-          />
-        </template>
+            @update:modelValue="setFilters"
+        />
+      </template>
 
-        <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
-          <EntityTable
+      <template #table="{ items, loading, displayColumns, sort, selectable, handleSortChange, handleSelectionChange }">
+        <EntityTable
+            :columns="displayColumns"
+            :handle-sort-change="handleSortChange"
             :items="items"
             :loading="loading"
-            :columns="displayColumns"
-            :sort="sort"
             :selectable="selectable"
-            :handle-sort-change="handleSortChange"
+            :sort="sort"
             @selection-change="handleSelectionChange"
-          >
-            <template #column-status="{ value }">
-              <el-tag :type="value === '1' ? 'success' : 'danger'">
-                {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
-              </el-tag>
-            </template>
-            <template #row-actions="{ row }">
-              <el-button link type="primary" @click="handleAdd(row)">{{ $t('system.dept.addChild') }}</el-button>
-              <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
-              <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
-            </template>
-          </EntityTable>
-        </template>
+        >
+          <template #column-status="{ value }">
+            <el-tag :type="value === '1' ? 'success' : 'danger'">
+              {{ value === '1' ? $t('common.enable') : $t('common.disable') }}
+            </el-tag>
+          </template>
+          <template #row-actions="{ row }">
+            <el-button link type="primary" @click="handleAdd(row)">{{ $t('system.dept.addChild') }}</el-button>
+            <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">{{ $t('common.delete') }}</el-button>
+          </template>
+        </EntityTable>
+      </template>
 
-        <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
-          <el-pagination
-            class="mt-4"
-            background
-            layout="total, sizes, prev, pager, next, jumper"
-            :total="total"
+      <template #pagination="{ total, page, size, handlePageChange, handleSizeChange }">
+        <el-pagination
             :current-page="page"
             :page-size="size"
             :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            background
+            class="mt-4"
+            layout="total, sizes, prev, pager, next, jumper"
             @update:current-page="handlePageChange"
             @update:page-size="handleSizeChange"
-          />
-        </template>
-      </EntityCrudPage>
+        />
+      </template>
+    </EntityCrudPage>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="500px"
-      @close="handleDialogClose"
+        v-model="dialogVisible"
+        :title="dialogTitle"
+        width="500px"
+        @close="handleDialogClose"
     >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
-        <el-form-item :label="$t('system.dept.parent')" v-if="form.parentId">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+        <el-form-item v-if="form.parentId" :label="$t('system.dept.parent')">
           <el-tree-select
-            v-model="form.parentId"
-            :data="deptTreeData"
-            :props="{ label: 'name', value: 'id', children: 'children' }"
-            check-strictly
-            :render-after-expand="false"
+              v-model="form.parentId"
+              :data="deptTreeData"
+              :props="{ label: 'name', value: 'id', children: 'children' }"
+              :render-after-expand="false"
+              check-strictly
           />
         </el-form-item>
         <el-form-item :label="$t('system.dept.name')" prop="name">
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name"/>
         </el-form-item>
         <el-form-item :label="$t('system.dept.leader')" prop="leader">
-          <el-input v-model="form.leader" />
+          <el-input v-model="form.leader"/>
         </el-form-item>
         <el-form-item :label="$t('system.dept.phone')" prop="phone">
-          <el-input v-model="form.phone" />
+          <el-input v-model="form.phone"/>
         </el-form-item>
         <el-form-item :label="$t('system.dept.email')" prop="email">
-          <el-input v-model="form.email" />
+          <el-input v-model="form.email"/>
         </el-form-item>
         <el-form-item :label="$t('system.dept.sort')" prop="sort">
-          <el-input-number v-model="form.sort" :min="0" />
+          <el-input-number v-model="form.sort" :min="0"/>
         </el-form-item>
         <el-form-item :label="$t('system.dept.status')" prop="status">
           <el-radio-group v-model="form.status">
@@ -126,23 +126,35 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">{{ $t('common.confirm') }}</el-button>
+        <el-button :loading="submitting" type="primary" @click="handleSubmit">{{ $t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElMessageBox, ElCard, ElAlert, ElPagination, ElButton, ElInput, ElSelect, ElOption, ElDatePicker, ElTable, ElTableColumn, ElTag, ElIcon, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElCheckboxGroup, ElCheckbox, ElInputNumber, ElRadioGroup, ElRadio, ElTreeSelect } from 'element-plus';
-import { useDataforge, BusinessError, useEntityCrud } from '@lrenyi/dataforge-headless/vue';
-import { EntityCrudPage, EntityTable, EntitySearchBar, EntityToolbar, EntityColumnConfigurator } from '@lrenyi/dataforge-ui';
-import { useI18n } from 'vue-i18n';
-import { useDataforgeUiLocale } from '@/i18n';
+<script lang="ts" setup>
+import {reactive, ref} from 'vue';
+import {
+  ElAlert,
+  ElButton,
+  ElInput,
+  ElInputNumber,
+  ElMessage,
+  ElMessageBox,
+  ElPagination,
+  ElRadio,
+  ElRadioGroup,
+  ElTag,
+  ElTreeSelect
+} from 'element-plus';
+import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
+import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
+import {useI18n} from 'vue-i18n';
+import {useDataforgeUiLocale} from '@/i18n';
 
-const { t } = useI18n();
-const { client } = useDataforge();
-const { search } = useEntityCrud('departments');
+const {t} = useI18n();
+const {client} = useDataforge();
+const {search} = useEntityCrud('departments');
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -178,7 +190,7 @@ const form = reactive({
 });
 
 const rules = {
-  name: [{ required: true, message: t('system.dept.name'), trigger: 'blur' }],
+  name: [{required: true, message: t('system.dept.name'), trigger: 'blur'}],
 };
 
 const handleAdd = (row: any | null) => {
@@ -215,7 +227,7 @@ const handleSubmit = async () => {
   await formRef.value.validate();
   submitting.value = true;
   try {
-    const submitData = { ...form };
+    const submitData = {...form};
     if (form.id) {
       await deptClient.update(form.id, submitData);
       ElMessage.success(t('common.updateSuccess'));
@@ -239,7 +251,7 @@ const handleSubmit = async () => {
 };
 
 const handleDelete = async (row: any) => {
-  await ElMessageBox.confirm(t('system.dept.deleteConfirm'), t('common.tips'), { type: 'warning' });
+  await ElMessageBox.confirm(t('system.dept.deleteConfirm'), t('common.tips'), {type: 'warning'});
   try {
     await deptClient.delete(row.id);
     ElMessage.success(t('system.dept.deleteSuccess'));
@@ -252,9 +264,6 @@ const handleDelete = async (row: any) => {
 
 const handleExport = async () => {
   try {
-    // 导出逻辑需要根据实际后端API调整
-    // const blob = await deptClient.exportExcel();
-    // download(blob, 'departments.xlsx');
     ElMessage.success('导出功能待实现');
   } catch {
     ElMessage.error(t('system.dept.deleteFailed').replace('删除', '导出'));
@@ -263,7 +272,7 @@ const handleExport = async () => {
 
 const loadDeptTree = async () => {
   try {
-    const result = await deptClient.search({ page: 0, size: 1000 });
+    const result = await deptClient.search({page: 0, size: 1000});
     const list = result.content || [];
     deptTreeData.value = buildTree(list);
   } catch (error) {
@@ -276,12 +285,12 @@ const buildTree = (list: any[]) => {
   const roots: any[] = [];
   // Deep copy to avoid modifying original data if needed, 
   // but here we are building a new structure
-  const nodeList = list.map(item => ({ ...item, children: [] }));
-  
+  const nodeList = list.map(item => ({...item, children: []}));
+
   nodeList.forEach((item) => {
     map[item.id] = item;
   });
-  
+
   nodeList.forEach((item) => {
     if (item.parentId && map[item.parentId]) {
       map[item.parentId].children.push(item);

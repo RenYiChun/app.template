@@ -16,16 +16,16 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class OAuth2InitialDataSeeder implements ApplicationRunner {
-
+    
     private final RegisteredClientRepository repository;
     private final OAuth2AuthorizationServerProperties properties;
-
+    
     public OAuth2InitialDataSeeder(RegisteredClientRepository repository,
-                                  OAuth2AuthorizationServerProperties properties) {
+            OAuth2AuthorizationServerProperties properties) {
         this.repository = repository;
         this.properties = properties;
     }
-
+    
     @Override
     public void run(ApplicationArguments args) throws Exception {
         RegisteredClient[] clients = OAuth2ClientPropertiesMapper.fromProperties(properties);

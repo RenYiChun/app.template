@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowExceptionContextTest {
-
+    
     @Test
     void constructor_andGetters() {
         RuntimeException ex = new RuntimeException("e");
@@ -19,7 +19,7 @@ class FlowExceptionContextTest {
         assertEquals(FlowPhase.CONSUMPTION, ctx.getPhase());
         assertTrue(ctx.getContext().isEmpty());
     }
-
+    
     @Test
     void addContext_returnsThis_andGetContextWithType() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);
@@ -28,14 +28,14 @@ class FlowExceptionContextTest {
         assertEquals("v1", ctx.getContext("k1", String.class));
         assertEquals(Integer.valueOf(2), ctx.getContext("k2", Integer.class));
     }
-
+    
     @Test
     void getContext_wrongType_returnsNull() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);
         ctx.addContext("k", "string");
         assertNull(ctx.getContext("k", Integer.class));
     }
-
+    
     @Test
     void getContext_missingKey_returnsNull() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);

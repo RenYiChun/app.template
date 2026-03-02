@@ -1,7 +1,7 @@
-<script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useEntityCrud } from '../composables/useEntityCrud';
-import type { FilterCondition, ColumnConfig, SortOrder } from '@lrenyi/dataforge-headless/vue';
+<script lang="ts" setup>
+import {computed, ref} from 'vue';
+import {useEntityCrud} from '../composables/useEntityCrud';
+import type {SortOrder} from '@lrenyi/dataforge-headless/vue';
 
 interface CrudEntity extends Record<string, unknown> {
   id: string | number;
@@ -11,7 +11,7 @@ const props = defineProps<{
   entity: string;
 }>();
 
-const emit = defineEmits<{ (e: 'batch-update'): void }>();
+const emit = defineEmits<(e: 'batch-update') => void>();
 
 const {
   items,
@@ -206,11 +206,12 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
 
 <template>
   <div class="entity-crud-page">
-    <slot name="alert" :error="error" />
+    <slot :error="error" name="alert"/>
 
     <!-- 顶部卡片：搜索区域（历史版本无 header） -->
-    <div class="crud-search-card" :class="{ 'is-hidden': !showSearch }">
-      <slot name="search" :filters="filters" :setFilters="setFilters" :handleSearch="handleSearch" :showSearch="showSearch" :entityMeta="entityMeta" />
+    <div :class="{ 'is-hidden': !showSearch }" class="crud-search-card">
+      <slot :entityMeta="entityMeta" :filters="filters" :handleSearch="handleSearch" :setFilters="setFilters"
+            :showSearch="showSearch" name="search"/>
     </div>
 
     <!-- 底部卡片：操作和表格区域 -->
@@ -218,46 +219,46 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
       <!-- 工具栏 -->
       <div class="crud-toolbar">
         <slot
-          name="toolbar"
-          :selectedIds="selectedIds"
-          :canBatchDelete="canBatchDelete"
-          :canBatchUpdate="canBatchUpdate"
-          :handleDelete="handleDelete"
-          :handleBatchUpdate="handleBatchUpdate"
-          :handleExport="handleExport"
-          :handleSearch="handleSearch"
-          :toggleSearch="toggleSearch"
-          :showSearch="showSearch"
-          :allColumns="allColumns"
-          :displayColumns="displayColumns"
-          :visibleColumnProps="visibleColumnProps"
-          :setVisibleColumnProps="setVisibleColumnProps"
+            :allColumns="allColumns"
+            :canBatchDelete="canBatchDelete"
+            :canBatchUpdate="canBatchUpdate"
+            :displayColumns="displayColumns"
+            :handleBatchUpdate="handleBatchUpdate"
+            :handleDelete="handleDelete"
+            :handleExport="handleExport"
+            :handleSearch="handleSearch"
+            :selectedIds="selectedIds"
+            :setVisibleColumnProps="setVisibleColumnProps"
+            :showSearch="showSearch"
+            :toggleSearch="toggleSearch"
+            :visibleColumnProps="visibleColumnProps"
+            name="toolbar"
         />
       </div>
 
       <!-- 表格 -->
       <div class="crud-table">
         <slot
-          name="table"
-          :items="items"
-          :loading="loading"
-          :displayColumns="displayColumns"
-          :sort="sort"
-          :selectable="selectable"
-          :handleSortChange="handleSortChange"
-          :handleSelectionChange="handleSelectionChange"
+            :displayColumns="displayColumns"
+            :handleSelectionChange="handleSelectionChange"
+            :handleSortChange="handleSortChange"
+            :items="items"
+            :loading="loading"
+            :selectable="selectable"
+            :sort="sort"
+            name="table"
         />
       </div>
 
       <!-- 分页 -->
       <div class="crud-pagination">
         <slot
-          name="pagination"
-          :total="total"
-          :page="page"
-          :size="size"
-          :handlePageChange="handlePageChange"
-          :handleSizeChange="handleSizeChange"
+            :handlePageChange="handlePageChange"
+            :handleSizeChange="handleSizeChange"
+            :page="page"
+            :size="size"
+            :total="total"
+            name="pagination"
         />
       </div>
     </div>

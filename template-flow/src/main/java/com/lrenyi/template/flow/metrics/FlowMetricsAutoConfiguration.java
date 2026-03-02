@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnClass(MeterRegistry.class)
 public class FlowMetricsAutoConfiguration {
-
+    
     @Bean
     @ConditionalOnClass(HealthIndicator.class)
     public FlowActuatorHealthIndicator flowActuatorHealthIndicator() {

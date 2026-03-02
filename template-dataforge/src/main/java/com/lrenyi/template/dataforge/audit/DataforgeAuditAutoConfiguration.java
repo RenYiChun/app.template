@@ -1,9 +1,9 @@
 package com.lrenyi.template.dataforge.audit;
 
-import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
-import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.aspect.AuditLogAspect;
 import com.lrenyi.template.dataforge.audit.enricher.AuditLogEnricher;
+import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
+import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
 import com.lrenyi.template.dataforge.audit.resolver.AuditDescriptionResolver;
 import com.lrenyi.template.dataforge.audit.service.AuditLogService;
 import com.lrenyi.template.dataforge.controller.GenericEntityController;
@@ -14,8 +14,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
@@ -26,122 +26,135 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "app.template.audit.enabled", havingValue = "true")
+@ConditionalOnExpression("'${app.template.enabled:true}' == 'true' && '${app.template.audit.enabled:false}' == 'true'")
 @EnableAsync
 public class DataforgeAuditAutoConfiguration {
-
+    
     @Bean
     @ConditionalOnMissingBean(AuditLogProcessor.class)
     public AuditLogProcessor defaultAuditLogProcessor() {
-        return logInfo -> System.out.println("[Audit] " + logInfo);
+        return logInfo -> System.out.println("[Audit] " + logInfo); //NOSONAR
     }
-
+    
     @Bean
     @ConditionalOnBean(AuditLogProcessor.class)
     public AuditLogService auditLogService(AuditLogProcessor auditLogProcessor,
-                                          @Value("${spring.application.name:unknown-service}") String serviceName,
-                                          ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider,
-                                          ObjectProvider<AuditLogEnricher> enricherProvider) {
-        return new AuditLogService(auditLogProcessor, serviceName,
-                descriptionResolverProvider, enricherProvider);
+            @Value("${spring.application.name:unknown-service}") String serviceName,
+            ObjectProvider<AuditDescriptionResolver> descriptionResolverProvider,
+            ObjectProvider<AuditLogEnricher> enricherProvider) {
+        return new AuditLogService(auditLogProcessor, serviceName, descriptionResolverProvider, enricherProvider);
     }
-
+    
     @Bean
     @ConditionalOnBean(AuditLogService.class)
     public AuditLogAspect auditLogAspect(AuditLogService auditLogService) {
         return new AuditLogAspect(auditLogService);
     }
-
+    
     @Bean
     @Order(0)
     public AuditDescriptionResolver genericEntityAuditDescriptionResolver() {
         return DataforgeAuditAutoConfiguration::resolve;
     }
-
+    
+    private static String resolve(ProceedingJoinPoint joinPoint, HttpServletRequest request) {
+        Object target = joinPoint.getTarget();
+        if (target instanceof GenericEntityController
+                && joinPoint.getSignature() instanceof MethodSignature signature) {
+            return resolveWithSignature(signature, joinPoint.getArgs());
+        }
+        return null;
+    }
+    
+    private static String resolveWithSignature(MethodSignature signature, Object[] args) {
+        String methodName = signature.getMethod().getName();
+        String entity = args.length > 0 && args[0] instanceof String value ? value : null;
+        if (entity == null || entity.isEmpty()) {
+            return null;
+        }
+        return resolveMethodDescription(methodName, entity, args);
+    }
+    
+    private static String resolveMethodDescription(String methodName, String entity, Object[] args) {
+        return switch (methodName) {
+            case "search" -> "搜索 " + entity;
+            case "get" -> resolveGet(entity, args);
+            case "create" -> "创建 " + entity;
+            case "update" -> resolveUpdate(entity, args);
+            case "delete" -> resolveDelete(entity, args);
+            case "deleteBatch" -> "删除 " + entity;
+            case "updateBatch" -> "更新 " + entity;
+            case "export" -> "导出 Excel " + entity;
+            case "executeAction" -> resolveExecuteAction(entity, args);
+            default -> null;
+        };
+    }
+    
+    private static String resolveGet(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "获取 " + entity + "/" + args[1];
+        }
+        return "获取 " + entity;
+    }
+    
+    private static String resolveUpdate(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "更新 " + entity + "/" + args[1];
+        }
+        return "更新 " + entity;
+    }
+    
+    private static String resolveDelete(String entity, Object[] args) {
+        if (args.length > 1 && args[1] != null) {
+            return "删除 " + entity + "/" + args[1];
+        }
+        return "删除 " + entity;
+    }
+    
+    private static String resolveExecuteAction(String entity, Object[] args) {
+        if (args.length > 3 && args[2] != null && args[3] instanceof String actionName) {
+            return "执行 " + entity + "/" + args[2] + "/" + actionName;
+        }
+        return "执行 " + entity;
+    }
+    
     @Bean
     @Order(0)
     public AuditLogEnricher genericEntityAuditLogEnricher() {
         return DataforgeAuditAutoConfiguration::enrich;
     }
-
+    
     private static void enrich(ProceedingJoinPoint joinPoint, HttpServletRequest request, AuditLogInfo logInfo) {
         Object target = joinPoint.getTarget();
-        if (!(target instanceof GenericEntityController)) {
-            return;
+        if (target instanceof GenericEntityController
+                && joinPoint.getSignature() instanceof MethodSignature signature) {
+            enrichWithSignature(signature, joinPoint.getArgs(), logInfo);
         }
-        if (!(joinPoint.getSignature() instanceof MethodSignature signature)) {
-            return;
-        }
+    }
+    
+    private static void enrichWithSignature(MethodSignature signature, Object[] args, AuditLogInfo logInfo) {
         String methodName = signature.getMethod().getName();
-        Object[] args = joinPoint.getArgs();
-        String entity = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+        String entity = args.length > 0 && args[0] instanceof String string ? string : null;
         if (entity == null || entity.isEmpty()) {
             return;
         }
         logInfo.setTargetType(entity);
         switch (methodName) {
-            case "get":
-            case "update":
-            case "delete":
-                if (args.length > 1 && args[1] != null) {
-                    logInfo.setTargetId(String.valueOf(args[1]));
+            case "get", "update", "delete" -> {
+                Object arg = args.length > 1 ? args[1] : null;
+                switch (arg) {
+                    case null -> {/*ignore*/}
+                    case Object id -> logInfo.setTargetId(String.valueOf(id));
                 }
-                break;
-            case "executeAction":
-                if (args.length > 2 && args[2] != null) {
-                    logInfo.setTargetId(String.valueOf(args[2]));
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    private static String resolve(ProceedingJoinPoint joinPoint, HttpServletRequest request) {
-        Object target = joinPoint.getTarget();
-        if (!(target instanceof GenericEntityController)) {
-            return null;
-        }
-        if (!(joinPoint.getSignature() instanceof MethodSignature signature)) {
-            return null;
-        }
-        String methodName = signature.getMethod().getName();
-        Object[] args = joinPoint.getArgs();
-        String entity = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
-        if (entity == null || entity.isEmpty()) {
-            return null;
-        }
-        return switch (methodName) {
-            case "search" -> "搜索 " + entity;
-            case "get" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "获取 " + entity + "/" + args[1];
-                }
-                yield "获取 " + entity;
             }
-            case "create" -> "创建 " + entity;
-            case "update" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "更新 " + entity + "/" + args[1];
-                }
-                yield "更新 " + entity;
-            }
-            case "delete" -> {
-                if (args.length > 1 && args[1] != null) {
-                    yield "删除 " + entity + "/" + args[1];
-                }
-                yield "删除 " + entity;
-            }
-            case "deleteBatch" -> "删除 " + entity;
-            case "updateBatch" -> "更新 " + entity;
-            case "export" -> "导出 Excel " + entity;
             case "executeAction" -> {
-                if (args.length > 3 && args[2] != null && args[3] instanceof String actionName) {
-                    yield "执行 " + entity + "/" + args[2] + "/" + actionName;
+                Object arg = args.length > 2 ? args[2] : null;
+                switch (arg) {
+                    case null -> { /*ignore*/ }
+                    case Object targetId -> logInfo.setTargetId(String.valueOf(targetId));
                 }
-                yield "执行 " + entity;
             }
-            default -> null;
-        };
+            default -> { /* search/create/deleteBatch/updateBatch/export 无需设置 targetId */ }
+        }
     }
 }

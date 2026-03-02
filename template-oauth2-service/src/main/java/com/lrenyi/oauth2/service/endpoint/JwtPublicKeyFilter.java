@@ -30,14 +30,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Slf4j
 @Component
 public class JwtPublicKeyFilter extends OncePerRequestFilter {
-
+    
     private static final String ENDPOINT_URI = "/jwt/public/key";
     private static final String CACHE_CONTROL = "public, max-age=300";
-
+    
     private final RequestMatcher endpointMatcher;
     private RsaPublicAndPrivateKey rsaPublicAndPrivateKey;
     private JsonService jsonService;
-
+    
+    public JwtPublicKeyFilter() {
+        this.endpointMatcher = new AntPathRequestMatcher(ENDPOINT_URI, HttpMethod.GET.name());
+    }
+    
     @Autowired
     public void setJsonService(JsonService jsonService) {
         this.jsonService = jsonService;
@@ -48,14 +52,10 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         this.rsaPublicAndPrivateKey = rsaPublicAndPrivateKey;
     }
     
-    public JwtPublicKeyFilter() {
-        this.endpointMatcher = new AntPathRequestMatcher(ENDPOINT_URI, HttpMethod.GET.name());
-    }
-    
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
-                                    @NonNull HttpServletResponse response,
-                                    @NonNull FilterChain filterChain) throws ServletException, IOException {
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
         if (!endpointMatcher.matches(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -67,6 +67,10 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         try {
             RSAPublicKey rsaPublicKey = rsaPublicAndPrivateKey.templateRSAPublicKey();
             String kid = rsaPublicAndPrivateKey.getKid();
+            if (kid == null) {
+                // Fallback if kid is not set
+                kid = String.valueOf(rsaPublicKey.hashCode());
+            }
             RSAKey rsaKey = new RSAKey.Builder(rsaPublicKey).keyID(kid).build();
             Map<String, Object> jsonObject = new JWKSet(rsaKey).toJSONObject(true);
             String value = jsonService.serialize(jsonObject);
@@ -93,6 +97,40 @@ public class JwtPublicKeyFilter extends OncePerRequestFilter {
         if (s == null) {
             return "";
         }
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\"':
+                    sb.append("\\\"");
+                    break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\b':
+                    sb.append("\\b");
+                    break;
+                case '\f':
+                    sb.append("\\f");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
+                    if (c < ' ') {
+                        String t = "000" + Integer.toHexString(c);
+                        sb.append("\\u").append(t.substring(t.length() - 4));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
     }
 }

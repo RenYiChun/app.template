@@ -18,15 +18,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.LOWEST_PRECEDENCE - 20)
 @RestControllerAdvice(basePackages = "com.lrenyi.template.dataforge.controller")
 public class DataforgeExceptionHandler {
-
+    
     private static final String GENERIC_ERROR_MESSAGE = "服务器内部错误";
-
+    
     private final DataforgeProperties properties;
-
+    
     public DataforgeExceptionHandler(DataforgeProperties properties) {
         this.properties = properties;
     }
-
+    
     @ExceptionHandler(HttpStatusException.class)
     public ResponseEntity<Result<Object>> handleHttpStatusException(HttpStatusException e) {
         log.debug("HTTP status exception: {} - {}", e.getStatusCode(), e.getMessage());
@@ -35,7 +35,7 @@ public class DataforgeExceptionHandler {
         r.setCode(e.getStatusCode());
         return ResponseEntity.status(e.getStatusCode()).body(r);
     }
-
+    
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Object> handleBadRequest(IllegalArgumentException e) {
         log.debug("Bad request: {}", e.getMessage());
@@ -44,14 +44,14 @@ public class DataforgeExceptionHandler {
         r.setCode(400);
         return r;
     }
-
+    
     @ExceptionHandler(IllegalStateException.class)
     public Result<Object> handleIllegalState(IllegalStateException e) {
         log.warn("Illegal state: {}", e.getMessage());
         String message = properties.isExposeExceptionMessage() ? e.getMessage() : GENERIC_ERROR_MESSAGE;
         return Result.getError(null, message);
     }
-
+    
     @ExceptionHandler(Exception.class)
     public Result<Object> handleOther(Exception e) {
         log.error("Unhandled error", e);
