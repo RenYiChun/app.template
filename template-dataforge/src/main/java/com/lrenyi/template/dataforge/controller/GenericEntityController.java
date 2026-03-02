@@ -157,13 +157,11 @@ public class GenericEntityController {
         if (sortOrders == null || sortOrders.isEmpty()) {
             return PageRequest.of(page, size);
         }
-        List<Sort.Order> orders = new ArrayList<>();
-        for (SortOrder so : sortOrders) {
-            if (so != null && so.field() != null && !so.field().isBlank()) {
-                orders.add(
-                        "desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) : Sort.Order.asc(so.field()));
-            }
-        }
+        List<Sort.Order> orders = sortOrders.stream()
+                .filter(so -> so != null && so.field() != null && !so.field().isBlank())
+                .map(so -> "desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) :
+                                   Sort.Order.asc(so.field()))
+                .toList();
         return orders.isEmpty() ? PageRequest.of(page, size) : PageRequest.of(page, size, Sort.by(orders));
     }
     
@@ -174,8 +172,8 @@ public class GenericEntityController {
             return list;
         }
         EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
-        if (info != null && info.mapper() != null) {
-            BaseMapper<Object, ?, ?, ?, Object> mapper = (BaseMapper<Object, ?, ?, ?, Object>) info.mapper();
+        if (info != null && info.mapper() instanceof BaseMapper<?, ?, ?, ?, ?> rawMapper) {
+            BaseMapper<Object, ?, ?, ?, Object> mapper = (BaseMapper<Object, ?, ?, ?, Object>) rawMapper;
             return list.stream().map(mapper::toPageResponse).toList();
         }
         return list;
@@ -226,8 +224,8 @@ public class GenericEntityController {
             return null;
         }
         EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
-        if (info != null && info.mapper() != null) {
-            return ((BaseMapper<Object, ?, ?, Object, ?>) info.mapper()).toResponse(entity);
+        if (info != null && info.mapper() instanceof BaseMapper<?, ?, ?, ?, ?> rawMapper) {
+            return ((BaseMapper<Object, ?, ?, Object, ?>) rawMapper).toResponse(entity);
         }
         return entity;
     }

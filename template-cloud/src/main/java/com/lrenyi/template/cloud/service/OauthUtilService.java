@@ -11,22 +11,20 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Component
 public class OauthUtilService {
     private static final Cache<String, String> tokenCache =
             Caffeine.newBuilder().maximumSize(64).expireAfterWrite(50, TimeUnit.MINUTES).build();
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestClient restClient = RestClient.builder().build();
     @Resource
     private TemplateConfigProperties templateConfigProperties;
     
@@ -95,21 +93,16 @@ public class OauthUtilService {
             HttpMethod method,
             T rb,
             ParameterizedTypeReference<R> rt) {
-        HttpEntity<T> entity;
-        if (rb == null) {
-            entity = new HttpEntity<>(headers);
-        } else {
-            entity = new HttpEntity<>(rb, headers);
+        RestClient.RequestBodySpec spec = restClient.method(method).uri(url).headers(h -> h.addAll(headers));
+        
+        if (rb != null) {
+            spec.body(rb);
         }
-        ResponseEntity<R> response = restTemplate.exchange(url, method, entity, rt);
-        if (response.getStatusCode().is2xxSuccessful()) {
-            R body = response.getBody();
-            if (body == null) {
-                log.warn("请求成功但响应体为空: url={}", url);
-            }
-            return body;
-        } else {
-            log.error("请求失败: url={}, status={}", url, response.getStatusCode());
+        
+        try {
+            return spec.retrieve().body(rt);
+        } catch (Exception e) {
+            log.error("请求失败: url={}, error={}", url, e.getMessage());
             return null;
         }
     }

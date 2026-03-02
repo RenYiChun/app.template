@@ -50,7 +50,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
         q.setParameter("code", ROLE_ADMIN_CODE);
         List<Role> list = q.getResultList();
         if (!list.isEmpty()) {
-            return list.get(0);
+            return list.getFirst();
         }
         Role role = new Role();
         role.setRoleCode(ROLE_ADMIN_CODE);
@@ -106,7 +106,7 @@ public class RbacDataInitializer implements ApplicationRunner, Ordered {
         if (role != null) {
             RolePermission rp = new RolePermission();
             rp.setRole(role);
-            rp.setPermission(perms.get(0));
+            rp.setPermission(perms.getFirst());
             entityManager.persist(rp);
         }
     }
