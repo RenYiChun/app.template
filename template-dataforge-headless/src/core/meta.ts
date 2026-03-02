@@ -18,6 +18,10 @@ const NUM_OPS: Op[] = [Op.EQ, Op.NE, Op.GT, Op.GE, Op.LT, Op.LE, Op.IN];
 const BOOL_OPS: Op[] = [Op.EQ, Op.NE];
 const DATE_OPS: Op[] = [Op.EQ, Op.GT, Op.GE, Op.LT, Op.LE];
 
+const SYSTEM_FIELDS = new Set<string>([
+    'createTime', 'updateTime', 'createBy', 'updateBy', 'deleted', 'version', 'remark'
+]);
+
 function opsForType(type: string): Op[] {
     const t = (type ?? 'string').toLowerCase();
     if (t.includes('string')) return STRING_OPS;
@@ -147,7 +151,6 @@ export class MetaService {
         const createProps: Record<string, any> = {};
         const updateProps: Record<string, any> = {};
 
-        const SYSTEM_FIELDS = ['createTime', 'updateTime', 'createBy', 'updateBy', 'deleted', 'version', 'remark'];
         const strictPageResponse = new Set<string>();
         meta.fields?.forEach(f => {
             if (f.dtoIncludeTypes?.includes('PAGE_RESPONSE')) {
@@ -156,39 +159,47 @@ export class MetaService {
         });
         const hasStrictPageResponse = strictPageResponse.size > 0;
 
-        meta.fields?.forEach(f => {
-            const jsType = this.mapToJsType(f.type ?? '');
+        const compareFormFields = (a: { group?: string; groupOrder?: number; formOrder?: number }, b: typeof a) => {
+            const ga = a.group ?? '';
+            const gb = b.group ?? '';
+            const c = ga.localeCompare(gb);
+            if (c !== 0) return c;
+            return (a.groupOrder ?? 0) - (b.groupOrder ?? 0) || (a.formOrder ?? 0) - (b.formOrder ?? 0);
+        };
 
-            // 1. PageResponse (表格列)
-            const showInPage = f.columnVisible !== false && (
+        const pageFields = (meta.fields ?? []).filter(f =>
+            f.columnVisible !== false && (
                 f.name === 'id' ||
                 !!f.dtoIncludeTypes?.includes('PAGE_RESPONSE') ||
-                (!hasStrictPageResponse && !SYSTEM_FIELDS.includes(f.name))
-            );
+                (!hasStrictPageResponse && !SYSTEM_FIELDS.has(f.name))
+            )
+        ).sort((a, b) => (a.columnOrder ?? 0) - (b.columnOrder ?? 0));
 
-            if (showInPage) {
-                pageResponseProps[f.name] = {
-                    type: jsType,
-                    description: f.label,
-                    format: f.format
-                };
-            }
+        const formFields = (meta.fields ?? []).filter(f =>
+            !f.readonly && !f.dtoReadOnly && f.name !== 'id' && f.name !== 'createTime' && f.name !== 'updateTime'
+        ).sort(compareFormFields);
 
-            // 2. Create/Update Schema (表单)
-            if (!f.readonly && !f.dtoReadOnly && f.name !== 'id' && f.name !== 'createTime' && f.name !== 'updateTime') {
-                const prop = {
-                    type: jsType,
-                    description: f.label,
-                    required: f.required || f.uiRequired,
-                    enum: f.allowedValues?.length ? f.allowedValues : undefined
-                };
-                createProps[f.name] = prop;
-                updateProps[f.name] = prop;
-            }
+        for (const f of pageFields) {
+            const jsType = this.mapToJsType(f.type ?? '');
+            pageResponseProps[f.name] = { type: jsType, description: f.label, format: f.format };
+        }
 
-            // 3. QueryableFields (搜索配置)
+        for (const f of formFields) {
+            const jsType = this.mapToJsType(f.type ?? '');
+            const prop = {
+                type: jsType,
+                description: f.label,
+                required: f.required || f.uiRequired,
+                enum: f.allowedValues?.length ? f.allowedValues : undefined
+            };
+            createProps[f.name] = prop;
+            updateProps[f.name] = prop;
+        }
+
+        const queryableFields = meta.queryableFields ??= {};
+        meta.fields?.forEach(f => {
             if (f.searchable) {
-                (meta.queryableFields ??= {})[f.name] = {
+                queryableFields[f.name] = {
                     type: f.type || 'String',
                     operators: opsForType(f.type || 'String'),
                     label: f.label,
@@ -212,6 +223,8 @@ export class MetaService {
         if (meta.createEnabled) meta.operations['create'] = {method: 'POST', path: '', summary: '创建'};
         if (meta.updateEnabled) meta.operations['update'] = {method: 'PUT', path: '{id}', summary: '更新'};
         if (meta.deleteEnabled) meta.operations['delete'] = {method: 'DELETE', path: '{id}', summary: '删除'};
+        if (meta.deleteBatchEnabled) meta.operations['deleteBatch'] = {method: 'DELETE', path: 'batch', summary: '批量删除'};
+        if (meta.updateBatchEnabled) meta.operations['updateBatch'] = {method: 'PUT', path: 'batch', summary: '批量更新'};
         if (meta.exportEnabled) meta.operations['export'] = {method: 'POST', path: 'export', summary: '导出'};
     }
 

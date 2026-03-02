@@ -6,14 +6,17 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import com.lrenyi.template.dataforge.annotation.DataforgeDto;
@@ -411,27 +414,57 @@ public class MetaScanner {
             return;
         }
         Map<DtoType, Set<String>> strictByType = collectStrictFieldsByType(allFields);
-        Map<String, Object> pageResponseProps = new HashMap<>();
-        Map<String, Object> createProps = new HashMap<>();
-        Map<String, Object> updateProps = new HashMap<>();
-        for (FieldMeta f : allFields) {
-            String jsType = mapToJsType(f.getType());
-            List<String> includes = toIncludeList(f.getDtoIncludeTypes());
-            if (shouldShowInPageResponse(f, includes, strictByType.get(DtoType.PAGE_RESPONSE))) {
-                pageResponseProps.put(f.getName(), buildPageResponseProp(f, jsType));
-            }
-            if (shouldShowInForm(f, DtoType.CREATE, includes, strictByType.get(DtoType.CREATE))) {
-                createProps.put(f.getName(), buildFormProp(f, jsType));
-            }
-            if (shouldShowInForm(f, DtoType.UPDATE, includes, strictByType.get(DtoType.UPDATE))) {
-                updateProps.put(f.getName(), buildFormProp(f, jsType));
-            }
+        // 按 columnOrder 排序后插入，保持表格列顺序
+        List<FieldMeta> pageResponseFields = allFields.stream()
+                                                      .filter(f -> shouldShowInPageResponse(f,
+                                                                                            toIncludeList(f.getDtoIncludeTypes()),
+                                                                                            strictByType.get(DtoType.PAGE_RESPONSE)
+                                                      ))
+                                                      .sorted(Comparator.comparingInt(FieldMeta::getColumnOrder))
+                                                      .toList();
+        Map<String, Object> pageResponseProps = new LinkedHashMap<>();
+        for (FieldMeta f : pageResponseFields) {
+            pageResponseProps.put(f.getName(), buildPageResponseProp(f, mapToJsType(f.getType())));
+        }
+        // 按 group/groupOrder/formOrder 排序后插入，保持表单字段顺序
+        Predicate<FieldMeta> metaPredicate = f -> shouldShowInForm(f,
+                                                                   DtoType.CREATE,
+                                                                   toIncludeList(f.getDtoIncludeTypes()),
+                                                                   strictByType.get(DtoType.CREATE)
+        );
+        List<FieldMeta> createFields =
+                allFields.stream().filter(metaPredicate).sorted(MetaScanner::compareFormFields).toList();
+        Predicate<FieldMeta> predicate = f -> shouldShowInForm(f,
+                                                               DtoType.UPDATE,
+                                                               toIncludeList(f.getDtoIncludeTypes()),
+                                                               strictByType.get(DtoType.UPDATE)
+        );
+        List<FieldMeta> updateFields =
+                allFields.stream().filter(predicate).sorted(MetaScanner::compareFormFields).toList();
+        Map<String, Object> createProps = new LinkedHashMap<>();
+        for (FieldMeta f : createFields) {
+            createProps.put(f.getName(), buildFormProp(f, mapToJsType(f.getType())));
+        }
+        Map<String, Object> updateProps = new LinkedHashMap<>();
+        for (FieldMeta f : updateFields) {
+            updateProps.put(f.getName(), buildFormProp(f, mapToJsType(f.getType())));
         }
         Map<String, Object> schemas = new HashMap<>();
         schemas.put("pageResponse", pageResponseProps);
         schemas.put("create", createProps);
         schemas.put("update", updateProps);
         meta.setSchemas(schemas);
+    }
+    
+    /** 表单字段排序：先按 group，再 groupOrder，再 formOrder */
+    private static int compareFormFields(FieldMeta a, FieldMeta b) {
+        String ga = a.getGroup() != null ? a.getGroup() : "";
+        String gb = b.getGroup() != null ? b.getGroup() : "";
+        int c = ga.compareTo(gb);
+        if (c != 0) {return c;}
+        c = Integer.compare(a.getGroupOrder(), b.getGroupOrder());
+        if (c != 0) {return c;}
+        return Integer.compare(a.getFormOrder(), b.getFormOrder());
     }
     
     private static Map<DtoType, Set<String>> collectStrictFieldsByType(List<FieldMeta> allFields) {
@@ -473,7 +506,10 @@ public class MetaScanner {
         return !SYSTEM_FIELDS.contains(f.getName());
     }
     
-    private static boolean shouldShowInForm(FieldMeta f, DtoType type, List<String> includes, Set<String> strictFields) {
+    private static boolean shouldShowInForm(FieldMeta f,
+            DtoType type,
+            List<String> includes,
+            Set<String> strictFields) {
         if ("id".equals(f.getName())) {
             return false;
         }
@@ -511,7 +547,7 @@ public class MetaScanner {
         }
         return "string";
     }
-
+    
     private void applyEntityDtoInfo(EntityMeta meta, Class<?> clazz, DataforgeEntity ann) {
         if (!ann.generateDtos()) {
             return;
@@ -538,6 +574,8 @@ public class MetaScanner {
                 applyDataforgeExport(f, fm);
                 applyDataforgeImport(f, fm);
                 applyDataforgeDto(f, fm);
+                applyParentFieldOverrides(clazz, f, fm);
+                applyParentFieldOverridesForDataforgeField(clazz, f, fm);
                 list.add(fm);
             }
         }
@@ -560,11 +598,30 @@ public class MetaScanner {
         if (df == null) {
             return;
         }
-        fm.setLabel(StringUtils.hasText(df.label()) ? df.label() : f.getName());
+        applyDataforgeFieldToMeta(fm, df, f.getName());
+    }
+    
+    /**
+     * 应用实体类上的 {@code @DataforgeField(parentFieldName="xxx", label=...)}，覆盖父类字段的 UI 元数据。
+     * 仅当字段来自父类（非当前实体直接声明）时生效。
+     */
+    private void applyParentFieldOverridesForDataforgeField(Class<?> entityClazz, Field f, FieldMeta fm) {
+        if (f.getDeclaringClass() == entityClazz) {
+            return;
+        }
+        Arrays.stream(entityClazz.getAnnotationsByType(DataforgeField.class))
+              .filter(df -> StringUtils.hasText(df.parentFieldName()) && df.parentFieldName().equals(f.getName()))
+              .findFirst()
+              .ifPresent(matching -> applyDataforgeFieldToMeta(fm, matching, f.getName()));
+    }
+    
+    private void applyDataforgeFieldToMeta(FieldMeta fm, DataforgeField df, String defaultLabel) {
+        fm.setLabel(StringUtils.hasText(df.label()) ? df.label() : defaultLabel);
         fm.setDescription(df.description());
-        fm.setOrder(df.order());
         fm.setGroup(df.group());
         fm.setGroupOrder(df.groupOrder());
+        fm.setColumnOrder(df.columnOrder());
+        fm.setFormOrder(df.formOrder());
         fm.setColumnVisible(df.columnVisible());
         fm.setColumnResizable(df.columnResizable());
         fm.setColumnSortable(df.columnSortable());
@@ -611,10 +668,9 @@ public class MetaScanner {
         fm.setDisplayField(df.displayField());
         fm.setValueField(df.valueField());
         fm.setLazyLoad(df.lazyLoad());
-        
         if (df.searchable()) {
             fm.setQueryable(true);
-            fm.setSearchOrder(fm.getSearchOrder() == 0 ? fm.getOrder() : fm.getSearchOrder());
+            fm.setSearchOrder(df.searchOrder());
         }
     }
     
@@ -686,6 +742,41 @@ public class MetaScanner {
         }
         fm.setDtoFormat(dto.format());
         fm.setDtoValidationGroups(dto.validationGroups());
+    }
+    
+    /**
+     * 应用实体类上的 {@code @DataforgeDto(parentFieldName="xxx", include=...)}，覆盖父类字段的 DTO 配置。
+     * 仅当字段来自父类（非当前实体直接声明）时生效。
+     */
+    private void applyParentFieldOverrides(Class<?> entityClazz, Field f, FieldMeta fm) {
+        if (f.getDeclaringClass() == entityClazz) {
+            return;
+        }
+        Arrays.stream(entityClazz.getAnnotationsByType(DataforgeDto.class))
+              .filter(dto -> StringUtils.hasText(dto.parentFieldName()) && dto.parentFieldName().equals(f.getName()))
+              .findFirst()
+              .ifPresent(matching -> applyDataforgeDtoToFieldMeta(fm, matching));
+    }
+    
+    private void applyDataforgeDtoToFieldMeta(FieldMeta fm, DataforgeDto dto) {
+        if (dto.include().length > 0) {
+            fm.setDtoIncludeTypes(Arrays.stream(dto.include()).map(DtoType::name).toArray(String[]::new));
+        }
+        if (StringUtils.hasText(dto.fieldName())) {
+            fm.setDtoFieldName(dto.fieldName());
+        }
+        if (dto.fieldType() != null && dto.fieldType() != void.class) {
+            fm.setDtoFieldType(dto.fieldType());
+        }
+        if (dto.converter() != null && dto.converter() != void.class) {
+            fm.setDtoConverterClassName(dto.converter().getName());
+        }
+        if (StringUtils.hasText(dto.format())) {
+            fm.setDtoFormat(dto.format());
+        }
+        if (dto.validationGroups() != null && dto.validationGroups().length > 0) {
+            fm.setDtoValidationGroups(dto.validationGroups());
+        }
     }
     
     private ActionMeta buildActionMeta(EntityAction ann) {

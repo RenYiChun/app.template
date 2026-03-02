@@ -25,32 +25,32 @@ import lombok.Setter;
 )
 public class OperationLog extends BaseEntity<Long> {
     
-    @DataforgeField(label = "用户名", order = 1, searchable = true)
+    @DataforgeField(label = "用户名", searchOrder = 1, searchable = true)
     @Column(length = 128)
     private String userName;
     
-    @DataforgeField(label = "操作描述", order = 5, searchable = true)
+    @DataforgeField(label = "操作描述", searchOrder = 5, searchable = true)
     @Column(length = 512)
     private String description;
     
     @Column(nullable = false)
-    @DataforgeField(label = "操作时间", order = 6, searchable = true)
+    @DataforgeField(label = "操作时间", searchOrder = 6, searchable = true)
     private Date operationTime;
     
     private Long executionTimeMs;
     
-    @DataforgeField(label = "请求IP", order = 2, searchable = true)
+    @DataforgeField(label = "请求IP", searchOrder = 2, searchable = true)
     @Column(length = 64)
     private String requestIp;
     
-    @DataforgeField(label = "请求路径", order = 3, searchable = true)
+    @DataforgeField(label = "请求路径", searchOrder = 3, searchable = true)
     @Column(length = 512)
     private String requestUri;
     
     @Column(length = 16)
     private String requestMethod;
     
-    @DataforgeField(label = "是否成功", order = 4, searchable = true)
+    @DataforgeField(label = "是否成功", searchOrder = 4, searchable = true)
     private boolean success;
     @Column(length = 2048)
     private String exceptionDetails;

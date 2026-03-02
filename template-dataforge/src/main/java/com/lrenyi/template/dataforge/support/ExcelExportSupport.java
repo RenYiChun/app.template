@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,11 @@ public final class ExcelExportSupport {
      * 运行时需存在 poi-ooxml，否则抛出异常。
      */
     public static byte[] toExcel(EntityMeta meta, List<?> data) throws ReflectiveOperationException {
-        List<FieldMeta> exportFields = meta.getFields().stream().filter(f -> !f.isExportExcluded()).toList();
+        List<FieldMeta> exportFields = meta.getFields()
+                                           .stream()
+                                           .filter(f -> !f.isExportExcluded())
+                                           .sorted(Comparator.comparingInt(FieldMeta::getExportOrder))
+                                           .toList();
         PoiReflect reflect = PoiReflect.create();
         if (exportFields.isEmpty()) {
             Object wb = reflect.newWorkbook();

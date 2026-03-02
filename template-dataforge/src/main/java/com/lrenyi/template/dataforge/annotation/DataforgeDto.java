@@ -61,11 +61,6 @@ public @interface DataforgeDto {
     String parentFieldName() default "";
     
     /**
-     * 全局忽略的字段列表（仅在类级别使用）。
-     */
-    String[] ignoreFields() default {};
-    
-    /**
      * DTO包名（默认：实体包名 + ".dto"）。
      */
     String dtoPackage() default "";
@@ -74,47 +69,6 @@ public @interface DataforgeDto {
      * DTO后缀。
      */
     String dtoSuffix() default "DTO";
-    
-    /**
-     * 是否生成所有类型DTO。
-     */
-    boolean generateAll() default true;
-    
-    /**
-     * 指定生成的DTO类型（当{@code generateAll=false}时生效）。
-     */
-    DtoType[] generateTypes() default {DtoType.CREATE, DtoType.UPDATE, DtoType.RESPONSE, DtoType.QUERY,
-            DtoType.PAGE_RESPONSE};
-    
-    /**
-     * API摘要。
-     */
-    String apiSummary() default "";
-    
-    /**
-     * API详细描述。
-     */
-    String apiDescription() default "";
-    
-    /**
-     * API标签。
-     */
-    String[] apiTags() default {};
-    
-    /**
-     * 是否生成OpenAPI文档。
-     */
-    boolean openApi() default true;
-    
-    /**
-     * 示例值。
-     */
-    String example() default "";
-    
-    /**
-     * 是否已废弃。
-     */
-    boolean deprecated() default false;
     
     // ==================== 容器注解 ====================
     

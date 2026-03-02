@@ -3,7 +3,7 @@
     <el-table
         v-loading="loading"
         :data="items"
-        :row-key="rowKey"
+        :row-key="getRowKey"
         border
         stripe
         v-bind="$attrs"
@@ -11,11 +11,12 @@
     >
       <el-table-column
           v-if="selectable"
+          :reserve-selection="true"
           type="selection"
           width="55"
       />
       <el-table-column
-          v-for="col in columns"
+          v-for="col in columnsWithWidth"
           :key="col.prop"
           :label="col.label ?? col.prop"
           :prop="col.prop"
@@ -114,6 +115,17 @@ const emit = defineEmits<{
   (e: 'selection-change', rows: Record<string, unknown>[], ids: Array<string | number>): void;
 }>();
 
+/** 使用函数形式的 row-key，确保 Element Plus 多选列正确渲染勾选框。
+ * 当 row-key 指向的字段为 undefined/null 时，Element Plus 会导致勾选框不显示（见 element-plus#16388）。
+ * 因此当主键缺失时使用行索引作为后备，确保每行有唯一 key。 */
+const getRowKey = (row: Record<string, unknown>) => {
+  const key = props.rowKey ?? 'id';
+  const v = row?.[key];
+  if (v != null) return String(v);
+  const idx = props.items.indexOf(row);
+  return idx >= 0 ? `__idx_${idx}` : `__row_${Math.random().toString(36).slice(2)}`;
+};
+
 const actionLabel = (act: string) =>
     ({
       view: props.locale?.common?.view ?? '查看',
@@ -123,6 +135,35 @@ const actionLabel = (act: string) =>
 
 const actionsText = computed(() => props.locale?.common?.actions ?? '操作');
 const noDataText = computed(() => props.locale?.common?.noData ?? '暂无数据');
+
+/** 估算文本渲染宽度（px）：中文约 14px/字，英文数字约 8px/字 */
+function estimateTextWidth(str: string): number {
+  if (!str) return 0;
+  let w = 0;
+  for (const c of str) {
+    if (c >= '\u4e00' && c <= '\u9fff') w += 14;
+    else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) w += 8;
+    else w += 8;
+  }
+  return w;
+}
+
+/** 当 columnWidth=0 时，Element Plus 不传 width 会均分剩余空间而非按内容收缩。此处对无显式宽度的列按内容估算宽度，实现近似「自动宽度」。 */
+const columnsWithWidth = computed(() => {
+  const MIN_WIDTH = 80;
+  const PADDING = 24;
+  return props.columns.map((col) => {
+    if (col.width != null && Number(col.width) > 0) return col;
+    const label = String(col.label ?? col.prop ?? '');
+    let maxW = estimateTextWidth(label);
+    for (const row of props.items) {
+      const val = row[col.prop];
+      const display = col.formatter ? col.formatter(val, row) : String(val ?? '');
+      maxW = Math.max(maxW, estimateTextWidth(display));
+    }
+    return {...col, width: Math.max(MIN_WIDTH, maxW + PADDING)};
+  });
+});
 
 const actionProps = (act: string) => {
   const common = {link: true};

@@ -265,7 +265,7 @@ public class OpenApiController {
             if (fm.getLabel() != null && !fm.getLabel().isBlank()) {
                 fieldInfo.put(KEY_LABEL, fm.getLabel());
             }
-            fieldInfo.put(KEY_ORDER, fm.getOrder());
+            fieldInfo.put(KEY_ORDER, fm.getSearchOrder());
             result.put(fm.getName(), fieldInfo);
         }
         // 按 order 排序
