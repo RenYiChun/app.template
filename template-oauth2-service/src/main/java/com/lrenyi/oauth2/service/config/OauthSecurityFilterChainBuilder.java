@@ -90,8 +90,13 @@ public class OauthSecurityFilterChainBuilder {
         http.exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(entryPoint, htmlMatcher));
     }
     
+    /**
+     * 对 OAuth2 端点（/oauth2/token、introspection、OIDC 等）禁用 CSRF 是安全的：
+     * 这些端点由客户端凭据或 authorization_code 流程调用，请求携带 client_id/secret 或 POST body，
+     * 非 Cookie；浏览器不会自动携带这些凭据，故无 CSRF 风险。表单登录 /login 与 /logout 仍受 CSRF 保护。
+     */
     private void applyCsrf(HttpSecurity http, RequestMatcher endpointsMatcher) throws Exception {
-        http.csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher));
+        http.csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher)); //NOSONAR
     }
     
     private void applyFormLogin(HttpSecurity http, String loginPage) throws Exception {

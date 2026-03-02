@@ -143,8 +143,6 @@ public class FieldMeta {
     // DTO控制
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String[] dtoIncludeTypes = {};
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    private String[] dtoExcludeTypes = {};
     private String dtoFieldName = "";
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> dtoFieldType = void.class;
@@ -153,11 +151,6 @@ public class FieldMeta {
     private String dtoFormat = "";
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?>[] dtoValidationGroups = {};
-    private boolean dtoReadOnly = false;
-    private boolean dtoWriteOnly = false;
-    private boolean dtoCreateOnly = false;
-    private boolean dtoUpdateOnly = false;
-    private boolean dtoQueryOnly = false;
     
     // ==================== 数组属性自定义setter ====================
     
@@ -183,10 +176,6 @@ public class FieldMeta {
     
     public void setDtoIncludeTypes(String[] dtoIncludeTypes) {
         this.dtoIncludeTypes = dtoIncludeTypes != null ? dtoIncludeTypes : new String[0];
-    }
-    
-    public void setDtoExcludeTypes(String[] dtoExcludeTypes) {
-        this.dtoExcludeTypes = dtoExcludeTypes != null ? dtoExcludeTypes : new String[0];
     }
     
     public void setDtoValidationGroups(Class<?>[] dtoValidationGroups) {

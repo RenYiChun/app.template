@@ -23,16 +23,9 @@ public @interface DataforgeDto {
     // ==================== 字段级别属性 ====================
     
     /**
-     * 包含在哪些DTO类型中（空数组表示包含在相关DTO中）。
-     * 与{@code exclude()}互斥，优先使用{@code exclude()}。
+     * 包含在哪些DTO类型中（空数组表示包含在所有相关DTO中）。
      */
     DtoType[] include() default {};
-    
-    /**
-     * 从哪些DTO类型中排除。
-     * 原{@code @DtoExcludeFrom.value}
-     */
-    DtoType[] exclude() default {};
     
     /**
      * DTO中的字段名（默认同实体字段名）。
@@ -58,33 +51,6 @@ public @interface DataforgeDto {
      * 验证组（用于分组验证）。
      */
     Class<?>[] validationGroups() default {};
-    
-    // ==================== 快捷属性 ====================
-    
-    /**
-     * 只读字段（等价于{@code exclude = {DtoType.CREATE, DtoType.UPDATE, DtoType.BATCH_CREATE, DtoType.BATCH_UPDATE}}）。
-     */
-    boolean readOnly() default false;
-    
-    /**
-     * 只写字段（等价于{@code exclude = DtoType.RESPONSE}）。
-     */
-    boolean writeOnly() default false;
-    
-    /**
-     * 仅创建时使用（等价于{@code include = {DtoType.CREATE, DtoType.BATCH_CREATE}}）。
-     */
-    boolean createOnly() default false;
-    
-    /**
-     * 仅更新时使用（等价于{@code include = {DtoType.UPDATE, DtoType.BATCH_UPDATE}}）。
-     */
-    boolean updateOnly() default false;
-    
-    /**
-     * 仅查询时使用（等价于{@code include = DtoType.QUERY}）。
-     */
-    boolean queryOnly() default false;
     
     // ==================== 类级别属性 ====================
     

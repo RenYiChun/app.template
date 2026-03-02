@@ -85,6 +85,10 @@
           <el-tab-pane :label="t('metadata.schemas', 'Schemas')" name="schemas">
             <el-tabs v-model="activeSchemaTab" type="card">
               <el-tab-pane label="Create" name="create">
+                <div class="schema-info" v-if="selectedEntity?.dtoCreate">
+                  <span class="schema-label">DTO:</span>
+                  <el-tag size="small" type="info">{{ selectedEntity.dtoCreate }}</el-tag>
+                </div>
                 <div v-if="selectedEntity?.schemas?.create">
                   <el-table :data="getSchemaData(selectedEntity.schemas.create)" border stripe>
                     <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
@@ -102,6 +106,10 @@
                 <el-empty v-else :description="t('common.noData', 'No Data')"/>
               </el-tab-pane>
               <el-tab-pane label="Update" name="update">
+                <div class="schema-info" v-if="selectedEntity?.dtoUpdate">
+                  <span class="schema-label">DTO:</span>
+                  <el-tag size="small" type="info">{{ selectedEntity.dtoUpdate }}</el-tag>
+                </div>
                 <div v-if="selectedEntity?.schemas?.update">
                   <el-table :data="getSchemaData(selectedEntity.schemas.update)" border stripe>
                     <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
@@ -119,6 +127,10 @@
                 <el-empty v-else :description="t('common.noData', 'No Data')"/>
               </el-tab-pane>
               <el-tab-pane label="Response" name="response">
+                <div class="schema-info" v-if="selectedEntity?.dtoPageResponse">
+                  <span class="schema-label">DTO:</span>
+                  <el-tag size="small" type="info">{{ selectedEntity.dtoPageResponse }}</el-tag>
+                </div>
                 <div v-if="selectedEntity?.schemas?.pageResponse">
                   <el-table :data="getSchemaData(selectedEntity.schemas.pageResponse)" border stripe>
                     <el-table-column :label="t('metadata.propertyName', 'Property')" prop="name" width="180"/>
@@ -321,5 +333,17 @@ onMounted(async () => {
 :deep(.el-menu-item) {
   height: auto !important;
   line-height: normal !important;
+}
+
+.schema-info {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schema-label {
+  font-weight: 500;
+  color: var(--el-text-color-regular);
 }
 </style>

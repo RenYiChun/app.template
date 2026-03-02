@@ -7,11 +7,12 @@ import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.web.client.RestTemplate;
+import java.util.Collections;
 
 /**
  * 微服务/云侧自动配置：Feign、负载均衡等。
@@ -53,18 +55,24 @@ public class CloudAutoConfiguration {
             name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
     )
     public OpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
-            @LoadBalanced RestTemplate restTemplate,
+            ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,
             ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
         TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();
         String uri = opaqueToken.getIntrospectionUri();
         String clientId = opaqueToken.getClientId();
         String clientSecret = opaqueToken.getClientSecret();
-        RestTemplate client = restTemplate;
+        
+        RestTemplate client = new RestTemplate();
         URI url = URI.create(uri);
-        if (url.getPort() != -1) {
-            client = new RestTemplate();
+        // 如果端口是 -1，说明没有指定端口，可能需要负载均衡
+        if (url.getPort() == -1) {
+            LoadBalancerInterceptor interceptor = loadBalancerInterceptorProvider.getIfAvailable();
+            if (interceptor != null) {
+                client.setInterceptors(Collections.singletonList(interceptor));
+            }
         }
+        
         client.getInterceptors().add(new BasicAuthenticationInterceptor(clientId, clientSecret));
         SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, client);
         return securityAutoConfiguration.makeSpringOpaqueTokenIntrospector(introspector);

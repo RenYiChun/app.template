@@ -14,7 +14,7 @@ import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
-import com.lrenyi.template.dataforge.support.EntityDtoResolver;
+import com.lrenyi.template.dataforge.support.EntityMapperProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -112,10 +112,14 @@ public class OpenApiController {
     
     private final EntityRegistry entityRegistry;
     private final RequestMappingHandlerMapping handlerMapping;
+    private final EntityMapperProvider mapperProvider;
     
-    public OpenApiController(EntityRegistry entityRegistry, RequestMappingHandlerMapping handlerMapping) {
+    public OpenApiController(EntityRegistry entityRegistry,
+            RequestMappingHandlerMapping handlerMapping,
+            EntityMapperProvider mapperProvider) {
         this.entityRegistry = entityRegistry;
         this.handlerMapping = handlerMapping;
+        this.mapperProvider = mapperProvider;
     }
     
     private static String tagForEntity(EntityMeta entity) {
@@ -389,8 +393,9 @@ public class OpenApiController {
         }
     }
     
-    private static void addPageResponseDtoSchema(Map<String, Object> schemas, EntityMeta entity, String simpleName) {
-        Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
+    private void addPageResponseDtoSchema(Map<String, Object> schemas, EntityMeta entity, String simpleName) {
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(entity.getEntityClass());
+        Class<?> pageResponseDto = info != null ? info.pageResponseDtoClass() : null;
         if (pageResponseDto != null) {
             schemas.put(pageResponseDto.getSimpleName(),
                         enrichDtoSchemaWithFieldLabels(buildDtoSchema(pageResponseDto), entity)
@@ -742,9 +747,15 @@ public class OpenApiController {
             if (simpleName == null) {
                 continue;
             }
-            addDtoSchema(schemas, entity, simpleName, "CreateDTO", EntityDtoResolver.resolveCreateDto(entity));
-            addDtoSchema(schemas, entity, simpleName, "UpdateDTO", EntityDtoResolver.resolveUpdateDto(entity));
-            addDtoSchema(schemas, entity, simpleName, "ResponseDTO", EntityDtoResolver.resolveResponseDto(entity));
+            
+            EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(entity.getEntityClass());
+            Class<?> createDto = info != null ? info.createDtoClass() : null;
+            Class<?> updateDto = info != null ? info.updateDtoClass() : null;
+            Class<?> responseDto = info != null ? info.responseDtoClass() : null;
+            
+            addDtoSchema(schemas, entity, simpleName, "CreateDTO", createDto);
+            addDtoSchema(schemas, entity, simpleName, "UpdateDTO", updateDto);
+            addDtoSchema(schemas, entity, simpleName, "ResponseDTO", responseDto);
             addPageResponseDtoSchema(schemas, entity, simpleName);
             schemas.put(simpleName + "PagedResult", buildPagedResultSchema(entity));
         }
@@ -754,8 +765,10 @@ public class OpenApiController {
     private Map<String, Object> buildPagedResultSchema(EntityMeta entity) {
         String simpleName = entity.getEntityClass() != null ? entity.getEntityClass().getSimpleName() : null;
         // 分页列表项使用 PageResponseDTO（PAGE_RESPONSE），与单条详情的 ResponseDTO（RESPONSE）独立
-        Class<?> pageResponseDto = EntityDtoResolver.resolvePageResponseDto(entity);
-        Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(entity.getEntityClass());
+        Class<?> pageResponseDto = info != null ? info.pageResponseDtoClass() : null;
+        Class<?> responseDto = info != null ? info.responseDtoClass() : null;
+        
         String itemRef;
         if (simpleName == null) {
             itemRef = TYPE_OBJECT;
@@ -786,13 +799,14 @@ public class OpenApiController {
         if (simpleName == null) {
             return null;
         }
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(entity.getEntityClass());
         return switch (methodName) {
             case METHOD_CREATE -> {
-                Class<?> createDto = EntityDtoResolver.resolveCreateDto(entity);
+                Class<?> createDto = info != null ? info.createDtoClass() : null;
                 yield createDto != null ? createDto.getSimpleName() : (simpleName + "CreateDTO");
             }
             case METHOD_UPDATE, METHOD_UPDATE_BATCH -> {
-                Class<?> updateDto = EntityDtoResolver.resolveUpdateDto(entity);
+                Class<?> updateDto = info != null ? info.updateDtoClass() : null;
                 yield updateDto != null ? updateDto.getSimpleName() : (simpleName + "UpdateDTO");
             }
             default -> null;
@@ -815,10 +829,11 @@ public class OpenApiController {
         if (simpleName == null) {
             return null;
         }
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(entity.getEntityClass());
         return switch (methodName) {
             case METHOD_SEARCH -> simpleName + "PagedResult";
             case METHOD_GET, METHOD_CREATE, METHOD_UPDATE -> {
-                Class<?> responseDto = EntityDtoResolver.resolveResponseDto(entity);
+                Class<?> responseDto = info != null ? info.responseDtoClass() : null;
                 yield responseDto != null ? responseDto.getSimpleName() : (simpleName + "ResponseDTO");
             }
             default -> null;

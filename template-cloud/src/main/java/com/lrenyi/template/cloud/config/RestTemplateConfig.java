@@ -6,15 +6,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 @Configuration
 public class RestTemplateConfig {
     
     @Bean
     @LoadBalanced
-    public RestTemplate restTemplateLoadBalanced(ClientHttpRequestFactory factory) {
-        return new RestTemplate(factory);
+    public RestClient.Builder restClientBuilder(ClientHttpRequestFactory factory) {
+        return RestClient.builder().requestFactory(factory);
     }
     
     @Bean

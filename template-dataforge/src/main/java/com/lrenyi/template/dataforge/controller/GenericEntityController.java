@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.util.Result;
 import com.lrenyi.template.dataforge.action.EntityActionExecutor;
 import com.lrenyi.template.dataforge.config.DataforgeProperties;
+import com.lrenyi.template.dataforge.mapper.BaseMapper;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
@@ -18,15 +19,18 @@ import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
-import com.lrenyi.template.dataforge.support.EntityDtoResolver;
+import com.lrenyi.template.dataforge.support.EntityMapperProvider;
 import com.lrenyi.template.dataforge.support.ExcelExportSupport;
 import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.PagedResult;
 import com.lrenyi.template.dataforge.support.SearchRequest;
 import com.lrenyi.template.dataforge.support.SortOrder;
+import com.lrenyi.template.dataforge.validation.Create;
+import com.lrenyi.template.dataforge.validation.Update;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.ConversionException;
 import org.springframework.core.convert.ConversionService;
@@ -60,6 +64,7 @@ public class GenericEntityController {
     private static final String CRUD_UPDATE = "update";
     private static final String CRUD_DELETE = "delete";
     private static final String ERR_ID_FORMAT = "id 格式错误";
+    private static final String ERR_INVALID_REQUEST_DATA = "无效的请求数据";
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final EntityCrudService crudService;
@@ -68,6 +73,7 @@ public class GenericEntityController {
     private final ObjectMapper objectMapper;
     private final ObjectProvider<Validator> validatorProvider;
     private final ConversionService conversionService;
+    private final EntityMapperProvider mapperProvider;
     
     public GenericEntityController(DataforgeServices services) {
         this.entityRegistry = services.entityRegistry();
@@ -78,6 +84,7 @@ public class GenericEntityController {
         this.objectMapper = services.objectMapper();
         this.validatorProvider = services.validatorProvider();
         this.conversionService = services.conversionService();
+        this.mapperProvider = services.mapperProvider();
     }
     
     /**
@@ -150,28 +157,24 @@ public class GenericEntityController {
         if (sortOrders == null || sortOrders.isEmpty()) {
             return PageRequest.of(page, size);
         }
-        List<Sort.Order> orders = new ArrayList<>();
-        for (SortOrder so : sortOrders) {
-            if (so != null && so.field() != null && !so.field().isBlank()) {
-                orders.add(
-                        "desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) : Sort.Order.asc(so.field()));
-            }
-        }
+        List<Sort.Order> orders = sortOrders.stream()
+                .filter(so -> so != null && so.field() != null && !so.field().isBlank())
+                .map(so -> "desc".equalsIgnoreCase(so.dir()) ? Sort.Order.desc(so.field()) :
+                                   Sort.Order.asc(so.field()))
+                .toList();
         return orders.isEmpty() ? PageRequest.of(page, size) : PageRequest.of(page, size, Sort.by(orders));
     }
     
     /** 分页列表项使用 PageResponseDTO，与单条详情的 ResponseDTO 独立。 */
+    @SuppressWarnings("unchecked")
     private List<?> toResponseList(EntityMeta meta, List<?> list) {
         if (list == null || list.isEmpty()) {
             return list;
         }
-        Class<?> dtoClass = EntityDtoResolver.resolvePageResponseDto(meta);
-        if (dtoClass == null) {
-            dtoClass = EntityDtoResolver.resolveResponseDto(meta);
-        }
-        if (dtoClass != null) {
-            Class<?> finalDtoClass = dtoClass;
-            return list.stream().map(e -> objectMapper.convertValue(e, finalDtoClass)).toList();
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
+        if (info != null && info.mapper() instanceof BaseMapper<?, ?, ?, ?, ?> rawMapper) {
+            BaseMapper<Object, ?, ?, ?, Object> mapper = (BaseMapper<Object, ?, ?, ?, Object>) rawMapper;
+            return list.stream().map(mapper::toPageResponse).toList();
         }
         return list;
     }
@@ -215,18 +218,20 @@ public class GenericEntityController {
         return r;
     }
     
+    @SuppressWarnings("unchecked")
     private Object toResponse(EntityMeta meta, Object entity) {
         if (entity == null) {
             return null;
         }
-        Class<?> responseDtoClass = EntityDtoResolver.resolveResponseDto(meta);
-        if (responseDtoClass != null) {
-            return objectMapper.convertValue(entity, responseDtoClass);
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
+        if (info != null && info.mapper() instanceof BaseMapper<?, ?, ?, ?, ?> rawMapper) {
+            return ((BaseMapper<Object, ?, ?, Object, ?>) rawMapper).toResponse(entity);
         }
         return entity;
     }
     
     @PostMapping("/{entity}")
+    @SuppressWarnings("unchecked")
     public Result<Object> create(@PathVariable String entity, @RequestBody Map<String, Object> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isCreateEnabled()) {
@@ -236,55 +241,44 @@ public class GenericEntityController {
         if (forbidden != null) {
             return forbidden;
         }
-        Result<Object> validationError = validateBody(meta, body, false);
-        if (validationError != null) {
-            return validationError;
+        
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
+        Object bodyEntity;
+        
+        if (info != null && info.createDtoClass() != null) {
+            // Use Mapper
+            Object dto = objectMapper.convertValue(body, info.createDtoClass());
+            Result<Object> error = validateAndReturnError(dto, Create.class);
+            if (error != null) {
+                return error;
+            }
+            bodyEntity = ((BaseMapper<Object, Object, ?, ?, ?>) info.mapper()).toEntity(dto);
+        } else {
+            // No Mapper found, try to convert directly to Entity (simple fallback without DTO)
+            try {
+                bodyEntity = objectMapper.convertValue(body, meta.getEntityClass());
+                Result<Object> error = validateAndReturnError(bodyEntity);
+                if (error != null) {
+                    return error;
+                }
+            } catch (IllegalArgumentException e) {
+                return badRequest(ERR_INVALID_REQUEST_DATA);
+            }
         }
-        Object bodyEntity = bodyToEntity(meta, body, false);
+        
         Object created = crudService.create(meta, bodyEntity);
         return Result.getSuccess(toResponse(meta, created));
     }
     
-    /**
-     * 当 DTO 存在且启用 Bean Validation 时，校验请求体。校验失败返回 400 的 Result，通过返回 null。
-     */
-    private Result<Object> validateBody(EntityMeta meta, Map<String, Object> body, boolean forUpdate) {
-        if (!properties.isValidationEnabled() || body == null) {
+    private Result<Object> validateAndReturnError(Object dto, Class<?>... groups) {
+        if (!properties.isValidationEnabled() || dto == null) {
             return null;
         }
         Validator validator = validatorProvider.getIfAvailable();
         if (validator == null) {
             return null;
         }
-        Class<?> dtoClass =
-                forUpdate ? EntityDtoResolver.resolveUpdateDto(meta) : EntityDtoResolver.resolveCreateDto(meta);
-        if (dtoClass == null) {
-            return null;
-        }
-        try {
-            Object dto = objectMapper.convertValue(body, dtoClass);
-            return validateAndReturnError(dto, validator);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-    
-    private Object bodyToEntity(EntityMeta meta, Map<String, Object> body, boolean forUpdate) {
-        Class<?> entityClass = meta.getEntityClass();
-        if (entityClass == null) {
-            return objectMapper.convertValue(body, Object.class);
-        }
-        Class<?> dtoClass =
-                forUpdate ? EntityDtoResolver.resolveUpdateDto(meta) : EntityDtoResolver.resolveCreateDto(meta);
-        if (dtoClass != null) {
-            Object dto = objectMapper.convertValue(body, dtoClass);
-            return objectMapper.convertValue(dto, entityClass);
-        }
-        return objectMapper.convertValue(body, entityClass);
-    }
-    
-    private static Result<Object> validateAndReturnError(Object dto, Validator validator) {
-        Set<ConstraintViolation<Object>> violations = validator.validate(dto);
+        Set<ConstraintViolation<Object>> violations = validator.validate(dto, groups);
         if (violations.isEmpty()) {
             return null;
         }
@@ -295,6 +289,7 @@ public class GenericEntityController {
     }
     
     @PutMapping("/{entity}/{id}")
+    @SuppressWarnings("unchecked")
     public Result<Object> update(@PathVariable String entity,
             @PathVariable String id,
             @RequestBody Map<String, Object> body) {
@@ -310,11 +305,33 @@ public class GenericEntityController {
         if (idObj == null) {
             return badRequest(ERR_ID_FORMAT);
         }
-        Result<Object> validationError = validateBody(meta, body, true);
-        if (validationError != null) {
-            return validationError;
+        
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
+        Object bodyEntity;
+        
+        if (info != null && info.updateDtoClass() != null) {
+            // Use Mapper
+            Object dto = objectMapper.convertValue(body, info.updateDtoClass());
+            Result<Object> error = validateAndReturnError(dto, Update.class);
+            if (error != null) {
+                return error;
+            }
+            // Instantiate entity and update it
+            bodyEntity = BeanUtils.instantiateClass(meta.getEntityClass());
+            ((BaseMapper<Object, ?, Object, ?, ?>) info.mapper()).updateEntity(dto, bodyEntity);
+        } else {
+            // No Mapper found, try to convert directly to Entity
+            try {
+                bodyEntity = objectMapper.convertValue(body, meta.getEntityClass());
+                Result<Object> error = validateAndReturnError(bodyEntity);
+                if (error != null) {
+                    return error;
+                }
+            } catch (IllegalArgumentException e) {
+                return badRequest(ERR_INVALID_REQUEST_DATA);
+            }
         }
-        Object bodyEntity = bodyToEntity(meta, body, true);
+
         setEntityId(bodyEntity, idObj);
         Object updated = crudService.update(meta, idObj, bodyEntity);
         return updated == null ? notFound() : Result.getSuccess(toResponse(meta, updated));
@@ -395,6 +412,7 @@ public class GenericEntityController {
      * 更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
     @PutMapping("/{entity}/batch")
+    @SuppressWarnings("unchecked")
     public Result<Object> updateBatch(@PathVariable String entity, @RequestBody List<Map<String, Object>> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateBatchEnabled()) {
@@ -407,12 +425,13 @@ public class GenericEntityController {
         if (body == null || body.isEmpty()) {
             return Result.getSuccess(List.of());
         }
-        List<Object> entities = new java.util.ArrayList<>(body.size());
+        
+        List<Object> entities = new ArrayList<>(body.size());
         Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
-        Class<?> updateDtoClass = EntityDtoResolver.resolveUpdateDto(meta);
-        Validator validator = validatorProvider.getIfAvailable();
+        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
+        
         for (Map<String, Object> map : body) {
-            Result<Object> error = processBatchUpdateItem(map, meta, pkType, updateDtoClass, validator, entities);
+            Result<Object> error = processBatchUpdateItem(map, meta, pkType, info, entities);
             if (error != null) {
                 return error;
             }
@@ -421,11 +440,9 @@ public class GenericEntityController {
         return Result.getSuccess(toResponseList(meta, updated));
     }
     
+    @SuppressWarnings("unchecked")
     private Result<Object> processBatchUpdateItem(Map<String, Object> map,
-            EntityMeta meta,
-            Class<?> pkType,
-            Class<?> updateDtoClass,
-            Validator validator,
+            EntityMeta meta, Class<?> pkType, EntityMapperProvider.MapperInfo info,
             List<Object> entities) {
         Object idObj = map.get("id");
         if (idObj == null) {
@@ -437,14 +454,28 @@ public class GenericEntityController {
         } catch (ConversionException | IllegalArgumentException e) {
             return badRequest("id 格式错误: " + e.getMessage());
         }
-        if (properties.isValidationEnabled() && validator != null && updateDtoClass != null) {
-            Object dto = objectMapper.convertValue(map, updateDtoClass);
-            Result<Object> ve = validateAndReturnError(dto, validator);
+        
+        Object bodyEntity;
+        if (info != null && info.updateDtoClass() != null) {
+            Object dto = objectMapper.convertValue(map, info.updateDtoClass());
+            Result<Object> ve = validateAndReturnError(dto, Update.class);
             if (ve != null) {
                 return ve;
             }
+            bodyEntity = BeanUtils.instantiateClass(meta.getEntityClass());
+            ((BaseMapper<Object, ?, Object, ?, ?>) info.mapper()).updateEntity(dto, bodyEntity);
+        } else {
+            try {
+                bodyEntity = objectMapper.convertValue(map, meta.getEntityClass());
+                Result<Object> ve = validateAndReturnError(bodyEntity);
+                if (ve != null) {
+                    return ve;
+                }
+            } catch (IllegalArgumentException e) {
+                return badRequest(ERR_INVALID_REQUEST_DATA);
+            }
         }
-        Object bodyEntity = bodyToEntity(meta, map, true);
+        
         setEntityId(bodyEntity, idParsed);
         entities.add(bodyEntity);
         return null;
@@ -493,9 +524,14 @@ public class GenericEntityController {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
     
+    /**
+     * Action 路由在映射层接受 GET/POST/PUT/DELETE，以便不同 Action 可声明不同 HTTP 方法。
+     * 安全性由 executeActionInternal 保证：每个 Action 的 ActionMeta.method 指定唯一允许的方法，
+     * 不匹配时返回 405；且权限校验在方法校验之后执行，两种校验均通过才执行业务逻辑。
+     */
     @RequestMapping(
             path = "/{entity}/{id}/_action/{actionName}",
-            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
+            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE} //NOSONAR
     )
     public Result<Object> executeAction(jakarta.servlet.http.HttpServletRequest request,
             @PathVariable String entity,
@@ -550,10 +586,11 @@ public class GenericEntityController {
     
     /**
      * 无 ID 的 Action，支持 GET/POST/PUT/DELETE。
+     * 安全性同上：每个 Action 的 method 指定唯一允许的方法，不匹配返回 405，且需通过权限校验。
      */
     @RequestMapping(
             path = "/{entity}/_action/{actionName}",
-            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
+            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE} //NOSONAR
     )
     public Result<Object> executeActionNoId(HttpServletRequest request,
             @PathVariable String entity,

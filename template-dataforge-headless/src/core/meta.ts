@@ -42,85 +42,82 @@ export class MetaService {
 
     /** 拉取所有实体元数据 */
     async getEntities(): Promise<EntityMeta[]> {
-        if (this.cached && this.cacheTtlMs > 0 && Date.now() - this.cachedAt < this.cacheTtlMs) {
-            return this.cached;
+        if (this.isCacheValid()) {
+            return this.cached!;
         }
 
+        const servicesToFetch = this.getServicesToFetch();
         const allEntities: EntityMeta[] = [];
         const serviceMap: Record<string, string> = {};
 
-        // 如果没有配置 services，尝试使用默认行为（单体后端）
-        const servicesToFetch = this.services.length > 0 ? this.services : [{
-            name: 'default',
-            baseUrl: '',
-            default: true,
-            metadata: {type: 'remote'}
-        } as ServiceConfig];
-
         for (const service of servicesToFetch) {
-            try {
-                let entities: EntityMeta[] = [];
-                if (service.metadata?.type === 'local') {
-                    // 本地离线数据
-                    entities = (service.metadata.data as any[]) || [];
-                } else {
-                    // 远程获取
-                    // 构造 URL，绕过 client.url() 的自动路由（因为此时 map 未建立）
-                    let url = 'metadata/entities';
-                    if (service.baseUrl) {
-                        if (service.baseUrl.startsWith('http')) {
-                            // 绝对路径
-                            url = joinPath(service.baseUrl, 'metadata/entities');
-                        } else {
-                            // 相对路径，client.request 会自动处理 prefix
-                            // 但为了避免 client.apiPrefix 干扰，如果 service.baseUrl 已经包含 prefix，
-                            // 我们可能需要小心。
-                            // 假设 service.baseUrl 是完整的 path prefix (e.g. /api/system)
-                            // 而 client.baseURL 是 host (e.g. http://localhost:8080)
-                            // client.apiPrefix 是默认 prefix (e.g. /api)
-
-                            // 如果 service.baseUrl 存在，我们直接用它作为 path
-                            // Fix: 如果 service.baseUrl 与默认 apiPrefix 相同，则只传递 path 部分，避免重复拼接
-                            // 简单的判断：如果 baseUrl 是相对路径，我们只取 metadata/entities，让 client 自动处理 prefix
-                            if (service.baseUrl.startsWith('/')) {
-                                url = 'metadata/entities';
-                            } else {
-                                url = joinPath(service.baseUrl, 'metadata/entities');
-                            }
-                        }
-                    } else {
-                        // 使用默认 apiPrefix
-                        url = 'metadata/entities';
-                    }
-
-                    const res = await this.client.request(url, {method: 'GET'});
-                    const json = await res.json();
-                    // 兼容 Result<T> 包装
-                    entities = Array.isArray(json) ? json : (json.data || []);
-                }
-
-                if (Array.isArray(entities)) {
-                    entities.forEach(e => {
-                        e.serviceName = service.name;
-                        this.adaptCompatibility(e);
-                        // 注册映射：pathSegment -> serviceName
-                        serviceMap[e.pathSegment] = service.name;
-                    });
-                    allEntities.push(...entities);
-                }
-            } catch (e) {
-                console.error(`[MetaService] Failed to fetch metadata for service ${service.name}:`, e);
+            const result = await this.fetchEntitiesForService(service);
+            if (Array.isArray(result.entities)) {
+                result.entities.forEach(e => {
+                    e.serviceName = service.name;
+                    this.adaptCompatibility(e);
+                    serviceMap[e.pathSegment] = service.name;
+                });
+                allEntities.push(...result.entities);
             }
         }
 
         this.cached = allEntities;
         this.cachedAt = Date.now();
-
-        // 注册到 Client，启用多服务路由
         this.client.registerServices(this.services);
         this.client.registerServiceMap(serviceMap);
 
         return allEntities;
+    }
+
+    private isCacheValid(): boolean {
+        return !!(this.cached && this.cacheTtlMs > 0 && Date.now() - this.cachedAt < this.cacheTtlMs);
+    }
+
+    private getServicesToFetch(): ServiceConfig[] {
+        return this.services.length > 0 ? this.services : [{
+            name: 'default',
+            baseUrl: '',
+            default: true,
+            metadata: {type: 'remote'}
+        } as ServiceConfig];
+    }
+
+    private async fetchEntitiesForService(service: ServiceConfig): Promise<{entities: EntityMeta[]}> {
+        try {
+            const entities = service.metadata?.type === 'local'
+                ? this.getLocalEntities(service)
+                : await this.fetchRemoteEntities(service);
+            return {entities};
+        } catch (e) {
+            console.error(`[MetaService] Failed to fetch metadata for service ${service.name}:`, e);
+            return {entities: []};
+        }
+    }
+
+    private getLocalEntities(service: ServiceConfig): EntityMeta[] {
+        const data = service.metadata?.type === 'local' ? service.metadata.data : undefined;
+        return Array.isArray(data) ? data : [];
+    }
+
+    private async fetchRemoteEntities(service: ServiceConfig): Promise<EntityMeta[]> {
+        const url = this.buildMetadataUrl(service);
+        const res = await this.client.request(url, {method: 'GET'});
+        const json = await res.json();
+        return Array.isArray(json) ? json : (json.data || []);
+    }
+
+    private buildMetadataUrl(service: ServiceConfig): string {
+        if (!service.baseUrl) {
+            return 'metadata/entities';
+        }
+        if (service.baseUrl.startsWith('http')) {
+            return joinPath(service.baseUrl, 'metadata/entities');
+        }
+        if (service.baseUrl.startsWith('/')) {
+            return 'metadata/entities';
+        }
+        return joinPath(service.baseUrl, 'metadata/entities');
     }
 
     /** 根据 pathSegment 获取实体元数据 */

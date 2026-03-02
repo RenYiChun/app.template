@@ -70,7 +70,10 @@ public class DefaultSecurityFilterChainBuilder {
     private final MeterRegistry meterRegistry;
     
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable);
+        // CSRF 关闭是安全的：本框架使用 OAuth2 资源服务器（JWT/Opaque Token）的 Bearer 令牌认证，
+        // 令牌通过 Authorization 头传递，而非 Cookie。浏览器不会在跨站请求中自动携带该头，
+        // 因此不存在 CSRF 攻击面。若需 Session/Cookie 认证，应通过 httpConfigurerProvider 自定义并启用 CSRF。
+        http.csrf(AbstractHttpConfigurer::disable); //NOSONAR
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         if (isSecurityDisabled()) {
             http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());

@@ -51,7 +51,6 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.client.RestTemplate;
 
 @Slf4j
 @ComponentScan
@@ -59,12 +58,6 @@ import org.springframework.web.client.RestTemplate;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
 public class Oauth2ServerAutoConfiguration {
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
     
     @Bean
     @ConditionalOnMissingBean

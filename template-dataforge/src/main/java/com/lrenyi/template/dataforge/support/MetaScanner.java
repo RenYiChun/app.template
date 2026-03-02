@@ -293,18 +293,9 @@ public class MetaScanner {
         meta.setEntityClass(clazz);
         // 构建并注入 BeanAccessor（使用 VarHandle 或回退）
         meta.setAccessor(new VarHandleBeanAccessor(clazz));
-        // 预加载 DTO 类
-        preloadDtos(meta);
         
         entityRegistry.register(meta);
         log.debug("Registered entity: {}", meta.getPathSegment());
-    }
-    
-    private void preloadDtos(EntityMeta meta) {
-        EntityDtoResolver.resolveCreateDto(meta);
-        EntityDtoResolver.resolveUpdateDto(meta);
-        EntityDtoResolver.resolveResponseDto(meta);
-        EntityDtoResolver.resolvePageResponseDto(meta);
     }
     
     /** 回退：通过 classpath 扫描（在长 classpath 下可能较慢）。 */
@@ -403,8 +394,24 @@ public class MetaScanner {
         meta.setImportTemplate(ann.importTemplate());
         meta.setExportTemplate(ann.exportTemplate());
         
+        applyEntityDtoInfo(meta, clazz, ann);
+        
         meta.setFields(buildFieldMetas(clazz));
         return meta;
+    }
+    
+    private void applyEntityDtoInfo(EntityMeta meta, Class<?> clazz, DataforgeEntity ann) {
+        if (!ann.generateDtos()) {
+            return;
+        }
+        String pkg = clazz.getPackageName();
+        String simpleName = clazz.getSimpleName();
+        String dtoPackage = pkg + ".dto";
+        
+        meta.setDtoCreate(dtoPackage + "." + simpleName + "CreateDTO");
+        meta.setDtoUpdate(dtoPackage + "." + simpleName + "UpdateDTO");
+        meta.setDtoResponse(dtoPackage + "." + simpleName + "ResponseDTO");
+        meta.setDtoPageResponse(dtoPackage + "." + simpleName + "PageResponseDTO");
     }
     
     private List<FieldMeta> buildFieldMetas(Class<?> clazz) {
@@ -560,9 +567,6 @@ public class MetaScanner {
         if (dto.include().length > 0) {
             fm.setDtoIncludeTypes(Arrays.stream(dto.include()).map(DtoType::name).toArray(String[]::new));
         }
-        if (dto.exclude().length > 0) {
-            fm.setDtoExcludeTypes(Arrays.stream(dto.exclude()).map(DtoType::name).toArray(String[]::new));
-        }
         fm.setDtoFieldName(dto.fieldName());
         fm.setDtoFieldType(dto.fieldType());
         if (dto.converter() != null && dto.converter() != void.class) {
@@ -570,11 +574,6 @@ public class MetaScanner {
         }
         fm.setDtoFormat(dto.format());
         fm.setDtoValidationGroups(dto.validationGroups());
-        fm.setDtoReadOnly(dto.readOnly());
-        fm.setDtoWriteOnly(dto.writeOnly());
-        fm.setDtoCreateOnly(dto.createOnly());
-        fm.setDtoUpdateOnly(dto.updateOnly());
-        fm.setDtoQueryOnly(dto.queryOnly());
     }
     
     private ActionMeta buildActionMeta(EntityAction ann) {

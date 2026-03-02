@@ -11,6 +11,7 @@ import com.lrenyi.template.dataforge.controller.DocsUiController;
 import com.lrenyi.template.dataforge.controller.GenericEntityController;
 import com.lrenyi.template.dataforge.controller.MetadataController;
 import com.lrenyi.template.dataforge.controller.OpenApiController;
+import com.lrenyi.template.dataforge.mapper.BaseMapper;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.permission.DefaultDataforgePermissionChecker;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
@@ -23,6 +24,7 @@ import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
 import com.lrenyi.template.dataforge.support.DataforgeAspect;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
+import com.lrenyi.template.dataforge.support.EntityMapperProvider;
 import com.lrenyi.template.dataforge.support.MetaScanner;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManagerFactory;
@@ -116,8 +118,9 @@ public class DataforgeAutoConfiguration {
     @Bean
     public OpenApiController openApiController(EntityRegistry entityRegistry,
             @Qualifier("requestMappingHandlerMapping")
-            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping) {
-        return new OpenApiController(entityRegistry, handlerMapping);
+            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping,
+            EntityMapperProvider mapperProvider) {
+        return new OpenApiController(entityRegistry, handlerMapping, mapperProvider);
     }
     
     @Bean
@@ -132,6 +135,11 @@ public class DataforgeAutoConfiguration {
     }
     
     @Bean
+    public EntityMapperProvider entityMapperProvider(List<BaseMapper<?, ?, ?, ?, ?>> mappers) {
+        return new EntityMapperProvider(mappers);
+    }
+    
+    @Bean
     public DataforgeServices dataforgeServices(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
@@ -139,7 +147,8 @@ public class DataforgeAutoConfiguration {
             DataforgePermissionChecker dataforgePermissionChecker,
             ObjectMapper objectMapper,
             ObjectProvider<Validator> validatorProvider,
-            ConversionService conversionService) {
+            ConversionService conversionService,
+            EntityMapperProvider entityMapperProvider) {
         return new DataforgeServices(entityRegistry,
                                      actionRegistry,
                                      entityCrudService,
@@ -147,7 +156,8 @@ public class DataforgeAutoConfiguration {
                                      dataforgePermissionChecker,
                                      objectMapper,
                                      validatorProvider,
-                                     conversionService
+                                     conversionService,
+                                     entityMapperProvider
         );
     }
     
