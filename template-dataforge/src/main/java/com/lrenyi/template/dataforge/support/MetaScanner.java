@@ -6,8 +6,12 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -397,9 +401,117 @@ public class MetaScanner {
         applyEntityDtoInfo(meta, clazz, ann);
         
         meta.setFields(buildFieldMetas(clazz));
+        buildSchemas(meta);
         return meta;
     }
     
+    private void buildSchemas(EntityMeta meta) {
+        List<FieldMeta> allFields = meta.getFields();
+        if (allFields == null || allFields.isEmpty()) {
+            return;
+        }
+        Map<DtoType, Set<String>> strictByType = collectStrictFieldsByType(allFields);
+        Map<String, Object> pageResponseProps = new HashMap<>();
+        Map<String, Object> createProps = new HashMap<>();
+        Map<String, Object> updateProps = new HashMap<>();
+        for (FieldMeta f : allFields) {
+            String jsType = mapToJsType(f.getType());
+            List<String> includes = toIncludeList(f.getDtoIncludeTypes());
+            if (shouldShowInPageResponse(f, includes, strictByType.get(DtoType.PAGE_RESPONSE))) {
+                pageResponseProps.put(f.getName(), buildPageResponseProp(f, jsType));
+            }
+            if (shouldShowInForm(f, DtoType.CREATE, includes, strictByType.get(DtoType.CREATE))) {
+                createProps.put(f.getName(), buildFormProp(f, jsType));
+            }
+            if (shouldShowInForm(f, DtoType.UPDATE, includes, strictByType.get(DtoType.UPDATE))) {
+                updateProps.put(f.getName(), buildFormProp(f, jsType));
+            }
+        }
+        Map<String, Object> schemas = new HashMap<>();
+        schemas.put("pageResponse", pageResponseProps);
+        schemas.put("create", createProps);
+        schemas.put("update", updateProps);
+        meta.setSchemas(schemas);
+    }
+    
+    private static Map<DtoType, Set<String>> collectStrictFieldsByType(List<FieldMeta> allFields) {
+        Map<DtoType, Set<String>> result = new EnumMap<>(DtoType.class);
+        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE}) {
+            result.put(t, new HashSet<>());
+        }
+        for (FieldMeta f : allFields) {
+            if (f.getDtoIncludeTypes() == null) {
+                continue;
+            }
+            List<String> types = Arrays.asList(f.getDtoIncludeTypes());
+            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE}) {
+                if (types.contains(t.name())) {
+                    result.get(t).add(f.getName());
+                }
+            }
+        }
+        return result;
+    }
+    
+    private static List<String> toIncludeList(String[] dtoIncludeTypes) {
+        return dtoIncludeTypes != null ? Arrays.asList(dtoIncludeTypes) : Collections.emptyList();
+    }
+    
+    private static final Set<String> SYSTEM_FIELDS =
+            Set.of("createTime", "updateTime", "createBy", "updateBy", "deleted", "version", "remark");
+    
+    private static boolean shouldShowInPageResponse(FieldMeta f, List<String> includes, Set<String> strictFields) {
+        if (!f.isColumnVisible()) {
+            return false;
+        }
+        if ("id".equals(f.getName()) || includes.contains(DtoType.PAGE_RESPONSE.name())) {
+            return true;
+        }
+        if (!strictFields.isEmpty()) {
+            return false;
+        }
+        return !SYSTEM_FIELDS.contains(f.getName());
+    }
+    
+    private static boolean shouldShowInForm(FieldMeta f, DtoType type, List<String> includes, Set<String> strictFields) {
+        if ("id".equals(f.getName())) {
+            return false;
+        }
+        return includes.contains(type.name()) || strictFields.isEmpty();
+    }
+    
+    private static Map<String, Object> buildPageResponseProp(FieldMeta f, String jsType) {
+        Map<String, Object> prop = new HashMap<>();
+        prop.put("type", jsType);
+        prop.put("description", f.getLabel());
+        prop.put("format", f.getFormat());
+        return prop;
+    }
+    
+    private Map<String, Object> buildFormProp(FieldMeta f, String jsType) {
+        Map<String, Object> prop = new HashMap<>();
+        prop.put("type", jsType);
+        prop.put("description", f.getLabel());
+        prop.put("required", f.isRequired() || f.isUiRequired());
+        if (f.getAllowedValues() != null && f.getAllowedValues().length > 0) {
+            prop.put("enum", f.getAllowedValues());
+        }
+        return prop;
+    }
+    
+    private String mapToJsType(String javaType) {
+        if (javaType == null) {return "string";}
+        String t = javaType.toLowerCase(Locale.ROOT);
+        if (t.contains("int") || t.contains("long") || t.contains("double") || t.contains("float") || t.contains(
+                "decimal") || t.contains("number")) {
+            return "number";
+        }
+        if (t.contains("bool")) {
+            return "boolean";
+        }
+        return "string";
+    }
+
     private void applyEntityDtoInfo(EntityMeta meta, Class<?> clazz, DataforgeEntity ann) {
         if (!ann.generateDtos()) {
             return;

@@ -11,11 +11,11 @@ spring:
     password:
   h2:
     console:
-      enabled: true
+      enabled: false
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
   security:
     oauth2:
       authorizationserver:

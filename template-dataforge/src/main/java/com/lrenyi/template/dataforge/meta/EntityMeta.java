@@ -1,7 +1,9 @@
 package com.lrenyi.template.dataforge.meta;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import com.lrenyi.template.dataforge.annotation.SortDirection;
 import com.lrenyi.template.dataforge.support.BeanAccessor;
 import lombok.Getter;
@@ -36,6 +38,11 @@ public class EntityMeta {
     private String permissionDelete = "";
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
+    /**
+     * 前端 Schema 配置（create/update/pageResponse/response），由后端计算好直接下发。
+     * 格式：Map<String, Map<String, Object>>
+     */
+    private Map<String, Object> schemas = new HashMap<>();
     @com.fasterxml.jackson.annotation.JsonIgnore
     private Class<?> entityClass;
     

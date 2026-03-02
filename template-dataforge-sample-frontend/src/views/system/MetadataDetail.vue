@@ -201,26 +201,46 @@ const isFieldRequired = (field: FieldMeta) => {
 const getDtoFields = (dtoType: 'CREATE' | 'UPDATE' | 'RESPONSE' | 'PAGE_RESPONSE') => {
   if (!props.entity.fields) return [];
 
+  // Calculate strict types for the current entity
+  const strictTypes = new Set<string>();
+  props.entity.fields.forEach(f => {
+    if (f.dtoIncludeTypes && f.dtoIncludeTypes.length > 0) {
+      f.dtoIncludeTypes.forEach(t => strictTypes.add(t));
+    }
+  });
+
   return props.entity.fields.filter(f => {
-    // Page Response Logic (Strict)
-    if (dtoType === 'PAGE_RESPONSE') {
-      return f.name === 'id' || (f.dtoIncludeTypes && f.dtoIncludeTypes.includes('PAGE_RESPONSE'));
+    // ID Handling
+    // Exclude ID for Create/Update
+    if (f.name === 'id' && (dtoType === 'CREATE' || dtoType === 'UPDATE')) {
+      return false;
+    }
+    // Always Include ID for Response/PageResponse
+    if (f.name === 'id' && (dtoType === 'RESPONSE' || dtoType === 'PAGE_RESPONSE')) {
+      return true;
     }
 
-    // Skip ID for Create/Update
-    if ((dtoType === 'CREATE' || dtoType === 'UPDATE') && f.name === 'id') {
+    // Explicit Includes
+    const includes = new Set(f.dtoIncludeTypes || []);
+    if (includes.size > 0) {
+      return includes.has(dtoType);
+    }
+    
+    // Strict Mode Check
+    if (strictTypes.has(dtoType)) {
+      // If strictly defined elsewhere but not here -> Exclude
       return false;
     }
 
-    // Determine Includes
-    const includes = new Set(f.dtoIncludeTypes || []);
-
-    // Check inclusion
-    if (includes.size > 0) {
-      return includes.has(dtoType);
-    } else {
-      return true;
+    // Lazy Mode (Default Exclusions)
+    if (dtoType === 'PAGE_RESPONSE') {
+      const systemFields = ['createTime', 'updateTime', 'createBy', 'updateBy', 'deleted', 'version', 'remark'];
+      if (systemFields.includes(f.name)) {
+        return false;
+      }
     }
+
+    return true;
   });
 };
 </script>

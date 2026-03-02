@@ -132,57 +132,81 @@ export class MetaService {
      */
     private adaptCompatibility(meta: EntityMeta) {
         meta.name = meta.entityName; // 别名
-        meta.schemas = meta.schemas || {};
-        meta.queryableFields = meta.queryableFields || {};
-        meta.operations = meta.operations || {};
+        meta.schemas ??= {};
+        meta.queryableFields ??= {};
+        meta.operations ??= {};
+
+        // Use backend provided schemas if available
+        if (meta.schemas.pageResponse && meta.schemas.create && meta.schemas.update) {
+            // Fill default operations if needed
+            this.fillDefaultOperations(meta);
+            return;
+        }
 
         const pageResponseProps: Record<string, any> = {};
         const createProps: Record<string, any> = {};
         const updateProps: Record<string, any> = {};
 
-        if (meta.fields) {
-            meta.fields.forEach(f => {
-                const jsType = this.mapToJsType(f.type);
+        const SYSTEM_FIELDS = ['createTime', 'updateTime', 'createBy', 'updateBy', 'deleted', 'version', 'remark'];
+        const strictPageResponse = new Set<string>();
+        meta.fields?.forEach(f => {
+            if (f.dtoIncludeTypes?.includes('PAGE_RESPONSE')) {
+                strictPageResponse.add(f.name);
+            }
+        });
+        const hasStrictPageResponse = strictPageResponse.size > 0;
 
-                // 1. PageResponse (表格列)
-                if (f.columnVisible !== false) {
-                    pageResponseProps[f.name] = {
-                        type: jsType,
-                        description: f.label,
-                        format: f.format
-                    };
-                }
+        meta.fields?.forEach(f => {
+            const jsType = this.mapToJsType(f.type ?? '');
 
-                // 2. Create/Update Schema (表单)
-                // 排除只读和系统字段
-                if (!f.readonly && !f.dtoReadOnly && f.name !== 'id' && f.name !== 'createTime' && f.name !== 'updateTime') {
-                    const prop = {
-                        type: jsType,
-                        description: f.label,
-                        required: f.required || f.uiRequired,
-                        enum: f.allowedValues?.length ? f.allowedValues : undefined
-                    };
-                    createProps[f.name] = prop;
-                    updateProps[f.name] = prop;
-                }
+            // 1. PageResponse (表格列)
+            const showInPage = f.columnVisible !== false && (
+                f.name === 'id' ||
+                !!f.dtoIncludeTypes?.includes('PAGE_RESPONSE') ||
+                (!hasStrictPageResponse && !SYSTEM_FIELDS.includes(f.name))
+            );
 
-                // 3. QueryableFields (搜索配置)
-                if (f.searchable) {
-                    meta.queryableFields![f.name] = {
-                        type: f.type || 'String', // 使用原始类型以便 opsForType 识别日期等
-                        operators: opsForType(f.type || 'String'),
-                        label: f.label,
-                        order: f.searchOrder
-                    };
-                }
-            });
-        }
+            if (showInPage) {
+                pageResponseProps[f.name] = {
+                    type: jsType,
+                    description: f.label,
+                    format: f.format
+                };
+            }
+
+            // 2. Create/Update Schema (表单)
+            if (!f.readonly && !f.dtoReadOnly && f.name !== 'id' && f.name !== 'createTime' && f.name !== 'updateTime') {
+                const prop = {
+                    type: jsType,
+                    description: f.label,
+                    required: f.required || f.uiRequired,
+                    enum: f.allowedValues?.length ? f.allowedValues : undefined
+                };
+                createProps[f.name] = prop;
+                updateProps[f.name] = prop;
+            }
+
+            // 3. QueryableFields (搜索配置)
+            if (f.searchable) {
+                (meta.queryableFields ??= {})[f.name] = {
+                    type: f.type || 'String',
+                    operators: opsForType(f.type || 'String'),
+                    label: f.label,
+                    order: f.searchOrder
+                };
+            }
+        });
 
         meta.schemas.pageResponse = pageResponseProps;
         meta.schemas.create = createProps;
         meta.schemas.update = updateProps;
 
         // 4. Operations (填充默认操作)
+        this.fillDefaultOperations(meta);
+    }
+
+    private fillDefaultOperations(meta: EntityMeta) {
+        meta.operations ??= {};
         if (meta.listEnabled) meta.operations['search'] = {method: 'POST', path: 'search', summary: '分页搜索'};
         if (meta.getEnabled) meta.operations['get'] = {method: 'GET', path: '{id}', summary: '查询详情'};
         if (meta.createEnabled) meta.operations['create'] = {method: 'POST', path: '', summary: '创建'};
