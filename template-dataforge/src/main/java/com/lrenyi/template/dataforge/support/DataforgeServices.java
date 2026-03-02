@@ -13,4 +13,5 @@ import org.springframework.core.convert.ConversionService;
 public record DataforgeServices(EntityRegistry entityRegistry, ActionRegistry actionRegistry,
                                 EntityCrudService crudService, DataforgeProperties properties,
                                 DataforgePermissionChecker permissionChecker, ObjectMapper objectMapper,
-                                ObjectProvider<Validator> validatorProvider, ConversionService conversionService) {}
+                                ObjectProvider<Validator> validatorProvider, ConversionService conversionService,
+                                EntityMapperProvider mapperProvider) {}

@@ -20,39 +20,37 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         String jobId = entry.getJobId();
         long startTime = System.currentTimeMillis();
         
-        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, () -> {
-                                                    try (entry) {
-                                                        if (entry.claimLogic()) {
-                                                            taskOrchestrator.tracker().onActiveEgress();
-                                                            Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
-                                                                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                                                                   .register(meterRegistry)
-                                                                   .increment();
-                                                            performConsume(launcher, entry, jobId);
-                                                        } else {
-                                                            taskOrchestrator.tracker().onPassiveEgress();
-                                                        }
-                                                    } catch (Throwable t) {
-                                                        FlowExceptionHelper.handleException(jobId, null, t,
-                                                                                            FlowPhase.FINALIZATION);
-                                                        Counter.builder(FlowMetricNames.ERRORS)
-                                                               .tag(FlowMetricNames.TAG_ERROR_TYPE,
-                                                                    "finalizer_body_failed")
-                                                               .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                                                               .register(meterRegistry)
-                                                               .increment();
-                                                    } finally {
-                                                        if (launcher.getBackpressureController() != null) {
-                                                            launcher.getBackpressureController().signalRelease();
-                                                        }
-                                                        long latency = System.currentTimeMillis() - startTime;
-                                                        Timer.builder(FlowMetricNames.FINALIZE_DURATION)
-                                                             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                                                             .register(meterRegistry)
-                                                             .record(latency, TimeUnit.MILLISECONDS);
-                                                    }
-                                                }
-        );
+        Runnable runnable = () -> {
+            try (entry) {
+                if (entry.claimLogic()) {
+                    taskOrchestrator.tracker().onActiveEgress();
+                    Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(meterRegistry)
+                           .increment();
+                    performConsume(launcher, entry, jobId);
+                } else {
+                    taskOrchestrator.tracker().onPassiveEgress();
+                }
+            } catch (Exception t) {
+                FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "finalizer_body_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                       .register(meterRegistry)
+                       .increment();
+            } finally {
+                if (launcher.getBackpressureController() != null) {
+                    launcher.getBackpressureController().signalRelease();
+                }
+                long latency = System.currentTimeMillis() - startTime;
+                Timer.builder(FlowMetricNames.FINALIZE_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .register(meterRegistry)
+                     .record(latency, TimeUnit.MILLISECONDS);
+            }
+        };
+        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, runnable);
     }
     
     private void performConsume(FlowLauncher<Object> launcher, FlowEntry<T> entry, String jobId) {

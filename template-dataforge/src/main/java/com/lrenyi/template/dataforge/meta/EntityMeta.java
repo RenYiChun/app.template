@@ -82,6 +82,12 @@ public class EntityMeta {
     private String importTemplate = "";
     private String exportTemplate = "";
     
+    // ==================== DTO Info ====================
+    private String dtoCreate = "";
+    private String dtoUpdate = "";
+    private String dtoResponse = "";
+    private String dtoPageResponse = "";
+    
     // ==================== 运行时支持 ====================
     
     /**

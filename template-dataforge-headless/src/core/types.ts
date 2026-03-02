@@ -148,6 +148,13 @@ export type EntityMeta = {
     updateEnabled?: boolean;
     deleteEnabled?: boolean;
     exportEnabled?: boolean;
+    exportTemplate?: string;
+
+    // DTO Info
+    dtoCreate?: string;
+    dtoUpdate?: string;
+    dtoResponse?: string;
+    dtoPageResponse?: string;
 
     // 服务标识 (前端注入)
     serviceName?: string;

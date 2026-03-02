@@ -256,13 +256,12 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         setIfPersistable(entity, FIELD_CREATE_BY, getCreateBy(existing));
     }
     
-    @SuppressWarnings("checkstyle:IllegalCatch")
     private String getCurrentUser() {
         try {
             var ctx = org.springframework.security.core.context.SecurityContextHolder.getContext();
             var auth = ctx != null ? ctx.getAuthentication() : null;
             return auth != null && auth.isAuthenticated() ? auth.getName() : null;
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             return null;
         }
     }

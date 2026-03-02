@@ -89,6 +89,72 @@
         </el-form>
       </el-tab-pane>
 
+      <el-tab-pane label="Schemas" name="schemas">
+        <el-tabs v-model="activeSchemaTab" type="card">
+          <el-tab-pane label="Create DTO" name="create">
+            <div class="schema-header" v-if="entity.dtoCreate">
+              <span class="label">Class:</span>
+              <el-tag type="info">{{ entity.dtoCreate }}</el-tag>
+            </div>
+            <el-table :data="getDtoFields('CREATE')" border stripe>
+              <el-table-column label="字段名" prop="name" width="180"/>
+              <el-table-column label="类型" prop="type" width="150"/>
+              <el-table-column label="必填" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="isFieldRequired(row) ? 'danger' : 'info'" size="small">
+                    {{ isFieldRequired(row) ? 'Yes' : 'No' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="描述" prop="description"/>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="Update DTO" name="update">
+            <div class="schema-header" v-if="entity.dtoUpdate">
+              <span class="label">Class:</span>
+              <el-tag type="info">{{ entity.dtoUpdate }}</el-tag>
+            </div>
+            <el-table :data="getDtoFields('UPDATE')" border stripe>
+              <el-table-column label="字段名" prop="name" width="180"/>
+              <el-table-column label="类型" prop="type" width="150"/>
+              <el-table-column label="必填" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="isFieldRequired(row) ? 'danger' : 'info'" size="small">
+                    {{ isFieldRequired(row) ? 'Yes' : 'No' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="描述" prop="description"/>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="Response DTO" name="response">
+            <div class="schema-header" v-if="entity.dtoResponse">
+              <span class="label">Class:</span>
+              <el-tag type="info">{{ entity.dtoResponse }}</el-tag>
+            </div>
+            <el-table :data="getDtoFields('RESPONSE')" border stripe>
+              <el-table-column label="字段名" prop="name" width="180"/>
+              <el-table-column label="类型" prop="type" width="150"/>
+              <el-table-column label="描述" prop="description"/>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="Page Response DTO" name="pageResponse">
+            <div class="schema-header" v-if="entity.dtoPageResponse">
+              <span class="label">Class:</span>
+              <el-tag type="info">{{ entity.dtoPageResponse }}</el-tag>
+            </div>
+            <el-table :data="getDtoFields('PAGE_RESPONSE')" border stripe>
+              <el-table-column label="字段名" prop="name" width="180"/>
+              <el-table-column label="类型" prop="type" width="150"/>
+              <el-table-column label="描述" prop="description"/>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </el-tab-pane>
+
       <el-tab-pane label="原始 JSON" name="json">
         <div class="json-container">
           <el-input
@@ -106,13 +172,14 @@
 
 <script lang="ts" setup>
 import {computed, ref} from 'vue';
-import type {EntityMeta} from '@lrenyi/dataforge-headless/core';
+import type {EntityMeta, FieldMeta} from '@lrenyi/dataforge-headless/core';
 
 const props = defineProps<{
   entity: EntityMeta
 }>();
 
 const activeTab = ref('fields');
+const activeSchemaTab = ref('create');
 
 const jsonStr = computed(() => JSON.stringify(props.entity, null, 2));
 
@@ -125,6 +192,48 @@ const exportJson = () => {
   a.download = `${props.entity.entityName}.json`;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+const isFieldRequired = (field: FieldMeta) => {
+  return field.required || field.uiRequired;
+};
+
+const getDtoFields = (dtoType: 'CREATE' | 'UPDATE' | 'RESPONSE' | 'PAGE_RESPONSE') => {
+  if (!props.entity.fields) return [];
+
+  return props.entity.fields.filter(f => {
+    // Page Response Logic (Strict)
+    if (dtoType === 'PAGE_RESPONSE') {
+      return f.name === 'id' || (f.dtoIncludeTypes && f.dtoIncludeTypes.includes('PAGE_RESPONSE'));
+    }
+
+    // Skip ID for Create/Update
+    if ((dtoType === 'CREATE' || dtoType === 'UPDATE') && f.name === 'id') {
+      return false;
+    }
+
+    // Determine Includes
+    const includes = new Set(f.dtoIncludeTypes || []);
+    if (f.dtoCreateOnly) includes.add('CREATE');
+    if (f.dtoUpdateOnly) includes.add('UPDATE');
+
+    // Determine Excludes
+    const excludes = new Set(f.dtoExcludeTypes || []);
+    if (f.dtoReadOnly) {
+      excludes.add('CREATE');
+      excludes.add('UPDATE');
+    }
+    if (f.dtoWriteOnly) {
+      excludes.add('RESPONSE');
+    }
+
+    // Check inclusion
+    if (includes.size > 0) {
+      return includes.has(dtoType);
+    } else {
+      return !excludes.has(dtoType);
+    }
+  });
 };
 </script>
 
@@ -152,5 +261,17 @@ const exportJson = () => {
 
 .json-container {
   height: 600px;
+}
+
+.schema-header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schema-header .label {
+  font-weight: bold;
+  color: #606266;
 }
 </style>
