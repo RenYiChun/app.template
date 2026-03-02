@@ -172,10 +172,15 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         String simpleName = entityType.getSimpleName().toString();
         List<FieldSpec> allFields = collectFields(entityType);
         
-        List<FieldSpec> createFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, DTO_TYPE_CREATE)).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Create")).toList();
-        List<FieldSpec> updateFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE")).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Update")).toList();
-        List<FieldSpec> responseFields = allFields.stream().filter(f -> shouldInclude(f, "RESPONSE")).toList();
-        List<FieldSpec> pageResponseFields = allFields.stream().filter(f -> "id".equals(f.name) || f.includeTypes().contains("PAGE_RESPONSE")).toList();
+        Set<String> strictTypes = new HashSet<>();
+        for (FieldSpec f : allFields) {
+            strictTypes.addAll(f.includeTypes());
+        }
+        
+        List<FieldSpec> createFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, DTO_TYPE_CREATE, strictTypes)).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Create")).toList();
+        List<FieldSpec> updateFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE", strictTypes)).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Update")).toList();
+        List<FieldSpec> responseFields = allFields.stream().filter(f -> "id".equals(f.name) || shouldInclude(f, "RESPONSE", strictTypes)).toList();
+        List<FieldSpec> pageResponseFields = allFields.stream().filter(f -> "id".equals(f.name) || shouldInclude(f, "PAGE_RESPONSE", strictTypes)).toList();
         
         String dtoPackage = pkg + ".dto";
         String mapperPackage = pkg + ".mapper";
@@ -206,9 +211,20 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, newGroups);
     }
     
-    private boolean shouldInclude(FieldSpec f, String dtoTypeName) {
+    private boolean shouldInclude(FieldSpec f, String dtoTypeName, Set<String> strictTypes) {
         if (!f.includeTypes().isEmpty()) {
             return f.includeTypes().contains(dtoTypeName);
+        }
+        
+        if (strictTypes.contains(dtoTypeName)) {
+            return false;
+        }
+        
+        if ("PAGE_RESPONSE".equals(dtoTypeName)) {
+            Set<String> excludedByDefault = Set.of(
+                "createTime", "updateTime", "createBy", "updateBy", "deleted", "version", "remark"
+            );
+            return !excludedByDefault.contains(f.name);
         }
         return true;
     }

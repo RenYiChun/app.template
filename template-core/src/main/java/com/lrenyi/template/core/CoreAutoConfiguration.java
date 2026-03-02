@@ -1,5 +1,6 @@
 package com.lrenyi.template.core;
 
+import java.util.Objects;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import com.lrenyi.template.core.json.JacksonJsonProcessor;
@@ -7,6 +8,8 @@ import com.lrenyi.template.core.json.JsonProcessor;
 import com.lrenyi.template.core.json.JsonService;
 import com.lrenyi.template.core.metrics.AppMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -53,8 +56,9 @@ public class CoreAutoConfiguration {
         }
         
         @Bean
-        public AppMetrics appMetrics(MeterRegistry registry) {
-            return new AppMetrics(registry);
+        public AppMetrics appMetrics(ObjectProvider<MeterRegistry> registryProvider) {
+            MeterRegistry registry = registryProvider.getIfAvailable();
+            return new AppMetrics(Objects.requireNonNullElseGet(registry, CompositeMeterRegistry::new));
         }
     }
 }

@@ -141,7 +141,6 @@ public class FieldMeta {
     private String importErrorPolicy = "STOP";
     
     // DTO控制
-    @com.fasterxml.jackson.annotation.JsonIgnore
     private String[] dtoIncludeTypes = {};
     private String dtoFieldName = "";
     @com.fasterxml.jackson.annotation.JsonIgnore
