@@ -1,6 +1,7 @@
 package com.lrenyi.template.cloud;
 
-import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
@@ -8,20 +9,23 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerRequestFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.web.client.RestTemplate;
-import java.util.Collections;
 
 /**
  * 微服务/云侧自动配置：Feign、负载均衡等。
@@ -31,6 +35,7 @@ import java.util.Collections;
 @ComponentScan
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureBefore(ApiAutoConfiguration.class)
+@AutoConfigureAfter(name = "org.springframework.cloud.loadbalancer.config.BlockingLoadBalancerClientAutoConfiguration")
 @Import({CloudAutoConfiguration.FeignAutoConfiguration.class})
 public class CloudAutoConfiguration {
     
@@ -56,6 +61,8 @@ public class CloudAutoConfiguration {
     )
     public OpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
             ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,
+            ObjectProvider<LoadBalancerClient> loadBalancerClientProvider,
+            ObjectProvider<LoadBalancerRequestFactory> loadBalancerRequestFactoryProvider,
             ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
         TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();
@@ -64,13 +71,33 @@ public class CloudAutoConfiguration {
         String clientSecret = opaqueToken.getClientSecret();
         
         RestTemplate client = new RestTemplate();
-        LoadBalancerInterceptor interceptor = loadBalancerInterceptorProvider.getIfAvailable();
+        LoadBalancerInterceptor interceptor = getBalancerInterceptor(loadBalancerInterceptorProvider,
+                                                                     loadBalancerClientProvider,
+                                                                     loadBalancerRequestFactoryProvider
+        );
+        List<ClientHttpRequestInterceptor> interceptors = new ArrayList<>();
         if (interceptor != null) {
-            client.setInterceptors(Collections.singletonList(interceptor));
+            interceptors.add(interceptor);
         }
-        client.getInterceptors().add(new BasicAuthenticationInterceptor(clientId, clientSecret));
+        interceptors.add(new BasicAuthenticationInterceptor(clientId, clientSecret));
+        client.setInterceptors(interceptors);
+        
         SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, client);
         return securityAutoConfiguration.makeSpringOpaqueTokenIntrospector(introspector);
+    }
+    
+    private LoadBalancerInterceptor getBalancerInterceptor(ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,
+            ObjectProvider<LoadBalancerClient> loadBalancerClientProvider,
+            ObjectProvider<LoadBalancerRequestFactory> loadBalancerRequestFactoryProvider) {
+        LoadBalancerInterceptor interceptor = loadBalancerInterceptorProvider.getIfAvailable();
+        if (interceptor == null) {
+            LoadBalancerClient loadBalancerClient = loadBalancerClientProvider.getIfAvailable();
+            LoadBalancerRequestFactory requestFactory = loadBalancerRequestFactoryProvider.getIfAvailable();
+            if (loadBalancerClient != null && requestFactory != null) {
+                interceptor = new LoadBalancerInterceptor(loadBalancerClient, requestFactory);
+            }
+        }
+        return interceptor;
     }
     
     /**
