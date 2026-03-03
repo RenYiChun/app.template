@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class MCodeTest {
     
     @Test
-    void values_haveCorrectCodeAndMessage() {
+    void valuesHaveCorrectCodeAndMessage() {
         assertEquals(200, MCode.SUCCESS.getCode());
         assertEquals("success", MCode.SUCCESS.getMessage());
         
@@ -25,7 +25,7 @@ class MCodeTest {
     }
     
     @Test
-    void valueOf_returnsCorrectEnum() {
+    void valueOfReturnsCorrectEnum() {
         assertEquals(MCode.SUCCESS, MCode.valueOf("SUCCESS"));
         assertEquals(MCode.EXCEPTION, MCode.valueOf("EXCEPTION"));
     }

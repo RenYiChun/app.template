@@ -34,7 +34,7 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
     
     @Override
     public Object getProperty(@NonNull String name) {
-        if (IN_RESOLVE.get()) {
+        if (Boolean.TRUE.equals(IN_RESOLVE.get())) {
             return null;
         }
         try {
@@ -51,7 +51,7 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
             }
             return decryptedCache.computeIfAbsent(name, k -> decryptValue(value));
         } finally {
-            IN_RESOLVE.set(false);
+            IN_RESOLVE.remove();
         }
     }
     

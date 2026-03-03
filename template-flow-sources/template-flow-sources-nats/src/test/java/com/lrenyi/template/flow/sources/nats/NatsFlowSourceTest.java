@@ -26,7 +26,9 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class NatsFlowSourceTest {
-    
+
+    private static final String CLOSED_MESSAGE = "closed";
+
     @Mock
     private Subscription subscription;
     
@@ -42,22 +44,22 @@ class NatsFlowSourceTest {
     }
     
     @Test
-    void constructor_nullSubscription_throws() {
+    void constructorNullSubscriptionThrows() {
         Duration timeout = Duration.ofSeconds(1);
         assertThrows(IllegalArgumentException.class, () -> new NatsFlowSource<>(null, m -> "x", timeout));
     }
     
     @Test
-    void constructor_nullMapper_throws() {
+    void constructorNullMapperThrows() {
         Duration timeout = Duration.ofSeconds(1);
         assertThrows(IllegalArgumentException.class, () -> new NatsFlowSource<>(subscription, null, timeout));
     }
     
     @Test
-    void hasNext_next_returnsMappedValues() throws Exception {
+    void hasNextNextReturnsMappedValues() throws Exception {
         when(message.getData()).thenReturn("v1".getBytes(StandardCharsets.UTF_8));
         when(subscription.nextMessage(any(Duration.class))).thenReturn(message)
-                                                           .thenThrow(new IllegalStateException("closed"));
+                                                           .thenThrow(new IllegalStateException(CLOSED_MESSAGE));
         
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
         
@@ -67,8 +69,8 @@ class NatsFlowSourceTest {
     }
     
     @Test
-    void next_withoutHasNext_throws() throws Exception {
-        when(subscription.nextMessage(any(Duration.class))).thenThrow(new IllegalStateException("closed"));
+    void nextWithoutHasNextThrows() throws Exception {
+        when(subscription.nextMessage(any(Duration.class))).thenThrow(new IllegalStateException(CLOSED_MESSAGE));
         
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
         assertFalse(source.hasNext()); // 因异常而关闭
@@ -76,7 +78,7 @@ class NatsFlowSourceTest {
     }
     
     @Test
-    void close_idempotent() {
+    void closeIdempotent() {
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
         source.close();
         source.close();
@@ -84,7 +86,7 @@ class NatsFlowSourceTest {
     }
     
     @Test
-    void close_unsubscribeThrows_doesNotPropagate() {
+    void closeUnsubscribeThrowsDoesNotPropagate() {
         doThrow(new RuntimeException("unsubscribe failed")).when(subscription).unsubscribe();
         
         source = new NatsFlowSource<>(subscription, mapper, Duration.ofSeconds(1));
@@ -92,8 +94,8 @@ class NatsFlowSourceTest {
     }
     
     @Test
-    void nextMessageTimeout_nullUsesDefault() throws Exception {
-        when(subscription.nextMessage(any(Duration.class))).thenThrow(new IllegalStateException("closed"));
+    void nextMessageTimeoutNullUsesDefault() throws Exception {
+        when(subscription.nextMessage(any(Duration.class))).thenThrow(new IllegalStateException(CLOSED_MESSAGE));
         
         source = new NatsFlowSource<>(subscription, mapper, null);
         assertFalse(source.hasNext());

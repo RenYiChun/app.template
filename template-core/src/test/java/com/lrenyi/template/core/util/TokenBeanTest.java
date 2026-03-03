@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class TokenBeanTest {
     
     @Test
-    void gettersAndSetters_workCorrectly() {
+    void gettersAndSettersWorkCorrectly() {
         TokenBean bean = new TokenBean();
         assertNull(bean.getId());
         assertEquals("", bean.getError());

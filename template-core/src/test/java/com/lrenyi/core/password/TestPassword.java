@@ -8,12 +8,14 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class TestPassword {
-    
+
+    private static final String TEST_PASSWORD = "app.template";
+
     /** Spring DelegatingPasswordEncoder 默认编码 id 为 "bcrypt"，非 "default"。 */
     @Test
     void testEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("bcrypt");
-        String rawPassword = "app.template";
+        String rawPassword = TEST_PASSWORD;
         String encode = DefaultTemplateEncryptService.encodeStatic(rawPassword);
         boolean matches = DefaultTemplateEncryptService.matchesStatic(rawPassword, encode);
         Assertions.assertTrue(matches);
@@ -33,7 +35,7 @@ class TestPassword {
     void testRsaEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("RSA2048");
         try {
-            String rawP = "app.template";
+            String rawP = TEST_PASSWORD;
             String encode = DefaultTemplateEncryptService.encodeStatic(rawP);
             boolean matches = DefaultTemplateEncryptService.matchesStatic(rawP, encode);
             Assertions.assertTrue(matches);
@@ -50,17 +52,17 @@ class TestPassword {
     @Test
     void testNoopEncoder() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("noop");
-        String rawP = "app.template";
+        String rawP = TEST_PASSWORD;
         String encode = DefaultTemplateEncryptService.encodeStatic(rawP);
-        boolean matches = DefaultTemplateEncryptService.matchesStatic("app.template", encode);
+        boolean matches = DefaultTemplateEncryptService.matchesStatic(TEST_PASSWORD, encode);
         Assertions.assertTrue(matches);
     }
     
     @Test
     void testSHA() {
         DefaultTemplateEncryptService.setDefaultPasswordEncoderForMatches("SHA-1");
-        String encoded = DefaultTemplateEncryptService.encodeStatic("app.template");
-        String rawP = "app.template";
+        String encoded = DefaultTemplateEncryptService.encodeStatic(TEST_PASSWORD);
+        String rawP = TEST_PASSWORD;
         boolean matches = DefaultTemplateEncryptService.matchesStatic(rawP, encoded);
         Assertions.assertTrue(matches);
         

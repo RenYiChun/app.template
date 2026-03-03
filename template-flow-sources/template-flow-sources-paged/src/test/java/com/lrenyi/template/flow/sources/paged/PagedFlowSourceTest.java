@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PagedFlowSourceTest {
     
     @Test
-    void hasNext_next_close_singlePage() throws Exception {
+    void hasNextNextCloseSinglePage() throws Exception {
         PageFetcher<String> fetcher = token -> PageResult.of(List.of("a", "b"));
         PagedFlowSource<String> source = new PagedFlowSource<>(fetcher);
         
@@ -30,7 +30,7 @@ class PagedFlowSourceTest {
     }
     
     @Test
-    void hasNext_multiplePages() throws Exception {
+    void hasNextMultiplePages() throws Exception {
         PageFetcher<String> fetcher = token -> {
             if (token == null) {
                 return PageResult.of(List.of("a"), "t1");
@@ -51,7 +51,7 @@ class PagedFlowSourceTest {
     }
     
     @Test
-    void close_invokesOnClose() {
+    void closeInvokesOnClose() {
         AtomicBoolean closed = new AtomicBoolean(false);
         PageFetcher<String> fetcher = token -> PageResult.of(List.of());
         PagedFlowSource<String> source = new PagedFlowSource<>(fetcher, () -> closed.set(true));
@@ -61,7 +61,7 @@ class PagedFlowSourceTest {
     }
     
     @Test
-    void close_idempotent() {
+    void closeIdempotent() {
         AtomicBoolean closed = new AtomicBoolean(false);
         PageFetcher<String> fetcher = token -> PageResult.of(List.of());
         PagedFlowSource<String> source = new PagedFlowSource<>(fetcher, () -> closed.set(true));
@@ -72,7 +72,7 @@ class PagedFlowSourceTest {
     }
     
     @Test
-    void next_withoutHasNext_throws() throws Exception {
+    void nextWithoutHasNextThrows() throws Exception {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of("x")));
         assertTrue(source.hasNext());
         assertEquals("x", source.next());
@@ -82,7 +82,7 @@ class PagedFlowSourceTest {
     
     /** 单参构造：onClose 为 null，close 不抛 */
     @Test
-    void constructor_singleArg_onCloseNull_closeSafe() throws Exception {
+    void constructorSingleArgOnCloseNullCloseSafe() throws Exception {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of()));
         assertFalse(source.hasNext());
         source.close();
@@ -91,7 +91,7 @@ class PagedFlowSourceTest {
     
     /** 首页为空且无下一页时 hasNext 返回 false */
     @Test
-    void hasNext_emptyFirstPage_returnsFalse() throws Exception {
+    void hasNextEmptyFirstPageReturnsFalse() throws Exception {
         PageFetcher<String> fetcher = token -> PageResult.of(List.of());
         PagedFlowSource<String> source = new PagedFlowSource<>(fetcher);
         assertFalse(source.hasNext());
@@ -99,7 +99,7 @@ class PagedFlowSourceTest {
     
     /** next 在已 close 后调用抛 NoSuchElementException */
     @Test
-    void next_afterClose_throws() {
+    void nextAfterCloseThrows() {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of("a")));
         source.close();
         assertThrows(NoSuchElementException.class, source::next);
@@ -107,7 +107,7 @@ class PagedFlowSourceTest {
     
     /** 第一页有数据带 token，第二页为空且无 token */
     @Test
-    void hasNext_secondPageEmpty_returnsFalse() throws Exception {
+    void hasNextSecondPageEmptyReturnsFalse() throws Exception {
         PageFetcher<String> fetcher = token -> {
             if (token == null) {
                 return PageResult.of(List.of("only"), "t1");
@@ -122,7 +122,7 @@ class PagedFlowSourceTest {
     
     /** hasNext 被中断时抛 InterruptedException */
     @Test
-    void hasNext_interrupted_throwsInterruptedException() throws Exception {
+    void hasNextInterruptedThrowsInterruptedException() throws Exception {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of()));
         AtomicReference<Throwable> thrown = new AtomicReference<>();
         Thread t = new Thread(() -> {

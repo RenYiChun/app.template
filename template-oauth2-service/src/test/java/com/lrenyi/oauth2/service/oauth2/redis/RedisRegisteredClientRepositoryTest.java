@@ -30,7 +30,8 @@ class RedisRegisteredClientRepositoryTest {
     private static final String CLIENT_ID_KEY =
             TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:client_id";
     private static final String ID_KEY = TemplateConstant.TOKEN_ID_PREFIX_AT_REDIS + "registered-client:id";
-    
+    private static final String CLIENT_B = "client-b";
+
     @Mock
     private RedisTemplate<String, String> redisTemplate;
     
@@ -43,7 +44,7 @@ class RedisRegisteredClientRepositoryTest {
     }
     
     @Test
-    void findById_whenInRedis_returnsClient() {
+    void findByIdWhenInRedisReturnsClient() {
         RegisteredClient client = createClient("id-1", "client-a");
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
@@ -70,24 +71,24 @@ class RedisRegisteredClientRepositoryTest {
     }
     
     @Test
-    void findByClientId_whenInRedis_returnsClient() {
-        RegisteredClient client = createClient("id-2", "client-b");
+    void findByClientIdWhenInRedisReturnsClient() {
+        RegisteredClient client = createClient("id-2", CLIENT_B);
         byte[] serialized = new JdkSerializationStrategy().serialize(client);
         String hexed = ByteBufUtil.hexDump(serialized);
-        when(hashOperations.get(CLIENT_ID_KEY, "client-b")).thenReturn(hexed);
+        when(hashOperations.get(CLIENT_ID_KEY, CLIENT_B)).thenReturn(hexed);
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RedisRegisteredClientRepository repo = new RedisRegisteredClientRepository(redisTemplate);
         
-        RegisteredClient found = repo.findByClientId("client-b");
+        RegisteredClient found = repo.findByClientId(CLIENT_B);
         
         assertNotNull(found);
         assertEquals("id-2", found.getId());
-        assertEquals("client-b", found.getClientId());
+        assertEquals(CLIENT_B, found.getClientId());
     }
     
     @Test
-    void findById_whenNotInRedis_returnsNull() {
+    void findByIdWhenNotInRedisReturnsNull() {
         when(hashOperations.get(eq(ID_KEY), anyString())).thenReturn(null);
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
         
@@ -99,7 +100,7 @@ class RedisRegisteredClientRepositoryTest {
     }
     
     @Test
-    void save_persistsToRedis() {
+    void savePersistsToRedis() {
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(1L);
         
         RegisteredClient client = createClient("id-3", "client-c");
@@ -112,7 +113,7 @@ class RedisRegisteredClientRepositoryTest {
     }
     
     @Test
-    void constructor_withInitialClients_initializesWhenRedisEmpty() {
+    void constructorWithInitialClientsInitializesWhenRedisEmpty() {
         when(hashOperations.size(CLIENT_ID_KEY)).thenReturn(0L);
         
         RegisteredClient client = createClient("id-init", "client-init");

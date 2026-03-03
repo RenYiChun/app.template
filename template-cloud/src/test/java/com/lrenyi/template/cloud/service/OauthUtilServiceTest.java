@@ -42,7 +42,7 @@ class OauthUtilServiceTest {
     }
     
     @Test
-    void fetchToken_withValidCache_returnsCachedToken() {
+    void fetchTokenWithValidCacheReturnsCachedToken() {
         String host = "cache-test-host";
         String token = "cached-access-token";
         tokenCache.put(host, token);
@@ -53,7 +53,7 @@ class OauthUtilServiceTest {
     }
     
     @Test
-    void fetchToken_withExpiredCache_attemptsLoginAndFails() {
+    void fetchTokenWithExpiredCacheAttemptsLoginAndFails() {
         String host = "expired-host";
         tokenCache.invalidateAll();
         
@@ -61,7 +61,7 @@ class OauthUtilServiceTest {
     }
     
     @Test
-    void fetchToken_withHost_returnsCachedToken() {
+    void fetchTokenWithHostReturnsCachedToken() {
         String host = "host-only";
         String token = "token";
         tokenCache.put(host, token);

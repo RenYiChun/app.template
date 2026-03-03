@@ -104,12 +104,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                 return;
             }
             removalSubmittedCount.increment();
-            String evictionReason = cause.name();
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, evictionReason)
-                   .register(meterRegistry)
-                   .increment();
+            entry.setRemovalReason(cause.name());
             finalizer.submitBodyOnly(entry, launcher);
         } finally {
             if (launcher != null) {

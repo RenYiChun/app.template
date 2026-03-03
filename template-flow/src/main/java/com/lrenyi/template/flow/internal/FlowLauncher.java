@@ -155,7 +155,7 @@ public class FlowLauncher<T> {
     }
     
     private void submitDepositTask(T data, ProgressTracker tracker, Semaphore inFlight) {
-        Thread.ofVirtual().start(() -> {
+        getProducerExecutor().execute(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
@@ -171,7 +171,7 @@ public class FlowLauncher<T> {
                 long depositStartTime = System.currentTimeMillis();
                 getStorage().deposit(ctx);
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
-                
+
                 Counter.builder(FlowMetricNames.PRODUCTION_RELEASED)
                        .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                        .register(registry())
@@ -181,7 +181,6 @@ public class FlowLauncher<T> {
                      .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
-                
             } catch (Throwable e) {
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
                 Counter.builder(FlowMetricNames.ERRORS)

@@ -73,7 +73,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
     
     public void acquire() throws InterruptedException {
         long acquireStartTime = System.currentTimeMillis();
-        
+
         if (getManager().isStopped(jobId)) {
             InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
@@ -121,7 +121,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         semaphore.acquire();
         registration.increment();
         tracker.onConsumerBegin();
-        
+
         long acquireLatency = System.currentTimeMillis() - acquireStartTime;
         Timer.builder(FlowMetricNames.ACQUIRE_DURATION)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)

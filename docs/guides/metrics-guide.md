@@ -53,6 +53,11 @@ management:
     metrics:
       export:
         enabled: true
+  metrics:
+    distribution:
+      # 启用 HTTP 请求直方图，才能暴露 _bucket 指标供 histogram_quantile 计算 P99/P95/P50
+      percentiles-histogram:
+        http.server.requests: true
 ```
 
 ### 1.3 验证端点
@@ -475,6 +480,22 @@ management:
 ---
 
 ## 8. FAQ
+
+### Q: Grafana 中 HTTP 响应时间 (P99/P95/P50) 显示 "No data"？
+
+P99/P95/P50 依赖 `http_server_requests_seconds_bucket` 直方图指标。Spring Boot 默认只暴露 `_count` 和 `_sum`（用于计算平均值），不暴露 `_bucket`。
+
+在 `application.yml` 中启用直方图：
+
+```yaml
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+```
+
+重启应用后，Prometheus 抓取新数据，等待约 5 分钟（与 Grafana 查询的 `[5m]` 窗口一致）即可看到 P99/P95/P50 曲线。
 
 ### Q: 引入框架后没有看到 `/actuator/prometheus` 端点？
 

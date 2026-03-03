@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EmptyUtilTest {
     
     @Test
-    void isEmpty_isNotEmpty_Collection() {
+    void isEmptyIsNotEmptyCollection() {
         assertTrue(EmptyUtil.isEmpty((Collection<?>) null));
         assertTrue(EmptyUtil.isEmpty(new ArrayList<>()));
         assertFalse(EmptyUtil.isEmpty(Collections.singletonList(1)));
@@ -23,7 +23,7 @@ class EmptyUtilTest {
     }
     
     @Test
-    void isEmpty_isNotEmpty_ObjectArray() {
+    void isEmptyIsNotEmptyObjectArray() {
         assertTrue(EmptyUtil.isEmpty((Object[]) null));
         assertTrue(EmptyUtil.isEmpty(new Object[0]));
         assertFalse(EmptyUtil.isEmpty(new Object[]{1}));
@@ -33,7 +33,7 @@ class EmptyUtilTest {
     }
     
     @Test
-    void isEmpty_isNotEmpty_Map() {
+    void isEmptyIsNotEmptyMap() {
         assertTrue(EmptyUtil.isEmpty((Map<?, ?>) null));
         assertTrue(EmptyUtil.isEmpty(new HashMap<>()));
         Map<String, String> m = new HashMap<>();
@@ -43,7 +43,7 @@ class EmptyUtilTest {
     }
     
     @Test
-    void isEmpty_isNotEmpty_String() {
+    void isEmptyIsNotEmptyString() {
         assertTrue(EmptyUtil.isEmpty((String) null));
         assertTrue(EmptyUtil.isEmpty(""));
         assertTrue(EmptyUtil.isEmpty("   "));
@@ -53,7 +53,7 @@ class EmptyUtilTest {
     }
     
     @Test
-    void isEmpty_isNotEmpty_Object() {
+    void isEmptyIsNotEmptyObject() {
         assertTrue(EmptyUtil.isEmpty((Object) null));
         assertTrue(EmptyUtil.isEmpty(""));
         assertFalse(EmptyUtil.isEmpty("x"));
