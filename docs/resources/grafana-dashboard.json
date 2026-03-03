@@ -612,7 +612,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"}) / max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"})",
+          "expr": "(max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"}) / max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"})) and (count(app_template_flow_job_started_total{instance=~\"$instance\",jobId=~\"$jobId\"}) > 0)",
           "legendFormat": "全局负载",
           "refId": "A"
         }
@@ -653,12 +653,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"})",
+          "expr": "max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"}) and (count(app_template_flow_job_started_total{instance=~\"$instance\",jobId=~\"$jobId\"}) > 0)",
           "legendFormat": "处理中",
           "refId": "A"
         },
         {
-          "expr": "max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"})",
+          "expr": "max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) and (count(app_template_flow_job_started_total{instance=~\"$instance\",jobId=~\"$jobId\"}) > 0)",
           "legendFormat": "上限",
           "refId": "B"
         }
