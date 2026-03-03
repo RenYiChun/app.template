@@ -15,9 +15,7 @@ import com.lrenyi.template.flow.executor.BoundedVirtualExecutor;
 import com.lrenyi.template.flow.executor.DefaultFlowExecutorProvider;
 import com.lrenyi.template.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FlowConstants;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -72,14 +70,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int concurrencyLimit = flowConfig.getConsumer().getConcurrencyLimit();
         this.globalSemaphore = new Semaphore(concurrencyLimit, true);
         log.info("FlowResourceRegistry 启动：初始物理并发池大小为 {}", concurrencyLimit);
-        
-        Gauge.builder(FlowMetricNames.SEMAPHORE_USED, globalSemaphore, s -> concurrencyLimit - s.availablePermits())
-             .description("全局消费信号量已占用许可数")
-             .register(meterRegistry);
-        
-        Gauge.builder(FlowMetricNames.SEMAPHORE_LIMIT, () -> concurrencyLimit)
-             .description("全局消费信号量上限")
-             .register(meterRegistry);
         
         this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore, concurrencyLimit);
         this.flowConsumerExecutor = (BoundedVirtualExecutor) executorProvider.getFlowConsumerExecutor();
