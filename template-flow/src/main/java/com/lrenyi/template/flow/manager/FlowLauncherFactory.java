@@ -12,6 +12,7 @@ import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.internal.BackpressureController;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
+import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Gauge;
@@ -92,6 +93,18 @@ final class FlowLauncherFactory {
              .tag(jobId1, jobId)
                 .description("Max allowed in-flight tasks (backpressure limit)")
                 .register(meterRegistry);
+
+        // 消费端信号量（全局共享，按 jobId 打标便于仪表板级联过滤）
+        Semaphore globalSemaphore = resourceRegistry.getGlobalSemaphore();
+        int consumerLimit = resourceRegistry.getFlowConfig().getConsumer().getConcurrencyLimit();
+        Gauge.builder(FlowMetricNames.SEMAPHORE_USED, globalSemaphore, s -> consumerLimit - s.availablePermits())
+             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+             .description("全局消费信号量已占用许可数")
+             .register(meterRegistry);
+        Gauge.builder(FlowMetricNames.SEMAPHORE_LIMIT, () -> consumerLimit)
+             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+             .description("全局消费信号量上限")
+             .register(meterRegistry);
 
         return FlowLauncher.create(jobId, flowJoiner, flowManager, tracker, registration, resourceContext);
     }

@@ -10,7 +10,6 @@ import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FlowConstants;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
@@ -129,19 +128,4 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
              .record(acquireLatency, TimeUnit.MILLISECONDS);
     }
     
-    /**
-     * 注册全局信号量 Gauge（仅在初始化时调用一次）
-     */
-    public void registerSemaphoreGauges() {
-        Semaphore semaphore = resourceContext.getGlobalSemaphore();
-        int concurrencyLimit = getManager().getGlobalConfig().getConsumer().getConcurrencyLimit();
-        
-        Gauge.builder(FlowMetricNames.SEMAPHORE_USED, semaphore, s -> concurrencyLimit - s.availablePermits())
-             .description("全局消费信号量已占用许可数")
-             .register(registry());
-        
-        Gauge.builder(FlowMetricNames.SEMAPHORE_LIMIT, () -> concurrencyLimit)
-             .description("全局消费信号量上限")
-             .register(registry());
-    }
 }
