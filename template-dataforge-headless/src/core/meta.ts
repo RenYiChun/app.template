@@ -225,7 +225,7 @@ export class MetaService {
                 type: s.type || 'string',
                 operators: opsForType(s.type || 'string'),
                 label: s.description || fieldName,
-                order: 0
+                order: (s as any).order ?? 0
             };
         });
     }

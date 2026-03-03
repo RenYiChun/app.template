@@ -551,6 +551,7 @@ public class MetaScanner {
         Map<String, Object> prop = new HashMap<>();
         prop.put("type", jsType);
         prop.put("description", f.getLabel());
+        prop.put("order", f.getSearchOrder());
         prop.put("component", f.getSearchComponent());
         // 如果是 DTO 定义的，可能没有 SearchType，默认 EQ
         prop.put("op", f.getSearchType());
