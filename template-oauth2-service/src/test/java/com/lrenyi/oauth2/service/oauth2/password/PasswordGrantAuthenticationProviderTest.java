@@ -51,17 +51,17 @@ class PasswordGrantAuthenticationProviderTest {
     }
     
     @Test
-    void supports_passwordGrantToken_returnsTrue() {
+    void supportsPasswordGrantTokenReturnsTrue() {
         assertTrue(provider.supports(PasswordGrantAuthenticationToken.class));
     }
     
     @Test
-    void supports_otherAuthentication_returnsFalse() {
+    void supportsOtherAuthenticationReturnsFalse() {
         assertFalse(provider.supports(Authentication.class));
     }
     
     @Test
-    void supports_passwordGrantTokenInstance_returnsTrue() {
+    void supportsPasswordGrantTokenInstanceReturnsTrue() {
         PasswordGrantAuthenticationToken token = createToken("user", "pass");
         assertTrue(provider.supports(token.getClass()));
     }

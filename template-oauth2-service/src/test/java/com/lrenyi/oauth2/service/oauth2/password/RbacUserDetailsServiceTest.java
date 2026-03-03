@@ -24,7 +24,11 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class RbacUserDetailsServiceTest {
-    
+
+    private static final String TEST_USER = "testuser";
+    private static final String NO_ROLES_USER = "noroles";
+    private static final String ENCODED_PASSWORD = "encoded";
+
     @Mock
     private IRbacService rbacService;
     
@@ -40,54 +44,54 @@ class RbacUserDetailsServiceTest {
     }
     
     @Test
-    void loadUserByUsername_whenValidUser_returnsUserDetails() {
-        RbacUserCredentials credentials = new RbacUserCredentials("testuser", "encoded", List.of("read", "write"));
+    void loadUserByUsernameWhenValidUserReturnsUserDetails() {
+        RbacUserCredentials credentials = new RbacUserCredentials(TEST_USER, ENCODED_PASSWORD, List.of("read", "write"));
         
-        when(rbacService.loadUserCredentials("testuser", IdentifierType.USERNAME)).thenReturn(credentials);
+        when(rbacService.loadUserCredentials(TEST_USER, IdentifierType.USERNAME)).thenReturn(credentials);
         
-        UserDetails details = service.loadUserByUsername("USERNAME:testuser");
+        UserDetails details = service.loadUserByUsername("USERNAME:" + TEST_USER);
         
         assertNotNull(details);
-        assertEquals("testuser", details.getUsername());
-        assertEquals("encoded", details.getPassword());
+        assertEquals(TEST_USER, details.getUsername());
+        assertEquals(ENCODED_PASSWORD, details.getPassword());
         assertTrue(details.getAuthorities().stream().anyMatch(a -> "read".equals(a.getAuthority())));
         assertTrue(details.getAuthorities().stream().anyMatch(a -> "write".equals(a.getAuthority())));
         
-        verify(rbacService).loadUserCredentials("testuser", IdentifierType.USERNAME);
+        verify(rbacService).loadUserCredentials(TEST_USER, IdentifierType.USERNAME);
     }
     
     @Test
-    void loadUserByUsername_whenEmptyPermissions_usesEmptyList() {
-        RbacUserCredentials credentials = new RbacUserCredentials("noroles", "encoded", Collections.emptyList());
+    void loadUserByUsernameWhenEmptyPermissionsUsesEmptyList() {
+        RbacUserCredentials credentials = new RbacUserCredentials(NO_ROLES_USER, ENCODED_PASSWORD, Collections.emptyList());
         
-        when(rbacService.loadUserCredentials("noroles", IdentifierType.USERNAME)).thenReturn(credentials);
+        when(rbacService.loadUserCredentials(NO_ROLES_USER, IdentifierType.USERNAME)).thenReturn(credentials);
         
-        UserDetails details = service.loadUserByUsername("USERNAME:noroles");
+        UserDetails details = service.loadUserByUsername("USERNAME:" + NO_ROLES_USER);
         
         assertNotNull(details);
-        assertEquals("noroles", details.getUsername());
+        assertEquals(NO_ROLES_USER, details.getUsername());
         assertTrue(details.getAuthorities().isEmpty());
     }
     
     @Test
-    void loadUserByUsername_whenInvalidFormat_throws() {
+    void loadUserByUsernameWhenInvalidFormatThrows() {
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("invalid"));
     }
     
     @Test
-    void loadUserByUsername_whenInvalidIdentifierType_throws() {
+    void loadUserByUsernameWhenInvalidIdentifierTypeThrows() {
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("INVALID:user"));
     }
     
     @Test
-    void loadUserByUsername_whenUserNotFound_throws() {
+    void loadUserByUsernameWhenUserNotFoundThrows() {
         when(rbacService.loadUserCredentials("unknown", IdentifierType.USERNAME)).thenReturn(null);
         
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("USERNAME:unknown"));
     }
     
     @Test
-    void loadUserByUsername_whenEmployeeId_usesCorrectType() {
+    void loadUserByUsernameWhenEmployeeIdUsesCorrectType() {
         RbacUserCredentials credentials = new RbacUserCredentials("emp", "pwd", List.of());
         
         when(rbacService.loadUserCredentials("E001", IdentifierType.EMPLOYEE_ID)).thenReturn(credentials);

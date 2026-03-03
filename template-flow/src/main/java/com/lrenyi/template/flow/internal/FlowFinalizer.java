@@ -31,6 +31,12 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     performConsume(launcher, entry, jobId);
                 } else {
                     taskOrchestrator.tracker().onPassiveEgress();
+                    String reason = entry.getRemovalReason() != null ? entry.getRemovalReason() : "EVICTION";
+                    Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .tag(FlowMetricNames.TAG_REASON, reason)
+                           .register(meterRegistry)
+                           .increment();
                 }
             } catch (Exception t) {
                 FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION);

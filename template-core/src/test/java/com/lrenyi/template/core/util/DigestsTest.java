@@ -12,17 +12,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DigestsTest {
     
+    private static final String HELLO = "hello";
+
     @Test
-    void md5_bytes() {
-        byte[] input = "hello".getBytes(StandardCharsets.UTF_8);
+    void md5Bytes() {
+        byte[] input = HELLO.getBytes(StandardCharsets.UTF_8);
         byte[] result = Digests.md5(input);
         assertNotNull(result);
         assertTrue(result.length > 0);
     }
     
     @Test
-    void md5_bytes_iterations() {
-        byte[] input = "hello".getBytes(StandardCharsets.UTF_8);
+    void md5BytesIterations() {
+        byte[] input = HELLO.getBytes(StandardCharsets.UTF_8);
         byte[] one = Digests.md5(input, 1);
         byte[] two = Digests.md5(input, 2);
         assertNotNull(one);
@@ -31,38 +33,38 @@ class DigestsTest {
     }
     
     @Test
-    void md5_inputStream() throws Exception {
-        InputStream in = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
+    void md5InputStream() throws Exception {
+        InputStream in = new ByteArrayInputStream(HELLO.getBytes(StandardCharsets.UTF_8));
         byte[] result = Digests.md5(in);
         assertNotNull(result);
     }
     
     @Test
-    void sha1_bytes() {
-        byte[] input = "hello".getBytes(StandardCharsets.UTF_8);
+    void sha1Bytes() {
+        byte[] input = HELLO.getBytes(StandardCharsets.UTF_8);
         byte[] result = Digests.sha1(input);
         assertNotNull(result);
     }
     
     @Test
-    void sha1_bytes_salt() {
-        byte[] input = "hello".getBytes(StandardCharsets.UTF_8);
+    void sha1BytesSalt() {
+        byte[] input = HELLO.getBytes(StandardCharsets.UTF_8);
         byte[] salt = Digests.generateSalt(16);
         byte[] result = Digests.sha1(input, salt);
         assertNotNull(result);
     }
     
     @Test
-    void sha1_bytes_salt_iterations() {
-        byte[] input = "hello".getBytes(StandardCharsets.UTF_8);
+    void sha1BytesSaltIterations() {
+        byte[] input = HELLO.getBytes(StandardCharsets.UTF_8);
         byte[] salt = Digests.generateSalt(8);
         byte[] result = Digests.sha1(input, salt, 2);
         assertNotNull(result);
     }
     
     @Test
-    void sha1_inputStream() throws Exception {
-        InputStream in = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
+    void sha1InputStream() throws Exception {
+        InputStream in = new ByteArrayInputStream(HELLO.getBytes(StandardCharsets.UTF_8));
         byte[] result = Digests.sha1(in);
         assertNotNull(result);
     }
@@ -75,14 +77,14 @@ class DigestsTest {
     }
     
     @Test
-    void shorten_returnsHex() {
-        String result = Digests.shorten("hello", 16);
+    void shortenReturnsHex() {
+        String result = Digests.shorten(HELLO, 16);
         assertNotNull(result);
         assertTrue(result.matches("[0-9a-f]+"));
     }
     
     @Test
-    void shorten_maxLengthLargerThanHash_usesHashLength() {
+    void shortenMaxLengthLargerThanHashUsesHashLength() {
         String result = Digests.shorten("x", 64);
         assertNotNull(result);
         assertTrue(result.length() <= 64);

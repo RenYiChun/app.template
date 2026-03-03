@@ -25,7 +25,7 @@ class FeignClientErrorDecoderTest {
     }
     
     @Test
-    void decode_bodyReadSuccess_includesBodyInMessage() {
+    void decodeBodyReadSuccessIncludesBodyInMessage() {
         String bodyContent = "error detail";
         Response.Body body = new Response.Body() {
             @Override
@@ -78,7 +78,7 @@ class FeignClientErrorDecoderTest {
     }
     
     @Test
-    void decode_bodyReadFails_messageStillFormatted() {
+    void decodeBodyReadFailsMessageStillFormatted() {
         Response.Body body = new Response.Body() {
             @Override
             public Integer length() {

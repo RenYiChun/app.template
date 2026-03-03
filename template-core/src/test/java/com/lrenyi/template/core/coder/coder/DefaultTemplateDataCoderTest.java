@@ -16,7 +16,7 @@ class DefaultTemplateDataCoderTest {
     private final DefaultTemplateDataCoder coder = new DefaultTemplateDataCoder();
     
     @Test
-    void encode_matches_v2Format() {
+    void encodeMatchesV2Format() {
         String raw = "test-password-123";
         String encoded = coder.encode(raw);
         assertTrue(encoded.startsWith("v2:"));
@@ -25,7 +25,7 @@ class DefaultTemplateDataCoderTest {
     }
     
     @Test
-    void matches_legacySha1Format() {
+    void matchesLegacySha1Format() {
         String raw = "legacy-password";
         byte[] salt = Digests.generateSalt(8);
         byte[] hash = Digests.sha1(raw.getBytes(StandardCharsets.UTF_8), salt, 1024);

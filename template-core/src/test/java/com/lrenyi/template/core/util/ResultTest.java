@@ -12,9 +12,12 @@ import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 class ResultTest {
-    
+
+    private static final String DEFAULT_MESSAGE = "default";
+    private static final String RUNTIME_EXCEPTION_DEFAULT_MESSAGE = "java.lang.RuntimeException->default";
+
     @Test
-    void constructor_noArgs_setsDefaults() {
+    void constructorNoArgsSetsDefaults() {
         Result<String> r = new Result<>();
         assertEquals(0, r.getCode());
         assertNull(r.getData());
@@ -22,13 +25,13 @@ class ResultTest {
     }
     
     @Test
-    void constructor_messageOnly() {
+    void constructorMessageOnly() {
         Result<String> r = new Result<>("msg");
         assertEquals("msg", r.getMessage());
     }
     
     @Test
-    void getSuccess_setsCodeMessageAndData() {
+    void getSuccessSetsCodeMessageAndData() {
         Result<String> r = Result.getSuccess("data");
         assertEquals(MCode.SUCCESS.getCode(), r.getCode());
         assertEquals(MCode.SUCCESS.getMessage(), r.getMessage());
@@ -36,7 +39,7 @@ class ResultTest {
     }
     
     @Test
-    void getError_setsCodeDataAndMessage() {
+    void getErrorSetsCodeDataAndMessage() {
         Result<String> r = Result.getError("errData", "error msg");
         assertEquals(MCode.EXCEPTION.getCode(), r.getCode());
         assertEquals("errData", r.getData());
@@ -44,62 +47,62 @@ class ResultTest {
     }
     
     @Test
-    void makeThrowable_configNull_usesClassAndDefaultMessage() {
+    void makeThrowableConfigNullUsesClassAndDefaultMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
             util.when(() -> SpringContextUtil.getBean(TemplateConfigProperties.class)).thenReturn(null);
             Result<Object> r = new Result<>();
             Exception cause = new RuntimeException("hidden");
-            r.makeThrowable(cause, "default");
+            r.makeThrowable(cause, DEFAULT_MESSAGE);
             assertEquals(MCode.EXCEPTION.getCode(), r.getCode());
-            assertEquals("java.lang.RuntimeException->default", r.getMessage());
+            assertEquals(RUNTIME_EXCEPTION_DEFAULT_MESSAGE, r.getMessage());
         }
     }
     
     @Test
-    void makeThrowable_exportExceptionDetailFalse_usesClassAndDefaultMessage() {
+    void makeThrowableExportExceptionDetailFalseUsesClassAndDefaultMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
             TemplateConfigProperties config = new TemplateConfigProperties();
             config.getWeb().setExportExceptionDetail(false);
             util.when(() -> SpringContextUtil.getBean(TemplateConfigProperties.class)).thenReturn(config);
             Result<Object> r = new Result<>();
-            r.makeThrowable(new RuntimeException("hidden"), "default");
-            assertEquals("java.lang.RuntimeException->default", r.getMessage());
+            r.makeThrowable(new RuntimeException("hidden"), DEFAULT_MESSAGE);
+            assertEquals(RUNTIME_EXCEPTION_DEFAULT_MESSAGE, r.getMessage());
         }
     }
     
     @Test
-    void makeThrowable_exportExceptionDetailTrue_hasMessage_usesCauseMessage() {
+    void makeThrowableExportExceptionDetailTrueHasMessageUsesCauseMessage() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
             TemplateConfigProperties config = new TemplateConfigProperties();
             config.getWeb().setExportExceptionDetail(true);
             util.when(() -> SpringContextUtil.getBean(TemplateConfigProperties.class)).thenReturn(config);
             Result<Object> r = new Result<>();
-            r.makeThrowable(new RuntimeException("visible message"), "default");
+            r.makeThrowable(new RuntimeException("visible message"), DEFAULT_MESSAGE);
             assertEquals("visible message", r.getMessage());
         }
     }
     
     @Test
-    void makeThrowable_exportExceptionDetailTrue_emptyMessage_usesClassAndDefault() {
+    void makeThrowableExportExceptionDetailTrueEmptyMessageUsesClassAndDefault() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
             TemplateConfigProperties config = new TemplateConfigProperties();
             config.getWeb().setExportExceptionDetail(true);
             util.when(() -> SpringContextUtil.getBean(TemplateConfigProperties.class)).thenReturn(config);
             Result<Object> r = new Result<>();
-            r.makeThrowable(new RuntimeException(""), "default");
-            assertEquals("java.lang.RuntimeException->default", r.getMessage());
+            r.makeThrowable(new RuntimeException(""), DEFAULT_MESSAGE);
+            assertEquals(RUNTIME_EXCEPTION_DEFAULT_MESSAGE, r.getMessage());
         }
     }
     
     @Test
-    void makeThrowable_exportExceptionDetailTrue_nullMessage_usesClassAndDefault() {
+    void makeThrowableExportExceptionDetailTrueNullMessageUsesClassAndDefault() {
         try (MockedStatic<SpringContextUtil> util = mockStatic(SpringContextUtil.class)) {
             TemplateConfigProperties config = new TemplateConfigProperties();
             config.getWeb().setExportExceptionDetail(true);
             util.when(() -> SpringContextUtil.getBean(TemplateConfigProperties.class)).thenReturn(config);
             Result<Object> r = new Result<>();
-            r.makeThrowable(new RuntimeException((String) null), "default");
-            assertEquals("java.lang.RuntimeException->default", r.getMessage());
+            r.makeThrowable(new RuntimeException((String) null), DEFAULT_MESSAGE);
+            assertEquals(RUNTIME_EXCEPTION_DEFAULT_MESSAGE, r.getMessage());
         }
     }
 }

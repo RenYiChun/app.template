@@ -9,28 +9,28 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class PageResultTest {
     
     @Test
-    void of_itemsOnly_nullItems_usesEmptyList() {
+    void ofItemsOnlyNullItemsUsesEmptyList() {
         PageResult<String> r = PageResult.of(null);
         assertEquals(List.of(), r.items());
         assertNull(r.nextPageToken());
     }
     
     @Test
-    void of_itemsOnly_nonNullItems() {
+    void ofItemsOnlyNonNullItems() {
         PageResult<String> r = PageResult.of(List.of("a", "b"));
         assertEquals(List.of("a", "b"), r.items());
         assertNull(r.nextPageToken());
     }
     
     @Test
-    void of_itemsAndToken_nullItems_usesEmptyList() {
+    void ofItemsAndTokenNullItemsUsesEmptyList() {
         PageResult<String> r = PageResult.of(null, "token2");
         assertEquals(List.of(), r.items());
         assertEquals("token2", r.nextPageToken());
     }
     
     @Test
-    void of_itemsAndToken_nonNullItems() {
+    void ofItemsAndTokenNonNullItems() {
         PageResult<Integer> r = PageResult.of(List.of(1, 2), 3);
         assertEquals(List.of(1, 2), r.items());
         assertEquals(3, r.nextPageToken());

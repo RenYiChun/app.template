@@ -21,7 +21,10 @@ import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.config.MeterFilter;
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.Getter;
 import lombok.Setter;
@@ -52,6 +55,18 @@ public class FlowManager implements ActiveLauncherLookup {
     private FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
         this.globalConfig = globalConfig;
         this.meterRegistry = meterRegistry;
+        this.meterRegistry.config().meterFilter(new MeterFilter() {
+            @Override
+            public DistributionStatisticConfig configure(Meter.Id id, DistributionStatisticConfig config) {
+                if (id.getName().startsWith("app.template.flow")) {
+                    return DistributionStatisticConfig.builder()
+                            .percentilesHistogram(true)
+                            .build()
+                            .merge(config);
+                }
+                return config;
+            }
+        });
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig, meterRegistry);
         this.resourceRegistry.setLauncherLookup(this);
         log.info("FlowManager 启动");

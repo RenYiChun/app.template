@@ -12,7 +12,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class InternalRequestMatcherTest {
-    
+
+    private static final String LOCALHOST = "127.0.0.1";
+
     private InternalRequestMatcher matcher;
     private HttpServletRequest request;
     
@@ -23,19 +25,19 @@ class InternalRequestMatcherTest {
     }
     
     @Test
-    void matches_headerTrue_returnsTrue() {
+    void matchesHeaderTrueReturnsTrue() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("true");
         assertTrue(matcher.matches(request));
     }
     
     @Test
-    void matches_headerNull_returnsFalse() {
+    void matchesHeaderNullReturnsFalse() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn(null);
         assertFalse(matcher.matches(request));
     }
     
     @Test
-    void matches_headerOther_returnsFalse() {
+    void matchesHeaderOtherReturnsFalse() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("false");
         assertFalse(matcher.matches(request));
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("TRUE");
@@ -43,18 +45,18 @@ class InternalRequestMatcherTest {
     }
     
     @Test
-    void matches_withIpPatterns_matchingIp_returnsTrue() {
-        InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of("127.0.0.1", "10.0.0.0/8"));
+    void matchesWithIpPatternsMatchingIpReturnsTrue() {
+        InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of(LOCALHOST, "10.0.0.0/8"));
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("true");
-        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getRemoteAddr()).thenReturn(LOCALHOST);
         assertTrue(ipMatcher.matches(request));
         when(request.getRemoteAddr()).thenReturn("10.1.2.3");
         assertTrue(ipMatcher.matches(request));
     }
     
     @Test
-    void matches_withIpPatterns_nonMatchingIp_returnsFalse() {
-        InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of("127.0.0.1"));
+    void matchesWithIpPatternsNonMatchingIpReturnsFalse() {
+        InternalRequestMatcher ipMatcher = new InternalRequestMatcher(List.of(LOCALHOST));
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("true");
         when(request.getRemoteAddr()).thenReturn("192.168.1.1");
         assertFalse(ipMatcher.matches(request));

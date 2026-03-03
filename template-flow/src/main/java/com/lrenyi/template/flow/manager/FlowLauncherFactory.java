@@ -71,27 +71,25 @@ final class FlowLauncherFactory {
                                                                  .build();
         
         // Metrics for production semaphores
+        String jobId1 = "jobId";
         Gauge.builder("app.template.flow.producer.semaphore.used", jobProducerSemaphore,
-                        s -> flow.getProducer().getParallelism() - s.availablePermits())
-                .tag("jobId", jobId)
-                .description("Current active producer threads for the job")
-                .register(meterRegistry);
+                      s -> flow.getProducer().getParallelism() - s.availablePermits()
+        ).tag(jobId1, jobId).description("Current active producer threads for the job").register(meterRegistry);
 
         Gauge.builder("app.template.flow.producer.semaphore.limit", jobProducerSemaphore,
-                        s -> flow.getProducer().getParallelism())
-                .tag("jobId", jobId)
+                      s -> flow.getProducer().getParallelism()
+             ).tag(jobId1, jobId)
                 .description("Max allowed producer threads for the job")
                 .register(meterRegistry);
 
         Gauge.builder("app.template.flow.producer.inflight.used", inFlightProductionSemaphore,
-                        s -> inFlightLimit - s.availablePermits())
-                .tag("jobId", jobId)
+                      s -> inFlightLimit - s.availablePermits()
+             ).tag(jobId1, jobId)
                 .description("Current in-flight tasks (backpressure)")
                 .register(meterRegistry);
-
-        Gauge.builder("app.template.flow.producer.inflight.limit", inFlightProductionSemaphore,
-                        s -> inFlightLimit)
-                .tag("jobId", jobId)
+        
+        Gauge.builder("app.template.flow.producer.inflight.limit", inFlightProductionSemaphore, s -> inFlightLimit)
+             .tag(jobId1, jobId)
                 .description("Max allowed in-flight tasks (backpressure limit)")
                 .register(meterRegistry);
 

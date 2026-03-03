@@ -43,7 +43,7 @@ class KafkaFlowSourceTest {
     }
     
     @Test
-    void hasNext_next_returnsMappedValues() throws Exception {
+    void hasNextNextReturnsMappedValues() throws Exception {
         ConsumerRecord<String, String> r1 = new ConsumerRecord<>("t", 0, 0L, "k1", "v1");
         ConsumerRecord<String, String> r2 = new ConsumerRecord<>("t", 0, 1L, "k2", "v2");
         ConsumerRecords<String, String> records =
@@ -65,13 +65,13 @@ class KafkaFlowSourceTest {
     }
     
     @Test
-    void next_withoutHasNext_throws() {
+    void nextWithoutHasNextThrows() {
         source = new KafkaFlowSource<>(consumer, mapper, Duration.ofMillis(100));
         assertThrows(NoSuchElementException.class, source::next);
     }
     
     @Test
-    void close_idempotent() {
+    void closeIdempotent() {
         source = new KafkaFlowSource<>(consumer, mapper, Duration.ofMillis(100));
         source.close();
         source.close();
@@ -79,7 +79,7 @@ class KafkaFlowSourceTest {
     }
     
     @Test
-    void hasNext_wakeupException_throwsInterruptedException() {
+    void hasNextWakeupExceptionThrowsInterruptedException() {
         when(consumer.poll(any(Duration.class))).thenThrow(new WakeupException());
         
         source = new KafkaFlowSource<>(consumer, mapper, Duration.ofMillis(100));
@@ -87,7 +87,7 @@ class KafkaFlowSourceTest {
     }
     
     @Test
-    void close_consumerThrows_doesNotPropagate() {
+    void closeConsumerThrowsDoesNotPropagate() {
         doThrow(new RuntimeException("close failed")).when(consumer).close();
         
         source = new KafkaFlowSource<>(consumer, mapper, Duration.ofMillis(100));
@@ -95,7 +95,7 @@ class KafkaFlowSourceTest {
     }
     
     @Test
-    void pollTimeout_nullUsesDefault() throws Exception {
+    void pollTimeoutNullUsesDefault() throws Exception {
         source = new KafkaFlowSource<>(consumer, r -> r.value().toString(), null);
         when(consumer.poll(any(Duration.class))).thenReturn(new ConsumerRecords<>(Collections.emptyMap()));
         assertFalse(source.hasNext());
