@@ -106,7 +106,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{instance=~\"$instance\",job=\"gopr-audit\"}[1m]))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -173,7 +173,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_sum{job=\"gopr-audit\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
+          "expr": "sum(rate(http_server_requests_seconds_sum{instance=~\"$instance\",job=\"gopr-audit\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -211,17 +211,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"gopr-audit\"}[5m])) by (le))",
           "legendFormat": "P99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"gopr-audit\"}[5m])) by (le))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{job=\"gopr-audit\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"gopr-audit\"}[5m])) by (le))",
           "legendFormat": "P50",
           "refId": "C"
         }
@@ -259,7 +259,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"gopr-audit\"}[1m]))",
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{instance=~\"$instance\",job=\"gopr-audit\"}[1m]))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -320,7 +320,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "jvm_threads_live_threads{job=\"gopr-audit\"}",
+          "expr": "jvm_threads_live_threads{instance=~\"$instance\",job=\"gopr-audit\"}",
           "legendFormat": "",
           "refId": "A"
         }
@@ -358,12 +358,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "system_cpu_usage{job=\"gopr-audit\"}",
+          "expr": "system_cpu_usage{instance=~\"$instance\",job=\"gopr-audit\"}",
           "legendFormat": "系统 CPU",
           "refId": "A"
         },
         {
-          "expr": "process_cpu_usage{job=\"gopr-audit\"}",
+          "expr": "process_cpu_usage{instance=~\"$instance\",job=\"gopr-audit\"}",
           "legendFormat": "进程 CPU",
           "refId": "B"
         }
@@ -429,7 +429,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(jvm_memory_used_bytes{job=\"gopr-audit\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"gopr-audit\",area=\"heap\"})",
+          "expr": "sum(jvm_memory_used_bytes{instance=~\"$instance\",job=\"gopr-audit\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"gopr-audit\",area=\"heap\"})",
           "legendFormat": "",
           "refId": "A"
         }
@@ -467,12 +467,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (area) (jvm_memory_used_bytes{job=\"gopr-audit\"})",
+          "expr": "sum by (area) (jvm_memory_used_bytes{instance=~\"$instance\",job=\"gopr-audit\"})",
           "legendFormat": "已使用 ({{area}})",
           "refId": "A"
         },
         {
-          "expr": "sum by (area) (jvm_memory_max_bytes{job=\"gopr-audit\"})",
+          "expr": "sum by (area) (jvm_memory_max_bytes{instance=~\"$instance\",job=\"gopr-audit\"})",
           "legendFormat": "最大值 ({{area}})",
           "refId": "B"
         }
@@ -525,7 +525,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_producer_semaphore_used{jobId=~\"$jobId\"} / app_template_flow_producer_semaphore_limit{jobId=~\"$jobId\"}",
+          "expr": "app_template_flow_producer_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"} / app_template_flow_producer_semaphore_limit{jobId=~\"$jobId\"}",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -566,12 +566,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_producer_inflight_used{jobId=~\"$jobId\"}",
+          "expr": "app_template_flow_producer_inflight_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
           "legendFormat": "{{jobId}} - 处理中",
           "refId": "A"
         },
         {
-          "expr": "app_template_flow_producer_inflight_limit{jobId=~\"$jobId\"}",
+          "expr": "app_template_flow_producer_inflight_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
           "legendFormat": "{{jobId}} - 上限",
           "refId": "B"
         }
@@ -612,7 +612,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_semaphore_used / app_template_flow_semaphore_limit",
+          "expr": "app_template_flow_semaphore_used{instance=~\"$instance\"} / app_template_flow_semaphore_limit{instance=~\"$instance\"}",
           "legendFormat": "全局负载",
           "refId": "A"
         }
@@ -653,12 +653,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_semaphore_used",
+          "expr": "app_template_flow_semaphore_used{instance=~\"$instance\"}",
           "legendFormat": "处理中",
           "refId": "A"
         },
         {
-          "expr": "app_template_flow_semaphore_limit",
+          "expr": "app_template_flow_semaphore_limit{instance=~\"$instance\"}",
           "legendFormat": "上限",
           "refId": "B"
         }
@@ -696,22 +696,22 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
           "legendFormat": "{{jobId}} - 已获取生产许可的数据量",
           "refId": "A"
         },
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_egress_active_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (jobId) (rate(app_template_flow_egress_active_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
           "legendFormat": "{{jobId}} - 正在消费的数据量",
           "refId": "B"
         },
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_egress_passive_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
           "legendFormat": "{{jobId}} - 未正常消费丢弃的数据量",
           "refId": "C"
         },
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
           "legendFormat": "{{jobId}} - 已正常消费结束的数据量",
           "refId": "D"
         }
@@ -748,7 +748,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_storage_size{jobId=~\"$jobId\"}",
+          "expr": "app_template_flow_storage_size{instance=~\"$instance\",jobId=~\"$jobId\"}",
           "legendFormat": "{{jobId}} ({{storageType}})",
           "refId": "A"
         }
@@ -789,7 +789,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"${jobId:pipe}\"}[5m]))",
           "legendFormat": "{{jobId}} - {{reason}}",
           "refId": "A"
         }
@@ -835,7 +835,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_production_released_total{jobId=~\"$jobId\"}[5m]))",
+          "expr": "sum by (jobId) (rate(app_template_flow_production_released_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -881,7 +881,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -919,22 +919,22 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 写入缓存耗时",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 配对业务处理耗时",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_acquire_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_acquire_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 获取消费许可排队耗时",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 出缓存到终结耗时",
           "refId": "D"
         }
@@ -981,7 +981,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(app_template_flow_errors_total{jobId=~\"$jobId\"}[1m])) * 60",
+          "expr": "sum(rate(app_template_flow_errors_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) * 60",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -1034,7 +1034,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason) (rate(app_template_http_auth_failure_total[5m]))",
+          "expr": "sum by (reason) (rate(app_template_http_auth_failure_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -1072,12 +1072,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (grantType) (rate(app_template_oauth2_token_issued_total[5m]))",
+          "expr": "sum by (grantType) (rate(app_template_oauth2_token_issued_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "签发 {{grantType}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (errorType) (rate(app_template_oauth2_token_failed_total[5m]))",
+          "expr": "sum by (errorType) (rate(app_template_oauth2_token_failed_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "失败 {{errorType}}",
           "refId": "B"
         }
@@ -1127,7 +1127,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\"}[5m])))",
           "legendFormat": "{{method}} P99",
           "refId": "A"
         }
@@ -1165,7 +1165,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (sourceType) (rate(app_template_source_received_total[5m]))",
+          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "{{sourceType}}",
           "refId": "A"
         }
@@ -1194,6 +1194,38 @@
         "regex": "",
         "skipUrlSync": false,
         "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(up{job=\"gopr-audit\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"gopr-audit\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       },
       {
         "allValue": ".*",
