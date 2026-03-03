@@ -2,6 +2,7 @@ package com.lrenyi.template.dataforge.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -9,11 +10,21 @@ import java.lang.annotation.Target;
 /**
  * 字段元数据注解，用于定义字段在UI和业务上的属性。
  * 整合了原{@code @Searchable}的元数据部分。
+ * <p>
+ * 字段级别：标注在字段上；类级别：配合 {@code parentFieldName} 覆盖父类字段的元数据。
+ * </p>
  */
 @Documented
-@Target(ElementType.FIELD)
+@Repeatable(DataforgeField.List.class)
+@Target({ElementType.FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface DataforgeField {
+    
+    /**
+     * 父类字段名（仅在类级别使用时有效）。
+     * 当标注在实体类上时，用于指定要覆盖元数据的父类字段。
+     */
+    String parentFieldName() default "";
     
     /**
      * 字段显示标签（UI Label），默认取字段名。
@@ -27,12 +38,6 @@ public @interface DataforgeField {
     String description() default "";
     
     /**
-     * 排序权重，值越小越靠前。
-     * 原{@code @Searchable.order}
-     */
-    int order() default 0;
-    
-    /**
      * 字段分组，用于表单分组显示。
      */
     String group() default "";
@@ -41,6 +46,16 @@ public @interface DataforgeField {
      * 组内排序权重。
      */
     int groupOrder() default 0;
+    
+    /**
+     * 表格列排序权重，值越小越靠前。
+     */
+    int columnOrder() default 0;
+    
+    /**
+     * 表单字段排序权重，值越小越靠前。
+     */
+    int formOrder() default 0;
     
     // ==================== 表格列配置 ====================
     
@@ -70,9 +85,14 @@ public @interface DataforgeField {
     ColumnAlign columnAlign() default ColumnAlign.LEFT;
     
     /**
-     * 列宽度（像素），0表示自动宽度。
+     * 列宽度（像素）。
+     * <ul>
+     *     <li>0：自动宽度（根据内容估算）</li>
+     *     <li>-1：自适应剩余宽度（类似 flex: 1）</li>
+     *     <li>>0：固定像素宽度</li>
+     * </ul>
      */
-    int columnWidth() default 0;
+    int columnWidth() default -1;
     
     /**
      * 最小列宽度（像素）。
@@ -194,6 +214,11 @@ public @interface DataforgeField {
     boolean searchable() default false;
     
     /**
+     * 搜索栏排序权重，值越小越靠前。
+     */
+    int searchOrder() default 0;
+    
+    /**
      * 搜索类型。
      */
     SearchType searchType() default SearchType.EQUALS;
@@ -286,4 +311,14 @@ public @interface DataforgeField {
      * 是否懒加载关联数据。
      */
     boolean lazyLoad() default true;
+    
+    /**
+     * 用于支持 {@code @DataforgeField} 的重复注解（类级别覆盖多个父类字段时使用）。
+     */
+    @Documented
+    @Target({ElementType.FIELD, ElementType.TYPE})
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface List {
+        DataforgeField[] value();
+    }
 }

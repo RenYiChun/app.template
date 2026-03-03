@@ -8,15 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FlowProgressSnapshotTest {
     
+    private static final String REASON_TIMEOUT = "TIMEOUT";
+    
     @Test
-    void constructor_nullPassiveEgressByReason_usesEmptyMap() {
+    void constructorNullPassiveEgressByReasonUsesEmptyMap() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 5, 3, 2, 1, 2, 1, 3, 0, 0, null);
         assertEquals(0, s.passiveEgressByReason().size());
     }
     
     @Test
-    void constructor_nonNullPassiveEgressByReason_unmodifiable() {
-        Map<String, Long> map = new java.util.HashMap<>(Map.of("TIMEOUT", 1L));
+    void constructorNonNullPassiveEgressByReasonUnmodifiable() {
+        Map<String, Long> map = new java.util.HashMap<>(Map.of(REASON_TIMEOUT, 1L));
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, map);
         assertEquals(1, s.passiveEgressByReason().size());
         Map<String, Long> passiveMap = s.passiveEgressByReason();
@@ -24,7 +26,7 @@ class FlowProgressSnapshotTest {
     }
     
     @Test
-    void getCompletionRate_totalExpectedPositive() {
+    void getCompletionRateTotalExpectedPositive() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 10, 10, 0, 0, 8, 2, 10, 0, 0, null);
         assertEquals(1.0, s.getCompletionRate());
         FlowProgressSnapshot s2 = new FlowProgressSnapshot("j1", 10, 5, 3, 2, 1, 1, 1, 2, 0, 0, null);
@@ -32,19 +34,19 @@ class FlowProgressSnapshotTest {
     }
     
     @Test
-    void getCompletionRate_totalExpectedZero_endTimeSet_returnsOne() {
+    void getCompletionRateTotalExpectedZeroEndTimeSetReturnsOne() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 5, 5, 0, 0, 5, 0, 5, 100, 200, null);
         assertEquals(1.0, s.getCompletionRate());
     }
     
     @Test
-    void getCompletionRate_totalExpectedZero_productionAcquiredZero_returnsZero() {
+    void getCompletionRateTotalExpectedZeroProductionAcquiredZeroReturnsZero() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null);
         assertEquals(0.0, s.getCompletionRate());
     }
     
     @Test
-    void getCompletionRate_totalExpectedZero_terminatedOverAcquired() {
+    void getCompletionRateTotalExpectedZeroTerminatedOverAcquired() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 10, 10, 0, 0, 8, 2, 10, 0, 0, null);
         assertEquals(1.0, s.getCompletionRate());
     }
@@ -56,41 +58,41 @@ class FlowProgressSnapshotTest {
     }
     
     @Test
-    void getSuccessRate_totalTerminatedZero_returnsOne() {
+    void getSuccessRateTotalTerminatedZeroReturnsOne() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, null);
         assertEquals(1.0, s.getSuccessRate());
     }
     
     @Test
-    void getSuccessRate_mixed() {
+    void getSuccessRateMixed() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 10, 10, 0, 0, 6, 4, 10, 0, 0, null);
         assertEquals(0.6, s.getSuccessRate());
     }
     
     @Test
-    void getPassiveEgressByReason_nullOrEmpty_returnsZero() {
+    void getPassiveEgressByReasonNullOrEmptyReturnsZero() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null);
-        assertEquals(0L, s.getPassiveEgressByReason("TIMEOUT"));
+        assertEquals(0L, s.getPassiveEgressByReason(REASON_TIMEOUT));
         assertEquals(0L, s.getPassiveEgressByReason(null));
     }
     
     @Test
-    void getPassiveEgressByReason_withMap() {
+    void getPassiveEgressByReasonWithMap() {
         FlowProgressSnapshot s =
-                new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, Map.of("TIMEOUT", 3L, "EVICTION", 1L));
-        assertEquals(3L, s.getPassiveEgressByReason("TIMEOUT"));
+                new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, Map.of(REASON_TIMEOUT, 3L, "EVICTION", 1L));
+        assertEquals(3L, s.getPassiveEgressByReason(REASON_TIMEOUT));
         assertEquals(1L, s.getPassiveEgressByReason("EVICTION"));
         assertEquals(0L, s.getPassiveEgressByReason("MISMATCH"));
     }
     
     @Test
-    void getTps_durationZero_returnsZero() {
+    void getTpsDurationZeroReturnsZero() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, null);
         assertEquals(0.0, s.getTps());
     }
     
     @Test
-    void getTps_positiveDuration() {
+    void getTpsPositiveDuration() {
         // 100 terminated over 1000 seconds => 0.1 TPS
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 100, 0, 1_000_000L, null);
         assertEquals(0.1, s.getTps());

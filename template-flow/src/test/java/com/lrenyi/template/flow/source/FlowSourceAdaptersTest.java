@@ -18,25 +18,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlowSourceAdaptersTest {
     
     @Test
-    void emptyProvider_hasNextSubSource_returnsFalse() throws Exception {
+    void emptyProviderHasNextSubSourceReturnsFalse() throws Exception {
         FlowSourceProvider<String> p = FlowSourceAdapters.emptyProvider();
         assertFalse(p.hasNextSubSource());
     }
     
     @Test
-    void emptyProvider_nextSubSource_throws() {
+    void emptyProviderNextSubSourceThrows() {
         FlowSourceProvider<String> p = FlowSourceAdapters.emptyProvider();
         assertThrows(NoSuchElementException.class, p::nextSubSource);
     }
     
     @Test
-    void emptyProvider_close_noOp() {
+    void emptyProviderCloseNoOp() {
         FlowSourceProvider<String> p = FlowSourceAdapters.emptyProvider();
         assertDoesNotThrow(p::close);
     }
     
     @Test
-    void fromIterator_hasNext_next_close() throws Exception {
+    void fromIteratorHasNextNextClose() throws Exception {
         FlowSource<String> src = FlowSourceAdapters.fromIterator(List.of("a", "b").iterator(), null);
         assertTrue(src.hasNext());
         assertEquals("a", src.next());
@@ -47,7 +47,7 @@ class FlowSourceAdaptersTest {
     }
     
     @Test
-    void fromIterator_withOnClose_invokesOnClose() throws Exception {
+    void fromIteratorWithOnCloseInvokesOnClose() throws Exception {
         boolean[] closed = {false};
         FlowSource<String> src = FlowSourceAdapters.fromIterator(List.of("x").iterator(), () -> closed[0] = true);
         assertTrue(src.hasNext());
@@ -57,14 +57,14 @@ class FlowSourceAdaptersTest {
     }
     
     @Test
-    void fromFlowSources_nullOrEmpty_throws() {
+    void fromFlowSourcesNullOrEmptyThrows() {
         assertThrows(IllegalArgumentException.class, () -> FlowSourceAdapters.fromFlowSources(null));
         List<FlowSource<String>> empty = List.of();
         assertThrows(IllegalArgumentException.class, () -> FlowSourceAdapters.fromFlowSources(empty));
     }
     
     @Test
-    void fromFlowSources_hasNextSubSource_nextSubSource_close() throws Exception {
+    void fromFlowSourcesHasNextSubSourceNextSubSourceClose() throws Exception {
         FlowSource<String> s1 = FlowSourceAdapters.fromIterator(List.of("a").iterator(), null);
         FlowSource<String> s2 = FlowSourceAdapters.fromIterator(List.of("b").iterator(), null);
         FlowSourceProvider<String> p = FlowSourceAdapters.fromFlowSources(List.of(s1, s2));
@@ -82,7 +82,7 @@ class FlowSourceAdaptersTest {
     }
     
     @Test
-    void singleSourceProvider_hasNext_nextSubSource_returnsSingle() throws Exception {
+    void singleSourceProviderHasNextNextSubSourceReturnsSingle() throws Exception {
         FlowSource<String> single = FlowSourceAdapters.fromIterator(List.of("x").iterator(), null);
         FlowSourceProvider<String> p = FlowSourceAdapters.singleSourceProvider(single);
         assertTrue(p.hasNextSubSource());
@@ -92,7 +92,7 @@ class FlowSourceAdaptersTest {
     }
     
     @Test
-    void fromFlowSources_closeWhenOneSourceThrows_doesNotPropagate() {
+    void fromFlowSourcesCloseWhenOneSourceThrowsDoesNotPropagate() {
         FlowSource<String> ok = FlowSourceAdapters.fromIterator(List.of("a").iterator(), null);
         FlowSource<String> throwOnClose = new ThrowingOnCloseFlowSource<>();
         FlowSourceProvider<String> p = FlowSourceAdapters.fromFlowSources(List.of(ok, throwOnClose));
@@ -112,7 +112,13 @@ class FlowSourceAdaptersTest {
         
         @Override
         public void close() {
-            throw new RuntimeException("close failed");
+            throw new CloseFailedTestException("close failed");
+        }
+    }
+    
+    private static class CloseFailedTestException extends RuntimeException {
+        CloseFailedTestException(String message) {
+            super(message);
         }
     }
 }

@@ -6,6 +6,14 @@ export interface ActionMeta {
     [key: string]: any;
 }
 
+/** 操作元数据（EntityMeta.operations 中每项的类型） */
+export interface OperationMeta {
+    method?: string;
+    path?: string;
+    summary?: string;
+    [key: string]: any;
+}
+
 export type Result<T> = {
     code: number;
     message: string;
@@ -86,7 +94,8 @@ export interface FieldMeta {
     searchOrder?: number;
     exportExcluded?: boolean;
     description?: string;
-    order?: number;
+    columnOrder?: number;
+    formOrder?: number;
     group?: string;
     groupOrder?: number;
     columnVisible?: boolean;
@@ -147,6 +156,8 @@ export type EntityMeta = {
     createEnabled?: boolean;
     updateEnabled?: boolean;
     deleteEnabled?: boolean;
+    updateBatchEnabled?: boolean;
+    deleteBatchEnabled?: boolean;
     exportEnabled?: boolean;
     exportTemplate?: string;
 

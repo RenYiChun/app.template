@@ -22,14 +22,10 @@ public class QueueJoiner implements FlowJoiner<PairItem> {
     private final Map<FailureReason, AtomicLong> onFailedByReason = new ConcurrentHashMap<>();
     private volatile FlowSourceProvider<PairItem> sourceProvider;
     
-    {
+    public QueueJoiner() {
         for (FailureReason r : FailureReason.values()) {
             onFailedByReason.put(r, new AtomicLong(0));
         }
-    }
-    
-    public void setSourceProvider(FlowSourceProvider<PairItem> sourceProvider) {
-        this.sourceProvider = sourceProvider;
     }
     
     @Override

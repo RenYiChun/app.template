@@ -3,6 +3,7 @@ package com.lrenyi.template.core;
 import java.util.Objects;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
+import com.lrenyi.template.core.json.DefaultJacksonConfiguration;
 import com.lrenyi.template.core.json.JacksonJsonProcessor;
 import com.lrenyi.template.core.json.JsonProcessor;
 import com.lrenyi.template.core.json.JsonService;
@@ -23,7 +24,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ComponentScan
 @Configuration(proxyBeanMethods = false)
-@Import(CoreAutoConfiguration.WebConfig.class)
+@Import({CoreAutoConfiguration.WebConfig.class, DefaultJacksonConfiguration.class})
 @AutoConfigureAfter(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(TemplateConfigProperties.class)
 public class CoreAutoConfiguration {

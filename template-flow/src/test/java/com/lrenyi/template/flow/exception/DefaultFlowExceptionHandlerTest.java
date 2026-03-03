@@ -9,7 +9,7 @@ class DefaultFlowExceptionHandlerTest {
     private final DefaultFlowExceptionHandler handler = new DefaultFlowExceptionHandler();
     
     @Test
-    void handleException_withEntryId_andNonEmptyContext_logsErrorWhenCritical() {
+    void handleExceptionWithEntryIdAndNonEmptyContextLogsErrorWhenCritical() {
         FlowExceptionContext context = new FlowExceptionContext("job1",
                                                                 "entry1",
                                                                 new OutOfMemoryError("test OOM"),
@@ -19,14 +19,14 @@ class DefaultFlowExceptionHandlerTest {
     }
     
     @Test
-    void handleException_withNullEntryId_logsWarnWhenNotCritical() {
+    void handleExceptionWithNullEntryIdLogsWarnWhenNotCritical() {
         FlowExceptionContext context =
                 new FlowExceptionContext("job1", null, new RuntimeException("test"), FlowPhase.PRODUCTION);
         assertDoesNotThrow(() -> handler.handleException(context));
     }
     
     @Test
-    void handleException_emptyContext_logsWarn() {
+    void handleExceptionEmptyContextLogsWarn() {
         FlowExceptionContext context = new FlowExceptionContext("job1",
                                                                 "e1",
                                                                 new IllegalArgumentException("test empty context"),
@@ -36,7 +36,7 @@ class DefaultFlowExceptionHandlerTest {
     }
     
     @Test
-    void handleException_storagePhase_treatedAsCritical() {
+    void handleExceptionStoragePhaseTreatedAsCritical() {
         FlowExceptionContext context = new FlowExceptionContext("j",
                                                                 "e",
                                                                 new RuntimeException("test storage critical"),
@@ -46,7 +46,7 @@ class DefaultFlowExceptionHandlerTest {
     }
     
     @Test
-    void handleException_virtualMachineError_treatedAsCritical() {
+    void handleExceptionVirtualMachineErrorTreatedAsCritical() {
         FlowExceptionContext context =
                 new FlowExceptionContext("j", "e", new StackOverflowError("test SOE"), FlowPhase.CONSUMPTION);
         assertDoesNotThrow(() -> handler.handleException(context));

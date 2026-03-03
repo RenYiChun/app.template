@@ -13,19 +13,20 @@ import org.springframework.core.env.PropertySource;
  * 作为链首注入，{@link #getProperty(String)} 被调用时从后续 source 获取原始值，
  * 若为 aENC(...) 则解密并缓存后返回；非加密值直接透传。
  * <p>
- * 使用重入保护避免与 Spring Boot 的 ConfigurationPropertySourcesPropertySource 形成递归调用导致 StackOverflowError。
+ * 使用 ThreadLocal 重入保护：当 configurationProperties 委托回本链时，返回 null 打破递归，
+ * 从而可从 configurationProperties 获取扁平化配置（含 Nacos、application.yml 等），实现全量自动解密。
  */
 final class LazyDecryptingPropertySource extends PropertySource<Object> {
-    
+
     private static final String PREFIX = "aENC(";
     private static final String SUFFIX = ")";
     
-    /** 需要跳过的 PropertySource 名称：其 getProperty 会委托回本链，导致无限递归 */
-    private static final String CONFIGURATION_PROPERTIES_SOURCE_NAME = "configurationProperties";
-    
+    /** 重入保护：configurationProperties.getProperty 会委托回本链，需在重入时返回 null 打破循环 */
+    private static final ThreadLocal<Boolean> IN_RESOLVE = ThreadLocal.withInitial(() -> false);
+
     private final MutablePropertySources propertySources;
     private final ConcurrentHashMap<String, String> decryptedCache = new ConcurrentHashMap<>();
-    
+
     LazyDecryptingPropertySource(MutablePropertySources propertySources) {
         super(CoreBootInitializer.DECRYPTED_PROPERTY_SOURCE_NAME, new Object());
         this.propertySources = propertySources;
@@ -33,22 +34,30 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
     
     @Override
     public Object getProperty(@NonNull String name) {
-        Object raw = resolveFromChain(name);
-        if (raw == null) {
+        if (IN_RESOLVE.get()) {
             return null;
         }
-        if (!(raw instanceof String value)) {
-            return raw;
+        try {
+            IN_RESOLVE.set(true);
+            Object raw = resolveFromChain(name);
+            if (raw == null) {
+                return null;
+            }
+            if (!(raw instanceof String value)) {
+                return raw;
+            }
+            if (!value.startsWith(PREFIX) || !value.endsWith(SUFFIX)) {
+                return value;
+            }
+            return decryptedCache.computeIfAbsent(name, k -> decryptValue(value));
+        } finally {
+            IN_RESOLVE.set(false);
         }
-        if (!value.startsWith(PREFIX) || !value.endsWith(SUFFIX)) {
-            return value;
-        }
-        return decryptedCache.computeIfAbsent(name, k -> decryptValue(value));
     }
     
     private Object resolveFromChain(String name) {
         for (PropertySource<?> ps : propertySources) {
-            if (ps != this && !CONFIGURATION_PROPERTIES_SOURCE_NAME.equals(ps.getName())) {
+            if (ps != this) {
                 Object value = ps.getProperty(name);
                 if (value != null) {
                     return value;

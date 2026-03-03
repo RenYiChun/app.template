@@ -198,6 +198,14 @@ const isFieldRequired = (field: FieldMeta) => {
   return field.required || field.uiRequired;
 };
 
+const compareFormFields = (a: FieldMeta, b: FieldMeta) => {
+  const ga = a.group ?? '';
+  const gb = b.group ?? '';
+  const c = ga.localeCompare(gb);
+  if (c !== 0) return c;
+  return (a.groupOrder ?? 0) - (b.groupOrder ?? 0) || (a.formOrder ?? 0) - (b.formOrder ?? 0);
+};
+
 const getDtoFields = (dtoType: 'CREATE' | 'UPDATE' | 'RESPONSE' | 'PAGE_RESPONSE') => {
   if (!props.entity.fields) return [];
 
@@ -209,39 +217,28 @@ const getDtoFields = (dtoType: 'CREATE' | 'UPDATE' | 'RESPONSE' | 'PAGE_RESPONSE
     }
   });
 
-  return props.entity.fields.filter(f => {
+  const filtered = props.entity.fields.filter(f => {
     // ID Handling
-    // Exclude ID for Create/Update
-    if (f.name === 'id' && (dtoType === 'CREATE' || dtoType === 'UPDATE')) {
-      return false;
-    }
-    // Always Include ID for Response/PageResponse
-    if (f.name === 'id' && (dtoType === 'RESPONSE' || dtoType === 'PAGE_RESPONSE')) {
-      return true;
-    }
+    if (f.name === 'id' && (dtoType === 'CREATE' || dtoType === 'UPDATE')) return false;
+    if (f.name === 'id' && (dtoType === 'RESPONSE' || dtoType === 'PAGE_RESPONSE')) return true;
 
-    // Explicit Includes
     const includes = new Set(f.dtoIncludeTypes || []);
-    if (includes.size > 0) {
-      return includes.has(dtoType);
-    }
-    
-    // Strict Mode Check
-    if (strictTypes.has(dtoType)) {
-      // If strictly defined elsewhere but not here -> Exclude
-      return false;
-    }
+    if (includes.size > 0) return includes.has(dtoType);
 
-    // Lazy Mode (Default Exclusions)
+    if (strictTypes.has(dtoType)) return false;
+
     if (dtoType === 'PAGE_RESPONSE') {
       const systemFields = ['createTime', 'updateTime', 'createBy', 'updateBy', 'deleted', 'version', 'remark'];
-      if (systemFields.includes(f.name)) {
-        return false;
-      }
+      if (systemFields.includes(f.name)) return false;
     }
 
     return true;
   });
+
+  if (dtoType === 'CREATE' || dtoType === 'UPDATE') {
+    return [...filtered].sort(compareFormFields);
+  }
+  return [...filtered].sort((a, b) => (a.columnOrder ?? 0) - (b.columnOrder ?? 0));
 };
 </script>
 

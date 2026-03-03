@@ -33,9 +33,12 @@ public class FieldMeta {
     // 基础信息
     private String label = "";
     private String description = "";
-    private int order = 0;
     private String group = "";
     private int groupOrder = 0;
+    /** 表格列排序权重，值越小越靠前 */
+    private int columnOrder = 0;
+    /** 表单字段排序权重，值越小越靠前 */
+    private int formOrder = 0;
     
     // 表格列配置
     private boolean columnVisible = true;

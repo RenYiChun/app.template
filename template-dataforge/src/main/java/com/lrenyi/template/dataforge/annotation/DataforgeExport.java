@@ -28,7 +28,7 @@ public @interface DataforgeExport {
     String header() default "";
     
     /**
-     * 导出顺序，默认取{@code @DataforgeField.order}。
+     * 导出列顺序，值越小越靠前。
      */
     int order() default 0;
     

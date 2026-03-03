@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FlowConstantsTest {
     
     @Test
-    void constructor_throwsUnsupportedOperationException() throws Exception {
+    void constructorThrowsUnsupportedOperationException() throws Exception {
         Constructor<FlowConstants> c = FlowConstants.class.getDeclaredConstructor();
         c.setAccessible(true);
         InvocationTargetException e = assertThrows(InvocationTargetException.class, c::newInstance);
@@ -20,7 +20,7 @@ class FlowConstantsTest {
     }
     
     @Test
-    void constants_values() {
+    void constantsValues() {
         assertEquals(5L, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_SECONDS);
         assertEquals(TimeUnit.SECONDS, FlowConstants.DEFAULT_SHUTDOWN_TIMEOUT_UNIT);
         assertEquals(2L, FlowConstants.FORCE_SHUTDOWN_WAIT_SECONDS);

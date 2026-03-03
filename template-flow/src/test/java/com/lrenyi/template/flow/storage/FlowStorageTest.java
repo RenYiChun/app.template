@@ -13,14 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FlowStorageTest {
     
     @Test
-    void deposit_null_doesNothing() {
+    void depositNullDoesNothing() {
         StubStorage<Object> storage = new StubStorage<>(true);
         assertDoesNotThrow(() -> storage.deposit(null));
         assertEquals(0, storage.depositCallCount);
     }
     
     @Test
-    void deposit_success_noRelease() {
+    void depositSuccessNoRelease() {
         StubStorage<String> storage = new StubStorage<>(true);
         FlowEntry<String> entry = new FlowEntry<>("d", "j");
         storage.deposit(entry);
@@ -28,7 +28,7 @@ class FlowStorageTest {
     }
     
     @Test
-    void deposit_doDepositFalse_releasesEntry() {
+    void depositDoDepositFalseReleasesEntry() {
         StubStorage<String> storage = new StubStorage<>(false);
         FlowEntry<String> entry = new FlowEntry<>("d", "j");
         storage.deposit(entry);
@@ -37,7 +37,7 @@ class FlowStorageTest {
     }
     
     @Test
-    void remove_default_throws() {
+    void removeDefaultThrows() {
         StubStorage<Object> storage = new StubStorage<>(true);
         assertThrows(UnsupportedOperationException.class, () -> storage.remove("key"));
     }

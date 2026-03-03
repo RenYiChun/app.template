@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResourceShutdownExceptionTest {
     
     @Test
-    void constructor_messageOnly() {
+    void constructorMessageOnly() {
         ResourceShutdownException e = new ResourceShutdownException("msg");
         assertEquals("msg", e.getMessage());
         assertTrue(e.getErrors().isEmpty());
@@ -18,7 +18,7 @@ class ResourceShutdownExceptionTest {
     }
     
     @Test
-    void constructor_messageAndErrors() {
+    void constructorMessageAndErrors() {
         List<Exception> errs = List.of(new RuntimeException("a"), new RuntimeException("b"));
         ResourceShutdownException e = new ResourceShutdownException("msg", errs);
         assertEquals("msg", e.getMessage());
@@ -27,14 +27,14 @@ class ResourceShutdownExceptionTest {
     }
     
     @Test
-    void constructor_messageAndNullErrors_usesEmptyList() {
+    void constructorMessageAndNullErrorsUsesEmptyList() {
         ResourceShutdownException e = new ResourceShutdownException("msg", (List<Exception>) null);
         assertTrue(e.getErrors().isEmpty());
         assertFalse(e.hasMultipleErrors());
     }
     
     @Test
-    void constructor_messageAndCause() {
+    void constructorMessageAndCause() {
         Throwable cause = new RuntimeException("cause");
         ResourceShutdownException e = new ResourceShutdownException("msg", cause);
         assertEquals("msg", e.getMessage());

@@ -32,9 +32,15 @@ import javax.tools.JavaFileObject;
 @SupportedAnnotationTypes("com.lrenyi.template.dataforge.annotation.DataforgeEntity")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class DtoGeneratorProcessor extends AbstractProcessor {
-
-    private static final String DTO_TYPE_CREATE = "CREATE";
     
+    private static final String DTO_TYPE_CREATE = "CREATE";
+    private static final String ATTR_INCLUDE = "include";
+    private static final String ATTR_PARENT_FIELD_NAME = "parentFieldName";
+    private static final String ATTR_VALUE = "value";
+    private static final String ANN_DATAFORGE_DTO = "com.lrenyi.template.dataforge.annotation.DataforgeDto";
+    private static final String ANN_DATAFORGE_DTO_LIST = "com.lrenyi.template.dataforge.annotation.DataforgeDto$List";
+    private static final String ANN_DATAFORGE_FIELD = "com.lrenyi.template.dataforge.annotation.DataforgeField";
+
     private static boolean hasColumnNullableFalse(VariableElement field) {
         for (var mirror : field.getAnnotationMirrors()) {
             if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
@@ -77,7 +83,15 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             sb.append("    @jakarta.validation.constraints.NotNull").append(groupParam).append("\n");
         }
         if (f.maxSize() > 0 && "String".equals(f.typeName())) {
-            sb.append("    @jakarta.validation.constraints.Size(max = ").append(f.maxSize()).append(groups).append(")\n");
+            sb.append("    @jakarta.validation.constraints.Size(max = ")
+              .append(f.maxSize())
+              .append(groups)
+              .append(")\n");
+        }
+        if (f.format() != null && !f.format().isEmpty()) {
+            sb.append("    @com.fasterxml.jackson.annotation.JsonFormat(pattern = \"")
+              .append(f.format())
+              .append("\", timezone = \"GMT+8\")\n");
         }
         return sb.toString();
     }
@@ -95,7 +109,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             if (ev instanceof Element el) {
                 out.add(el.getSimpleName().toString());
             } else if (ev instanceof String s) {
-                 out.add(s);
+                out.add(s);
             }
         }
         return out;
@@ -103,7 +117,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     
     private static AnnotationMirror findAnnotationMirror(VariableElement field) {
         for (var mirror : field.getAnnotationMirrors()) {
-            if ("com.lrenyi.template.dataforge.annotation.DataforgeDto".equals(mirror.getAnnotationType().toString())) {
+            if (ANN_DATAFORGE_DTO.equals(mirror.getAnnotationType().toString())) {
                 return mirror;
             }
         }
@@ -112,7 +126,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     
     private static List<? extends AnnotationValue> getAnnotationValues(AnnotationMirror mirror) {
         for (var entry : mirror.getElementValues().entrySet()) {
-            if ("include".equals(entry.getKey().getSimpleName().toString())) {
+            if (ATTR_INCLUDE.equals(entry.getKey().getSimpleName().toString())) {
                 Object val = entry.getValue().getValue();
                 if (val instanceof List<?> list) {
                     List<AnnotationValue> out = new ArrayList<>();
@@ -177,10 +191,36 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             strictTypes.addAll(f.includeTypes());
         }
         
-        List<FieldSpec> createFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, DTO_TYPE_CREATE, strictTypes)).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Create")).toList();
-        List<FieldSpec> updateFields = allFields.stream().filter(f -> !"id".equals(f.name) && shouldInclude(f, "UPDATE", strictTypes)).map(f -> withGroup(f, "com.lrenyi.template.dataforge.validation.Update")).toList();
-        List<FieldSpec> responseFields = allFields.stream().filter(f -> "id".equals(f.name) || shouldInclude(f, "RESPONSE", strictTypes)).toList();
-        List<FieldSpec> pageResponseFields = allFields.stream().filter(f -> "id".equals(f.name) || shouldInclude(f, "PAGE_RESPONSE", strictTypes)).toList();
+        List<FieldSpec> createFields = allFields.stream()
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f,
+                                                                                                   DTO_TYPE_CREATE,
+                                                                                                   strictTypes
+                                                ))
+                                                .map(f -> withGroup(f,
+                                                                    "com.lrenyi.template.dataforge.validation.Create"
+                                                ))
+                                                .toList();
+        List<FieldSpec> updateFields = allFields.stream()
+                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f,
+                                                                                                   "UPDATE",
+                                                                                                   strictTypes
+                                                ))
+                                                .map(f -> withGroup(f,
+                                                                    "com.lrenyi.template.dataforge.validation.Update"
+                                                ))
+                                                .toList();
+        List<FieldSpec> responseFields = allFields.stream()
+                                                  .filter(f -> "id".equals(f.name) || shouldInclude(f,
+                                                                                                    "RESPONSE",
+                                                                                                    strictTypes
+                                                  ))
+                                                  .toList();
+        List<FieldSpec> pageResponseFields = allFields.stream()
+                                                      .filter(f -> "id".equals(f.name) || shouldInclude(f,
+                                                                                                        "PAGE_RESPONSE",
+                                                                                                        strictTypes
+                                                      ))
+                                                      .toList();
         
         String dtoPackage = pkg + ".dto";
         String mapperPackage = pkg + ".mapper";
@@ -197,18 +237,26 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             writeRecord(dtoPackage, responseDto, responseFields);
             writeRecord(dtoPackage, pageResponseDto, pageResponseFields);
             
-            MapperParams params = new MapperParams(mapperPackage, mapperName, entityType.getQualifiedName().toString(),
-                    dtoPackage, createDto, updateDto, responseDto, pageResponseDto);
+            MapperParams params = new MapperParams(mapperPackage,
+                                                   mapperName,
+                                                   entityType.getQualifiedName().toString(),
+                                                   dtoPackage,
+                                                   createDto,
+                                                   updateDto,
+                                                   responseDto,
+                                                   pageResponseDto
+            );
             writeMapper(params);
         } catch (IOException e) {
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
+            processingEnv.getMessager()
+                         .printMessage(Diagnostic.Kind.ERROR, "Failed to generate DTOs: " + e.getMessage());
         }
     }
     
     private FieldSpec withGroup(FieldSpec f, String group) {
         Set<String> newGroups = new HashSet<>(f.validationGroups);
         newGroups.add(group);
-        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, newGroups);
+        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, f.format, newGroups);
     }
     
     private boolean shouldInclude(FieldSpec f, String dtoTypeName, Set<String> strictTypes) {
@@ -221,9 +269,8 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         }
         
         if ("PAGE_RESPONSE".equals(dtoTypeName)) {
-            Set<String> excludedByDefault = Set.of(
-                "createTime", "updateTime", "createBy", "updateBy", "deleted", "version", "remark"
-            );
+            Set<String> excludedByDefault =
+                    Set.of("createTime", "updateTime", "createBy", "updateBy", "deleted", "version", "remark");
             return !excludedByDefault.contains(f.name);
         }
         return true;
@@ -233,17 +280,20 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         List<FieldSpec> list = new ArrayList<>();
         TypeMirror entityTypeMirror = entityType.asType();
         if (entityTypeMirror.getKind() == TypeKind.DECLARED) {
-            collectFieldsRecursive(entityType, (DeclaredType) entityTypeMirror, list);
+            collectFieldsRecursive(entityType, entityType, (DeclaredType) entityTypeMirror, list);
         } else {
-            collectFieldsRecursive(entityType, null, list);
+            collectFieldsRecursive(entityType, entityType, null, list);
         }
         return list;
     }
     
-    private void collectFieldsRecursive(TypeElement type, DeclaredType typeInContext, List<FieldSpec> list) {
+    private void collectFieldsRecursive(TypeElement entityType,
+            TypeElement type,
+            DeclaredType typeInContext,
+            List<FieldSpec> list) {
         TypeElement superTe = getSuperTypeElement(type);
         if (superTe != null && !"java.lang.Object".equals(superTe.getQualifiedName().toString())) {
-            collectFieldsRecursive(superTe, (DeclaredType) superTe.asType(), list);
+            collectFieldsRecursive(entityType, superTe, (DeclaredType) superTe.asType(), list);
         }
         Types typeUtils = processingEnv.getTypeUtils();
         for (Element member : type.getEnclosedElements()) {
@@ -251,7 +301,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 if (field.getModifiers().contains(Modifier.STATIC) || field.getModifiers().contains(Modifier.FINAL)) {
                     continue;
                 }
-                addFieldSpec(field, typeInContext, typeUtils, list);
+                addFieldSpec(entityType, field, typeInContext, typeUtils, list);
             }
         }
     }
@@ -267,7 +317,8 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return null;
     }
     
-    private void addFieldSpec(VariableElement field,
+    private void addFieldSpec(TypeElement entityType,
+            VariableElement field,
             DeclaredType typeInContext,
             Types typeUtils,
             List<FieldSpec> list) {
@@ -275,20 +326,151 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         String typeName = toSourceTypeName(fieldType);
         String name = field.getSimpleName().toString();
         Set<String> includeTypes = getDtoTypeNamesFromMirrors(field);
+        Set<String> parentOverride = getParentFieldOverrideIncludeTypes(entityType, name);
+        if (!parentOverride.isEmpty()) {
+            includeTypes = parentOverride;
+        }
         
-        Set<String> validationGroups = new HashSet<>(); 
+        Set<String> validationGroups = new HashSet<>();
         
         boolean notNull = hasColumnNullableFalse(field);
         int maxSize = getColumnLength(field);
-        list.add(new FieldSpec(typeName, name, includeTypes, notNull, maxSize, validationGroups));
+        String format = getFormat(field);
+        list.add(new FieldSpec(typeName, name, includeTypes, notNull, maxSize, format, validationGroups));
     }
+    
+    private static String getFormat(VariableElement field) {
+        String fromField = findFormatInAnnotation(field, ANN_DATAFORGE_FIELD);
+        if (fromField != null) {
+            return fromField;
+        }
+        return findFormatInAnnotation(field, ANN_DATAFORGE_DTO);
+    }
+    
+    private static String findFormatInAnnotation(VariableElement field, String annotationType) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if (!annotationType.equals(mirror.getAnnotationType().toString())) {
+                continue;
+            }
+            String format = extractFormatFromMirror(mirror);
+            if (format != null) {
+                return format;
+            }
+        }
+        return null;
+    }
+    
+    private static String extractFormatFromMirror(AnnotationMirror mirror) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (!"format".equals(entry.getKey().getSimpleName().toString())) {
+                continue;
+            }
+            Object v = entry.getValue().getValue();
+            return (v instanceof String s && !s.isEmpty()) ? s : null;
+        }
+        return null;
+    }
+    
+    /** 解析 @DataforgeDto 的 parentFieldName 与 include 属性 */
+    private static DataforgeDtoAttrs parseDataforgeDtoAttrs(AnnotationMirror mirror) {
+        String parentFieldName = null;
+        List<String> includeNames = new ArrayList<>();
+        for (var entry : mirror.getElementValues().entrySet()) {
+            String key = entry.getKey().getSimpleName().toString();
+            if (ATTR_PARENT_FIELD_NAME.equals(key)) {
+                Object v = entry.getValue().getValue();
+                parentFieldName = v instanceof String s ? s : null;
+            } else if (ATTR_INCLUDE.equals(key)) {
+                includeNames.addAll(extractIncludeNamesFromValue(entry.getValue()));
+            }
+        }
+        return new DataforgeDtoAttrs(parentFieldName, includeNames);
+    }
+    
+    private static List<String> extractIncludeNamesFromValue(AnnotationValue annotationValue) {
+        List<String> names = new ArrayList<>();
+        Object val = annotationValue.getValue();
+        if (val instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof AnnotationValue av) {
+                    Object ev = av.getValue();
+                    if (ev instanceof Element el) {
+                        names.add(el.getSimpleName().toString());
+                    }
+                }
+            }
+        }
+        return names;
+    }
+    
+    /**
+     * 从实体类上的 {@code @DataforgeDto(parentFieldName="xxx", include=...)} 获取父类字段的 DTO 覆盖配置。
+     * 仅当字段来自父类（type != entityType）时由调用方传入的 entityType 用于查找覆盖。
+     */
+    private Set<String> getParentFieldOverrideIncludeTypes(TypeElement entityType, String fieldName) {
+        for (var mirror : entityType.getAnnotationMirrors()) {
+            String annType = mirror.getAnnotationType().toString();
+            Set<String> found = switch (annType) {
+                case ANN_DATAFORGE_DTO -> tryMatchFromDataforgeDtoMirror(mirror, fieldName);
+                case ANN_DATAFORGE_DTO_LIST -> findOverrideFromDataforgeDtoList(mirror, fieldName);
+                default -> Set.of();
+            };
+            if (!found.isEmpty()) {
+                return found;
+            }
+        }
+        return Set.of();
+    }
+    
+    private Set<String> tryMatchFromDataforgeDtoMirror(AnnotationMirror mirror, String fieldName) {
+        DataforgeDtoAttrs attrs = parseDataforgeDtoAttrs(mirror);
+        if (fieldName.equals(attrs.parentFieldName()) && !attrs.includeNames().isEmpty()) {
+            return new HashSet<>(attrs.includeNames());
+        }
+        return Set.of();
+    }
+    
+    private Set<String> findOverrideFromDataforgeDtoList(AnnotationMirror listMirror, String fieldName) {
+        List<?> valueList = extractValueList(listMirror);
+        return valueList != null ? findFirstMatchInNestedMirrors(valueList, fieldName) : Set.of();
+    }
+    
+    private List<?> extractValueList(AnnotationMirror listMirror) {
+        for (var entry : listMirror.getElementValues().entrySet()) {
+            if (ATTR_VALUE.equals(entry.getKey().getSimpleName().toString())) {
+                Object val = entry.getValue().getValue();
+                return val instanceof List<?> list ? list : null;
+            }
+        }
+        return List.of();
+    }
+    
+    private Set<String> findFirstMatchInNestedMirrors(List<?> valueList, String fieldName) {
+        for (Object item : valueList) {
+            if (item instanceof AnnotationValue av) {
+                Object ev = av.getValue();
+                if (ev instanceof AnnotationMirror nestedMirror) {
+                    Set<String> fromNested = tryMatchFromDataforgeDtoMirror(nestedMirror, fieldName);
+                    if (!fromNested.isEmpty()) {
+                        return fromNested;
+                    }
+                }
+            }
+        }
+        return Set.of();
+    }
+    
+    private record DataforgeDtoAttrs(String parentFieldName, List<String> includeNames) {}
     
     private String toSourceTypeName(TypeMirror mirror) {
         TypeKind kind = mirror.getKind();
         switch (kind) {
-            case LONG: return "Long";
-            case INT: return "Integer";
-            case BOOLEAN: return "Boolean";
+            case LONG:
+                return "Long";
+            case INT:
+                return "Integer";
+            case BOOLEAN:
+                return "Boolean";
             case TYPEVAR: {
                 TypeMirror upper = ((TypeVariable) mirror).getUpperBound();
                 if (upper.getKind() == TypeKind.DECLARED && "java.io.Serializable".equals(upper.toString())) {
@@ -303,7 +485,8 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
                 }
                 return q;
             }
-            default: return mirror.toString();
+            default:
+                return mirror.toString();
         }
     }
     
@@ -342,34 +525,35 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             
             w.write("/**\n * 自动生成的 MapStruct Mapper，请勿手改。\n */\n");
             w.write("@Mapper(componentModel = \"spring\", unmappedTargetPolicy = ReportingPolicy.IGNORE)\n");
-            w.write("public interface " + params.className + " extends BaseMapper<"
-                    + simpleName(params.entityType) + ", " + params.createDto + ", " + params.updateDto
-                    + ", " + params.responseDto + ", " + params.pageResponseDto + "> {\n");
+            w.write("public interface " + params.className + " extends BaseMapper<" + simpleName(params.entityType)
+                            + ", " + params.createDto + ", " + params.updateDto + ", " + params.responseDto + ", "
+                            + params.pageResponseDto + "> {\n");
             w.write("}\n");
         }
     }
-
-    private record MapperParams(String pkg, String className, String entityType, String dtoPkg,
-                               String createDto, String updateDto, String responseDto, String pageResponseDto) {
-    }
+    
+    private record MapperParams(String pkg, String className, String entityType, String dtoPkg, String createDto,
+                                String updateDto, String responseDto, String pageResponseDto) {}
     
     private String simpleName(String fqn) {
         return fqn.substring(fqn.lastIndexOf('.') + 1);
     }
     
-    private record FieldSpec(String typeName, String name, Set<String> includeTypes,
-                             boolean notNull, int maxSize, Set<String> validationGroups) {
+    private record FieldSpec(String typeName, String name, Set<String> includeTypes, boolean notNull, int maxSize,
+                             String format,
+                             Set<String> validationGroups) {
         private FieldSpec(String typeName,
                 String name,
                 Set<String> includeTypes,
                 boolean notNull,
-                int maxSize,
+                int maxSize, String format,
                 Set<String> validationGroups) {
             this.typeName = typeName;
             this.name = name;
             this.includeTypes = includeTypes != null ? includeTypes : Set.of();
             this.notNull = notNull;
             this.maxSize = Math.max(maxSize, 0);
+            this.format = format;
             this.validationGroups = validationGroups != null ? validationGroups : Set.of();
         }
     }

@@ -8,19 +8,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FlowStorageTypeTest {
     
     @Test
-    void from_caffeine_returnsCaffeine() {
+    void fromCaffeineReturnsCaffeine() {
         assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("caffeine"));
         assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("CAFFEINE"));
     }
     
     @Test
-    void from_queue_returnsQueue() {
+    void fromQueueReturnsQueue() {
         assertEquals(FlowStorageType.QUEUE, FlowStorageType.from("queue"));
         assertEquals(FlowStorageType.QUEUE, FlowStorageType.from("QUEUE"));
     }
     
     @Test
-    void from_unknown_returnsCaffeineDefault() {
+    void fromUnknownReturnsCaffeineDefault() {
         assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("unknown"));
         assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from(""));
         assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from(null));
