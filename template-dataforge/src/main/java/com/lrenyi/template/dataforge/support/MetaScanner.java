@@ -54,10 +54,7 @@ public class MetaScanner {
     private final EntityRegistry entityRegistry;
     private final ActionRegistry actionRegistry;
     private final String basePackage;
-    /**
-     * -- SETTER --
-     * 在 @PostConstruct 时注入，确保 JPA 已就绪后再扫描。
-     */
+
     @Setter
     private EntityManagerFactory entityManagerFactory;
     
@@ -441,6 +438,20 @@ public class MetaScanner {
         );
         List<FieldMeta> updateFields =
                 allFields.stream().filter(predicate).sorted(MetaScanner::compareFormFields).toList();
+        
+        // 构建 Query Schema (x-queryable-fields)
+        List<FieldMeta> queryFields = allFields.stream()
+                                               .filter(f -> shouldShowInQuery(f,
+                                                                              toIncludeList(f.getDtoIncludeTypes()),
+                                                                              strictByType.get(DtoType.QUERY)
+                                               ))
+                                               .sorted(Comparator.comparingInt(FieldMeta::getSearchOrder))
+                                               .toList();
+        Map<String, Object> queryProps = new LinkedHashMap<>();
+        for (FieldMeta f : queryFields) {
+            queryProps.put(f.getName(), buildQueryProp(f, mapToJsType(f.getType())));
+        }
+        
         Map<String, Object> createProps = new LinkedHashMap<>();
         for (FieldMeta f : createFields) {
             createProps.put(f.getName(), buildFormProp(f, mapToJsType(f.getType())));
@@ -453,6 +464,7 @@ public class MetaScanner {
         schemas.put("pageResponse", pageResponseProps);
         schemas.put("create", createProps);
         schemas.put("update", updateProps);
+        schemas.put("query", queryProps);
         meta.setSchemas(schemas);
     }
     
@@ -469,7 +481,7 @@ public class MetaScanner {
     
     private static Map<DtoType, Set<String>> collectStrictFieldsByType(List<FieldMeta> allFields) {
         Map<DtoType, Set<String>> result = new EnumMap<>(DtoType.class);
-        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE}) {
+        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
             result.put(t, new HashSet<>());
         }
         for (FieldMeta f : allFields) {
@@ -477,7 +489,7 @@ public class MetaScanner {
                 continue;
             }
             List<String> types = Arrays.asList(f.getDtoIncludeTypes());
-            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE}) {
+            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
                 if (types.contains(t.name())) {
                     result.get(t).add(f.getName());
                 }
@@ -516,11 +528,35 @@ public class MetaScanner {
         return includes.contains(type.name()) || strictFields.isEmpty();
     }
     
+    private static boolean shouldShowInQuery(FieldMeta f, List<String> includes, Set<String> strictFields) {
+        if (includes.contains(DtoType.QUERY.name())) {
+            return true;
+        }
+        if (!strictFields.isEmpty()) {
+            // 有显式 QUERY 字段时，仅包含 QUERY 字段
+            return false;
+        }
+        return f.isSearchable();
+    }
+    
     private static Map<String, Object> buildPageResponseProp(FieldMeta f, String jsType) {
         Map<String, Object> prop = new HashMap<>();
         prop.put("type", jsType);
         prop.put("description", f.getLabel());
         prop.put("format", f.getFormat());
+        return prop;
+    }
+    
+    private static Map<String, Object> buildQueryProp(FieldMeta f, String jsType) {
+        Map<String, Object> prop = new HashMap<>();
+        prop.put("type", jsType);
+        prop.put("description", f.getLabel());
+        prop.put("component", f.getSearchComponent());
+        // 如果是 DTO 定义的，可能没有 SearchType，默认 EQ
+        prop.put("op", f.getSearchType());
+        if (f.getAllowedValues() != null && f.getAllowedValues().length > 0) {
+            prop.put("enum", f.getAllowedValues());
+        }
         return prop;
     }
     

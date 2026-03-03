@@ -6,7 +6,6 @@ import com.lrenyi.template.flow.context.Orchestrator;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -78,33 +77,5 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                    .register(meterRegistry)
                    .increment();
         }
-    }
-    
-    private void performFailed(FlowLauncher<Object> launcher,
-            FlowEntry<T> entry,
-            String jobId,
-            FailureReason failureReason) {
-        try {
-            launcher.getFlowJoiner().onFailed(entry.getData(), jobId, failureReason);
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.FINALIZATION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "onFailed_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                   .register(meterRegistry)
-                   .increment();
-        }
-    }
-    
-    /** Caffeine RemovalCause 映射为 FailureReason */
-    private static FailureReason toFailureReason(String removalReason) {
-        if (removalReason == null) {
-            return FailureReason.EVICTION;
-        }
-        return switch (removalReason) {
-            case "EXPIRED" -> FailureReason.TIMEOUT;
-            case "REPLACED" -> FailureReason.REPLACE;
-            default -> FailureReason.EVICTION; // SIZE, COLLECTED 等
-        };
     }
 }
