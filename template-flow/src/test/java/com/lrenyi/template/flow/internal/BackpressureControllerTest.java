@@ -13,12 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BackpressureControllerTest {
     
+    private static final String TEST_JOB = "test-job";
+    
     private BackpressureController controller;
     
     @Test
-    void awaitSpace_whenStorageNotFull_returnsImmediately() throws InterruptedException {
+    void awaitSpaceWhenStorageNotFullReturnsImmediately() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 1);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         
         controller.awaitSpace(() -> false);
         
@@ -26,9 +28,9 @@ class BackpressureControllerTest {
     }
     
     @Test
-    void awaitSpace_whenStopCheckReturnsTrue_exitsImmediately() throws InterruptedException {
+    void awaitSpaceWhenStopCheckReturnsTrueExitsImmediately() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         AtomicBoolean stopCheckCalled = new AtomicBoolean(false);
         
         long start = System.currentTimeMillis();
@@ -43,9 +45,9 @@ class BackpressureControllerTest {
     }
     
     @Test
-    void awaitSpace_whenFull_blocksUntilSignalRelease() throws InterruptedException {
+    void awaitSpaceWhenFullBlocksUntilSignalRelease() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         CountDownLatch producerBlocked = new CountDownLatch(1);
         CountDownLatch testDone = new CountDownLatch(1);
         
@@ -71,9 +73,9 @@ class BackpressureControllerTest {
     }
     
     @Test
-    void signalRelease_wakesOneWaiter() throws InterruptedException {
+    void signalReleaseWakesOneWaiter() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), "test-job");
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         AtomicBoolean released = new AtomicBoolean(false);
         
         CountDownLatch started = new CountDownLatch(1);

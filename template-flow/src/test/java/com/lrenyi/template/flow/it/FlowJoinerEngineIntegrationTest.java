@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.MismatchPairingJoiner;
@@ -42,6 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlowJoinerEngineIntegrationTest {
     
     private static final int TIMEOUT_SEC = 30;
+    private static final String JOB_LAUNCHER_TEST = "job-launcher-test";
+    private static final String JOB_PULL_MULTI = "job-pull-multi";
+    private static final String JOB_MISMATCH = "job-mismatch";
+    private static final String JOB_STOP_RESET = "job-stop-reset";
     private TemplateConfigProperties.Flow globalConfig;
     private TemplateConfigProperties.Flow flowConfig;
     private FlowManager manager;
@@ -72,7 +77,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_PULL_SINGLE_STREAM() throws Exception {
+    void itPullSingleStream() throws Exception {
         int total = 20;
         List<PairItem> list = new ArrayList<>();
         for (int i = 0; i < total; i++) {
@@ -95,18 +100,18 @@ class FlowJoinerEngineIntegrationTest {
     // ---------- 3.1 拉取模式 ----------
     
     /** 等待消费数或 terminated 达到预期（异步 deposit 可能晚于 completionFuture） */
-    private void awaitConsumedOrTerminated(Supplier<Long> consumedSupplier,
+    private void awaitConsumedOrTerminated(LongSupplier consumedSupplier,
             ProgressTracker tracker,
             long expected) throws InterruptedException {
-        awaitCondition(() -> consumedSupplier.get() >= expected || tracker.getSnapshot().terminated() >= expected,
+        awaitCondition(() -> consumedSupplier.getAsLong() >= expected || tracker.getSnapshot().terminated() >= expected,
                        10_000
         );
     }
     
-    private static void awaitCondition(Supplier<Boolean> condition, long timeoutMs) throws InterruptedException {
+    private static void awaitCondition(BooleanSupplier condition, long timeoutMs) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (System.nanoTime() < deadline) {
-            if (condition.get()) {
+            if (condition.getAsBoolean()) {
                 return;
             }
             if (Thread.interrupted()) {
@@ -117,7 +122,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_PULL_MULTI_STREAM() throws Exception {
+    void itPullMultiStream() throws Exception {
         int pairCount = 10;
         List<PairItem> listA = new ArrayList<>();
         List<PairItem> listB = new ArrayList<>();
@@ -131,9 +136,9 @@ class FlowJoinerEngineIntegrationTest {
         PairingJoiner joiner = new PairingJoiner();
         joiner.setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
         
-        DefaultProgressTracker tracker = new DefaultProgressTracker("job-pull-multi", manager);
-        tracker.setTotalExpected("job-pull-multi", pairCount * 2);
-        engine.run("job-pull-multi", joiner, tracker, flowConfig);
+        DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_PULL_MULTI, manager);
+        tracker.setTotalExpected(JOB_PULL_MULTI, pairCount * 2);
+        engine.run(JOB_PULL_MULTI, joiner, tracker, flowConfig);
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitCondition(() -> joiner.getOnSuccessCount() >= pairCount, 10_000);
         
@@ -147,7 +152,7 @@ class FlowJoinerEngineIntegrationTest {
     // ---------- 3.2 推送模式 ----------
     
     @Test
-    void IT_PULL_QUEUE_FIFO() throws Exception {
+    void itPullQueueFifo() throws Exception {
         int total = 15;
         List<PairItem> list = new ArrayList<>();
         for (int i = 0; i < total; i++) {
@@ -174,12 +179,12 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_FlowLauncher_getters() {
+    void itFlowLauncherGetters() {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-launcher-test", joiner, flowConfig);
-        FlowLauncher<?> launcher = manager.getActiveLauncher("job-launcher-test");
+        var inlet = engine.startPush(JOB_LAUNCHER_TEST, joiner, flowConfig);
+        FlowLauncher<?> launcher = manager.getActiveLauncher(JOB_LAUNCHER_TEST);
         assertNotNull(launcher);
-        assertEquals("job-launcher-test", launcher.getJobId());
+        assertEquals(JOB_LAUNCHER_TEST, launcher.getJobId());
         assertEquals(flowConfig.getProducer().getMaxCacheSize(), launcher.getCacheCapacity());
         assertFalse(launcher.isStopped());
         inlet.markSourceFinished();
@@ -187,7 +192,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_PUSH_COMPLETION() throws Exception {
+    void itPushCompletion() throws Exception {
         int count = 25;
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-push-complete", joiner, flowConfig);
@@ -211,7 +216,7 @@ class FlowJoinerEngineIntegrationTest {
     // ---------- 3.3 存储与失败原因 ----------
     
     @Test
-    void IT_PUSH_STOP_BEFORE_FINISH() throws Exception {
+    void itPushStopBeforeFinish() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-push-stop", joiner, flowConfig);
         for (int i = 0; i < 5; i++) {
@@ -232,7 +237,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_CAFFEINE_REPLACE() throws Exception {
+    void itCaffeineReplace() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-replace", joiner, flowConfig);
         String sameKey = "sameKey";
@@ -251,7 +256,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_CAFFEINE_MISMATCH() throws Exception {
+    void itCaffeineMismatch() throws Exception {
         Set<String> mismatchKeys = Set.of("key-1", "key-2");
         MismatchPairingJoiner joiner = new MismatchPairingJoiner(mismatchKeys);
         List<PairItem> listA = new ArrayList<>();
@@ -264,9 +269,9 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> sourceB = FlowSourceAdapters.fromIterator(listB.iterator(), null);
         joiner.setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
         
-        DefaultProgressTracker tracker = new DefaultProgressTracker("job-mismatch", manager);
-        tracker.setTotalExpected("job-mismatch", 4);
-        engine.run("job-mismatch", joiner, tracker, flowConfig);
+        DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_MISMATCH, manager);
+        tracker.setTotalExpected(JOB_MISMATCH, 4);
+        engine.run(JOB_MISMATCH, joiner, tracker, flowConfig);
         tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
         awaitCondition(() -> joiner.getOnFailedCount(FailureReason.MISMATCH) >= 2, 10_000);
         
@@ -278,7 +283,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_FAILURE_REASON_IN_SNAPSHOT() throws Exception {
+    void itFailureReasonInSnapshot() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-snapshot-reason", joiner, flowConfig);
         inlet.push(new PairItem("r1", "v1", null));
@@ -298,7 +303,7 @@ class FlowJoinerEngineIntegrationTest {
     // ---------- 3.4 进度与指标 ----------
     
     @Test
-    void IT_QUEUE_DRAIN_AFTER_STOP() throws Exception {
+    void itQueueDrainAfterStop() throws Exception {
         flowConfig.getProducer().setMaxCacheSize(2);
         QueueJoiner joiner = new QueueJoiner();
         var inlet = engine.startPush("job-queue-drain", joiner, flowConfig);
@@ -317,7 +322,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_SNAPSHOT_COMPLETION_AND_SUCCESS() throws Exception {
+    void itSnapshotCompletionAndSuccess() throws Exception {
         int total = 30;
         List<PairItem> list = new ArrayList<>();
         for (int i = 0; i < total; i++) {
@@ -340,7 +345,7 @@ class FlowJoinerEngineIntegrationTest {
     // ---------- 3.5 资源与生命周期 ----------
     
     @Test
-    void IT_METRICS_AND_HEALTH() throws Exception {
+    void itMetricsAndHealth() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-metrics", joiner, flowConfig);
         inlet.push(new PairItem("m1", "v1", null));
@@ -361,7 +366,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_MULTI_JOB_ISOLATION() throws Exception {
+    void itMultiJobIsolation() throws Exception {
         OverwriteJoiner joiner1 = new OverwriteJoiner();
         OverwriteJoiner joiner2 = new OverwriteJoiner();
         var inlet1 = engine.startPush("job-isolation-1", joiner1, flowConfig);
@@ -380,12 +385,12 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_STOP_JOB_AND_RESET() {
+    void itStopJobAndReset() {
         OverwriteJoiner joiner = new OverwriteJoiner();
-        var inlet = engine.startPush("job-stop-reset", joiner, flowConfig);
+        var inlet = engine.startPush(JOB_STOP_RESET, joiner, flowConfig);
         inlet.push(new PairItem("x1", "v1", null));
-        manager.stopById("job-stop-reset", true);
-        assertTrue(manager.isStopped("job-stop-reset"));
+        manager.stopById(JOB_STOP_RESET, true);
+        assertTrue(manager.isStopped(JOB_STOP_RESET));
         
         FlowManager.reset();
         FlowResourceRegistry.reset();
@@ -395,7 +400,7 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void IT_RESET_AFTER_COMPLETION() throws Exception {
+    void itResetAfterCompletion() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-reset-after", joiner, flowConfig);
         inlet.push(new PairItem("z1", "v1", null));

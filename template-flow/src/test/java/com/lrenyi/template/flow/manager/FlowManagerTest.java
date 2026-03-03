@@ -35,20 +35,20 @@ class FlowManagerTest {
     }
     
     @Test
-    void getInstance_returnsNonNull() {
+    void getInstanceReturnsNonNull() {
         FlowManager manager = FlowManager.getInstance(config);
         assertNotNull(manager);
     }
     
     @Test
-    void getInstance_sameConfig_returnsSameInstance() {
+    void getInstanceSameConfigReturnsSameInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
         FlowManager m2 = FlowManager.getInstance(config);
         assertSame(m1, m2);
     }
     
     @Test
-    void getInstance_differentConfig_recreatesInstance() {
+    void getInstanceDifferentConfigRecreatesInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
         TemplateConfigProperties.Flow config2 = new TemplateConfigProperties.Flow();
         config2.getConsumer().setConcurrencyLimit(200);
@@ -58,7 +58,7 @@ class FlowManagerTest {
     }
     
     @Test
-    void packageConstructor_createsInstanceWithoutInit() {
+    void packageConstructorCreatesInstanceWithoutInit() {
         FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true);
         assertNotNull(manager);
         assertNotNull(manager.getResourceRegistry());
@@ -66,7 +66,7 @@ class FlowManagerTest {
     }
     
     @Test
-    void getActiveLaunchers_initiallyEmpty() {
+    void getActiveLaunchersInitiallyEmpty() {
         FlowManager manager = FlowManager.getInstance(config);
         Map<String, ?> launchers = manager.getActiveLaunchers();
         assertNotNull(launchers);
@@ -74,14 +74,14 @@ class FlowManagerTest {
     }
     
     @Test
-    void getHealthStatus_returnsMap() {
+    void getHealthStatusReturnsMap() {
         FlowManager manager = FlowManager.getInstance(config);
         Map<String, Object> health = manager.getHealthStatus();
         assertNotNull(health);
     }
     
     @Test
-    void reset_clearsInstance() {
+    void resetClearsInstance() {
         FlowManager.getInstance(config);
         FlowManager.reset();
         FlowManager m2 = FlowManager.getInstance(config);

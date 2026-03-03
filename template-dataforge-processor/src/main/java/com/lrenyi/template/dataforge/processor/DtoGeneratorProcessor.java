@@ -39,7 +39,8 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     private static final String ATTR_VALUE = "value";
     private static final String ANN_DATAFORGE_DTO = "com.lrenyi.template.dataforge.annotation.DataforgeDto";
     private static final String ANN_DATAFORGE_DTO_LIST = "com.lrenyi.template.dataforge.annotation.DataforgeDto$List";
-    
+    private static final String ANN_DATAFORGE_FIELD = "com.lrenyi.template.dataforge.annotation.DataforgeField";
+
     private static boolean hasColumnNullableFalse(VariableElement field) {
         for (var mirror : field.getAnnotationMirrors()) {
             if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
@@ -86,6 +87,11 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
               .append(f.maxSize())
               .append(groups)
               .append(")\n");
+        }
+        if (f.format() != null && !f.format().isEmpty()) {
+            sb.append("    @com.fasterxml.jackson.annotation.JsonFormat(pattern = \"")
+              .append(f.format())
+              .append("\", timezone = \"GMT+8\")\n");
         }
         return sb.toString();
     }
@@ -250,7 +256,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     private FieldSpec withGroup(FieldSpec f, String group) {
         Set<String> newGroups = new HashSet<>(f.validationGroups);
         newGroups.add(group);
-        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, newGroups);
+        return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, f.format, newGroups);
     }
     
     private boolean shouldInclude(FieldSpec f, String dtoTypeName, Set<String> strictTypes) {
@@ -329,7 +335,40 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         
         boolean notNull = hasColumnNullableFalse(field);
         int maxSize = getColumnLength(field);
-        list.add(new FieldSpec(typeName, name, includeTypes, notNull, maxSize, validationGroups));
+        String format = getFormat(field);
+        list.add(new FieldSpec(typeName, name, includeTypes, notNull, maxSize, format, validationGroups));
+    }
+    
+    private static String getFormat(VariableElement field) {
+        String fromField = findFormatInAnnotation(field, ANN_DATAFORGE_FIELD);
+        if (fromField != null) {
+            return fromField;
+        }
+        return findFormatInAnnotation(field, ANN_DATAFORGE_DTO);
+    }
+    
+    private static String findFormatInAnnotation(VariableElement field, String annotationType) {
+        for (var mirror : field.getAnnotationMirrors()) {
+            if (!annotationType.equals(mirror.getAnnotationType().toString())) {
+                continue;
+            }
+            String format = extractFormatFromMirror(mirror);
+            if (format != null) {
+                return format;
+            }
+        }
+        return null;
+    }
+    
+    private static String extractFormatFromMirror(AnnotationMirror mirror) {
+        for (var entry : mirror.getElementValues().entrySet()) {
+            if (!"format".equals(entry.getKey().getSimpleName().toString())) {
+                continue;
+            }
+            Object v = entry.getValue().getValue();
+            return (v instanceof String s && !s.isEmpty()) ? s : null;
+        }
+        return null;
     }
     
     /** 解析 @DataforgeDto 的 parentFieldName 与 include 属性 */
@@ -501,18 +540,20 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     }
     
     private record FieldSpec(String typeName, String name, Set<String> includeTypes, boolean notNull, int maxSize,
+                             String format,
                              Set<String> validationGroups) {
         private FieldSpec(String typeName,
                 String name,
                 Set<String> includeTypes,
                 boolean notNull,
-                int maxSize,
+                int maxSize, String format,
                 Set<String> validationGroups) {
             this.typeName = typeName;
             this.name = name;
             this.includeTypes = includeTypes != null ? includeTypes : Set.of();
             this.notNull = notNull;
             this.maxSize = Math.max(maxSize, 0);
+            this.format = format;
             this.validationGroups = validationGroups != null ? validationGroups : Set.of();
         }
     }

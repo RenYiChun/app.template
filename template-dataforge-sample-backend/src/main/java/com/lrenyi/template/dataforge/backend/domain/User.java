@@ -21,7 +21,7 @@ import lombok.Setter;
 @DataforgeDto(parentFieldName = "createTime", include = {DtoType.PAGE_RESPONSE, DtoType.RESPONSE})
 @DataforgeDto(parentFieldName = "updateTime", include = {DtoType.PAGE_RESPONSE, DtoType.RESPONSE})
 @DataforgeDto(parentFieldName = "remark", include = {DtoType.RESPONSE})
-@DataforgeField(parentFieldName = "id", label = "编号", columnOrder = 1)
+@DataforgeField(parentFieldName = "id", label = "编号", columnOrder = 1, columnWidth = 0)
 @DataforgeField(parentFieldName = "createTime", label = "创建时间", columnOrder = 7)
 @DataforgeField(parentFieldName = "updateTime", label = "更新时间", columnOrder = 8)
 @DataforgeField(parentFieldName = "createBy", label = "创建人", columnOrder = 9)

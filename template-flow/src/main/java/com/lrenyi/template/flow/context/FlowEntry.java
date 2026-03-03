@@ -37,6 +37,11 @@ public class FlowEntry<T> implements AutoCloseable {
         REF_UPDATER.decrementAndGet(this);
     }
     
+    /** 包级可见，供单元测试验证 refCnt */
+    int getRefCntForTest() {
+        return refCnt;
+    }
+    
     /**
      * 抢占执行权：确保配对和驱逐只有一个能成功，
      * 只有抢占成功的线程，才有资格去 Orchestrator 申请和释放席位。

@@ -17,7 +17,7 @@ class FlowResourceRegistryTest {
     }
     
     @Test
-    void testConstructor_createsInitializedInstance() {
+    void testConstructorCreatesInitializedInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getConsumer().setConcurrencyLimit(16);
         
@@ -41,7 +41,7 @@ class FlowResourceRegistryTest {
     }
     
     @Test
-    void testConstructor_shutdownStopsExecutors() throws ResourceShutdownException {
+    void testConstructorShutdownStopsExecutors() throws ResourceShutdownException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getConsumer().setConcurrencyLimit(8);
         

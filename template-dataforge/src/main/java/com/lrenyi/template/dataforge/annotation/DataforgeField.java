@@ -85,9 +85,14 @@ public @interface DataforgeField {
     ColumnAlign columnAlign() default ColumnAlign.LEFT;
     
     /**
-     * 列宽度（像素），0表示自动宽度。
+     * 列宽度（像素）。
+     * <ul>
+     *     <li>0：自动宽度（根据内容估算）</li>
+     *     <li>-1：自适应剩余宽度（类似 flex: 1）</li>
+     *     <li>>0：固定像素宽度</li>
+     * </ul>
      */
-    int columnWidth() default 0;
+    int columnWidth() default -1;
     
     /**
      * 最小列宽度（像素）。

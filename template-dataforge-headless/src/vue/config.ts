@@ -8,6 +8,7 @@ export interface ColumnConfig {
     prop: string;
     label?: string;
     width?: number | string;
+    minWidth?: number;
     sortable?: boolean;
     formatter?: (value: unknown, row?: Record<string, unknown>) => string;
 }
@@ -50,7 +51,7 @@ export function resolveColumns(
         const base: ColumnConfig = {
             prop,
             label: configCol?.label ?? metaLabel ?? prop,
-            width: metaField?.columnWidth && metaField.columnWidth > 0 ? metaField.columnWidth : undefined,
+            width: metaField?.columnWidth && (metaField.columnWidth > 0 || metaField.columnWidth === -1) ? metaField.columnWidth : undefined,
             sortable: metaField?.columnSortable,
         };
         return {...base, ...configCol};

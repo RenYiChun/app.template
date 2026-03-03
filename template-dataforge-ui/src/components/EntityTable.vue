@@ -22,6 +22,7 @@
           :prop="col.prop"
           :sortable="col.sortable"
           :width="col.width"
+          :min-width="col.minWidth"
           show-overflow-tooltip
       >
         <template #default="scope">
@@ -69,6 +70,9 @@
 <script lang="ts" setup>
 import {computed, useSlots} from 'vue';
 import type {ColumnConfig} from '@lrenyi/dataforge-headless/vue';
+
+/** 列配置（含 width/minWidth 计算后的结果） */
+type ColumnWithWidth = ColumnConfig & { minWidth?: number };
 
 const slots = useSlots();
 
@@ -123,7 +127,7 @@ const getRowKey = (row: Record<string, unknown>) => {
   const v = row?.[key];
   if (v != null) return String(v);
   const idx = props.items.indexOf(row);
-  return idx >= 0 ? `__idx_${idx}` : `__row_${Math.random().toString(36).slice(2)}`;
+  return idx >= 0 ? `__idx_${idx}` : `__row_${crypto.randomUUID()}`;
 };
 
 const actionLabel = (act: string) =>
@@ -149,11 +153,19 @@ function estimateTextWidth(str: string): number {
 }
 
 /** 当 columnWidth=0 时，Element Plus 不传 width 会均分剩余空间而非按内容收缩。此处对无显式宽度的列按内容估算宽度，实现近似「自动宽度」。 */
-const columnsWithWidth = computed(() => {
+const columnsWithWidth = computed<ColumnWithWidth[]>(() => {
   const MIN_WIDTH = 80;
   const PADDING = 24;
   return props.columns.map((col) => {
     if (col.width != null && Number(col.width) > 0) return col;
+    if (col.width != null && Number(col.width) === -1) {
+      const label = String(col.label ?? col.prop ?? '');
+      return {
+        ...col,
+        width: undefined,
+        minWidth: Math.max(MIN_WIDTH, estimateTextWidth(label) + PADDING),
+      };
+    }
     const label = String(col.label ?? col.prop ?? '');
     let maxW = estimateTextWidth(label);
     for (const row of props.items) {
@@ -187,7 +199,7 @@ const calculatedActionsWidth = computed(() => {
 
   // 2. 如果没有自定义插槽，且有默认的操作按钮，根据按钮数量和文字长度估算宽度
   if (!slots['row-actions'] && props.rowActions && props.rowActions.length > 0) {
-    const buttonsWidth = props.rowActions.reduce((acc, act, index) => {
+    const buttonsWidth = props.rowActions.reduce((acc, act) => {
       const label = actionLabel(act);
       // 估算：每个汉字约 14px，英文约 8px。
       // 文字链接没有边框和大的内边距，所以 buffer 可以减小。

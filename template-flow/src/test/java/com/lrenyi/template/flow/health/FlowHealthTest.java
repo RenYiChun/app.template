@@ -15,19 +15,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class FlowHealthTest {
     
+    private static final String KEY_INDICATORS = "indicators";
+    private static final String KEY_STATUS = "status";
+    
     @AfterEach
     void tearDown() {
         FlowHealth.clearIndicators();
     }
     
     @Test
-    void checkHealth_whenNoIndicators_returnsHealthy() {
+    void checkHealthWhenNoIndicatorsReturnsHealthy() {
         FlowHealth.clearIndicators();
         assertEquals(HealthStatus.HEALTHY, FlowHealth.checkHealth());
     }
     
     @Test
-    void checkHealth_singleIndicator_returnsThatStatus() {
+    void checkHealthSingleIndicatorReturnsThatStatus() {
         FlowHealth.clearIndicators();
         FlowHealth.registerIndicator(fixedIndicator("A", HealthStatus.HEALTHY));
         assertEquals(HealthStatus.HEALTHY, FlowHealth.checkHealth());
@@ -50,7 +53,7 @@ class FlowHealthTest {
             
             @Override
             public Map<String, Object> getDetails() {
-                return Collections.singletonMap("status", status.name());
+                return Collections.singletonMap(KEY_STATUS, status.name());
             }
             
             @Override
@@ -61,7 +64,7 @@ class FlowHealthTest {
     }
     
     @Test
-    void checkHealth_multipleIndicators_returnsWorstStatus() {
+    void checkHealthMultipleIndicatorsReturnsWorstStatus() {
         FlowHealth.clearIndicators();
         FlowHealth.registerIndicator(fixedIndicator("I1", HealthStatus.HEALTHY));
         FlowHealth.registerIndicator(fixedIndicator("I2", HealthStatus.DEGRADED));
@@ -79,12 +82,12 @@ class FlowHealthTest {
     }
     
     @Test
-    void checkHealth_indicatorThrows_returnsUnhealthy() {
+    void checkHealthIndicatorThrowsReturnsUnhealthy() {
         FlowHealth.clearIndicators();
         FlowHealth.registerIndicator(new FlowHealthIndicator() {
             @Override
             public HealthStatus checkHealth() {
-                throw new RuntimeException("indicator failed");
+                throw new IndicatorTestException("indicator failed");
             }
             
             @Override
@@ -101,7 +104,7 @@ class FlowHealthTest {
     }
     
     @Test
-    void getHealthDetails_containsOverallStatusAndIndicators() {
+    void getHealthDetailsContainsOverallStatusAndIndicators() {
         FlowHealth.clearIndicators();
         FlowHealth.registerIndicator(fixedIndicator("TestIndicator", HealthStatus.DEGRADED));
         
@@ -110,16 +113,16 @@ class FlowHealthTest {
         assertEquals(HealthStatus.DEGRADED.name(), details.get("overallStatus"));
         
         @SuppressWarnings("unchecked") List<Map<String, Object>> indicators =
-                (List<Map<String, Object>>) details.get("indicators");
+                (List<Map<String, Object>>) details.get(KEY_INDICATORS);
         assertNotNull(indicators);
         assertEquals(1, indicators.size());
         assertEquals("TestIndicator", indicators.getFirst().get("name"));
-        assertEquals(HealthStatus.DEGRADED.name(), indicators.getFirst().get("status"));
+        assertEquals(HealthStatus.DEGRADED.name(), indicators.getFirst().get(KEY_STATUS));
         assertNotNull(indicators.getFirst().get("details"));
     }
     
     @Test
-    void getHealthDetails_indicatorThrows_includesErrorInDetails() {
+    void getHealthDetailsIndicatorThrowsIncludesErrorInDetails() {
         FlowHealth.clearIndicators();
         FlowHealth.registerIndicator(new FlowHealthIndicator() {
             @Override
@@ -139,16 +142,16 @@ class FlowHealthTest {
         });
         
         Map<String, Object> details = FlowHealth.getHealthDetails();
-        List<Map<String, Object>> indicators = (List<Map<String, Object>>) details.get("indicators");
+        List<Map<String, Object>> indicators = (List<Map<String, Object>>) details.get(KEY_INDICATORS);
         assertNotNull(indicators);
         assertEquals(1, indicators.size());
         assertEquals("BadIndicator", indicators.getFirst().get("name"));
-        assertEquals(HealthStatus.UNHEALTHY.name(), indicators.getFirst().get("status"));
+        assertEquals(HealthStatus.UNHEALTHY.name(), indicators.getFirst().get(KEY_STATUS));
         assertTrue(indicators.getFirst().containsKey("error"));
     }
     
     @Test
-    void clearIndicators_afterClear_returnsHealthy() {
+    void clearIndicatorsAfterClearReturnsHealthy() {
         FlowHealth.registerIndicator(fixedIndicator("X", HealthStatus.UNHEALTHY));
         assertEquals(HealthStatus.UNHEALTHY, FlowHealth.checkHealth());
         
@@ -157,7 +160,13 @@ class FlowHealthTest {
         
         Map<String, Object> details = FlowHealth.getHealthDetails();
         assertEquals(HealthStatus.HEALTHY.name(), details.get("overallStatus"));
-        List<?> indicators = (List<?>) details.get("indicators");
+        List<?> indicators = (List<?>) details.get(KEY_INDICATORS);
         assertTrue(indicators == null || indicators.isEmpty());
+    }
+    
+    private static class IndicatorTestException extends RuntimeException {
+        IndicatorTestException(String message) {
+            super(message);
+        }
     }
 }

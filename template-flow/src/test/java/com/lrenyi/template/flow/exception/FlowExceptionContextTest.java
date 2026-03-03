@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FlowExceptionContextTest {
     
     @Test
-    void constructor_andGetters() {
+    void constructorAndGetters() {
         RuntimeException ex = new RuntimeException("e");
         FlowExceptionContext ctx = new FlowExceptionContext("job1", "entry1", ex, FlowPhase.CONSUMPTION);
         assertEquals("job1", ctx.getJobId());
@@ -21,7 +21,7 @@ class FlowExceptionContextTest {
     }
     
     @Test
-    void addContext_returnsThis_andGetContextWithType() {
+    void addContextReturnsThisAndGetContextWithType() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);
         FlowExceptionContext chained = ctx.addContext("k1", "v1").addContext("k2", 2);
         assertSame(ctx, chained);
@@ -30,14 +30,14 @@ class FlowExceptionContextTest {
     }
     
     @Test
-    void getContext_wrongType_returnsNull() {
+    void getContextWrongTypeReturnsNull() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);
         ctx.addContext("k", "string");
         assertNull(ctx.getContext("k", Integer.class));
     }
     
     @Test
-    void getContext_missingKey_returnsNull() {
+    void getContextMissingKeyReturnsNull() {
         FlowExceptionContext ctx = new FlowExceptionContext("j", "e", new RuntimeException(), FlowPhase.UNKNOWN);
         assertNull(ctx.getContext("missing", String.class));
     }

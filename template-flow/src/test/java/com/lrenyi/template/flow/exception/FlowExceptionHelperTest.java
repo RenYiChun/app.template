@@ -17,7 +17,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void handleException_withContext_invokesHandlers() {
+    void handleExceptionWithContextInvokesHandlers() {
         AtomicBoolean called = new AtomicBoolean(false);
         FlowExceptionHelper.registerHandler(ctx -> called.set(true));
         
@@ -31,7 +31,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void handleException_withParams_delegatesToContext() {
+    void handleExceptionWithParamsDelegatesToContext() {
         AtomicBoolean called = new AtomicBoolean(false);
         FlowExceptionHelper.registerHandler(ctx -> {
             if ("job1".equals(ctx.getJobId()) && "test delegatesToContext".equals(ctx.getException().getMessage())) {
@@ -48,13 +48,13 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void registerHandler_null_ignored() {
+    void registerHandlerNullIgnored() {
         assertDoesNotThrow(() -> FlowExceptionHelper.registerHandler(null));
         // Verify no side effects (implicit, hard to verify without inspecting internal list size)
     }
     
     @Test
-    void registerHandler_nonNull_added() {
+    void registerHandlerNonNullAdded() {
         AtomicBoolean called = new AtomicBoolean(false);
         FlowExceptionHandler h = context -> called.set(true);
         FlowExceptionHelper.registerHandler(h);
@@ -70,7 +70,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void removeHandler_removesHandler() {
+    void removeHandlerRemovesHandler() {
         AtomicBoolean called = new AtomicBoolean(false);
         FlowExceptionHandler h = context -> called.set(true);
         FlowExceptionHelper.registerHandler(h);
@@ -81,7 +81,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void setDefaultHandler_null_ignored() {
+    void setDefaultHandlerNullIgnored() {
         FlowExceptionHandler before = new DefaultFlowExceptionHandler();
         FlowExceptionHelper.setDefaultHandler(before);
         FlowExceptionHelper.setDefaultHandler(null);
@@ -95,7 +95,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void setDefaultHandler_newHandler_notInList_addsIt() {
+    void setDefaultHandlerNewHandlerNotInListAddsIt() {
         AtomicBoolean called = new AtomicBoolean(false);
         FlowExceptionHandler custom = ctx -> called.set(true);
         
@@ -111,7 +111,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void handlerThrowingException_doesNotBreakChain() {
+    void handlerThrowingExceptionDoesNotBreakChain() {
         AtomicBoolean secondCalled = new AtomicBoolean(false);
         
         FlowExceptionHelper.registerHandler(context -> {
@@ -128,7 +128,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void handlerShouldHandleFalse_skipsHandle() {
+    void handlerShouldHandleFalseSkipsHandle() {
         FlowExceptionHelper.clearHandlers();
         AtomicBoolean handled = new AtomicBoolean(false);
         
@@ -154,7 +154,7 @@ class FlowExceptionHelperTest {
     }
     
     @Test
-    void clearHandlers_restoresDefaultOnly() {
+    void clearHandlersRestoresDefaultOnly() {
         // This test assumes clearHandlers resets to a state where only default handler exists.
         // Since we can't easily check internal state, we just ensure it doesn't throw.
         FlowExceptionHelper.clearHandlers();

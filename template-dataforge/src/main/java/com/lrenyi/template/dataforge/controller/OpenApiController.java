@@ -109,6 +109,9 @@ public class OpenApiController {
     private static final String METHOD_EXPORT = "export";
     private static final String HTTP_DELETE = "delete";
     private static final String HTTP_PUT = "put";
+    private static final String EXAMPLE_FIELD_USERNAME = "username";
+    private static final String EXAMPLE_FIELD_STATUS = "status";
+    private static final String EXAMPLE_FIELD_CREATE_TIME = "createTime";
     
     private final EntityRegistry entityRegistry;
     private final RequestMappingHandlerMapping handlerMapping;
@@ -726,11 +729,11 @@ public class OpenApiController {
         schema.put(KEY_PROPERTIES, properties);
         schema.put("example",
                    Map.of("filters",
-                          List.of(Map.of(FIELD, "username", OP, "like", VALUE, "john"),
-                                  Map.of(FIELD, "status", OP, "in", VALUE, List.of(1, 2))
+                          List.of(Map.of(FIELD, EXAMPLE_FIELD_USERNAME, OP, "like", VALUE, "john"),
+                                  Map.of(FIELD, EXAMPLE_FIELD_STATUS, OP, "in", VALUE, List.of(1, 2))
                           ),
                           "sort",
-                          List.of(Map.of(FIELD, "createTime", DIR, "desc")),
+                          List.of(Map.of(FIELD, EXAMPLE_FIELD_CREATE_TIME, DIR, "desc")),
                           KEY_PAGE,
                           0,
                           KEY_SIZE,
