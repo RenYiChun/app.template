@@ -194,28 +194,26 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         }
         long matchStartTime = System.currentTimeMillis();
         Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, () -> {
-                                                    try {
-                                                        executeMatchedPairLogicBody(partner, entry);
-                                                        long matchLatency = System.currentTimeMillis() - matchStartTime;
-                                                        Timer.builder(FlowMetricNames.MATCH_DURATION)
-                                                             .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                                                             .register(meterRegistry)
-                                                             .record(matchLatency, TimeUnit.MILLISECONDS);
-                                                    } catch (Exception e) {
-                                                        FlowExceptionHelper.handleException(entry.getJobId(), null, e
-                                                                , FlowPhase.CONSUMPTION);
-                                                        Counter.builder(FlowMetricNames.ERRORS)
-                                                               .tag(FlowMetricNames.TAG_ERROR_TYPE,
-                                                                    "match_process_failed")
-                                                               .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
-                                                               .register(meterRegistry)
-                                                               .increment();
-                                                    } finally {
-                                                        launcher.getBackpressureController().signalRelease();
-                                                    }
-                                                }
-        );
+        Runnable runnable = () -> {
+            try {
+                executeMatchedPairLogicBody(partner, entry);
+                long matchLatency = System.currentTimeMillis() - matchStartTime;
+                Timer.builder(FlowMetricNames.MATCH_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                     .register(meterRegistry)
+                     .record(matchLatency, TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
+                       .register(meterRegistry)
+                       .increment();
+            } finally {
+                launcher.getBackpressureController().signalRelease();
+            }
+        };
+        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, runnable);
     }
     
     private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {

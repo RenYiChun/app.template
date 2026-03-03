@@ -481,6 +481,19 @@ management:
 
 ## 8. FAQ
 
+### Q: Grafana 中「数据出缓存原因分布」显示 "No data"？
+
+可能原因：
+
+1. **无被动出口**：该指标依赖 `app_template_flow_egress_passive_total`，仅在发生被动出口（TIMEOUT、EVICTION、REPLACE、MISMATCH、REJECT、SHUTDOWN）时才有数据。若数据全部正常消费完成，则无此指标。
+
+2. **jobId 变量格式**：多选 jobId 时，需使用 `${jobId:pipe}` 才能正确展开为正则（如 `id1|id2`）。若使用 `$jobId`，多选会展开为 `id1,id2`，正则无法匹配。可在面板查询中改为：
+   ```promql
+   sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{jobId=~"${jobId:pipe}"}[5m]))
+   ```
+
+3. **时间窗口**：`rate(...[5m])` 需要过去 5 分钟内有增量。若被动出口很少，rate 可能接近 0 或为空。
+
 ### Q: Grafana 中 HTTP 响应时间 (P99/P95/P50) 显示 "No data"？
 
 P99/P95/P50 依赖 `http_server_requests_seconds_bucket` 直方图指标。Spring Boot 默认只暴露 `_count` 和 `_sum`（用于计算平均值），不暴露 `_bucket`。
