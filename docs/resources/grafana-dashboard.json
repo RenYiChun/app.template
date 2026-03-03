@@ -920,22 +920,22 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
-          "legendFormat": "{{jobId}} - 写入耗时",
+          "legendFormat": "{{jobId}} - 写入缓存耗时",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
-          "legendFormat": "{{jobId}} - 业务耗时",
+          "legendFormat": "{{jobId}} - 配对业务处理耗时",
           "refId": "B"
         },
         {
           "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_acquire_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
-          "legendFormat": "{{jobId}} - 排队耗时",
+          "legendFormat": "{{jobId}} - 获取消费许可排队耗时",
           "refId": "C"
         },
         {
           "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{jobId=~\"$jobId\"}[5m])) by (le, jobId))",
-          "legendFormat": "{{jobId}} - 终结耗时",
+          "legendFormat": "{{jobId}} - 出缓存到终结耗时",
           "refId": "D"
         }
       ]
