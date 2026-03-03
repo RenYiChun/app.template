@@ -13,6 +13,16 @@ export interface MetaServiceConfig {
     services?: ServiceConfig[];
 }
 
+/** 表单 schema 中单个字段的属性（create/update schema 的 value 类型） */
+export interface SchemaProperty {
+    type?: string;
+    description?: string;
+    required?: boolean;
+    enum?: string[];
+    format?: string;
+    [key: string]: unknown;
+}
+
 const STRING_OPS: Op[] = [Op.EQ, Op.NE, Op.LIKE];
 const NUM_OPS: Op[] = [Op.EQ, Op.NE, Op.GT, Op.GE, Op.LT, Op.LE, Op.IN];
 const BOOL_OPS: Op[] = [Op.EQ, Op.NE];

@@ -4,18 +4,13 @@
  */
 
 export {EntityCrudManager} from './EntityCrudManager.js';
-export type {CrudState, EntityMeta} from './types.js';
+export type {ActionMeta, CrudState, EntityMeta, OperationMeta} from './types.js';
 export {AuthClient} from './authClient.js';
 export type {AuthClientConfig, LoginRequest, CaptchaResult, AuthUser} from './authClient.js';
 export {EntityClient} from './client.js';
 export type {EntityClientConfig} from './client.js';
 export {MetaService} from './meta.js';
-export type {
-    MetaServiceConfig,
-    OperationMeta,
-    ActionMeta,
-    SchemaProperty,
-} from './meta.js';
+export type {MetaServiceConfig, SchemaProperty} from './meta.js';
 export type {
     Result,
     PagedResult,
