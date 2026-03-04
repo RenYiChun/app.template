@@ -11,7 +11,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.Scheduler;
-import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
@@ -19,9 +18,7 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
 import com.lrenyi.template.flow.internal.MatchedPairProcessor;
-import com.lrenyi.template.flow.internal.RetryHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
@@ -32,7 +29,6 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 
 /**
  * 基于 Caffeine 实现的 Key-Value 流式存储
@@ -40,7 +36,7 @@ import org.jspecify.annotations.NonNull;
  * @param <T> 存储的数据类型
  */
 @Slf4j
-public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapter<T> {
+public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> implements FlowStorage<T> {
     private static final int STRIPE_COUNT = 256;
     private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
     
@@ -51,13 +47,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     }
     
     @Getter
-    private final FlowFinalizer<T> finalizer;
     private final Cache<String, FlowEntry<T>> cache;
-    private final FlowJoiner<T> joiner;
-    private final ProgressTracker progressTracker;
     private final long maxCacheSize;
-    private final FlowResourceRegistry resourceRegistry;
-    private final MeterRegistry meterRegistry;
     private final MatchedPairProcessor<T> matchedPairProcessor;
     private final LongAdder removalSubmittedCount = new LongAdder();
     
@@ -68,18 +59,16 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
             ProgressTracker progressTracker,
             MeterRegistry meterRegistry,
             String jobId) {
-        this.joiner = joiner;
-        this.finalizer = finalizer;
-        this.progressTracker = progressTracker;
+        super(joiner, finalizer, progressTracker, meterRegistry);
         this.maxCacheSize = maxSize;
-        this.resourceRegistry = finalizer.resourceRegistry();
-        this.meterRegistry = meterRegistry;
+        FlowResourceRegistry resourceRegistry = resourceRegistry();
         this.matchedPairProcessor =
                 new MatchedPairProcessor<>(joiner, progressTracker, meterRegistry, resourceRegistry);
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
-                             .executor(resourceRegistry.getCacheRemovalExecutor()).removalListener(this::onEntryRemoved)
+                             .executor(resourceRegistry.getCacheRemovalExecutor())
+                             .removalListener(this::onEntryRemoved)
                              .scheduler(Scheduler.systemScheduler())
                              .build();
         
@@ -96,49 +85,9 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     }
     
     private void onEntryRemoved(String key, FlowEntry<T> entry, RemovalCause cause) {
-        resourceRegistry.releaseGlobalStorage(1);
-        if (entry == null) {
-            return;
-        }
+        resourceRegistry().releaseGlobalStorage(1);
         FailureReason reason = mapRemovalCause(cause);
-        if (reason == null) {
-            entry.close();
-            return;
-        }
-        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
-        if (launcherLookup == null) {
-            log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
-                   .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-                   .register(meterRegistry)
-                   .increment();
-            handlePassiveFailure(entry, reason);
-            return;
-        }
-        FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-        try {
-            if (launcher == null) {
-                handlePassiveFailure(entry, reason);
-                return;
-            }
-            RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
-            if (retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                return;
-            }
-            handlePassiveFailure(entry, reason);
-        } finally {
-            if (launcher != null) {
-                launcher.getBackpressureController().signalRelease();
-            }
-        }
-    }
-    
-    private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
-        TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
-        MatchRetryCoordinator<T> ct;
-        ct = new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager(), meterRegistry);
-        return new RetryHandler<>(ct, this, perJob.getMustMatchRetryBackoffMill());
+        handleEgress(key, entry, reason);
     }
     
     @Override
@@ -164,7 +113,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
         }
         boolean requeued = requeue(entry);
         if (!requeued) {
-            resourceRegistry.releaseGlobalStorage(1);
+            resourceRegistry().releaseGlobalStorage(1);
         }
         if (requeued) {
             entry.close();
@@ -182,7 +131,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     }
     
     private boolean acquireGlobalStorageForRequeue(String jobId) {
-        Semaphore globalStorage = resourceRegistry.getGlobalStorageSemaphore();
+        Semaphore globalStorage = resourceRegistry().getGlobalStorageSemaphore();
         if (globalStorage == null) {
             return true;
         }
@@ -209,24 +158,24 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     @Override
     public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
         try (entry) {
-            joiner.onFailed(entry.getData(), entry.getJobId(), reason);
+            joiner().onFailed(entry.getData(), entry.getJobId(), reason);
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                    .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
                    .tag(FlowMetricNames.TAG_REASON, reason.name())
-                   .register(meterRegistry)
+                   .register(meterRegistry())
                    .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.STORAGE, "eviction_process_failed");
         } finally {
-            progressTracker.onPassiveEgress(reason);
+            progressTracker().onPassiveEgress(reason);
         }
     }
     
     @Override
     public boolean doDeposit(FlowEntry<T> entry) {
-        String key = joiner.joinKey(entry.getData());
+        String key = joiner().joinKey(entry.getData());
         
-        if (!joiner.needMatched()) {
+        if (!joiner().needMatched()) {
             return handleOverwriteMode(key, entry);
         }
         
@@ -250,19 +199,19 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     }
     
     private void handleReplacedEntry(FlowEntry<T> oldEntry) {
-        resourceRegistry.releaseGlobalStorage(1);
+        resourceRegistry().releaseGlobalStorage(1);
         try (oldEntry) {
-            joiner.onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
+            joiner().onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                    .tag(FlowMetricNames.TAG_JOB_ID, oldEntry.getJobId())
                    .tag(FlowMetricNames.TAG_REASON, "REPLACE")
-                   .register(meterRegistry)
+                   .register(meterRegistry())
                    .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE,
                     "replace_process_failed");
         } finally {
-            progressTracker.onPassiveEgress(FailureReason.REPLACE);
+            progressTracker().onPassiveEgress(FailureReason.REPLACE);
         }
     }
     
@@ -286,13 +235,13 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapt
     }
     
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
-        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for job {}", entry.getJobId());
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                   .register(meterRegistry)
+                   .register(meterRegistry())
                    .increment();
             partner.close();
             return;
