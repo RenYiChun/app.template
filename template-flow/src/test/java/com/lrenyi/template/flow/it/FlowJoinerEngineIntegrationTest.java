@@ -24,8 +24,10 @@ import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -119,6 +121,12 @@ class FlowJoinerEngineIntegrationTest {
             }
             java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
         }
+    }
+
+    private double getCounterValue(String metricName, String jobId) {
+        MeterRegistry registry = manager.getMeterRegistry();
+        var counter = registry.find(metricName).tag(FlowMetricNames.TAG_JOB_ID, jobId).counter();
+        return counter == null ? 0D : counter.count();
     }
     
     @Test
@@ -301,6 +309,76 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     // ---------- 3.4 进度与指标 ----------
+
+    @Test
+    void itMetricsJobStartedCountOncePerRun() throws Exception {
+        int total = 8;
+        List<PairItem> list = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            list.add(new PairItem("ms" + i, "v" + i, null));
+        }
+        String jobId = "job-metrics-started-once";
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
+
+        engine.run(jobId, joiner, singleSource, total, flowConfig);
+        ProgressTracker tracker = engine.getProgressTracker(jobId);
+        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
+
+        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_STARTED, jobId));
+    }
+
+    @Test
+    void itMetricsJobCompletedUnifiedAcrossPullAndPush() throws Exception {
+        int total = 6;
+        List<PairItem> list = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            list.add(new PairItem("mc" + i, "v" + i, null));
+        }
+        String pullJobId = "job-metrics-completed-pull";
+        OverwriteJoiner pullJoiner = new OverwriteJoiner();
+        FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
+
+        engine.run(pullJobId, pullJoiner, singleSource, total, flowConfig);
+        ProgressTracker pullTracker = engine.getProgressTracker(pullJobId);
+        pullTracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitConsumedOrTerminated(pullJoiner::getOnConsumeCount, pullTracker, total);
+
+        String pushJobId = "job-metrics-completed-push";
+        OverwriteJoiner pushJoiner = new OverwriteJoiner();
+        var inlet = engine.startPush(pushJobId, pushJoiner, flowConfig);
+        for (int i = 0; i < total; i++) {
+            inlet.push(new PairItem("mp" + i, "v" + i, null));
+        }
+        inlet.markSourceFinished();
+        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitConsumedOrTerminated(pushJoiner::getOnConsumeCount, inlet.getProgressTracker(), total);
+
+        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_COMPLETED, pullJobId));
+        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_COMPLETED, pushJobId));
+    }
+
+    @Test
+    void itAutoUnregisterAfterCompletionAndTrackerRetained() throws Exception {
+        int total = 5;
+        String jobId = "job-auto-unregister";
+        List<PairItem> list = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            list.add(new PairItem("au" + i, "v" + i, null));
+        }
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
+
+        engine.run(jobId, joiner, singleSource, total, flowConfig);
+        awaitCondition(() -> manager.isStopped(jobId), 10_000);
+        assertTrue(manager.getActiveLaunchers().isEmpty());
+
+        ProgressTracker tracker = manager.getProgressTracker(jobId);
+        assertNotNull(tracker);
+        assertTrue(tracker.getCompletionFuture().isDone());
+        assertEquals(total, tracker.getSnapshot().terminated());
+    }
     
     @Test
     void itQueueDrainAfterStop() throws Exception {
@@ -381,7 +459,8 @@ class FlowJoinerEngineIntegrationTest {
         
         assertEquals(1, joiner1.getOnConsumeCount());
         assertEquals(1, joiner2.getOnConsumeCount());
-        assertFalse(manager.getActiveLaunchers().isEmpty(), "运行期间或完成后 launcher 仍可存在");
+        awaitCondition(() -> manager.isStopped("job-isolation-1") && manager.isStopped("job-isolation-2"), 10_000);
+        assertTrue(manager.getActiveLaunchers().isEmpty(), "完成后应自动注销 launcher");
     }
     
     @Test

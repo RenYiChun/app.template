@@ -124,7 +124,7 @@ class JsonServiceTest {
     
     @Test
     void toListExceptionThrowsRuntimeException() throws JsonProcessingException {
-        when(processor.toList(any(), any(Class.class))).thenThrow(new JsonProcessingException("") {});
+        doThrow(new JsonProcessingException("") {}).when(processor).toList(any(), any(Class.class));
         assertThrows(RuntimeException.class, () -> jsonService.toList("x", String.class));
     }
     

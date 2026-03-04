@@ -1,6 +1,8 @@
 package com.lrenyi.template.flow.engine;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -37,23 +39,12 @@ public class FlowJoinerEngine {
     
     public <T> void run(String jobId, FlowJoiner<T> joiner, ProgressTracker tracker, TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
-        
-        Counter.builder(FlowMetricNames.JOB_STARTED)
-               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-               .register(registry())
-               .increment();
-        
         try {
             FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
             
             try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
                 runUntilNoMoreSubSources(provider, jobId, launcher);
             }
-            
-            Counter.builder(FlowMetricNames.JOB_COMPLETED)
-                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                   .register(registry())
-                   .increment();
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
             Counter.builder(FlowMetricNames.ERRORS)
@@ -70,13 +61,28 @@ public class FlowJoinerEngine {
     }
     
     private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider, String jobId, FlowLauncher<T> launcher) {
-        while (tryRunNextSubSource(provider, jobId, launcher)) {
+        AtomicInteger activeSubSources = new AtomicInteger(0);
+        while (tryRunNextSubSource(provider, jobId, launcher, activeSubSources)) {
             Thread.onSpinWait();
         }
+        awaitSubSourcesFinished(activeSubSources);
         launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
     }
     
-    private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider, String jobId, FlowLauncher<T> launcher) {
+    private void awaitSubSourcesFinished(AtomicInteger activeSubSources) {
+        while (activeSubSources.get() > 0) {
+            LockSupport.parkNanos(1_000_000L);
+            if (Thread.interrupted()) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+    
+    private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
+            String jobId,
+            FlowLauncher<T> launcher,
+            AtomicInteger activeSubSources) {
         try {
             if (!provider.hasNextSubSource()) {
                 return false;
@@ -86,7 +92,14 @@ public class FlowJoinerEngine {
             Thread.currentThread().interrupt();
             return false;
         }
-        launcher.getProducerExecutor().submit(() -> runSubSourceInVirtualThread(provider, launcher, jobId));
+        activeSubSources.incrementAndGet();
+        launcher.getProducerExecutor().submit(() -> {
+            try {
+                runSubSourceInVirtualThread(provider, launcher, jobId);
+            } finally {
+                activeSubSources.decrementAndGet();
+            }
+        });
         return true;
     }
     
@@ -182,10 +195,6 @@ public class FlowJoinerEngine {
     }
     
     public ProgressTracker getProgressTracker(String jobId) {
-        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
-        if (activeLauncher == null) {
-            return null;
-        }
-        return activeLauncher.getTaskOrchestrator().tracker();
+        return flowManager.getProgressTracker(jobId);
     }
 }

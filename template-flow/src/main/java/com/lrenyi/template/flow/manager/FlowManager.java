@@ -46,6 +46,7 @@ public class FlowManager implements ActiveLauncherLookup {
     
     private final Map<String, Registration> registry = new ConcurrentHashMap<>();
     private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
+    private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
     
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -146,7 +147,6 @@ public class FlowManager implements ActiveLauncherLookup {
     private void stopJob(boolean force, String key, FlowLauncher<?> launcher) {
         try {
             launcher.stop(force);
-            unregister(key);
             Counter.builder(FlowMetricNames.JOB_STOPPED)
                    .tag(FlowMetricNames.TAG_JOB_ID, launcher.getJobId())
                    .register(meterRegistry)
@@ -165,13 +165,14 @@ public class FlowManager implements ActiveLauncherLookup {
     public void unregister(String jobId) {
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
         if (launcher != null) {
+            completedTrackers.put(jobId, launcher.getTaskOrchestrator().tracker());
             ExecutorService producerExecutor = launcher.getProducerExecutor();
             if (producerExecutor != null && !producerExecutor.isShutdown()) {
                 producerExecutor.shutdown();
             }
+            log.info("Job [{}] 已从管理器中注销", jobId);
         }
         registry.remove(jobId);
-        log.info("Job [{}] 已从管理器中注销", jobId);
     }
     
     public static void reset() {
@@ -193,6 +194,7 @@ public class FlowManager implements ActiveLauncherLookup {
             ProgressTracker tracker,
             TemplateConfigProperties.Flow flowConfig) {
         try {
+            completedTrackers.remove(jobId);
             Registration registration = new Registration(jobId, flowConfig);
             registry.put(jobId, registration);
             
@@ -237,8 +239,11 @@ public class FlowManager implements ActiveLauncherLookup {
     
     public ProgressTracker getProgressTracker(String jobId) {
         FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
-        Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
-        return taskOrchestrator.tracker();
+        if (activeLauncher != null) {
+            Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
+            return taskOrchestrator.tracker();
+        }
+        return completedTrackers.get(jobId);
     }
     
     @Override

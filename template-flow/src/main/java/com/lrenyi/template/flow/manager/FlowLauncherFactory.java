@@ -94,17 +94,19 @@ final class FlowLauncherFactory {
                 .description("Max allowed in-flight tasks (backpressure limit)")
                 .register(meterRegistry);
 
-        // 消费端信号量（全局共享，按 jobId 打标便于仪表板级联过滤）
+        // 消费端信号量（全局共享，不按 job 维度打标）
         Semaphore globalSemaphore = resourceRegistry.getGlobalSemaphore();
         int consumerLimit = resourceRegistry.getFlowConfig().getConsumer().getConcurrencyLimit();
-        Gauge.builder(FlowMetricNames.SEMAPHORE_USED, globalSemaphore, s -> consumerLimit - s.availablePermits())
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .description("全局消费信号量已占用许可数")
-             .register(meterRegistry);
-        Gauge.builder(FlowMetricNames.SEMAPHORE_LIMIT, () -> consumerLimit)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .description("全局消费信号量上限")
-             .register(meterRegistry);
+        if (meterRegistry.find(FlowMetricNames.SEMAPHORE_USED).gauge() == null) {
+            Gauge.builder(FlowMetricNames.SEMAPHORE_USED, globalSemaphore, s -> consumerLimit - s.availablePermits())
+                 .description("全局消费信号量已占用许可数")
+                 .register(meterRegistry);
+        }
+        if (meterRegistry.find(FlowMetricNames.SEMAPHORE_LIMIT).gauge() == null) {
+            Gauge.builder(FlowMetricNames.SEMAPHORE_LIMIT, () -> consumerLimit)
+                 .description("全局消费信号量上限")
+                 .register(meterRegistry);
+        }
 
         return FlowLauncher.create(jobId, flowJoiner, flowManager, tracker, registration, resourceContext);
     }

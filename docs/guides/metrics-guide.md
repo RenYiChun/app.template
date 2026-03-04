@@ -146,6 +146,8 @@ curl http://localhost:8080/actuator/prometheus | grep "app_template_flow"
 | `app.template.flow.storage.size`     | `jobId`, `storageType` | 当前缓存数据条数     | 接近 maxSize 则即将触发驱逐或背压   |
 | `app.template.flow.completion.rate`  | `jobId`                | 任务完成率        | 仅 totalExpected > 0 时注册 |
 
+`app.template.flow.semaphore.used` 与 `app.template.flow.semaphore.limit` 为全局指标，不携带 `jobId` 标签，建议按 `instance` 维度聚合与展示。
+
 ### 2.2 HTTP 认证指标 (template-api)
 
 | 指标名                              | 标签       | 含义        |
