@@ -1051,23 +1051,23 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
           "legendFormat": "{{jobId}} - {{reason}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_attempted_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (app_template_flow_launchers_active{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
-          "legendFormat": "{{jobId}} - 重入尝试 - {{reason}}",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_attempted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "legendFormat": "{{jobId}} - 重入尝试",
           "refId": "B"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_succeeded_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (app_template_flow_launchers_active{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
-          "legendFormat": "{{jobId}} - 重入成功 - {{reason}}",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_succeeded_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "legendFormat": "{{jobId}} - 重入成功",
           "refId": "C"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_exhausted_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (app_template_flow_launchers_active{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
-          "legendFormat": "{{jobId}} - 重入耗尽 - {{reason}}",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_exhausted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "legendFormat": "{{jobId}} - 重入耗尽",
           "refId": "D"
         }
       ]

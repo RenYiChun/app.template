@@ -156,6 +156,11 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
             resourceRegistry().releaseGlobalStorage(1);
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, remaining.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, FailureReason.SHUTDOWN.name())
+                   .register(meterRegistry())
+                   .increment();
             if (progressTracker() != null) {
                 progressTracker().onPassiveEgress(FailureReason.SHUTDOWN);
             }

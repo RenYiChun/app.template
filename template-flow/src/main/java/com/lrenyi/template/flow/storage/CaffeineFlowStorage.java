@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.storage;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
@@ -51,6 +52,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
     private final long maxCacheSize;
     private final MatchedPairProcessor<T> matchedPairProcessor;
     private final LongAdder removalSubmittedCount = new LongAdder();
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
     
     public CaffeineFlowStorage(long maxSize,
             long ttlMill,
@@ -87,6 +89,12 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
     private void onEntryRemoved(String key, FlowEntry<T> entry, RemovalCause cause) {
         resourceRegistry().releaseGlobalStorage(1);
         FailureReason reason = mapRemovalCause(cause);
+        if (reason == FailureReason.SHUTDOWN) {
+            if (entry != null) {
+                handlePassiveFailure(entry, reason);
+            }
+            return;
+        }
         handleEgress(key, entry, reason);
     }
     
@@ -151,6 +159,9 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         }
         if (cause == RemovalCause.SIZE) {
             return FailureReason.EVICTION;
+        }
+        if (cause == RemovalCause.EXPLICIT && shuttingDown.get()) {
+            return FailureReason.SHUTDOWN;
         }
         return null;
     }
@@ -267,6 +278,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
     
     @Override
     public void shutdown() {
+        shuttingDown.set(true);
         cache.invalidateAll();
         cache.cleanUp();
         log.info("CaffeineFlowStorage shut down, all entries invalidated.");
