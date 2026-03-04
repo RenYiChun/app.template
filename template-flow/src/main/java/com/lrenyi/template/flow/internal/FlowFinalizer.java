@@ -35,23 +35,9 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     performConsume(launcher, entry, jobId);
                 } else {
                     taskOrchestrator.tracker().onPassiveEgress();
-                    String removalReason = entry.getRemovalReason();
-                    if (removalReason != null) {
-                        // Caffeine 驱逐：EXPIRED/SIZE/REPLACED -> 指标计为被动出口
-                        Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                               .tag(FlowMetricNames.TAG_REASON, removalReason)
-                               .register(meterRegistry)
-                               .increment();
-                    }
                 }
             } catch (Exception t) {
-                FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION);
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "finalizer_body_failed")
-                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                       .register(meterRegistry)
-                       .increment();
+                FlowExceptionHelper.handleException(jobId, null, t, FlowPhase.FINALIZATION, "finalizer_body_failed");
             } finally {
                 if (launcher.getBackpressureController() != null) {
                     launcher.getBackpressureController().signalRelease();
@@ -70,12 +56,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         try {
             launcher.getFlowJoiner().onConsume(entry.getData(), jobId);
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "onConsume_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                   .register(meterRegistry)
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "onConsume_failed");
         }
     }
 }

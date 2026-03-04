@@ -57,11 +57,12 @@ class FlowJoinerEngineIntegrationTest {
     @BeforeEach
     void setUp() {
         globalConfig = new TemplateConfigProperties.Flow();
-        globalConfig.getConsumer().setConcurrencyLimit(100);
+        globalConfig.getLimits().getGlobal().setConsumerConcurrency(100);
         flowConfig = new TemplateConfigProperties.Flow();
-        flowConfig.getProducer().setParallelism(10);
-        flowConfig.getConsumer().setTtlMill(5000);
-        flowConfig.getProducer().setMaxCacheSize(1000);
+        flowConfig.getLimits().getPerJob().setProducerThreads(10);
+        flowConfig.getLimits().getPerJob().setCacheTtlMill(5000);
+        flowConfig.getLimits().getPerJob().setQueuePollIntervalMill(5000);
+        flowConfig.getLimits().getPerJob().setStorage(1000);
         manager = FlowManager.getInstance(globalConfig);
         engine = new FlowJoinerEngine(manager);
     }
@@ -193,7 +194,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowLauncher<?> launcher = manager.getActiveLauncher(JOB_LAUNCHER_TEST);
         assertNotNull(launcher);
         assertEquals(JOB_LAUNCHER_TEST, launcher.getJobId());
-        assertEquals(flowConfig.getProducer().getMaxCacheSize(), launcher.getCacheCapacity());
+        assertEquals(flowConfig.getLimits().getPerJob().getStorage(), launcher.getCacheCapacity());
         assertFalse(launcher.isStopped());
         inlet.markSourceFinished();
         manager.stopAll(true);
@@ -382,7 +383,7 @@ class FlowJoinerEngineIntegrationTest {
     
     @Test
     void itQueueDrainAfterStop() throws Exception {
-        flowConfig.getProducer().setMaxCacheSize(2);
+        flowConfig.getLimits().getPerJob().setStorage(2);
         QueueJoiner joiner = new QueueJoiner();
         var inlet = engine.startPush("job-queue-drain", joiner, flowConfig);
         inlet.push(new PairItem("d1", "v1", null));
@@ -491,7 +492,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowHealth.clearIndicators();
         
         TemplateConfigProperties.Flow cfg2 = new TemplateConfigProperties.Flow();
-        cfg2.getConsumer().setConcurrencyLimit(100);
+        cfg2.getLimits().getGlobal().setConsumerConcurrency(100);
         FlowManager manager2 = FlowManager.getInstance(cfg2);
         FlowJoinerEngine engine2 = new FlowJoinerEngine(manager2);
         OverwriteJoiner joiner2 = new OverwriteJoiner();

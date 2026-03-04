@@ -50,6 +50,7 @@ public class FlowCacheManager {
                                                                                                  config,
                                                                                                  finalizer,
                                                                                                  progressTracker,
+                                                                                                 resourceRegistry,
                                                                                                  resourceRegistry.getMeterRegistry()
                                                                     );
                                                                 }

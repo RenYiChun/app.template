@@ -80,14 +80,25 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                              .scheduler(Scheduler.systemScheduler())
                              .build();
         
-        Gauge.builder(FlowMetricNames.STORAGE_SIZE, cache, Cache::estimatedSize)
+        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, cache, Cache::estimatedSize)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
              .tag(FlowMetricNames.TAG_STORAGE_TYPE, "caffeine")
-             .description("当前 Caffeine 缓存中的数据条数")
+             .description("每 Job 缓存当前条数")
+             .register(meterRegistry);
+        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, () -> maxCacheSize)
+             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "caffeine")
+             .description("每 Job 缓存容量上限")
              .register(meterRegistry);
     }
     
     private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
+        resourceRegistry.releaseGlobalStorage(1);
+        Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+               .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+               .tag(FlowMetricNames.TAG_REASON, cause.name())
+               .register(meterRegistry)
+               .increment();
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
@@ -104,7 +115,6 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                 return;
             }
             removalSubmittedCount.increment();
-            entry.setRemovalReason(cause.name());
             finalizer.submitBodyOnly(entry, launcher);
         } finally {
             if (launcher != null) {
@@ -141,6 +151,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
     
     private void handleReplacedEntry(FlowEntry<T> oldEntry) {
+        resourceRegistry.releaseGlobalStorage(1);
         try (oldEntry) {
             joiner.onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
@@ -149,7 +160,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                    .register(meterRegistry)
                    .increment();
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE);
+            FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE,
+                    "replace_process_failed");
         } finally {
             progressTracker.onPassiveEgress(FailureReason.REPLACE);
         }
@@ -175,6 +187,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
     
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
+        resourceRegistry.releaseGlobalStorage(1);
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for job {}", entry.getJobId());
@@ -236,12 +249,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         try {
             joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "onSuccess_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
-                   .register(meterRegistry)
-                   .increment();
+            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION, "onSuccess_failed");
         }
     }
     
@@ -260,7 +268,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                    .register(meterRegistry)
                    .increment();
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
+            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION,
+                    "mismatch_process_failed");
         }
         progressTracker.onPassiveEgress(FailureReason.MISMATCH);
         progressTracker.onPassiveEgress(FailureReason.MISMATCH);

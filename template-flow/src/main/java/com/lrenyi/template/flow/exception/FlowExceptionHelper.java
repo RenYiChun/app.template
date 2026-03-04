@@ -2,26 +2,38 @@ package com.lrenyi.template.flow.exception;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.flow.api.FlowExceptionHandler;
+import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Flow 异常处理辅助类
- * 提供统一的异常处理入口
+ * 提供统一的异常处理入口，集中记录 ERRORS 指标
  */
 @Slf4j
 public class FlowExceptionHelper {
-    
+
     private static final List<FlowExceptionHandler> handlers = new CopyOnWriteArrayList<>();
-    private static final java.util.concurrent.atomic.AtomicReference<FlowExceptionHandler> defaultHandler =
-            new java.util.concurrent.atomic.AtomicReference<>(new DefaultFlowExceptionHandler());
-    
+    private static final AtomicReference<FlowExceptionHandler> defaultHandler =
+            new AtomicReference<>(new DefaultFlowExceptionHandler());
+    private static final AtomicReference<MeterRegistry> meterRegistryRef = new AtomicReference<>();
+
     static {
-        // 注册默认处理器
         handlers.add(defaultHandler.get());
     }
-    
+
     private FlowExceptionHelper() {
+    }
+    
+    /**
+     * 注入 MeterRegistry，用于集中记录 ERRORS 指标。
+     * 由 FlowManager 初始化时调用。
+     */
+    public static void setMeterRegistry(MeterRegistry meterRegistry) {
+        meterRegistryRef.set(meterRegistry);
     }
     
     /**
@@ -62,7 +74,32 @@ public class FlowExceptionHelper {
      * @param phase     阶段
      */
     public static void handleException(String jobId, String entryId, Throwable exception, FlowPhase phase) {
-        FlowExceptionContext context = new FlowExceptionContext(jobId, entryId, exception, phase);
+        handleException(jobId, entryId, exception, phase, null);
+    }
+    
+    /**
+     * 处理异常并记录 ERRORS 指标
+     *
+     * @param jobId     Job ID
+     * @param entryId   Entry ID（可为 null）
+     * @param exception 异常
+     * @param phase     阶段
+     * @param errorType 错误类型，用于 ERRORS 指标的 errorType 标签；为 null 时不记录指标
+     */
+    public static void handleException(String jobId,
+            String entryId,
+            Throwable exception,
+            FlowPhase phase,
+            String errorType) {
+        FlowExceptionContext context = new FlowExceptionContext(jobId, entryId, exception, phase, errorType);
+        MeterRegistry registry = meterRegistryRef.get();
+        if (registry != null && errorType != null) {
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, errorType)
+                   .tag(FlowMetricNames.TAG_PHASE, phase.name())
+                   .register(registry)
+                   .increment();
+        }
         handleException(context);
     }
     
@@ -90,5 +127,12 @@ public class FlowExceptionHelper {
     public static void clearHandlers() {
         handlers.clear();
         handlers.add(defaultHandler.get());
+    }
+    
+    /**
+     * 清除 MeterRegistry（用于测试隔离）
+     */
+    public static void clearMeterRegistry() {
+        meterRegistryRef.set(null);
     }
 }

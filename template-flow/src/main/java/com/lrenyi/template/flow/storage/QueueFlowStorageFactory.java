@@ -5,6 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.model.FlowStorageType;
+import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
@@ -28,12 +29,13 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             TemplateConfigProperties.Flow config,
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
+            FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new QueueFlowStorage<>(config.getProducer().getMaxCacheSize(),
+        return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorage(),
                                       progressTracker,
                                       finalizer,
                                       jobId,
-                                      config.getConsumer().getTtlMill(),
+                                      config.getLimits().getPerJob().getQueuePollIntervalMill(),
                                       meterRegistry
         );
     }

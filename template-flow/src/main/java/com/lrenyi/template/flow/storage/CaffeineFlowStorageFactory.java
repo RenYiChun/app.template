@@ -5,6 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.model.FlowStorageType;
+import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
@@ -28,9 +29,10 @@ public class CaffeineFlowStorageFactory implements FlowStorageFactory {
             TemplateConfigProperties.Flow config,
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
+            FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new CaffeineFlowStorage<>(config.getProducer().getMaxCacheSize(),
-                                         config.getConsumer().getTtlMill(),
+        return new CaffeineFlowStorage<>(config.getLimits().getPerJob().getStorage(),
+                                         config.getLimits().getPerJob().getCacheTtlMill(),
                                          joiner,
                                          finalizer,
                                          progressTracker,

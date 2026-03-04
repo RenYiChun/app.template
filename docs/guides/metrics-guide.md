@@ -138,15 +138,24 @@ curl http://localhost:8080/actuator/prometheus | grep "app_template_flow"
 
 #### Gauges（仪表盘）
 
-| 指标名                                  | 标签                     | 含义           | 关注场景                    |
-|--------------------------------------|------------------------|--------------|-------------------------|
-| `app.template.flow.semaphore.used`   | —                      | 全局消费信号量已占用数  | 接近 limit 时消费端饱和         |
-| `app.template.flow.semaphore.limit`  | —                      | 全局消费信号量上限    | 利用率 = used / limit      |
-| `app.template.flow.launchers.active` | —                      | 当前运行中的 Job 数 | 为 0 时系统空闲               |
-| `app.template.flow.storage.size`     | `jobId`, `storageType` | 当前缓存数据条数     | 接近 maxSize 则即将触发驱逐或背压   |
-| `app.template.flow.completion.rate`  | `jobId`                | 任务完成率        | 仅 totalExpected > 0 时注册 |
+| 指标名                                                     | 标签                     | 含义               | 关注场景                    |
+|---------------------------------------------------------|------------------------|------------------|-------------------------|
+| `app.template.flow.limits.consumer-concurrency.used`    | —                      | 全主机消费许可已占用数      | 接近 limit 时消费端饱和         |
+| `app.template.flow.limits.consumer-concurrency.limit`  | —                      | 全主机消费许可上限        | 利用率 = used / limit      |
+| `app.template.flow.limits.producer-threads.used`        | `jobId`                | 每 Job 已占用生产线程数    | 接近 limit 时生产端饱和         |
+| `app.template.flow.limits.producer-threads.limit`       | `jobId`                | 每 Job 生产线程上限      | —                        |
+| `app.template.flow.limits.in-flight.used`               | `jobId`                | 每 Job 在途数据条数       | 背压触发前兆                   |
+| `app.template.flow.limits.in-flight.limit`             | `jobId`                | 每 Job 在途数据上限      | —                        |
+| `app.template.flow.limits.pending-consumer.count`       | `jobId`                | 每 Job 已离库未终结条数    | 背压触发前兆                   |
+| `app.template.flow.limits.pending-consumer.limit`      | `jobId`                | 每 Job 背压阈值         | —                        |
+| `app.template.flow.limits.storage.used`                 | `jobId`, `storageType` | 每 Job 缓存当前条数       | 接近 limit 则即将触发驱逐或背压     |
+| `app.template.flow.limits.storage.limit`                | `jobId`, `storageType` | 每 Job 缓存容量上限      | —                        |
+| `app.template.flow.launchers.active`                   | —                      | 当前运行中的 Job 数     | 为 0 时系统空闲               |
+| `app.template.flow.completion.rate`                     | `jobId`                | 任务完成率            | 仅 totalExpected > 0 时注册 |
 
-`app.template.flow.semaphore.used` 与 `app.template.flow.semaphore.limit` 为全局指标，不携带 `jobId` 标签，建议按 `instance` 维度聚合与展示。
+当启用全局限制时，还会暴露 `limits.producer-threads.global.*`、`limits.in-flight.global.*`、`limits.pending-consumer.global.*`、`limits.storage.global.*` 等指标。
+
+**许可获取等待耗时**：`limits.acquire-wait-duration`（Timer，标签 `jobId`、`dimension`：producer-threads / in-flight / storage），用于观测各维度许可争用与饥饿。详见 [Flow 配置优化与全局化设计](../design/flow-limits-globalization.md) 第六章。
 
 ### 2.2 HTTP 认证指标 (template-api)
 
@@ -353,7 +362,7 @@ sum(rate(app_template_flow_egress_passive_total[5m]))
 sum by (reason) (rate(app_template_flow_egress_passive_total[5m]))
 
 # 消费信号量利用率
-app_template_flow_semaphore_used / app_template_flow_semaphore_limit
+app_template_flow_limits_consumer_concurrency_used / app_template_flow_limits_consumer_concurrency_limit
 
 # P99 存储写入延迟
 histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket[5m])) by (le))
@@ -369,8 +378,8 @@ rate(app_template_flow_backpressure_duration_seconds_count[5m])
 # 按 phase 分组的错误率
 sum by (phase) (rate(app_template_flow_errors_total[5m]))
 
-# 存储堆积量
-app_template_flow_storage_size
+# 存储堆积量（按 jobId）
+app_template_flow_limits_storage_used
 ```
 
 ### 5.2 HTTP 认证

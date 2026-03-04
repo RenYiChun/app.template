@@ -20,34 +20,33 @@ public class BackpressureController {
     private final Condition notFull = lock.newCondition();
     private final FlowStorage<?> flowStorage;
     private final IntSupplier consumerAvailablePermitsSupplier;
-    private final LongSupplier pendingCountSupplier;
-    private final IntSupplier globalSemaphoreCapacitySupplier;
+    private final LongSupplier perJobPendingCountSupplier;
+    private final int perJobPendingLimit;
+    private final LongSupplier globalPendingCountSupplier;
+    private final int globalPendingLimit;
     private final MeterRegistry meterRegistry;
     private final String jobId;
     
     public BackpressureController(FlowStorage<?> flowStorage, MeterRegistry meterRegistry, String jobId) {
-        this(flowStorage, null, null, null, meterRegistry, jobId);
+        this(flowStorage, null, null, 0, null, 0, meterRegistry, jobId);
     }
     
     public BackpressureController(FlowStorage<?> flowStorage,
             IntSupplier consumerAvailablePermitsSupplier,
-            LongSupplier pendingCountSupplier,
-            IntSupplier globalSemaphoreCapacitySupplier,
+            LongSupplier perJobPendingCountSupplier,
+            int perJobPendingLimit,
+            LongSupplier globalPendingCountSupplier,
+            int globalPendingLimit,
             MeterRegistry meterRegistry,
             String jobId) {
         this.flowStorage = flowStorage;
         this.consumerAvailablePermitsSupplier = consumerAvailablePermitsSupplier;
-        this.pendingCountSupplier = pendingCountSupplier;
-        this.globalSemaphoreCapacitySupplier = globalSemaphoreCapacitySupplier;
+        this.perJobPendingCountSupplier = perJobPendingCountSupplier;
+        this.perJobPendingLimit = perJobPendingLimit;
+        this.globalPendingCountSupplier = globalPendingCountSupplier;
+        this.globalPendingLimit = globalPendingLimit;
         this.meterRegistry = meterRegistry;
         this.jobId = jobId;
-    }
-    
-    public BackpressureController(FlowStorage<?> flowStorage,
-            IntSupplier consumerAvailablePermitsSupplier,
-            MeterRegistry meterRegistry,
-            String jobId) {
-        this(flowStorage, consumerAvailablePermitsSupplier, null, null, meterRegistry, jobId);
     }
     
     /** 生产者调用：缓存满或消费许可耗尽时阻塞 */
@@ -61,9 +60,11 @@ public class BackpressureController {
                 boolean cacheFull = flowStorage.size() >= flowStorage.maxCacheSize();
                 boolean consumerSaturated =
                         consumerAvailablePermitsSupplier != null && consumerAvailablePermitsSupplier.getAsInt() <= 0;
-                boolean pendingOverflow = pendingCountSupplier != null && globalSemaphoreCapacitySupplier != null
-                        && pendingCountSupplier.getAsLong() >= globalSemaphoreCapacitySupplier.getAsInt();
-                if (!cacheFull && !consumerSaturated && !pendingOverflow) {
+                boolean perJobPendingOverflow = perJobPendingLimit > 0 && perJobPendingCountSupplier != null
+                        && perJobPendingCountSupplier.getAsLong() >= perJobPendingLimit;
+                boolean globalPendingOverflow = globalPendingLimit > 0 && globalPendingCountSupplier != null
+                        && globalPendingCountSupplier.getAsLong() >= globalPendingLimit;
+                if (!cacheFull && !consumerSaturated && !perJobPendingOverflow && !globalPendingOverflow) {
                     break;
                 }
                 waitCount++;

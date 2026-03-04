@@ -11,6 +11,7 @@ import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -84,35 +85,70 @@ public class TemplateConfigProperties implements InitializingBean {
     
     /**
      * 配置合理性校验，防止远程配置源（如 Nacos）覆盖导致行为异常。
-     * 仅输出 WARN 日志，不阻断启动。
+     * Flow limits 校验失败时抛出 IllegalArgumentException，应用启动中止。
      */
     private void validateConfig() {
-        if (flow.getConsumer().getConcurrencyLimit() <= 0) {
-            log.warn("[配置校验] app.template.flow.consumer.concurrency-limit={} 不合法，"
-                             + "可能被远程配置覆盖，将导致 Flow 引擎无法正常工作",
-                     flow.getConsumer().getConcurrencyLimit()
-            );
-        }
-        if (flow.getConsumer().getTtlMill() <= 0) {
-            log.warn("[配置校验] app.template.flow.consumer.ttl-mill={} 不合法，" + "缓存数据将立即过期",
-                     flow.getConsumer().getTtlMill()
-            );
+        TemplateConfigProperties.Flow.Limits limits = flow.getLimits();
+        TemplateConfigProperties.Flow.Global global = limits.getGlobal();
+        Flow.PerJob perJob = getPerJob(limits, global);
+        if (perJob.getQueuePollIntervalMill() <= 0) {
+            throw new IllegalArgumentException("flow.limits.per-job.queue-poll-interval-mill 必须 > 0，当前值: "
+                                                       + perJob.getQueuePollIntervalMill());
         }
         if (security.isEnabled() && !security.isLocalJwtPublicKey()
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
             log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
         }
-        log.info("[配置摘要] enabled={}, security.effective={}, flow.concurrencyLimit={}, "
+        log.info("[配置摘要] enabled={}, security.effective={}, flow.consumerConcurrency={}, "
                          + "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
                  enabled,
                  isSecurityEffectivelyEnabled(),
-                 flow.getConsumer().getConcurrencyLimit(),
+                 global.getConsumerConcurrency(),
                  isFeignEffectivelyEnabled(),
                  isOauth2EffectivelyEnabled(),
                  isAuditEffectivelyEnabled(),
                  isMethodSecurityEffectivelyEnabled()
         );
+    }
+    
+    private static Flow.@NonNull PerJob getPerJob(Flow.Limits limits, Flow.Global global) {
+        Flow.PerJob perJob = getJob(limits, global);
+        int effectivePending = perJob.getEffectivePendingConsumer();
+        if (effectivePending <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.pending-consumer 或 flow.limits.per-job.consumer-concurrency 必须 > 0，"
+                            + "当前 pending-consumer=" + perJob.getPendingConsumer()
+                            + ", consumer-concurrency=" + perJob.getConsumerConcurrency());
+        }
+        if (perJob.getCacheTtlMill() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + perJob.getCacheTtlMill());
+        }
+        return perJob;
+    }
+    
+    private static Flow.@NonNull PerJob getJob(Flow.Limits limits, Flow.Global global) {
+        Flow.PerJob perJob = limits.getPerJob();
+        
+        if (global.getConsumerConcurrency() <= 0 && perJob.getConsumerConcurrency() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.global.consumer-concurrency 或 flow.limits.per-job.consumer-concurrency 至少一个必须 > 0，"
+                            + "当前 global=" + global.getConsumerConcurrency()
+                            + ", per-job=" + perJob.getConsumerConcurrency());
+        }
+        if (perJob.getProducerThreads() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.producer-threads 必须 > 0，当前值: " + perJob.getProducerThreads());
+        }
+        if (perJob.getInFlightProduction() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.in-flight-production 必须 > 0，当前值: " + perJob.getInFlightProduction());
+        }
+        if (perJob.getStorage() <= 0) {
+            throw new IllegalArgumentException("flow.limits.per-job.storage 必须 > 0，当前值: " + perJob.getStorage());
+        }
+        return perJob;
     }
     
     /**
@@ -151,41 +187,74 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class Flow {
-        /** 监控配置 */
+        /** 限流配置（全局与按 Job 分离） */
         @NestedConfigurationProperty
-        private Monitor monitor = new Monitor();
-        /** 生产端配置 */
-        @NestedConfigurationProperty
-        private Producer producer = new Producer();
-        /** 消费端配置 */
-        @NestedConfigurationProperty
-        private Consumer consumer = new Consumer();
-    }
-    
-    @Setter
-    @Getter
-    public static class Monitor {}
-    
-    @Setter
-    @Getter
-    public static class Producer {
-        /** 子流并行拉取数 (控制同时执行拉取任务的任务数) */
-        private int parallelism = 40;
-        /** 在途数据上限阈值 (控制系统中允许存在的在途数据条目数，≤0 表示用 1 倍全局消费许可数) */
-        private int maxInFlightThreshold = 4000;
-        /** 缓存最大容量 */
-        private int maxCacheSize = 40000;
-        /** 是否开启缓存 */
-        private boolean cacheEnabled = true;
-    }
-    
-    @Setter
-    @Getter
-    public static class Consumer {
-        /** 缓存数据存活时间（毫秒） */
-        private long ttlMill = 10000;
-        /** 全局并发消费许可数阈值 */
-        private int concurrencyLimit = 1000;
+        private Limits limits = new Limits();
+        
+        /** 便捷方法：获取 limits，若为 null 则返回默认 */
+        public Limits getLimits() {
+            return limits != null ? limits : new Limits();
+        }
+        
+        @Setter
+        @Getter
+        public static class Limits {
+            /** 全主机级限制 */
+            @NestedConfigurationProperty
+            private Global global = new Global();
+            /** 每 Job 独立限制 */
+            @NestedConfigurationProperty
+            private PerJob perJob = new PerJob();
+            
+            public Global getGlobal() {
+                return global != null ? global : new Global();
+            }
+            
+            public PerJob getPerJob() {
+                return perJob != null ? perJob : new PerJob();
+            }
+        }
+        
+        @Setter
+        @Getter
+        public static class Global {
+            /** 全局信号量公平调度（FIFO），true 防饥饿、false 更高吞吐 */
+            private boolean fairScheduling = true;
+            /** 全主机生产线程上限，<=0 不启用 */
+            private int producerThreads = 0;
+            /** 全主机生产在途数据量上限，<=0 不启用 */
+            private int inFlightProduction = 0;
+            /** 全主机存储容量上限，<=0 不启用 */
+            private int storage = 0;
+            /** 全主机消费并发数，<=0 不启用 */
+            private int consumerConcurrency = 0;
+            /** 全主机已离库未终结条数上限，<=0 不启用 */
+            private int pendingConsumer = 0;
+        }
+        
+        @Setter
+        @Getter
+        public static class PerJob {
+            /** 每 Job 生产线程数（必须 >0） */
+            private int producerThreads = 40;
+            /** 每 Job 生产在途数据量（必须 >0） */
+            private int inFlightProduction = 4000;
+            /** 每 Job 缓存容量（必须 >0） */
+            private int storage = 40000;
+            /** 每 Job 消费并发数（必须 >0） */
+            private int consumerConcurrency = 1000;
+            /** 每 Job 已离库未终结条数上限（>0 显式值，0 表示使用 per-job.consumer-concurrency） */
+            private int pendingConsumer = 0;
+            /** 每 Job 缓存 TTL（Caffeine 过期，毫秒，必须 >0） */
+            private long cacheTtlMill = 10000;
+            /** 每 Job Queue 轮询间隔（毫秒，必须 >0） */
+            private long queuePollIntervalMill = 10000;
+            
+            /** 有效背压阈值：pendingConsumer>0 时取该值，否则取 per-job.consumer-concurrency */
+            public int getEffectivePendingConsumer() {
+                return pendingConsumer > 0 ? pendingConsumer : consumerConcurrency;
+            }
+        }
     }
     
     @Setter

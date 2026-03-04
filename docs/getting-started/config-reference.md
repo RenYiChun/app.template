@@ -29,6 +29,34 @@ App Template 框架包含以下模块：
 
 ## 核心配置
 
+### Flow 配置
+
+Flow 引擎采用 `app.template.flow.limits` 结构，分为 `global`（全主机）与 `per-job`（每 Job）：
+
+```yaml
+app:
+  template:
+    flow:
+      limits:
+        global:
+          fair-scheduling: true    # 全局信号量公平调度，false 更高吞吐
+          producer-threads: 0      # 全主机生产线程上限，<=0 不启用
+          in-flight-production: 0   # 全主机生产在途数据量上限，<=0 不启用
+          storage: 0               # 全主机存储容量上限，<=0 不启用
+          consumer-concurrency: 1000  # 全主机消费并发数，<=0 不启用
+          pending-consumer: 0      # 全主机已离库未终结条数上限，<=0 不启用
+        per-job:
+          producer-threads: 40     # 每 Job 生产线程数（必须 >0）
+          in-flight-production: 4000  # 每 Job 生产在途数据量（必须 >0）
+          storage: 40000          # 每 Job 缓存容量（必须 >0）
+          consumer-concurrency: 1000  # 每 Job 消费并发数（必须 >0）
+          pending-consumer: 0     # 每 Job 背压阈值，>0 显式值，0 使用 per-job.consumer-concurrency
+          cache-ttl-mill: 10000       # 每 Job Caffeine 缓存过期时间（毫秒，必须 >0）
+          queue-poll-interval-mill: 10000  # 每 Job Queue 轮询间隔（毫秒，必须 >0）
+```
+
+启动时 `validateConfig()` 会校验上述必填项，不满足时抛出 `IllegalArgumentException` 并中止启动。详见 [Flow 配置优化与全局化设计](../design/flow-limits-globalization.md)。
+
 ### 应用基础配置
 
 ```yaml

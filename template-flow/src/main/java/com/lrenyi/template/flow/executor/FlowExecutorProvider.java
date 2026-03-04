@@ -31,4 +31,30 @@ public interface FlowExecutorProvider {
      * @param semaphore Job 级生产者信号量
      */
     ExecutorService createProducerExecutor(Semaphore semaphore);
+    
+    /**
+     * 按 Job 创建生产者执行器（双层信号量：先 global 再 per-job）。
+     * 当 globalSemaphore 为 null 时等价于单参 createProducerExecutor(perJobSemaphore)。
+     *
+     * @param globalSemaphore 全局生产线程信号量（可为 null）
+     * @param perJobSemaphore 每 Job 生产线程信号量
+     */
+    default ExecutorService createProducerExecutor(Semaphore globalSemaphore, Semaphore perJobSemaphore) {
+        return createProducerExecutor(perJobSemaphore);
+    }
+    
+    /**
+     * 按 Job 创建生产者执行器（双层信号量 + 许可获取耗时指标）。
+     *
+     * @param globalSemaphore 全局生产线程信号量（可为 null）
+     * @param perJobSemaphore 每 Job 生产线程信号量
+     * @param meterRegistry  指标注册表
+     * @param jobId          Job 标识
+     */
+    default ExecutorService createProducerExecutor(Semaphore globalSemaphore,
+            Semaphore perJobSemaphore,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry,
+            String jobId) {
+        return createProducerExecutor(globalSemaphore, perJobSemaphore);
+    }
 }

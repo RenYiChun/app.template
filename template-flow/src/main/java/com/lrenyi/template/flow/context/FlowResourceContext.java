@@ -66,6 +66,11 @@ public class FlowResourceContext {
      */
     private final Semaphore inFlightProductionSemaphore;
     
+    /**
+     * 每 Job 消费并发信号量：限制该 Job 同时持有的消费许可数
+     */
+    private final Semaphore jobConsumerSemaphore;
+    
     // ========== 全局资源访问便捷方法 ==========
     
     /**

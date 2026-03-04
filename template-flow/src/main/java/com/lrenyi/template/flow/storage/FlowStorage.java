@@ -11,9 +11,15 @@ import com.lrenyi.template.flow.context.FlowEntry;
  */
 public interface FlowStorage<T> {
     
-    default void deposit(FlowEntry<T> entry) {
+    /**
+     * 将任务上下文存入存储区
+     *
+     * @param entry 任务上下文
+     * @return true 表示入库成功；false 表示拒绝（如 Queue 满）
+     */
+    default boolean deposit(FlowEntry<T> entry) {
         if (entry == null) {
-            return;
+            return true;
         }
         // 1. 物理引用 +1 (确保在 Storage 期间对象不被销毁)
         entry.retain();
@@ -22,6 +28,7 @@ public interface FlowStorage<T> {
         if (!success) {
             entry.release();
         }
+        return success;
     }
     
     /**

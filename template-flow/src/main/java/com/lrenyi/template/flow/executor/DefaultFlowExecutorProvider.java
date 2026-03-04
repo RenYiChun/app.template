@@ -7,6 +7,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import com.lrenyi.template.flow.executor.BoundedVirtualExecutor.PermitStrategy;
+import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.resource.PermitPair;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 /**
  * FlowExecutorProvider 默认实现
@@ -64,5 +69,54 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     @Override
     public ExecutorService createProducerExecutor(Semaphore semaphore) {
         return new BoundedVirtualExecutor(semaphore);
+    }
+    
+    @Override
+    public ExecutorService createProducerExecutor(Semaphore globalSemaphore, Semaphore perJobSemaphore) {
+        return createProducerExecutor(globalSemaphore, perJobSemaphore, null, null);
+    }
+    
+    @Override
+    public ExecutorService createProducerExecutor(Semaphore globalSemaphore,
+            Semaphore perJobSemaphore,
+            MeterRegistry meterRegistry,
+            String jobId) {
+        if (globalSemaphore == null) {
+            return createProducerExecutor(perJobSemaphore);
+        }
+        PermitStrategy baseStrategy = new PermitStrategy() {
+            @Override
+            public void acquire() throws InterruptedException {
+                if (!PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1)) {
+                    throw new IllegalStateException("PermitPair.tryAcquireBoth returned false");
+                }
+            }
+            
+            @Override
+            public void release() {
+                PermitPair.createHeld(globalSemaphore, perJobSemaphore, 1).release();
+            }
+        };
+        PermitStrategy strategy = baseStrategy;
+        if (meterRegistry != null && jobId != null) {
+            Timer timer = Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
+                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                               .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_PRODUCER_THREADS)
+                               .register(meterRegistry);
+            strategy = new PermitStrategy() {
+                @Override
+                public void acquire() throws InterruptedException {
+                    Timer.Sample sample = Timer.start(meterRegistry);
+                    baseStrategy.acquire();
+                    sample.stop(timer);
+                }
+                
+                @Override
+                public void release() {
+                    baseStrategy.release();
+                }
+            };
+        }
+        return new BoundedVirtualExecutor(strategy);
     }
 }

@@ -46,12 +46,7 @@ public class FlowJoinerEngine {
                 runUntilNoMoreSubSources(provider, jobId, launcher);
             }
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
-                   .register(registry())
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "job_failed");
             throw e;
         }
     }
@@ -110,12 +105,7 @@ public class FlowJoinerEngine {
         try (sub) {
             drainSubSource(sub, launcher);
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "subsource_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
-                   .register(registry())
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "subsource_failed");
             log.error("子流消费异常 jobId={}", jobId, e);
         }
     }
