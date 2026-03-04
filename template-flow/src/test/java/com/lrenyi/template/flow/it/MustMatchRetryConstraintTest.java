@@ -12,8 +12,7 @@ import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MustMatchRetryConstraintTest {
     
@@ -24,20 +23,16 @@ class MustMatchRetryConstraintTest {
     }
     
     @Test
-    void mustMatchRetryWithQueueShouldFail() {
+    void mustMatchRetryWithQueueShouldStart() {
         TemplateConfigProperties.Flow global = FlowTestSupport.defaultFlowConfig();
         FlowManager manager = FlowTestSupport.createManager(global);
         FlowJoinerEngine engine = new FlowJoinerEngine(manager);
         
         TemplateConfigProperties.Flow jobFlow = new TemplateConfigProperties.Flow();
         jobFlow.getLimits().getPerJob().setMustMatchRetryEnabled(true);
-        
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> engine.startPush(
-                "job-must-match-retry-queue",
-                new QueueMatchedJoiner(),
-                jobFlow
-        ));
-        assertTrue(exception.getMessage().contains("must-match-retry"));
+        var inlet = engine.startPush("job-must-match-retry-queue", new QueueMatchedJoiner(), jobFlow);
+        assertNotNull(inlet);
+        inlet.stop(true);
     }
     
     private static class QueueMatchedJoiner implements FlowJoiner<String> {

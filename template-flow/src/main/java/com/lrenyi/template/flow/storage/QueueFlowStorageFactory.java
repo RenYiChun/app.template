@@ -32,6 +32,7 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
         return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorage(),
+                                      joiner,
                                       progressTracker,
                                       finalizer,
                                       jobId,

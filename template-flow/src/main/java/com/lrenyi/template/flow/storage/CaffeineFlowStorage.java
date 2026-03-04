@@ -11,25 +11,28 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.Scheduler;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
-import com.lrenyi.template.flow.context.Orchestrator;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
+import com.lrenyi.template.flow.internal.MatchedPairProcessor;
+import com.lrenyi.template.flow.internal.RetryHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 
 /**
  * 基于 Caffeine 实现的 Key-Value 流式存储
@@ -37,8 +40,7 @@ import lombok.extern.slf4j.Slf4j;
  * @param <T> 存储的数据类型
  */
 @Slf4j
-public class CaffeineFlowStorage<T> implements FlowStorage<T> {
-    private static final String CONSUMPTION = "CONSUMPTION";
+public class CaffeineFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapter<T> {
     private static final int STRIPE_COUNT = 256;
     private static final Lock[] KEY_STRIPES = new Lock[STRIPE_COUNT];
     
@@ -56,6 +58,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     private final long maxCacheSize;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
+    private final MatchedPairProcessor<T> matchedPairProcessor;
     private final LongAdder removalSubmittedCount = new LongAdder();
     
     public CaffeineFlowStorage(long maxSize,
@@ -71,15 +74,12 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         this.maxCacheSize = maxSize;
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
+        this.matchedPairProcessor =
+                new MatchedPairProcessor<>(joiner, progressTracker, meterRegistry, resourceRegistry);
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxSize)
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
-                             .executor(resourceRegistry.getCacheRemovalExecutor())
-                             .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> onEntryRemoved(
-                                     key,
-                                     entry,
-                                     cause
-                             ))
+                             .executor(resourceRegistry.getCacheRemovalExecutor()).removalListener(this::onEntryRemoved)
                              .scheduler(Scheduler.systemScheduler())
                              .build();
         
@@ -122,7 +122,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                 handlePassiveFailure(entry, reason);
                 return;
             }
-            if (tryRetryBeforeFailure(key, entry, reason, launcher)) {
+            RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
+            if (retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
                 return;
             }
             handlePassiveFailure(entry, reason);
@@ -133,60 +134,42 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         }
     }
     
-    private boolean tryRetryBeforeFailure(String key,
-            FlowEntry<T> entry,
-            FailureReason reason,
-            FlowLauncher<Object> launcher) {
-        MatchRetryCoordinator<T> retryCoordinator = new MatchRetryCoordinator<>(entry.getJobId(),
-                                                                                launcher.getFlow().getLimits().getPerJob(),
-                                                                                joiner,
-                                                                                launcher.getFlowManager(),
-                                                                                meterRegistry
-        );
-        if (!retryCoordinator.tryConsumeRetry(reason, entry)) {
-            return false;
-        }
-        long backoffMill = launcher.getFlow().getLimits().getPerJob().getMustMatchRetryBackoffMill();
-        if (backoffMill > 0) {
-            try {
-                Thread.sleep(backoffMill);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.STORAGE,
-                        "retry_backoff_interrupted");
-                return false;
-            }
-        }
-        if (tryMatchThenRequeue(key, entry, launcher)) {
-            retryCoordinator.onRetrySucceeded(reason);
-            return true;
-        }
-        return false;
+    private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+        TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
+        MatchRetryCoordinator<T> ct;
+        ct = new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager(), meterRegistry);
+        return new RetryHandler<>(ct, this, perJob.getMustMatchRetryBackoffMill());
     }
     
-    private boolean tryMatchThenRequeue(String key, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+    @Override
+    public PreRetryResult preRetry(String key, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
             FlowEntry<T> partner = findAndRemoveExisting(key);
             if (partner != null) {
-                processMatchedPairFromRetry(partner, entry, launcher);
-                return true;
+                matchedPairProcessor.processMatchedPair(partner, entry, launcher);
+                return PreRetryResult.HANDLED;
             }
-            if (!acquireGlobalStorageForRequeue(entry.getJobId())) {
-                return false;
-            }
-            boolean requeued = requeue(entry);
-            if (!requeued) {
-                resourceRegistry.releaseGlobalStorage(1);
-            }
-            if (requeued) {
-                entry.close();
-            }
-            return requeued;
+            return PreRetryResult.PROCEED_TO_REQUEUE;
         } finally {
             stripe.unlock();
         }
+    }
+    
+    @Override
+    public boolean tryRequeue(FlowEntry<T> entry) {
+        if (!acquireGlobalStorageForRequeue(entry.getJobId())) {
+            return false;
+        }
+        boolean requeued = requeue(entry);
+        if (!requeued) {
+            resourceRegistry.releaseGlobalStorage(1);
+        }
+        if (requeued) {
+            entry.close();
+        }
+        return requeued;
     }
     
     private FlowEntry<T> findAndRemoveExisting(String key) {
@@ -223,7 +206,8 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
         return null;
     }
     
-    private void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
+    @Override
+    public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
         try (entry) {
             joiner.onFailed(entry.getData(), entry.getJobId(), reason);
             Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
@@ -302,13 +286,12 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
     }
     
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
-        resourceRegistry.releaseGlobalStorage(1);
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for job {}", entry.getJobId());
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
-                   .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
+                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
                    .register(meterRegistry)
                    .increment();
             partner.close();
@@ -320,100 +303,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
             partner.close();
             return;
         }
-        long matchStartTime = System.currentTimeMillis();
-        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-        Runnable runnable = () -> {
-            try {
-                executeMatchedPairLogicBody(partner, entry);
-                long matchLatency = System.currentTimeMillis() - matchStartTime;
-                Timer.builder(FlowMetricNames.MATCH_DURATION)
-                     .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                     .register(meterRegistry)
-                     .record(matchLatency, TimeUnit.MILLISECONDS);
-            } catch (Exception e) {
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION);
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
-                       .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
-                       .register(meterRegistry)
-                       .increment();
-            } finally {
-                launcher.getBackpressureController().signalRelease();
-            }
-        };
-        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, runnable);
-    }
-    
-    private void processMatchedPairFromRetry(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
-        resourceRegistry.releaseGlobalStorage(1);
-        long matchStartTime = System.currentTimeMillis();
-        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-        Runnable runnable = () -> {
-            try (partner; entry) {
-                if (joiner.isMatched(partner.getData(), entry.getData())) {
-                    handleMatchedSuccess(partner, entry);
-                } else {
-                    handleMatchedFailure(partner, entry);
-                }
-                long matchLatency = System.currentTimeMillis() - matchStartTime;
-                Timer.builder(FlowMetricNames.MATCH_DURATION)
-                     .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                     .register(meterRegistry)
-                     .record(matchLatency, TimeUnit.MILLISECONDS);
-            } catch (Exception e) {
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION,
-                        "retry_match_process_failed");
-            } finally {
-                launcher.getBackpressureController().signalRelease();
-            }
-        };
-        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, runnable);
-    }
-    
-    private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {
-        try (partner) {
-            if (joiner.isMatched(partner.getData(), entry.getData())) {
-                handleMatchedSuccess(partner, entry);
-            } else {
-                handleMatchedFailure(partner, entry);
-            }
-        }
-    }
-    
-    private void handleMatchedSuccess(FlowEntry<T> partner, FlowEntry<T> entry) {
-        progressTracker.onActiveEgress();
-        progressTracker.onActiveEgress();
-        Counter.builder(FlowMetricNames.EGRESS_ACTIVE)
-               .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-               .register(meterRegistry)
-               .increment(2);
-        try {
-            joiner.onSuccess(partner.getData(), entry.getData(), entry.getJobId());
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION, "onSuccess_failed");
-        }
-    }
-    
-    private void handleMatchedFailure(FlowEntry<T> partner, FlowEntry<T> entry) {
-        try {
-            joiner.onFailed(partner.getData(), partner.getJobId(), FailureReason.MISMATCH);
-            joiner.onFailed(entry.getData(), entry.getJobId(), FailureReason.MISMATCH);
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, partner.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, "MISMATCH")
-                   .register(meterRegistry)
-                   .increment();
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, "MISMATCH")
-                   .register(meterRegistry)
-                   .increment();
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION,
-                    "mismatch_process_failed");
-        }
-        progressTracker.onPassiveEgress(FailureReason.MISMATCH);
-        progressTracker.onPassiveEgress(FailureReason.MISMATCH);
+        matchedPairProcessor.processMatchedPair(partner, entry, launcher);
     }
     
     @Override

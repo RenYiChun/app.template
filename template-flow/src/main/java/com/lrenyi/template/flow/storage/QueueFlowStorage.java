@@ -6,12 +6,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
@@ -25,9 +27,10 @@ import lombok.extern.slf4j.Slf4j;
  * @param <T> 存储的数据类型
  */
 @Slf4j
-public class QueueFlowStorage<T> implements FlowStorage<T> {
+public class QueueFlowStorage<T> implements FlowStorage<T>, RetryStorageAdapter<T> {
     private final BlockingQueue<FlowEntry<T>> queue;
     private final long maxCacheSize;
+    private final FlowJoiner<T> joiner;
     private final ProgressTracker progressTracker;
     private final FlowFinalizer<T> finalizer;
     private final AtomicBoolean stopped = new AtomicBoolean(false);
@@ -36,6 +39,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     private ScheduledFuture<?> scheduledFuture;
     
     public QueueFlowStorage(int capacity,
+            FlowJoiner<T> joiner,
             ProgressTracker progressTracker,
             FlowFinalizer<T> finalizer,
             String jobId,
@@ -43,6 +47,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
             MeterRegistry meterRegistry) {
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
+        this.joiner = joiner;
         this.progressTracker = progressTracker;
         this.finalizer = finalizer;
         this.resourceRegistry = finalizer.resourceRegistry();
@@ -121,6 +126,32 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
                .register(meterRegistry)
                .increment();
         return false;
+    }
+    
+    @Override
+    public PreRetryResult preRetry(String key, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+        return PreRetryResult.PROCEED_TO_REQUEUE;
+    }
+    
+    @Override
+    public boolean tryRequeue(FlowEntry<T> entry) {
+        return doDeposit(entry);
+    }
+    
+    @Override
+    public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
+        try (entry) {
+            joiner.onFailed(entry.getData(), entry.getJobId(), reason);
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, reason.name())
+                   .register(meterRegistry)
+                   .increment();
+        } finally {
+            if (progressTracker != null) {
+                progressTracker.onPassiveEgress(reason);
+            }
+        }
     }
     
     @Override
