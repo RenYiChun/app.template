@@ -23,8 +23,6 @@ public class FlowEntry<T> implements AutoCloseable {
     private final String jobId;
     private volatile int refCnt = 1;
     private volatile int status = 0;
-    /** 移除原因（如 EVICTION 的 EXPIRED/SIZE），供 Finalizer 在 claimLogic 失败时计数 EGRESS_PASSIVE 使用 */
-    private volatile String removalReason;
     
     public FlowEntry(T data, String jobId) {
         this.data = data;
@@ -42,16 +40,6 @@ public class FlowEntry<T> implements AutoCloseable {
     /** 包级可见，供单元测试验证 refCnt */
     int getRefCntForTest() {
         return refCnt;
-    }
-
-    /** 设置移除原因（供 Caffeine removalListener 在驱逐时设置） */
-    public void setRemovalReason(String reason) {
-        this.removalReason = reason;
-    }
-
-    /** 获取移除原因，用于 EGRESS_PASSIVE 的 reason 标签 */
-    public String getRemovalReason() {
-        return removalReason;
     }
     
     /**

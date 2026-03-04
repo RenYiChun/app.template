@@ -150,9 +150,8 @@ export class MetaService {
         meta.queryableFields ??= {};
         meta.operations ??= {};
 
-        // Use backend provided schemas if available
+        this.fillQueryableFieldsFromSchema(meta);
         if (meta.schemas.pageResponse && meta.schemas.create && meta.schemas.update) {
-            // Fill default operations if needed
             this.fillDefaultOperations(meta);
             return;
         }
@@ -206,24 +205,29 @@ export class MetaService {
             updateProps[f.name] = prop;
         }
 
-        const queryableFields = meta.queryableFields ??= {};
-        meta.fields?.forEach(f => {
-            if (f.searchable) {
-                queryableFields[f.name] = {
-                    type: f.type || 'String',
-                    operators: opsForType(f.type || 'String'),
-                    label: f.label,
-                    order: f.searchOrder
-                };
-            }
-        });
-
         meta.schemas.pageResponse = pageResponseProps;
         meta.schemas.create = createProps;
         meta.schemas.update = updateProps;
 
         // 4. Operations (填充默认操作)
         this.fillDefaultOperations(meta);
+    }
+
+    private fillQueryableFieldsFromSchema(meta: EntityMeta) {
+        const queryableFields = meta.queryableFields ??= {};
+        Object.keys(queryableFields).forEach((k) => delete queryableFields[k]);
+        if (!meta.schemas?.query || Object.keys(meta.schemas.query).length === 0) {
+            return;
+        }
+        Object.entries(meta.schemas.query).forEach(([fieldName, schema]) => {
+            const s = schema as SchemaProperty;
+            queryableFields[fieldName] = {
+                type: s.type || 'string',
+                operators: opsForType(s.type || 'string'),
+                label: s.description || fieldName,
+                order: (s as any).order ?? 0
+            };
+        });
     }
 
     private fillDefaultOperations(meta: EntityMeta) {

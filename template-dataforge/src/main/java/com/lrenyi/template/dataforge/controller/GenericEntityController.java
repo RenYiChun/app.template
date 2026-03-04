@@ -412,7 +412,6 @@ public class GenericEntityController {
      * 更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
     @PutMapping("/{entity}/batch")
-    @SuppressWarnings("unchecked")
     public Result<Object> updateBatch(@PathVariable String entity, @RequestBody List<Map<String, Object>> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateBatchEnabled()) {

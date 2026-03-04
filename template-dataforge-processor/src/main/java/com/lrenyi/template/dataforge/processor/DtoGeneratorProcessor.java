@@ -34,13 +34,14 @@ import javax.tools.JavaFileObject;
 public class DtoGeneratorProcessor extends AbstractProcessor {
     
     private static final String DTO_TYPE_CREATE = "CREATE";
+    private static final String DTO_TYPE_QUERY = "QUERY";
     private static final String ATTR_INCLUDE = "include";
     private static final String ATTR_PARENT_FIELD_NAME = "parentFieldName";
     private static final String ATTR_VALUE = "value";
     private static final String ANN_DATAFORGE_DTO = "com.lrenyi.template.dataforge.annotation.DataforgeDto";
     private static final String ANN_DATAFORGE_DTO_LIST = "com.lrenyi.template.dataforge.annotation.DataforgeDto$List";
     private static final String ANN_DATAFORGE_FIELD = "com.lrenyi.template.dataforge.annotation.DataforgeField";
-
+    
     private static boolean hasColumnNullableFalse(VariableElement field) {
         for (var mirror : field.getAnnotationMirrors()) {
             if ("jakarta.persistence.Column".equals(mirror.getAnnotationType().toString())) {
@@ -181,6 +182,27 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return true;
     }
     
+    private List<FieldSpec> filterFields(List<FieldSpec> allFields,
+            String dtoType,
+            Set<String> strictTypes,
+            boolean includeId,
+            String validationGroup) {
+        return allFields.stream().filter(f -> {
+            // ID 字段处理：如果 includeId 为 true，则保留 ID；否则排除 ID
+            if ("id".equals(f.name)) {
+                return includeId;
+            }
+            // 非 ID 字段：检查是否应该包含
+            return shouldInclude(f, dtoType, strictTypes);
+        }).map(f -> {
+            // 如果指定了校验组，则添加到字段中
+            if (validationGroup != null) {
+                return withGroup(f, validationGroup);
+            }
+            return f;
+        }).toList();
+    }
+    
     private void generateDtos(TypeElement entityType) {
         String pkg = processingEnv.getElementUtils().getPackageOf(entityType).getQualifiedName().toString();
         String simpleName = entityType.getSimpleName().toString();
@@ -191,36 +213,25 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             strictTypes.addAll(f.includeTypes());
         }
         
-        List<FieldSpec> createFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f,
-                                                                                                   DTO_TYPE_CREATE,
-                                                                                                   strictTypes
-                                                ))
-                                                .map(f -> withGroup(f,
-                                                                    "com.lrenyi.template.dataforge.validation.Create"
-                                                ))
-                                                .toList();
-        List<FieldSpec> updateFields = allFields.stream()
-                                                .filter(f -> !"id".equals(f.name) && shouldInclude(f,
-                                                                                                   "UPDATE",
-                                                                                                   strictTypes
-                                                ))
-                                                .map(f -> withGroup(f,
-                                                                    "com.lrenyi.template.dataforge.validation.Update"
-                                                ))
-                                                .toList();
-        List<FieldSpec> responseFields = allFields.stream()
-                                                  .filter(f -> "id".equals(f.name) || shouldInclude(f,
-                                                                                                    "RESPONSE",
-                                                                                                    strictTypes
-                                                  ))
-                                                  .toList();
-        List<FieldSpec> pageResponseFields = allFields.stream()
-                                                      .filter(f -> "id".equals(f.name) || shouldInclude(f,
-                                                                                                        "PAGE_RESPONSE",
-                                                                                                        strictTypes
-                                                      ))
-                                                      .toList();
+        // 生成各类 DTO 的字段列表
+        List<FieldSpec> createFields = filterFields(allFields,
+                                                    DTO_TYPE_CREATE,
+                                                    strictTypes,
+                                                    false,
+                                                    "com.lrenyi.template.dataforge.validation.Create"
+        );
+        List<FieldSpec> updateFields = filterFields(allFields,
+                                                    "UPDATE",
+                                                    strictTypes,
+                                                    false,
+                                                    "com.lrenyi.template.dataforge.validation.Update"
+        );
+        List<FieldSpec> responseFields = filterFields(allFields, "RESPONSE", strictTypes, true, null);
+        List<FieldSpec> pageResponseFields = filterFields(allFields, "PAGE_RESPONSE", strictTypes, true, null);
+        List<FieldSpec> queryFields = allFields.stream()
+                                               .filter(f -> shouldInclude(f, DTO_TYPE_QUERY, strictTypes))
+                                               .map(this::toQueryField)
+                                               .toList();
         
         String dtoPackage = pkg + ".dto";
         String mapperPackage = pkg + ".mapper";
@@ -229,6 +240,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         String updateDto = simpleName + "UpdateDTO";
         String responseDto = simpleName + "ResponseDTO";
         String pageResponseDto = simpleName + "PageResponseDTO";
+        String queryDto = simpleName + "QueryDTO";
         String mapperName = simpleName + "Mapper";
         
         try {
@@ -236,6 +248,7 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
             writeRecord(dtoPackage, updateDto, updateFields);
             writeRecord(dtoPackage, responseDto, responseFields);
             writeRecord(dtoPackage, pageResponseDto, pageResponseFields);
+            writeRecord(dtoPackage, queryDto, queryFields);
             
             MapperParams params = new MapperParams(mapperPackage,
                                                    mapperName,
@@ -259,21 +272,15 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
         return new FieldSpec(f.typeName, f.name, f.includeTypes, f.notNull, f.maxSize, f.format, newGroups);
     }
     
+    private FieldSpec toQueryField(FieldSpec f) {
+        return new FieldSpec(f.typeName, f.name, f.includeTypes, false, f.maxSize, f.format, Set.of());
+    }
+    
     private boolean shouldInclude(FieldSpec f, String dtoTypeName, Set<String> strictTypes) {
         if (!f.includeTypes().isEmpty()) {
             return f.includeTypes().contains(dtoTypeName);
         }
-        
-        if (strictTypes.contains(dtoTypeName)) {
-            return false;
-        }
-        
-        if ("PAGE_RESPONSE".equals(dtoTypeName)) {
-            Set<String> excludedByDefault =
-                    Set.of("createTime", "updateTime", "createBy", "updateBy", "deleted", "version", "remark");
-            return !excludedByDefault.contains(f.name);
-        }
-        return true;
+        return !strictTypes.contains(dtoTypeName);
     }
     
     private List<FieldSpec> collectFields(TypeElement entityType) {
@@ -540,13 +547,13 @@ public class DtoGeneratorProcessor extends AbstractProcessor {
     }
     
     private record FieldSpec(String typeName, String name, Set<String> includeTypes, boolean notNull, int maxSize,
-                             String format,
-                             Set<String> validationGroups) {
+                             String format, Set<String> validationGroups) {
         private FieldSpec(String typeName,
                 String name,
                 Set<String> includeTypes,
                 boolean notNull,
-                int maxSize, String format,
+                int maxSize,
+                String format,
                 Set<String> validationGroups) {
             this.typeName = typeName;
             this.name = name;

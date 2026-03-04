@@ -9,8 +9,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import io.micrometer.core.instrument.Counter;
 
 public class DefaultProgressTracker implements ProgressTracker {
     private final FlowManager flowManager;
@@ -150,7 +152,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     /**
      * 核心判定逻辑：Source 已停止，且缓存已空、活跃消费归零时才算完成。
      * activeConsumers（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0。
-     * - 完成条件：sourceFinished && drained。不依赖 totalExpected，避免「预期 N 条但实际少于 N 条就结束」时永远不完成。
+     * - 完成条件：sourceFinished && drained && noInProduction && noPendingOutcome。
+     *   noInProduction = productionReleased >= productionAcquired，避免异步 deposit 尚未收敛时过早完成。
      */
     private void checkCompletion() {
         long inStorage = 0L;
@@ -160,11 +163,23 @@ public class DefaultProgressTracker implements ProgressTracker {
         }
         long active = activeConsumers.sum();
         boolean drained = inStorage == 0L && active == 0L;  // 缓存空且无积压（Stuck=0）
-        if (sourceFinished && drained) {
+        boolean noInProduction = productionReleased.sum() >= productionAcquired.sum();
+        long egressed = activeEgress.sum() + passiveEgress.sum();
+        boolean noPendingOutcome = productionReleased.sum() <= egressed + inStorage;
+        if (sourceFinished && drained && noInProduction && noPendingOutcome) {
             finishLock.lock();
             try {
                 if (endTimeMillis.get() == 0L) {
                     endTimeMillis.set(System.currentTimeMillis());
+                    boolean stopped = flowManager.isStopped(jobId)
+                            || (activeLauncher != null && activeLauncher.isStopped());
+                    if (!stopped) {
+                        Counter.builder(FlowMetricNames.JOB_COMPLETED)
+                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                               .register(flowManager.getMeterRegistry())
+                               .increment();
+                        flowManager.unregister(jobId);
+                    }
                     completionFuture.complete(null);
                 }
             } finally {

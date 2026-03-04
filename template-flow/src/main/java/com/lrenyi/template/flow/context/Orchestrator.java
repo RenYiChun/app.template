@@ -4,6 +4,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -20,7 +21,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
     
     public void release() {
         Semaphore semaphore = resourceContext.getGlobalSemaphore();
-        int concurrencyLimit = getManager().getGlobalConfig().getConsumer().getConcurrencyLimit();
+        int concurrencyLimit = getManager().getGlobalConfig().getLimits().getGlobal().getConsumerConcurrency();
         try {
             if (semaphore.availablePermits() < concurrencyLimit) {
                 semaphore.release();
@@ -75,26 +76,25 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
 
         if (getManager().isStopped(jobId)) {
             InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "acquire_job_stopped")
-                   .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
-                   .register(registry())
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "acquire_job_stopped");
             throw e;
         }
         
-        int concurrencyLimit = getManager().getGlobalConfig().getConsumer().getConcurrencyLimit();
-        Semaphore semaphore = resourceContext.getGlobalSemaphore();
+        Semaphore globalSemaphore = resourceContext.getGlobalSemaphore();
+        Semaphore perJobSemaphore = resourceContext.getJobConsumerSemaphore();
+        int perJobLimit = registration.getFlow().getLimits().getPerJob().getConsumerConcurrency();
+        int fairShare = Math.max(1, perJobLimit);
         
-        int activeJobs = getManager().getActiveJobCount();
-        int fairShare = Math.max(1, concurrencyLimit / activeJobs);
+        boolean globalExhausted = globalSemaphore.availablePermits() == 0;
+        boolean perJobExhausted = perJobSemaphore != null && perJobSemaphore.availablePermits() == 0;
         
-        while (registration.getActiveCount().get() >= fairShare && semaphore.availablePermits() == 0) {
+        while (registration.getActiveCount().get() >= fairShare && (globalExhausted || perJobExhausted)) {
             Lock fairLock = resourceContext.getFairLock();
             fairLock.lock();
             try {
-                if (registration.getActiveCount().get() < fairShare || semaphore.availablePermits() > 0) {
+                globalExhausted = globalSemaphore.availablePermits() == 0;
+                perJobExhausted = perJobSemaphore != null && perJobSemaphore.availablePermits() == 0;
+                if (registration.getActiveCount().get() < fairShare || (!globalExhausted && !perJobExhausted)) {
                     break;
                 }
                 boolean signalled = resourceContext.getPermitReleased()
@@ -112,18 +112,23 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             
             if (getManager().isStopped(jobId)) {
                 InterruptedException e = new InterruptedException("Job stopped during acquire");
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION);
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "acquire_job_stopped");
                 throw e;
             }
         }
         
-        semaphore.acquire();
+        if (perJobSemaphore != null) {
+            PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1);
+        } else {
+            globalSemaphore.acquire();
+        }
         registration.increment();
         tracker.onConsumerBegin();
 
         long acquireLatency = System.currentTimeMillis() - acquireStartTime;
-        Timer.builder(FlowMetricNames.ACQUIRE_DURATION)
+        Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+             .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_CONSUMER_CONCURRENCY)
              .register(registry())
              .record(acquireLatency, TimeUnit.MILLISECONDS);
     }

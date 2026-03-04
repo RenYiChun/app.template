@@ -14,13 +14,19 @@ public class FlowExceptionContext {
     private final String entryId;
     private final Throwable exception;
     private final FlowPhase phase;
+    private final String errorType;
     private final Map<String, Object> context;
-    
+
     public FlowExceptionContext(String jobId, String entryId, Throwable exception, FlowPhase phase) {
+        this(jobId, entryId, exception, phase, null);
+    }
+
+    public FlowExceptionContext(String jobId, String entryId, Throwable exception, FlowPhase phase, String errorType) {
         this.jobId = jobId;
         this.entryId = entryId;
         this.exception = exception;
         this.phase = phase;
+        this.errorType = errorType;
         this.context = new HashMap<>();
     }
     

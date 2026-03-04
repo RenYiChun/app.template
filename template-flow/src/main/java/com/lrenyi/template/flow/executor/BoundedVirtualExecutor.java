@@ -62,8 +62,21 @@ public class BoundedVirtualExecutor implements ExecutorService {
         };
     }
     
-    public BoundedVirtualExecutor(Semaphore semaphore, ExecutorService delegate) {
-        this(semaphore, delegate, false);
+    /** 使用自定义 PermitStrategy（如 PermitPair 双层限流） */
+    public BoundedVirtualExecutor(PermitStrategy strategy) {
+        this(strategy, Executors.newVirtualThreadPerTaskExecutor(), false);
+    }
+    
+    private BoundedVirtualExecutor(PermitStrategy strategy, ExecutorService delegate, boolean blockCallerOnExecute) {
+        if (strategy == null) {
+            throw new IllegalArgumentException("strategy 非 null");
+        }
+        if (delegate == null) {
+            throw new IllegalArgumentException("delegate 非 null");
+        }
+        this.delegate = delegate;
+        this.defaultStrategy = strategy;
+        this.blockCallerOnExecute = blockCallerOnExecute;
     }
     
     @Override

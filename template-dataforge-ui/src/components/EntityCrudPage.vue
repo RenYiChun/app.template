@@ -109,7 +109,7 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
   background-color: var(--el-bg-color-overlay);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
-  padding: 12px;
+  padding: 16px;
   margin-bottom: 10px;
   overflow: hidden;
   max-height: 500px;

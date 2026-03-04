@@ -35,7 +35,7 @@ Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇
 
 ### FlowManager
 
-单例，通过 `FlowManager.getInstance(JobGlobal)` 获取；负责 Job 注册、Launcher、停止；测试中可用 `FlowManager.reset()` 清理。
+单例，通过 `FlowManager.getInstance(flowConfig)` 获取；负责 Job 注册、Launcher、停止；测试中可用 `FlowManager.reset()` 清理。
 
 ### FlowInlet&lt;T&gt;
 
@@ -45,17 +45,27 @@ Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇
 
 ## 3. 配置
 
-### JobGlobal（全局）
+Flow 配置采用 `app.template.flow.limits` 结构，分为 `global`（全主机）与 `per-job`（每 Job）。
 
-- `globalSemaphoreMaxLimit`：全局并发上限（默认 8000）。
-- `progressDisplaySecond`：进度打印间隔（秒）；设为 `0` 关闭进度打印。
+### limits.global（全主机级）
 
-### JobConfig（单任务）
+- `fair-scheduling`：全局信号量公平调度（默认 true），false 时更高吞吐。
+- `consumer-concurrency`：全主机消费并发数（必须 >0，默认 1000）。
+- `producer-threads`：全主机生产线程上限，<=0 不启用（默认 0）。
+- `in-flight-production`：全主机生产在途数据量上限，<=0 不启用（默认 0）。
+- `storage`：全主机存储容量上限，<=0 不启用（默认 0）。
+- `pending-consumer`：全主机已离库未终结条数上限，<=0 不启用（默认 0）。
 
-- `jobProducerLimit`：该任务允许的生产者并发数（默认 40）。
-- `ttlMill`：缓存条目 TTL（毫秒），配对场景下超时未匹配会走 `onFailed(..., TIMEOUT)`（默认 10000）。
-- `maxCacheSize`：缓存/队列容量，满时触发驱逐或背压，可能产生 `EVICTION` / `REJECT`（默认 80000）。
-- `cacheEnabled`：是否启用缓存（默认 true）。
+### limits.per-job（每 Job）
+
+- `producer-threads`：每 Job 生产线程数（必须 >0，默认 40）。
+- `in-flight-production`：每 Job 生产在途数据量（必须 >0，默认 4000）。
+- `storage`：每 Job 缓存/队列容量（必须 >0，默认 40000）。
+- `pending-consumer`：每 Job 背压阈值，>0 为显式值，0 表示使用 global.consumer-concurrency。
+- `cache-ttl-mill`：Caffeine 缓存过期时间（毫秒，必须 >0，默认 10000），配对场景下超时未匹配会走 `onFailed(..., TIMEOUT)`。
+- `queue-poll-interval-mill`：Queue 轮询间隔（毫秒，必须 >0，默认 10000）。
+
+配置示例见 [Flow 配置参考](../getting-started/config-reference.md#flow-配置)。
 
 ---
 
@@ -66,22 +76,15 @@ Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇
 ### 单流
 
 ```java
-TemplateConfigProperties.JobGlobal global = new TemplateConfigProperties.JobGlobal();
-global.
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
 
-setProgressDisplaySecond(0);
-
-TemplateConfigProperties.JobConfig jobConfig = new TemplateConfigProperties.JobConfig();
-
-FlowManager manager = FlowManager.getInstance(global);
+FlowManager manager = FlowManager.getInstance(flowConfig);
 FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 
 FlowJoiner<MyItem> joiner = new MyOverwriteJoiner(); // 实现 getDataType/joinKey/sourceProvider/onSuccess/onFailed 等
 FlowSource<MyItem> singleSource = FlowSourceAdapters.fromIterator(myList.iterator(), null);
 
-engine.
-
-run("job-1",joiner, singleSource, myList.size(),jobConfig);
+engine.run("job-1", joiner, singleSource, myList.size(), flowConfig);
 ProgressTracker tracker = engine.getProgressTracker("job-1");
 tracker.
 
@@ -106,9 +109,7 @@ setTotalExpected("job-2",totalItemCount);
 joiner.
 
 setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
-        engine.
-
-run("job-2",joiner, tracker, jobConfig);
+        engine.run("job-2", joiner, tracker, flowConfig);
 tracker.
 
 getCompletionFuture().
@@ -123,7 +124,7 @@ get(30,TimeUnit.SECONDS);
 适用于数据由调用方持续推送的场景。
 
 ```java
-FlowInlet<MyItem> inlet = engine.startPush("job-3", joiner, jobConfig);
+FlowInlet<MyItem> inlet = engine.startPush("job-3", joiner, flowConfig);
 for(
 MyItem item :items){
         inlet.
@@ -204,14 +205,9 @@ get(30,TimeUnit.SECONDS);
 
 ```java
 // 1. 配置与引擎
-TemplateConfigProperties.JobGlobal global = new TemplateConfigProperties.JobGlobal();
-global.
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
 
-setProgressDisplaySecond(0);
-
-TemplateConfigProperties.JobConfig jobConfig = new TemplateConfigProperties.JobConfig();
-
-FlowManager manager = FlowManager.getInstance(global);
+FlowManager manager = FlowManager.getInstance(flowConfig);
 FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 
 // 2. Joiner：Caffeine + 单条消费（覆盖语义），推送模式可不用 source，此处用 emptyProvider）
@@ -240,9 +236,7 @@ FlowJoiner<MyItem> joiner = new FlowJoiner<MyItem>() {
 
 // 3. 单流拉取
 FlowSource<MyItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
-engine.
-
-run("job-single",joiner, source, list.size(),jobConfig);
+engine.run("job-single", joiner, source, list.size(), flowConfig);
         engine.
 
 getProgressTracker("job-single").
@@ -255,7 +249,7 @@ get(30,TimeUnit.SECONDS);
 ### 推送
 
 ```java
-FlowInlet<MyItem> inlet = engine.startPush("job-push", joiner, jobConfig);
+FlowInlet<MyItem> inlet = engine.startPush("job-push", joiner, flowConfig);
 for(
 MyItem item :list)inlet.
 
@@ -270,7 +264,7 @@ getCompletionFuture().
 get(30,TimeUnit.SECONDS);
 ```
 
-完整可运行示例见 [FlowJoinerEngineIntegrationTest](template-core/src/test/java/com/lrenyi/template/core/flow/it/FlowJoinerEngineIntegrationTest.java)。
+完整可运行示例见 [FlowJoinerEngineIntegrationTest](template-flow/src/test/java/com/lrenyi/template/flow/it/FlowJoinerEngineIntegrationTest.java)。
 
 ---
 
@@ -278,21 +272,21 @@ get(30,TimeUnit.SECONDS);
 
 - 单测/集成测中，每个用例后建议调用：`FlowManager.reset()`、`FlowResourceRegistry.reset()`；如需清空健康指示器可调用
   `FlowHealth.clearIndicators()`，避免跨用例残留。
-- 关闭进度打印：`JobGlobal.progressDisplaySecond = 0`。
+- 配置校验：`limits.per-job.*` 与 `limits.global.consumer-concurrency` 必须 >0，否则启动时抛出 `IllegalArgumentException`。
 
 ---
 
 ## 11. 参考与延伸
 
 - **主要包与类**：
-    - `com.lrenyi.template.core.flow`：FlowJoiner、FlowJoinerEngine、FlowInlet、ProgressTracker、FailureReason
-    - `com.lrenyi.template.core.flow.config`：FlowStorageType
-    - `com.lrenyi.template.core.flow.context`：FlowProgressSnapshot
-    - `com.lrenyi.template.core.flow.manager`：FlowManager
-    - `com.lrenyi.template.core.flow.source`：FlowSource、FlowSourceProvider、FlowSourceAdapters
-    - `com.lrenyi.template.core.flow.health`：FlowHealth、HealthStatus
-    - `com.lrenyi.template.core.flow.metrics`：FlowMetrics
-- **集成测试**：`template-core/src/test/java/com/lrenyi/template/core/flow/it/FlowJoinerEngineIntegrationTest.java`
+    - `com.lrenyi.template.flow`：FlowJoiner、FlowJoinerEngine、FlowInlet、ProgressTracker、FailureReason
+    - `com.lrenyi.template.flow.model`：FlowStorageType
+    - `com.lrenyi.template.flow.context`：FlowProgressSnapshot
+    - `com.lrenyi.template.flow.manager`：FlowManager
+    - `com.lrenyi.template.flow.api`：FlowSource、FlowSourceProvider、FlowSourceAdapters
+    - `com.lrenyi.template.flow.health`：FlowHealth、HealthStatus
+    - `com.lrenyi.template.flow.metrics`：FlowMetricNames
+- **集成测试**：`template-flow/src/test/java/com/lrenyi/template/flow/it/FlowJoinerEngineIntegrationTest.java`
   覆盖拉取/推送、存储类型、失败原因、进度与指标、生命周期等场景。
 - **测试用 Joiner 与数据模型**：`PairItem`、`PairingJoiner`、`OverwriteJoiner`、`QueueJoiner`、`MismatchPairingJoiner` 位于
-  `template-core/src/test/.../flow/`，可作实现参考。
+  `template-flow/src/test/.../flow/`，可作实现参考。

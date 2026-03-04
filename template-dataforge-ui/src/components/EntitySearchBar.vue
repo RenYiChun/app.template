@@ -2,50 +2,52 @@
   <div class="entity-search-bar">
     <slot v-if="$slots.default" :meta="entityMeta" :on-export="handleExport" :on-reset="handleReset"
           :on-search="handleSearch"/>
-    <el-form v-else :inline="true" :model="formModel" class="search-form" label-width="80px">
-      <template v-for="f in searchFields" :key="f.field">
-        <el-form-item :class="{ 'is-range': isDateField(f) }" :label="f.label">
-          <el-input
-              v-if="f.type === 'string' || f.type === 'String'"
-              v-model="formModel[f.field]"
-              :placeholder="formatText(inputPlaceholder, { label: f.label })"
-              clearable
-              @keyup.enter="handleSearch"
-          />
-          <el-select
-              v-else-if="f.type === 'boolean' || f.type === 'Boolean'"
-              v-model="formModel[f.field]"
-              :placeholder="formatText(selectPlaceholder, { label: f.label })"
-              clearable
-          >
-            <el-option :label="allText" value=""/>
-            <el-option :label="yesText" :value="true"/>
-            <el-option :label="noText" :value="false"/>
-          </el-select>
-          <el-date-picker
-              v-else-if="isDateField(f)"
-              v-model="formModel[f.field]"
-              :end-placeholder="endPlaceholder"
-              :placeholder="formatText(rangePlaceholder, { label: f.label })"
-              :start-placeholder="startPlaceholder"
-              clearable
-              type="datetimerange"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              @change="handleSearch"
-          />
-          <el-input
-              v-else
-              v-model="formModel[f.field]"
-              :placeholder="formatText(inputPlaceholder, { label: f.label })"
-              clearable
-              @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-      </template>
-      <el-form-item class="search-actions">
+    <el-form v-else :model="formModel" class="search-form" label-width="80px">
+      <div class="search-fields">
+        <template v-for="f in searchFields" :key="f.field">
+          <el-form-item :class="{ 'is-range': isDateField(f) }" :label="f.label">
+            <el-input
+                v-if="f.type === 'string' || f.type === 'String'"
+                v-model="formModel[f.field]"
+                :placeholder="formatText(inputPlaceholder, { label: f.label })"
+                clearable
+                @keyup.enter="handleSearch"
+            />
+            <el-select
+                v-else-if="f.type === 'boolean' || f.type === 'Boolean'"
+                v-model="formModel[f.field]"
+                :placeholder="formatText(selectPlaceholder, { label: f.label })"
+                clearable
+            >
+              <el-option :label="allText" value=""/>
+              <el-option :label="yesText" :value="true"/>
+              <el-option :label="noText" :value="false"/>
+            </el-select>
+            <el-date-picker
+                v-else-if="isDateField(f)"
+                v-model="formModel[f.field]"
+                :end-placeholder="endPlaceholder"
+                :placeholder="formatText(rangePlaceholder, { label: f.label })"
+                :start-placeholder="startPlaceholder"
+                clearable
+                type="datetimerange"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                @change="handleSearch"
+            />
+            <el-input
+                v-else
+                v-model="formModel[f.field]"
+                :placeholder="formatText(inputPlaceholder, { label: f.label })"
+                clearable
+                @keyup.enter="handleSearch"
+            />
+          </el-form-item>
+        </template>
+      </div>
+      <div class="search-actions-bar">
         <el-button :icon="Search" type="primary" @click="handleSearch">{{ searchText }}</el-button>
         <el-button :icon="Refresh" @click="handleReset">{{ resetText }}</el-button>
-      </el-form-item>
+      </div>
     </el-form>
   </div>
 </template>
@@ -122,24 +124,24 @@ const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;
   const qf = meta?.queryableFields ?? {};
 
-  // 如果提供了 fields prop，则优先使用，并保持顺序
+  // 如果提供了 fields prop，则优先使用，并按元数据 order 排序
   if (props.fields?.length) {
-    return props.fields.map((f) => {
-      // 兼容传入的是字符串还是对象
-      const fieldName = typeof f === 'string' ? f : f.field;
-      const info = qf[fieldName] ?? {type: 'string', operators: [Op.EQ, Op.NE, Op.LIKE]};
+    return props.fields
+        .map((f) => {
+          const fieldName = typeof f === 'string' ? f : f.field;
+          const info = qf[fieldName] ?? {type: 'string', operators: [Op.EQ, Op.NE, Op.LIKE]};
 
-      // 如果传入的是对象且有 label/type 等配置，优先使用
-      const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
+          const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
 
-      return {
-        field: fieldName,
-        label: label,
-        type: (typeof f === 'object' && f.type) ? f.type : (info.type ?? 'string'),
-        operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
-        order: 0,
-      };
-    });
+          return {
+            field: fieldName,
+            label: label,
+            type: (typeof f === 'object' && f.type) ? f.type : (info.type ?? 'string'),
+            operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
+            order: (info as any).order ?? 0,
+          };
+        })
+        .sort((a, b) => a.order - b.order);
   }
 
   // 否则使用 queryableFields 中的所有字段，并排序
@@ -212,11 +214,23 @@ const handleExport = () => {
 </script>
 
 <style>
+.entity-search-bar {
+  width: 100%;
+}
+
 .entity-search-bar .search-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.entity-search-bar .search-fields {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .entity-search-bar .search-form .el-form-item {
@@ -227,7 +241,6 @@ const handleExport = () => {
 
 .entity-search-bar .search-form .el-form-item__label {
   line-height: 28px;
-  /* Ensure label doesn't take too much space but stays aligned */
   white-space: nowrap;
 }
 
@@ -246,35 +259,32 @@ const handleExport = () => {
   grid-column: span 2;
 }
 
-/* Actions group styling */
-.entity-search-bar .search-actions {
-  /* Allow natural flow */
-  grid-column: auto;
+/* 操作栏：底部独立一行，右对齐 */
+.entity-search-bar .search-actions-bar {
   display: flex;
-  justify-content: flex-start;
-  min-width: auto;
-}
-
-.entity-search-bar .search-actions .el-form-item__content {
   justify-content: flex-end;
   gap: 8px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  width: 100%;
 }
 
 /* Responsive adjustments */
 @media (max-width: 1400px) {
-  .entity-search-bar .search-form {
+  .entity-search-bar .search-fields {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 992px) {
-  .entity-search-bar .search-form {
+  .entity-search-bar .search-fields {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 768px) {
-  .entity-search-bar .search-form {
+  .entity-search-bar .search-fields {
     grid-template-columns: 1fr;
   }
 
@@ -282,11 +292,7 @@ const handleExport = () => {
     grid-column: span 1;
   }
 
-  .entity-search-bar .search-actions {
-    justify-content: flex-start;
-  }
-
-  .entity-search-bar .search-actions .el-form-item__content {
+  .entity-search-bar .search-actions-bar {
     justify-content: flex-start;
   }
 }

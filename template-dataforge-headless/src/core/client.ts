@@ -80,13 +80,6 @@ export class EntityClient {
             throw error;
         }
     }
-
-    /** 获取 OpenAPI 文档 URL，供 MetaService 使用 */
-    public getDocsUrl(): string {
-        //这里不拼接前缀，统一在url方法中拼接
-        return joinPath(this.baseURL, '', 'docs');
-    }
-
     /** 分页搜索 */
     async search<T = Record<string, unknown>>(
         entity: string,

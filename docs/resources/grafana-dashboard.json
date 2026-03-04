@@ -211,17 +211,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))",
           "legendFormat": "P99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))",
           "legendFormat": "P50",
           "refId": "C"
         }
@@ -505,29 +505,34 @@
               "mode": "none"
             }
           },
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "x": 0,
         "y": 19,
-        "w": 6,
+        "w": 5,
         "h": 8
       },
-      "id": 301,
+      "id": 305,
       "options": {
         "tooltip": {
           "mode": "multi"
         }
       },
-      "title": "生产端并发负载",
+      "title": "生产线程 (global)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_producer_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"} / app_template_flow_producer_semaphore_limit{jobId=~\"$jobId\"}",
-          "legendFormat": "{{jobId}}",
+          "expr": "app_template_flow_limits_producer_threads_global_used{instance=~\"$instance\"}",
+          "legendFormat": "使用中",
           "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_producer_threads_global_limit{instance=~\"$instance\"}",
+          "legendFormat": "上限",
+          "refId": "B"
         }
       ]
     },
@@ -551,27 +556,211 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 6,
+        "x": 5,
         "y": 19,
-        "w": 6,
+        "w": 5,
         "h": 8
       },
-      "id": 302,
+      "id": 306,
       "options": {
         "tooltip": {
           "mode": "multi"
         }
       },
-      "title": "未入缓存的数据量 (背压)",
+      "title": "在途数据 (global)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "app_template_flow_producer_inflight_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
-          "legendFormat": "{{jobId}} - 处理中",
+          "expr": "app_template_flow_limits_in_flight_global_used{instance=~\"$instance\"}",
+          "legendFormat": "处理中",
           "refId": "A"
         },
         {
-          "expr": "app_template_flow_producer_inflight_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "expr": "app_template_flow_limits_in_flight_global_limit{instance=~\"$instance\"}",
+          "legendFormat": "上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 19,
+        "w": 5,
+        "h": 8
+      },
+      "id": 308,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "存储容量 (global)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_storage_global_used{instance=~\"$instance\"}",
+          "legendFormat": "已使用",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_storage_global_limit{instance=~\"$instance\"}",
+          "legendFormat": "上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 19,
+        "w": 5,
+        "h": 8
+      },
+      "id": 303,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "消费并发 (global)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_consumer_concurrency_global_used{instance=~\"$instance\"}",
+          "legendFormat": "使用中",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_consumer_concurrency_global_limit{instance=~\"$instance\"}",
+          "legendFormat": "上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 19,
+        "w": 4,
+        "h": 8
+      },
+      "id": 307,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "等待消费许可 (global)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_pending_consumer_global_count{instance=~\"$instance\"}",
+          "legendFormat": "处理中",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_pending_consumer_global_limit{instance=~\"$instance\"}",
+          "legendFormat": "上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 5,
+        "h": 8
+      },
+      "id": 301,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "生产线程 (per-job)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_producer_threads_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 使用中",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_producer_threads_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
           "legendFormat": "{{jobId}} - 上限",
           "refId": "B"
         }
@@ -592,29 +781,98 @@
               "mode": "none"
             }
           },
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 19,
-        "w": 6,
+        "x": 5,
+        "y": 27,
+        "w": 5,
         "h": 8
       },
-      "id": 303,
+      "id": 302,
       "options": {
         "tooltip": {
           "mode": "multi"
         }
       },
-      "title": "消费端并发负载",
+      "title": "在途数据量 (per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"}) / max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"})",
-          "legendFormat": "全局负载",
+          "expr": "app_template_flow_limits_in_flight_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 处理中",
           "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_in_flight_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 27,
+        "w": 5,
+        "h": 8
+      },
+      "id": 310,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "消费并发 (per-job)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_consumer_concurrency_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 使用中",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 上限",
+          "refId": "B"
         }
       ]
     },
@@ -638,9 +896,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 18,
-        "y": 19,
-        "w": 6,
+        "x": 20,
+        "y": 27,
+        "w": 4,
         "h": 8
       },
       "id": 304,
@@ -649,17 +907,63 @@
           "mode": "multi"
         }
       },
-      "title": "出缓存未消费的数据量 (背压)",
+      "title": "等待消费许可 (per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "max(app_template_flow_semaphore_used{instance=~\"$instance\",jobId=~\"$jobId\"})",
-          "legendFormat": "处理中",
+          "expr": "app_template_flow_limits_pending_consumer_count{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 处理中",
           "refId": "A"
         },
         {
-          "expr": "max(app_template_flow_semaphore_limit{instance=~\"$instance\",jobId=~\"$jobId\"})",
-          "legendFormat": "上限",
+          "expr": "app_template_flow_limits_pending_consumer_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} - 上限",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 27,
+        "w": 5,
+        "h": 8
+      },
+      "id": 9,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "存储容量 (per-job)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "app_template_flow_limits_storage_used{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} ({{storageType}}) - 已使用",
+          "refId": "A"
+        },
+        {
+          "expr": "app_template_flow_limits_storage_limit{instance=~\"$instance\",jobId=~\"$jobId\"}",
+          "legendFormat": "{{jobId}} ({{storageType}}) - 上限",
           "refId": "B"
         }
       ]
@@ -692,65 +996,23 @@
           "mode": "multi"
         }
       },
-      "title": "数据吞吐量",
+      "title": "数据吞吐量 (per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
-          "legendFormat": "{{jobId}} - 已获取生产许可的数据量",
+          "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
+          "legendFormat": "{{jobId}} - 进场速率",
           "refId": "A"
         },
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_egress_active_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
-          "legendFormat": "{{jobId}} - 正在消费的数据量",
+          "expr": "sum by (jobId) (rate(app_template_flow_production_released_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
+          "legendFormat": "{{jobId}} - 入库速率",
           "refId": "B"
         },
         {
-          "expr": "sum by (jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
-          "legendFormat": "{{jobId}} - 未正常消费丢弃的数据量",
+          "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
+          "legendFormat": "{{jobId}} - 出场速率",
           "refId": "C"
-        },
-        {
-          "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
-          "legendFormat": "{{jobId}} - 已正常消费结束的数据量",
-          "refId": "D"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 35
-      },
-      "id": 9,
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "title": "缓存积压",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "app_template_flow_storage_size{instance=~\"$instance\",jobId=~\"$jobId\"}",
-          "legendFormat": "{{jobId}} ({{storageType}})",
-          "refId": "A"
         }
       ]
     },
@@ -776,8 +1038,8 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 16,
-        "y": 35
+        "x": 8,
+        "y": 43
       },
       "id": 10,
       "options": {
@@ -785,58 +1047,12 @@
           "mode": "multi"
         }
       },
-      "title": "数据出缓存原因分布",
+      "title": "出缓存原因分布",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"${jobId:pipe}\"}[5m]))",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))",
           "legendFormat": "{{jobId}} - {{reason}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            }
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 0,
-        "y": 43
-      },
-      "id": 15,
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        }
-      },
-      "title": "入缓存速率",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "sum by (jobId) (rate(app_template_flow_production_released_total{instance=~\"$instance\",jobId=~\"$jobId\"}[5m]))",
-          "legendFormat": "{{jobId}}",
           "refId": "A"
         }
       ]
@@ -862,9 +1078,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 6,
-        "y": 43
+        "w": 8,
+        "x": 16,
+        "y": 35
       },
       "id": 16,
       "options": {
@@ -877,11 +1093,11 @@
           "showLegend": true
         }
       },
-      "title": "生产端背压阻塞耗时 (P99)",
+      "title": "生产端背压阻塞耗时 (P99, per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -904,9 +1120,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 43,
-        "w": 6,
+        "w": 8,
         "h": 8
       },
       "id": 8,
@@ -915,26 +1131,26 @@
           "mode": "multi"
         }
       },
-      "title": "延迟分布 (P99)",
+      "title": "数据链路各阶段耗时 (P99, per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 写入缓存耗时",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 配对业务处理耗时",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_acquire_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\",dimension=\"consumer-concurrency\"}[1m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 获取消费许可排队耗时",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[5m])) by (le, jobId))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
           "legendFormat": "{{jobId}} - 出缓存到终结耗时",
           "refId": "D"
         }
@@ -961,8 +1177,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 18,
+        "w": 8,
+        "x": 16,
         "y": 43
       },
       "id": 6,
@@ -977,12 +1193,56 @@
           "showLegend": true
         }
       },
-      "title": "报错频率",
+      "title": "报错频率 (per-job)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(app_template_flow_errors_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) * 60",
-          "legendFormat": "{{jobId}}",
+          "expr": "(sum(rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m])) * 60) or (sum(app_template_flow_launchers_active{instance=~\"$instance\",job=\"$job\"}) * 0)",
+          "legendFormat": "报错/分钟",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 35
+      },
+      "id": 309,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "description": "维度：消费并发、在途数据、生产线程、存储容量。仅显示当前 Job 实际发生许可争用的维度。",
+      "title": "许可获取等待耗时 (P99, per-job)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId, dimension)), \"dimension\", \"消费并发\", \"dimension\", \"consumer-concurrency\"), \"dimension\", \"在途数据\", \"dimension\", \"in-flight\"), \"dimension\", \"生产线程\", \"dimension\", \"producer-threads\"), \"dimension\", \"存储容量\", \"dimension\", \"storage\")",
+          "legendFormat": "{{jobId}} - {{dimension}}",
           "refId": "A"
         }
       ]
@@ -993,7 +1253,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 59
       },
       "id": 101,
       "title": "HTTP 认证 & OAuth2",
@@ -1022,7 +1282,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "id": 11,
       "options": {
@@ -1034,7 +1294,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason) (rate(app_template_http_auth_failure_total{instance=~\"$instance\"}[5m]))",
+          "expr": "sum by (reason) (rate(app_template_http_auth_failure_total{instance=~\"$instance\"}[1m]))",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -1060,7 +1320,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 60
       },
       "id": 12,
       "options": {
@@ -1072,12 +1332,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (grantType) (rate(app_template_oauth2_token_issued_total{instance=~\"$instance\"}[5m]))",
+          "expr": "sum by (grantType) (rate(app_template_oauth2_token_issued_total{instance=~\"$instance\"}[1m]))",
           "legendFormat": "签发 {{grantType}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (errorType) (rate(app_template_oauth2_token_failed_total{instance=~\"$instance\"}[5m]))",
+          "expr": "sum by (errorType) (rate(app_template_oauth2_token_failed_total{instance=~\"$instance\"}[1m]))",
           "legendFormat": "失败 {{errorType}}",
           "refId": "B"
         }
@@ -1089,7 +1349,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 68
       },
       "id": 102,
       "title": "Dataforge & 数据源",
@@ -1115,7 +1375,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 69
       },
       "id": 13,
       "options": {
@@ -1127,7 +1387,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\"}[1m])))",
           "legendFormat": "{{method}} P99",
           "refId": "A"
         }
@@ -1153,7 +1413,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 61
+        "y": 69
       },
       "id": 14,
       "options": {
@@ -1165,7 +1425,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\"}[5m]))",
+          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\"}[1m]))",
           "legendFormat": "{{sourceType}}",
           "refId": "A"
         }

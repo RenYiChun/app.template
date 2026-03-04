@@ -48,10 +48,13 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
         
-        Gauge.builder(FlowMetricNames.STORAGE_SIZE, queue, BlockingQueue::size)
+        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, queue, BlockingQueue::size)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
              .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue")
-             .description("当前队列中的数据条数")
+             .description("每 Job 缓存当前条数")
+             .register(meterRegistry);
+        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, () -> maxCacheSize).tag(FlowMetricNames.TAG_JOB_ID, jobId)
+             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue").description("每 Job 缓存容量上限")
              .register(meterRegistry);
         
         ScheduledExecutorService egressExecutor = resourceRegistry.getStorageEgressExecutor();
@@ -77,6 +80,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
+            resourceRegistry.releaseGlobalStorage(1);
             FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
             if (launcher == null) {
                 if (progressTracker != null) {
@@ -137,6 +141,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
+            resourceRegistry.releaseGlobalStorage(1);
             if (progressTracker != null) {
                 progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
             }

@@ -17,6 +17,7 @@ import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
+import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -83,18 +84,25 @@ public class FlowLauncher<T> {
             return;
         }
         
-        Semaphore inFlight = resourceContext.getInFlightProductionSemaphore();
-        if (inFlight != null) {
+        Semaphore perJobInFlight = resourceContext.getInFlightProductionSemaphore();
+        Semaphore globalInFlight = resourceContext.getResourceRegistry().getGlobalInFlightSemaphore();
+        PermitPair inFlightPair = null;
+        if (perJobInFlight != null) {
             try {
-                inFlight.acquire();
+                io.micrometer.core.instrument.Timer.Sample inFlightSample = Timer.start(registry());
+                boolean acquired = PermitPair.tryAcquireBoth(globalInFlight, perJobInFlight, 1);
+                inFlightSample.stop(Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
+                                         .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                                         .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_IN_FLIGHT)
+                                         .register(registry()));
+                if (!acquired) {
+                    return;
+                }
+                inFlightPair = PermitPair.createHeld(globalInFlight, perJobInFlight, 1);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "inFlight_acquire_interrupted")
-                       .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
-                       .register(registry())
-                       .increment();
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION,
+                        "inFlight_acquire_interrupted");
                 return;
             }
         }
@@ -107,8 +115,8 @@ public class FlowLauncher<T> {
         
         if (stopped) {
             tracker.onProductionReleased();
-            if (inFlight != null) {
-                inFlight.release();
+            if (inFlightPair != null) {
+                inFlightPair.release();
             }
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
@@ -123,19 +131,14 @@ public class FlowLauncher<T> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             tracker.onProductionReleased();
-            if (inFlight != null) {
-                inFlight.release();
+            if (inFlightPair != null) {
+                inFlightPair.release();
             }
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "backpressure_interrupted")
-                   .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
-                   .register(registry())
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_interrupted");
             return;
         }
         
-        submitDepositTask(data, tracker, inFlight);
+        submitDepositTask(data, tracker, inFlightPair);
     }
     
     private MeterRegistry registry() {
@@ -154,7 +157,7 @@ public class FlowLauncher<T> {
         }
     }
     
-    private void submitDepositTask(T data, ProgressTracker tracker, Semaphore inFlight) {
+    private void submitDepositTask(T data, ProgressTracker tracker, PermitPair inFlightPair) {
         getProducerExecutor().execute(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 if (stopped) {
@@ -169,7 +172,26 @@ public class FlowLauncher<T> {
                 }
                 
                 long depositStartTime = System.currentTimeMillis();
-                getStorage().deposit(ctx);
+                Semaphore globalStorage = resourceContext.getResourceRegistry().getGlobalStorageSemaphore();
+                if (globalStorage != null) {
+                    io.micrometer.core.instrument.Timer.Sample storageSample = Timer.start(registry());
+                    globalStorage.acquire(1);
+                    storageSample.stop(Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
+                                            .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                                            .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_STORAGE)
+                                            .register(registry()));
+                }
+                try {
+                    boolean deposited = getStorage().deposit(ctx);
+                    if (!deposited && globalStorage != null) {
+                        resourceContext.getResourceRegistry().releaseGlobalStorage(1);
+                    }
+                } catch (Throwable t) {
+                    if (globalStorage != null) {
+                        resourceContext.getResourceRegistry().releaseGlobalStorage(1);
+                    }
+                    throw t;
+                }
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
 
                 Counter.builder(FlowMetricNames.PRODUCTION_RELEASED)
@@ -182,23 +204,18 @@ public class FlowLauncher<T> {
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
             } catch (Throwable e) {
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE);
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "deposit_failed")
-                       .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-                       .register(registry())
-                       .increment();
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed");
             } finally {
                 tracker.onProductionReleased();
-                if (inFlight != null) {
-                    inFlight.release();
+                if (inFlightPair != null) {
+                    inFlightPair.release();
                 }
             }
         });
     }
     
     public long getCacheCapacity() {
-        return flow.getProducer().getMaxCacheSize();
+        return flow.getLimits().getPerJob().getStorage();
     }
     
     public ExecutorService getProducerExecutor() {

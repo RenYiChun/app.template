@@ -29,6 +29,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Job生命周期管理器
@@ -46,6 +47,7 @@ public class FlowManager implements ActiveLauncherLookup {
     
     private final Map<String, Registration> registry = new ConcurrentHashMap<>();
     private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
+    private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
     
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -57,7 +59,8 @@ public class FlowManager implements ActiveLauncherLookup {
         this.meterRegistry = meterRegistry;
         this.meterRegistry.config().meterFilter(new MeterFilter() {
             @Override
-            public DistributionStatisticConfig configure(Meter.Id id, DistributionStatisticConfig config) {
+            public DistributionStatisticConfig configure(Meter.@NonNull Id id,
+                    @NonNull DistributionStatisticConfig config) {
                 if (id.getName().startsWith("app.template.flow")) {
                     return DistributionStatisticConfig.builder()
                             .percentilesHistogram(true)
@@ -69,6 +72,7 @@ public class FlowManager implements ActiveLauncherLookup {
         });
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig, meterRegistry);
         this.resourceRegistry.setLauncherLookup(this);
+        FlowExceptionHelper.setMeterRegistry(meterRegistry);
         log.info("FlowManager 启动");
     }
     
@@ -89,8 +93,7 @@ public class FlowManager implements ActiveLauncherLookup {
                 if (current == null || configChanged(globalConfig)) {
                     if (current != null) {
                         log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
-                                 lastConcurrencyLimit,
-                                 globalConfig.getConsumer().getConcurrencyLimit()
+                                 lastConcurrencyLimit, globalConfig.getLimits().getGlobal().getConsumerConcurrency()
                         );
                         try {
                             current.shutdownAll();
@@ -100,7 +103,7 @@ public class FlowManager implements ActiveLauncherLookup {
                     }
                     FlowManager newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimit = globalConfig.getConsumer().getConcurrencyLimit();
+                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerConcurrency();
                 }
             }
         }
@@ -111,7 +114,7 @@ public class FlowManager implements ActiveLauncherLookup {
         if (config == null) {
             return false;
         }
-        return config.getConsumer().getConcurrencyLimit() != lastConcurrencyLimit;
+        return config.getLimits().getGlobal().getConsumerConcurrency() != lastConcurrencyLimit;
     }
     
     public void shutdownAll() {
@@ -129,7 +132,7 @@ public class FlowManager implements ActiveLauncherLookup {
     
     public void stopAll(boolean force) {
         log.info("正在停止所有运行中的任务，force={}", force);
-        activeLaunchers.forEach((key, launcher) -> stopJob(force, key, launcher));
+        activeLaunchers.forEach((key, launcher) -> stopJob(force, launcher));
     }
     
     private FlowManager init() {
@@ -143,21 +146,15 @@ public class FlowManager implements ActiveLauncherLookup {
         return this;
     }
     
-    private void stopJob(boolean force, String key, FlowLauncher<?> launcher) {
+    private void stopJob(boolean force, FlowLauncher<?> launcher) {
         try {
             launcher.stop(force);
-            unregister(key);
             Counter.builder(FlowMetricNames.JOB_STOPPED)
                    .tag(FlowMetricNames.TAG_JOB_ID, launcher.getJobId())
                    .register(meterRegistry)
                    .increment();
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(launcher.getJobId(), null, e, FlowPhase.FINALIZATION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "stop_job_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                   .register(meterRegistry)
-                   .increment();
+            FlowExceptionHelper.handleException(launcher.getJobId(), null, e, FlowPhase.FINALIZATION, "stop_job_failed");
             log.error("停止 Job [{}] 时发生异常", launcher.getJobId(), e);
         }
     }
@@ -165,13 +162,14 @@ public class FlowManager implements ActiveLauncherLookup {
     public void unregister(String jobId) {
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
         if (launcher != null) {
+            completedTrackers.put(jobId, launcher.getTaskOrchestrator().tracker());
             ExecutorService producerExecutor = launcher.getProducerExecutor();
             if (producerExecutor != null && !producerExecutor.isShutdown()) {
                 producerExecutor.shutdown();
             }
+            log.info("Job [{}] 已从管理器中注销", jobId);
         }
         registry.remove(jobId);
-        log.info("Job [{}] 已从管理器中注销", jobId);
     }
     
     public static void reset() {
@@ -193,6 +191,7 @@ public class FlowManager implements ActiveLauncherLookup {
             ProgressTracker tracker,
             TemplateConfigProperties.Flow flowConfig) {
         try {
+            completedTrackers.remove(jobId);
             Registration registration = new Registration(jobId, flowConfig);
             registry.put(jobId, registration);
             
@@ -206,12 +205,7 @@ public class FlowManager implements ActiveLauncherLookup {
             
             return launcher;
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION);
-            Counter.builder(FlowMetricNames.ERRORS)
-                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "create_launcher_failed")
-                   .tag(FlowMetricNames.TAG_PHASE, "PRODUCTION")
-                   .register(meterRegistry)
-                   .increment();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
             throw e;
         }
     }
@@ -222,10 +216,9 @@ public class FlowManager implements ActiveLauncherLookup {
     
     public void stopById(String jobId, boolean force) {
         for (Map.Entry<String, FlowLauncher<Object>> entry : activeLaunchers.entrySet()) {
-            String key = entry.getKey();
             FlowLauncher<?> launcher = entry.getValue();
             if (launcher.getJobId().equals(jobId)) {
-                stopJob(force, key, launcher);
+                stopJob(force, launcher);
                 break;
             }
         }
@@ -237,8 +230,11 @@ public class FlowManager implements ActiveLauncherLookup {
     
     public ProgressTracker getProgressTracker(String jobId) {
         FlowLauncher<Object> activeLauncher = getActiveLauncher(jobId);
-        Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
-        return taskOrchestrator.tracker();
+        if (activeLauncher != null) {
+            Orchestrator taskOrchestrator = activeLauncher.getTaskOrchestrator();
+            return taskOrchestrator.tracker();
+        }
+        return completedTrackers.get(jobId);
     }
     
     @Override
