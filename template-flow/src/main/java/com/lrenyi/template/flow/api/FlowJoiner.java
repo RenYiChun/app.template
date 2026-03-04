@@ -68,6 +68,10 @@ public interface FlowJoiner<T> {
         return true;
     }
     
+    default boolean isRetryable(T item, String jobId) {
+        return false;
+    }
+    
     /**
      * 孤立数据/失败数据处理出口（带失败原因）。
      * 以下情形会触发：

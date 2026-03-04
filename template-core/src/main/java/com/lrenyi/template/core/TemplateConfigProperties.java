@@ -95,6 +95,14 @@ public class TemplateConfigProperties implements InitializingBean {
             throw new IllegalArgumentException("flow.limits.per-job.queue-poll-interval-mill 必须 > 0，当前值: "
                                                        + perJob.getQueuePollIntervalMill());
         }
+        if (perJob.isMustMatchRetryEnabled() && perJob.getMustMatchRetryMaxTimes() < 1) {
+            throw new IllegalArgumentException("flow.limits.per-job.must-match-retry-max-times 必须 >= 1，当前值: "
+                                                       + perJob.getMustMatchRetryMaxTimes());
+        }
+        if (perJob.getMustMatchRetryBackoffMill() < 0) {
+            throw new IllegalArgumentException("flow.limits.per-job.must-match-retry-backoff-mill 必须 >= 0，当前值: "
+                                                       + perJob.getMustMatchRetryBackoffMill());
+        }
         if (security.isEnabled() && !security.isLocalJwtPublicKey()
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
@@ -249,6 +257,16 @@ public class TemplateConfigProperties implements InitializingBean {
             private long cacheTtlMill = 10000;
             /** 每 Job Queue 轮询间隔（毫秒，必须 >0） */
             private long queuePollIntervalMill = 10000;
+            /** 仅配对模式：是否启用强制配对重入 */
+            private boolean mustMatchRetryEnabled = false;
+            /** 仅配对模式：可重入最大次数（启用时必须 >=1） */
+            private int mustMatchRetryMaxTimes = 3;
+            /** 仅配对模式：每次重入前回退等待（毫秒，必须 >=0） */
+            private long mustMatchRetryBackoffMill = 0;
+            /** 仅配对模式：EVICTION 原因是否允许重入 */
+            private boolean mustMatchRetryOnEviction = true;
+            /** 仅配对模式：TIMEOUT 原因是否允许重入 */
+            private boolean mustMatchRetryOnTimeout = true;
             
             /** 有效背压阈值：pendingConsumer>0 时取该值，否则取 per-job.consumer-concurrency */
             public int getEffectivePendingConsumer() {

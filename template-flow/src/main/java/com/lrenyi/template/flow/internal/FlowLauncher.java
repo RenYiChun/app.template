@@ -44,6 +44,7 @@ public class FlowLauncher<T> {
     private final TemplateConfigProperties.Flow flow;
     private final BackpressureController backpressureController;
     private final FlowResourceContext resourceContext;
+    private final MatchRetryCoordinator<T> matchRetryCoordinator;
     private volatile boolean stopped = false;
     
     private FlowLauncher(String jobId,
@@ -60,6 +61,12 @@ public class FlowLauncher<T> {
         this.jobProducerSemaphore = resourceContext.getJobProducerSemaphore();
         this.storage = (FlowStorage<T>) resourceContext.getStorage();
         this.backpressureController = resourceContext.getBackpressureController();
+        this.matchRetryCoordinator = new MatchRetryCoordinator<>(jobId,
+                                                                 flow.getLimits().getPerJob(),
+                                                                 flowJoiner,
+                                                                 flowManager,
+                                                                 flowManager.getMeterRegistry()
+        );
         this.taskOrchestrator = new Orchestrator(jobId, tracker, registration, resourceContext);
     }
     
@@ -160,6 +167,7 @@ public class FlowLauncher<T> {
     private void submitDepositTask(T data, ProgressTracker tracker, PermitPair inFlightPair) {
         getProducerExecutor().execute(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
+                matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
                 if (stopped) {
                     tracker.onPassiveEgress(FailureReason.SHUTDOWN);
                     flowJoiner.onFailed(data, jobId, FailureReason.SHUTDOWN);

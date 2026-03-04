@@ -115,6 +115,12 @@ public final class FlowMetricNames {
     public static final String LIMITS_STORAGE_GLOBAL_USED = LIMITS_PREFIX + ".storage.global.used";
     /** 存储容量：全主机容量上限 */
     public static final String LIMITS_STORAGE_GLOBAL_LIMIT = LIMITS_PREFIX + ".storage.global.limit";
+    /** 配对重入：尝试次数 */
+    public static final String MATCH_RETRY_ATTEMPTED = PREFIX + ".match.retry.attempted";
+    /** 配对重入：成功回灌次数 */
+    public static final String MATCH_RETRY_SUCCEEDED = PREFIX + ".match.retry.succeeded";
+    /** 配对重入：耗尽次数 */
+    public static final String MATCH_RETRY_EXHAUSTED = PREFIX + ".match.retry.exhausted";
     /** 任务标识。注意高基数风险，仅在任务数可控时使用 */
     public static final String TAG_JOB_ID = "jobId";
     

@@ -15,6 +15,7 @@ import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -38,6 +39,11 @@ final class FlowLauncherFactory {
         TemplateConfigProperties.Flow.Limits limits = flow.getLimits();
         TemplateConfigProperties.Flow.Global global = limits.getGlobal();
         TemplateConfigProperties.Flow.PerJob perJob = limits.getPerJob();
+        if (perJob.isMustMatchRetryEnabled()
+                && flowJoiner.needMatched()
+                && flowJoiner.getStorageType() != FlowStorageType.CAFFEINE) {
+            throw new IllegalArgumentException("must-match-retry 仅支持 CAFFEINE 存储类型");
+        }
         
         boolean fair = global.isFairScheduling();
         Semaphore jobProducerSemaphore = new Semaphore(perJob.getProducerThreads(), fair);

@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.storage;
 
 import java.util.Optional;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -18,6 +19,7 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
+import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
@@ -74,6 +76,7 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                              .expireAfterWrite(ttlMill, TimeUnit.MILLISECONDS)
                              .executor(resourceRegistry.getCacheRemovalExecutor())
                              .removalListener((String key, FlowEntry<T> entry, RemovalCause cause) -> onEntryRemoved(
+                                     key,
                                      entry,
                                      cause
                              ))
@@ -92,13 +95,16 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
              .register(meterRegistry);
     }
     
-    private void onEntryRemoved(FlowEntry<T> entry, RemovalCause cause) {
+    private void onEntryRemoved(String key, FlowEntry<T> entry, RemovalCause cause) {
         resourceRegistry.releaseGlobalStorage(1);
-        Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-               .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-               .tag(FlowMetricNames.TAG_REASON, cause.name())
-               .register(meterRegistry)
-               .increment();
+        if (entry == null) {
+            return;
+        }
+        FailureReason reason = mapRemovalCause(cause);
+        if (reason == null) {
+            entry.close();
+            return;
+        }
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for entry removal, jobId={}", entry.getJobId());
@@ -107,19 +113,128 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                    .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
                    .register(meterRegistry)
                    .increment();
+            handlePassiveFailure(entry, reason);
             return;
         }
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-        try (entry) {
-            if (!cause.wasEvicted() || launcher == null) {
+        try {
+            if (launcher == null) {
+                handlePassiveFailure(entry, reason);
                 return;
             }
-            removalSubmittedCount.increment();
-            finalizer.submitBodyOnly(entry, launcher);
+            if (tryRetryBeforeFailure(key, entry, reason, launcher)) {
+                return;
+            }
+            handlePassiveFailure(entry, reason);
         } finally {
             if (launcher != null) {
                 launcher.getBackpressureController().signalRelease();
             }
+        }
+    }
+    
+    private boolean tryRetryBeforeFailure(String key,
+            FlowEntry<T> entry,
+            FailureReason reason,
+            FlowLauncher<Object> launcher) {
+        MatchRetryCoordinator<T> retryCoordinator = new MatchRetryCoordinator<>(entry.getJobId(),
+                                                                                launcher.getFlow().getLimits().getPerJob(),
+                                                                                joiner,
+                                                                                launcher.getFlowManager(),
+                                                                                meterRegistry
+        );
+        if (!retryCoordinator.tryConsumeRetry(reason, entry)) {
+            return false;
+        }
+        long backoffMill = launcher.getFlow().getLimits().getPerJob().getMustMatchRetryBackoffMill();
+        if (backoffMill > 0) {
+            try {
+                Thread.sleep(backoffMill);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.STORAGE,
+                        "retry_backoff_interrupted");
+                return false;
+            }
+        }
+        if (tryMatchThenRequeue(key, entry, launcher)) {
+            retryCoordinator.onRetrySucceeded(reason);
+            return true;
+        }
+        return false;
+    }
+    
+    private boolean tryMatchThenRequeue(String key, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+        Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
+        stripe.lock();
+        try {
+            FlowEntry<T> partner = findAndRemoveExisting(key);
+            if (partner != null) {
+                processMatchedPairFromRetry(partner, entry, launcher);
+                return true;
+            }
+            if (!acquireGlobalStorageForRequeue(entry.getJobId())) {
+                return false;
+            }
+            boolean requeued = requeue(entry);
+            if (!requeued) {
+                resourceRegistry.releaseGlobalStorage(1);
+            }
+            if (requeued) {
+                entry.close();
+            }
+            return requeued;
+        } finally {
+            stripe.unlock();
+        }
+    }
+    
+    private FlowEntry<T> findAndRemoveExisting(String key) {
+        final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
+        cache.asMap().computeIfPresent(key, (k, existing) -> {
+            matchFound.set(existing);
+            return null;
+        });
+        return matchFound.get();
+    }
+    
+    private boolean acquireGlobalStorageForRequeue(String jobId) {
+        Semaphore globalStorage = resourceRegistry.getGlobalStorageSemaphore();
+        if (globalStorage == null) {
+            return true;
+        }
+        try {
+            globalStorage.acquire(1);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "requeue_storage_acquire_interrupted");
+            return false;
+        }
+    }
+    
+    private FailureReason mapRemovalCause(RemovalCause cause) {
+        if (cause == RemovalCause.EXPIRED) {
+            return FailureReason.TIMEOUT;
+        }
+        if (cause == RemovalCause.SIZE) {
+            return FailureReason.EVICTION;
+        }
+        return null;
+    }
+    
+    private void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
+        try (entry) {
+            joiner.onFailed(entry.getData(), entry.getJobId(), reason);
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, reason.name())
+                   .register(meterRegistry)
+                   .increment();
+        } catch (Exception e) {
+            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.STORAGE, "eviction_process_failed");
+        } finally {
+            progressTracker.onPassiveEgress(reason);
         }
     }
     
@@ -222,6 +337,32 @@ public class CaffeineFlowStorage<T> implements FlowStorage<T> {
                        .tag(FlowMetricNames.TAG_PHASE, CONSUMPTION)
                        .register(meterRegistry)
                        .increment();
+            } finally {
+                launcher.getBackpressureController().signalRelease();
+            }
+        };
+        resourceRegistry.submitConsumerToGlobal(taskOrchestrator, 2, runnable);
+    }
+    
+    private void processMatchedPairFromRetry(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+        resourceRegistry.releaseGlobalStorage(1);
+        long matchStartTime = System.currentTimeMillis();
+        Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
+        Runnable runnable = () -> {
+            try (partner; entry) {
+                if (joiner.isMatched(partner.getData(), entry.getData())) {
+                    handleMatchedSuccess(partner, entry);
+                } else {
+                    handleMatchedFailure(partner, entry);
+                }
+                long matchLatency = System.currentTimeMillis() - matchStartTime;
+                Timer.builder(FlowMetricNames.MATCH_DURATION)
+                     .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                     .register(meterRegistry)
+                     .record(matchLatency, TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION,
+                        "retry_match_process_failed");
             } finally {
                 launcher.getBackpressureController().signalRelease();
             }
