@@ -143,7 +143,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void markSourceFinished(String jobId) {
         this.sourceFinished = true;
-        checkCompletion();
     }
     
     @Override
@@ -152,25 +151,43 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     /**
-     * 核心判定逻辑：Source 已停止，且所有入场数据均已物理终结。
-     * 完成条件：sourceFinished && productionAcquired == terminated。
-     * 入场数（productionAcquired）与终结数（terminated）相等时，表示无积压、无在途、无待处理。
+     * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
+     * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0。
      */
     private void checkCompletion() {
         if (!sourceFinished) {
             return;
         }
+        long inStorage = 0L;
+        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        if (activeLauncher != null) {
+            inStorage = activeLauncher.getStorage().size();
+        }
+        long active = activeConsumers.sum();
         long acquired = productionAcquired.sum();
+        long released = productionReleased.sum();
         long term = terminated.sum();
-        if (acquired != term) {
+        long inProduction = acquired - released;
+        long pendingConsumer = released - inStorage - active - term;
+        if (inStorage > 0L || active > 0L || inProduction > 0L || pendingConsumer > 0L) {
             return;
         }
-        log.debug("Job {} completed, acquired: {}, terminated: {}", jobId, acquired, term);
+        log.debug("Job {} completed, acquired: {}, released: {}, terminated: {}, inStorage: {}, activeConsumers: {},"
+                          + " inProduction: {}, pendingConsumer: {}",
+                  jobId,
+                  acquired,
+                  released,
+                  term,
+                  inStorage,
+                  active,
+                  inProduction,
+                  pendingConsumer
+        );
         finishLock.lock();
         try {
             if (endTimeMillis.get() == 0L) {
                 endTimeMillis.set(System.currentTimeMillis());
-                FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+                activeLauncher = flowManager.getActiveLauncher(jobId);
                 boolean stopped =
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
                 if (!stopped) {
