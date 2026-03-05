@@ -13,7 +13,9 @@ import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Counter;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class DefaultProgressTracker implements ProgressTracker {
     private final FlowManager flowManager;
     private final String jobId;
@@ -150,41 +152,38 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     /**
-     * 核心判定逻辑：Source 已停止，且缓存已空、活跃消费归零时才算完成。
-     * activeConsumers（已出缓存未终结）；drained 等价于 inStorage==0 且 activeConsumers==0。
-     * - 完成条件：sourceFinished && drained && noInProduction && noPendingOutcome。
-     *   noInProduction = productionReleased >= productionAcquired，避免异步 deposit 尚未收敛时过早完成。
+     * 核心判定逻辑：Source 已停止，且所有入场数据均已物理终结。
+     * 完成条件：sourceFinished && productionAcquired == terminated。
+     * 入场数（productionAcquired）与终结数（terminated）相等时，表示无积压、无在途、无待处理。
      */
     private void checkCompletion() {
-        long inStorage = 0L;
-        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
-        if (activeLauncher != null) {
-            inStorage = activeLauncher.getStorage().size();
+        if (!sourceFinished) {
+            return;
         }
-        long active = activeConsumers.sum();
-        boolean drained = inStorage == 0L && active == 0L;  // 缓存空且无积压（Stuck=0）
-        boolean noInProduction = productionReleased.sum() >= productionAcquired.sum();
-        long egressed = activeEgress.sum() + passiveEgress.sum();
-        boolean noPendingOutcome = productionReleased.sum() <= egressed + inStorage;
-        if (sourceFinished && drained && noInProduction && noPendingOutcome) {
-            finishLock.lock();
-            try {
-                if (endTimeMillis.get() == 0L) {
-                    endTimeMillis.set(System.currentTimeMillis());
-                    boolean stopped = flowManager.isStopped(jobId)
-                            || (activeLauncher != null && activeLauncher.isStopped());
-                    if (!stopped) {
-                        Counter.builder(FlowMetricNames.JOB_COMPLETED)
-                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                               .register(flowManager.getMeterRegistry())
-                               .increment();
-                        flowManager.unregister(jobId);
-                    }
-                    completionFuture.complete(null);
+        long acquired = productionAcquired.sum();
+        long term = terminated.sum();
+        if (acquired != term) {
+            return;
+        }
+        log.debug("Job {} completed, acquired: {}, terminated: {}", jobId, acquired, term);
+        finishLock.lock();
+        try {
+            if (endTimeMillis.get() == 0L) {
+                endTimeMillis.set(System.currentTimeMillis());
+                FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+                boolean stopped =
+                        flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
+                if (!stopped) {
+                    Counter.builder(FlowMetricNames.JOB_COMPLETED)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(flowManager.getMeterRegistry())
+                           .increment();
+                    flowManager.unregister(jobId);
                 }
-            } finally {
-                finishLock.unlock();
+                completionFuture.complete(null);
             }
+        } finally {
+            finishLock.unlock();
         }
     }
 }
