@@ -487,7 +487,7 @@
         "y": 18
       },
       "id": 100,
-      "title": "Flow 引擎概览",
+      "title": "Flow 引擎概览（global）",
       "type": "row"
     },
     {
@@ -719,6 +719,18 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 320,
+      "title": "Flow 引擎概览（per-job）",
+      "type": "row"
     },
     {
       "datasource": {
@@ -1051,23 +1063,23 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "expr": "(sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (rate(app_template_flow_egress_active_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])), \"reason\", \"ACTIVE\", \"jobId\", \".*\")) or (label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"ACTIVE\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"TIMEOUT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"EVICTION\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"REPLACE\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"MISMATCH\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"REJECT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"SHUTDOWN\", \"\", \"\"))",
           "legendFormat": "{{jobId}} - {{reason}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_attempted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_attempted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
           "legendFormat": "{{jobId}} - 重入尝试",
           "refId": "B"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_succeeded_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_succeeded_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
           "legendFormat": "{{jobId}} - 重入成功",
           "refId": "C"
         },
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_exhausted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (max_over_time(app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}[$__range])) * 0, \"reason\", \"NONE\", \"jobId\", \".*\")",
-          "legendFormat": "{{jobId}} - 重入耗尽",
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_exhausted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or (label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"TIMEOUT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"EVICTION\", \"\", \"\"))",
+          "legendFormat": "{{jobId}} - 重入耗尽 - {{reason}}",
           "refId": "D"
         }
       ]

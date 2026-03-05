@@ -29,7 +29,7 @@ public class MatchRetryCoordinator<T> {
     }
     
     public void initRetryRemainingIfNecessary(FlowEntry<T> entry) {
-        int retryRemaining = 0;
+        int retryRemaining = -1;
         if (perJob.isMustMatchRetryEnabled()
                 && joiner.needMatched()
                 && joiner.isRetryable(entry.getData(), jobId)) {

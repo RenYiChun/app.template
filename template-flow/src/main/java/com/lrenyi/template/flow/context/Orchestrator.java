@@ -2,14 +2,15 @@ package com.lrenyi.template.flow.context;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.flow.api.ProgressTracker;
-import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FlowConstants;
+import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -71,8 +72,11 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         }
     }
     
-    public void acquire() throws InterruptedException {
+    public void acquire() throws InterruptedException, TimeoutException {
         long acquireStartTime = System.currentTimeMillis();
+        long acquireStartNanos = System.nanoTime();
+        long acquireTimeoutMs = FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS;
+        long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
 
         if (getManager().isStopped(jobId)) {
             InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
@@ -97,10 +101,16 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                 if (registration.getActiveCount().get() < fairShare || (!globalExhausted && !perJobExhausted)) {
                     break;
                 }
-                boolean signalled = resourceContext.getPermitReleased()
-                                                   .await(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS,
-                                                          TimeUnit.MILLISECONDS
-                                                   );
+                long fairWaitNanos = TimeUnit.MILLISECONDS.toNanos(FlowConstants.DEFAULT_FAIR_LOCK_WAIT_MS);
+                if (timeoutNanos > 0) {
+                    long elapsedNanos = System.nanoTime() - acquireStartNanos;
+                    long remainingNanos = timeoutNanos - elapsedNanos;
+                    if (remainingNanos <= 0) {
+                        throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
+                    }
+                    fairWaitNanos = Math.min(fairWaitNanos, remainingNanos);
+                }
+                boolean signalled = resourceContext.getPermitReleased().await(fairWaitNanos, TimeUnit.NANOSECONDS);
                 if (!signalled) {
                     log.debug("Wait for permit timeout, re-calculating fairShare for Job: {}", jobId);
                 } else {
@@ -118,9 +128,35 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         }
         
         if (perJobSemaphore != null) {
-            PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1);
+            boolean acquired;
+            if (timeoutNanos > 0) {
+                long elapsedNanos = System.nanoTime() - acquireStartNanos;
+                long remainingNanos = timeoutNanos - elapsedNanos;
+                if (remainingNanos <= 0) {
+                    throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
+                }
+                acquired = PermitPair.tryAcquireBoth(globalSemaphore,
+                                                     perJobSemaphore,
+                                                     1,
+                                                     remainingNanos,
+                                                     TimeUnit.NANOSECONDS
+                );
+            } else {
+                acquired = PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1);
+            }
+            if (!acquired) {
+                throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
+            }
         } else {
-            globalSemaphore.acquire();
+            if (timeoutNanos > 0) {
+                long elapsedNanos = System.nanoTime() - acquireStartNanos;
+                long remainingNanos = timeoutNanos - elapsedNanos;
+                if (remainingNanos <= 0 || !globalSemaphore.tryAcquire(1, remainingNanos, TimeUnit.NANOSECONDS)) {
+                    throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
+                }
+            } else {
+                globalSemaphore.acquire();
+            }
         }
         registration.increment();
         tracker.onConsumerBegin();
@@ -131,6 +167,15 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
              .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_CONSUMER_CONCURRENCY)
              .register(registry())
              .record(acquireLatency, TimeUnit.MILLISECONDS);
+    }
+    
+    private TimeoutException buildAcquireTimeoutException(long acquireTimeoutMs, long acquireStartTime) {
+        long waitedMs = System.currentTimeMillis() - acquireStartTime;
+        TimeoutException timeoutException = new TimeoutException(
+                "Consumer permit acquire timeout for job " + jobId + ", acquireTimeoutMs=" + acquireTimeoutMs
+                        + ", waitedMs=" + waitedMs);
+        FlowExceptionHelper.handleException(jobId, null, timeoutException, FlowPhase.CONSUMPTION, "acquire_timeout");
+        return timeoutException;
     }
     
 }

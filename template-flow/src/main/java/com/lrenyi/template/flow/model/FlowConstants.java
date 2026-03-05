@@ -34,6 +34,14 @@ public final class FlowConstants {
      * 当存储满时，生产者等待空间的时间间隔
      */
     public static final long DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS = 100;
+    /**
+     * 背压等待最大总时长（毫秒），0 表示不限制
+     */
+    public static final long DEFAULT_BACKPRESSURE_MAX_WAIT_MS = 5 * 60 * 1000;
+    /**
+     * 许可获取超时（毫秒），0 表示不限制
+     */
+    public static final long DEFAULT_ACQUIRE_TIMEOUT_MS = 2 * 60 * 1000;
     
     // ========== 背压控制 ==========
     /**

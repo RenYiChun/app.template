@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.internal;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -50,10 +51,16 @@ public class BackpressureController {
     }
     
     /** 生产者调用：缓存满或消费许可耗尽时阻塞 */
-    public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException {
+    public void awaitSpace(BooleanSupplier stopCheck) throws InterruptedException, TimeoutException {
+        awaitSpace(stopCheck, FlowConstants.DEFAULT_BACKPRESSURE_MAX_WAIT_MS);
+    }
+    
+    public void awaitSpace(BooleanSupplier stopCheck, long maxWaitMs) throws InterruptedException, TimeoutException {
         lock.lock();
         try {
             long waitStartTime = System.currentTimeMillis();
+            long waitStartNanos = System.nanoTime();
+            long maxWaitNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0L, maxWaitMs));
             int waitCount = 0;
             
             while (!stopCheck.getAsBoolean()) {
@@ -66,6 +73,12 @@ public class BackpressureController {
                         && globalPendingCountSupplier.getAsLong() >= globalPendingLimit;
                 if (!cacheFull && !consumerSaturated && !perJobPendingOverflow && !globalPendingOverflow) {
                     break;
+                }
+                if (maxWaitNanos > 0 && System.nanoTime() - waitStartNanos >= maxWaitNanos) {
+                    long waitDuration = System.currentTimeMillis() - waitStartTime;
+                    throw new TimeoutException(
+                            "Backpressure awaitSpace exceeded maxWaitMs=" + maxWaitMs + ", jobId=" + jobId
+                                    + ", waitedMs=" + waitDuration);
                 }
                 waitCount++;
                 if (!notFull.await(FlowConstants.DEFAULT_BACKPRESSURE_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS)

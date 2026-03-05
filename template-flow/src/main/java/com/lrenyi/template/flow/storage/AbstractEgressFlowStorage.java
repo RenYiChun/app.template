@@ -63,9 +63,13 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
                 handlePassiveFailure(entry, reason);
                 return;
             }
-            RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
-            if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
+            if (entry.getRetryRemaining() == -1) {
                 finalizer.submitBodyOnly(entry, launcher);
+            } else {
+                RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
+                if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
+                    finalizer.submitBodyOnly(entry, launcher);
+                }
             }
         } finally {
             if (launcher != null) {

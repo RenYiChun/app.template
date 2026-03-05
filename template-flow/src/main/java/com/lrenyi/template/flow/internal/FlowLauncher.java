@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.internal;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -16,6 +17,7 @@ import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -97,12 +99,22 @@ public class FlowLauncher<T> {
         if (perJobInFlight != null) {
             try {
                 io.micrometer.core.instrument.Timer.Sample inFlightSample = Timer.start(registry());
-                boolean acquired = PermitPair.tryAcquireBoth(globalInFlight, perJobInFlight, 1);
+                boolean acquired = PermitPair.tryAcquireBoth(globalInFlight,
+                                                             perJobInFlight,
+                                                             1,
+                                                             FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS,
+                                                             TimeUnit.MILLISECONDS
+                );
                 inFlightSample.stop(Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
                                          .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                                          .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_IN_FLIGHT)
                                          .register(registry()));
                 if (!acquired) {
+                    TimeoutException e = new TimeoutException(
+                            "In-flight permit acquire timeout for job " + jobId
+                                    + ", acquireTimeoutMs=" + FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS
+                    );
+                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout");
                     return;
                 }
                 inFlightPair = PermitPair.createHeld(globalInFlight, perJobInFlight, 1);
@@ -143,6 +155,13 @@ public class FlowLauncher<T> {
             }
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_interrupted");
             return;
+        } catch (TimeoutException e) {
+            tracker.onProductionReleased();
+            if (inFlightPair != null) {
+                inFlightPair.release();
+            }
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_timeout");
+            return;
         }
         
         submitDepositTask(data, tracker, inFlightPair);
@@ -152,7 +171,7 @@ public class FlowLauncher<T> {
         return flowManager.getMeterRegistry();
     }
     
-    private void awaitBackpressure() throws InterruptedException {
+    private void awaitBackpressure() throws InterruptedException, TimeoutException {
         if (stopped) {
             return;
         }

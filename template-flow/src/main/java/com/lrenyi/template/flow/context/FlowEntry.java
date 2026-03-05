@@ -45,8 +45,16 @@ public class FlowEntry<T> implements AutoCloseable {
         return refCnt;
     }
     
+    /**
+     * 初始化重试次数。仅当当前为 -1（未初始化）时生效。
+     *
+     * @param maxTimes 最大重试次数；-1 表示不重试，保持默认不变；>=0 时从 -1 设为该值
+     */
     public void initRetryRemaining(int maxTimes) {
-        RETRY_REMAINING_UPDATER.compareAndSet(this, -1, Math.max(0, maxTimes));
+        if (maxTimes < 0) {
+            return; // -1 表示不重试，保持默认 -1，不覆盖
+        }
+        RETRY_REMAINING_UPDATER.compareAndSet(this, -1, maxTimes);
     }
     
     public boolean tryConsumeOneRetry() {

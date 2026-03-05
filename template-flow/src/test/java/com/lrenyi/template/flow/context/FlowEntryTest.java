@@ -46,6 +46,14 @@ class FlowEntryTest {
         e.initRetryRemaining(10);
         assertEquals(3, e.getRetryRemaining());
     }
+
+    @Test
+    void initRetryRemainingWithMinusOneKeepsDefault() {
+        FlowEntry<String> e = new FlowEntry<>("d", "j");
+        assertEquals(-1, e.getRetryRemaining());
+        e.initRetryRemaining(-1);
+        assertEquals(-1, e.getRetryRemaining());
+    }
     
     @Test
     void tryConsumeOneRetryUntilZero() {

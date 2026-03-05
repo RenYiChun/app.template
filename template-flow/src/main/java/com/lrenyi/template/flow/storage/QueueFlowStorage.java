@@ -75,14 +75,28 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
-            resourceRegistry().releaseGlobalStorage(1);
-            FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-            if (launcher == null) {
-                handlePassiveFailure(entry, FailureReason.SHUTDOWN);
-                continue;
+            try {
+                resourceRegistry().releaseGlobalStorage(1);
+                FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+                if (launcher == null) {
+                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                    continue;
+                }
+                String key = joiner().joinKey(entry.getData());
+                handleEgress(key, entry, FailureReason.TIMEOUT);
+            } catch (Throwable t) {
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                       .register(meterRegistry())
+                       .increment();
+                log.error("Queue drain failed for job {}", entry.getJobId(), t);
+                try {
+                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                } catch (Throwable ignored) {
+                    entry.close();
+                }
             }
-            String key = joiner().joinKey(entry.getData());
-            handleEgress(key, entry, FailureReason.TIMEOUT);
         }
     }
     
