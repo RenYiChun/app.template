@@ -7,6 +7,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.flow.executor.BoundedVirtualExecutor.PermitStrategy;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.resource.PermitPair;
@@ -21,10 +22,6 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     private final ExecutorService flowConsumerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     private final ExecutorService cacheRemovalExecutor;
-    
-    public DefaultFlowExecutorProvider(Semaphore globalSemaphore) {
-        this(globalSemaphore, 0);
-    }
     
     /**
      * @param globalSemaphore         全局消费许可
@@ -105,7 +102,7 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
                                .register(meterRegistry);
             strategy = new PermitStrategy() {
                 @Override
-                public void acquire() throws InterruptedException {
+                public void acquire() throws InterruptedException, TimeoutException {
                     Timer.Sample sample = Timer.start(meterRegistry);
                     baseStrategy.acquire();
                     sample.stop(timer);

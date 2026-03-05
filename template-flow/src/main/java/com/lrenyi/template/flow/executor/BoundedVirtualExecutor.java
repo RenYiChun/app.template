@@ -90,6 +90,8 @@ public class BoundedVirtualExecutor implements ExecutorService {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new ExecutorInterruptedException(e);
+            } catch (TimeoutException e) {
+                throw new ExecutorAcquireTimeoutException(e);
             }
             delegate.execute(runReleaseOnly(defaultStrategy, command));
         } else {
@@ -120,6 +122,8 @@ public class BoundedVirtualExecutor implements ExecutorService {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new ExecutorInterruptedException(e);
+            } catch (TimeoutException e) {
+                throw new ExecutorAcquireTimeoutException(e);
             }
             try {
                 task.run();
@@ -226,6 +230,8 @@ public class BoundedVirtualExecutor implements ExecutorService {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new ExecutorInterruptedException(e);
+            } catch (TimeoutException e) {
+                throw new ExecutorAcquireTimeoutException(e);
             }
             try {
                 return task.call();
@@ -249,6 +255,8 @@ public class BoundedVirtualExecutor implements ExecutorService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new ExecutorInterruptedException(e);
+        } catch (TimeoutException e) {
+            throw new ExecutorAcquireTimeoutException(e);
         }
         // 提交任务时只负责释放（已在外部 acquire）
         delegate.execute(runReleaseOnly(strategy, task));
@@ -258,7 +266,7 @@ public class BoundedVirtualExecutor implements ExecutorService {
      * 许可获取与释放策略，用于自定义 acquire/release 逻辑。
      */
     public interface PermitStrategy {
-        void acquire() throws InterruptedException;
+        void acquire() throws InterruptedException, TimeoutException;
         
         void release();
     }

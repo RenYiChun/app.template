@@ -487,7 +487,7 @@
         "y": 18
       },
       "id": 100,
-      "title": "Flow 引擎概览",
+      "title": "Flow 引擎概览（global）",
       "type": "row"
     },
     {
@@ -719,6 +719,18 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 320,
+      "title": "Flow 引擎概览（per-job）",
+      "type": "row"
     },
     {
       "datasource": {
@@ -1051,9 +1063,24 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))",
+          "expr": "(sum by (reason, jobId) (rate(app_template_flow_egress_passive_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or label_replace(sum by (jobId) (rate(app_template_flow_egress_active_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])), \"reason\", \"ACTIVE\", \"jobId\", \".*\")) or (label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"ACTIVE\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"TIMEOUT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"EVICTION\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"REPLACE\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"MISMATCH\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"REJECT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"SHUTDOWN\", \"\", \"\"))",
           "legendFormat": "{{jobId}} - {{reason}}",
           "refId": "A"
+        },
+        {
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_attempted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
+          "legendFormat": "{{jobId}} - 重入尝试",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_succeeded_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m]))",
+          "legendFormat": "{{jobId}} - 重入成功",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (reason, jobId) (rate(app_template_flow_match_retry_exhausted_total{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) or (label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"TIMEOUT\", \"\", \"\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"reason\", \"EVICTION\", \"\", \"\"))",
+          "legendFormat": "{{jobId}} - 重入耗尽 - {{reason}}",
+          "refId": "D"
         }
       ]
     },
@@ -1097,7 +1124,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
+          "expr": "(histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) unless histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) != histogram_quantile(0.99, sum(rate(app_template_flow_backpressure_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
           "legendFormat": "{{jobId}}",
           "refId": "A"
         }
@@ -1135,22 +1162,22 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
+          "expr": "(histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) unless histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) != histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
           "legendFormat": "{{jobId}} - 写入缓存耗时",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
+          "expr": "(histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) unless histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) != histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
           "legendFormat": "{{jobId}} - 配对业务处理耗时",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\",dimension=\"consumer-concurrency\"}[1m])) by (le, jobId))",
+          "expr": "(histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\",dimension=\"consumer-concurrency\"}[1m])) by (le, jobId)) unless histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\",dimension=\"consumer-concurrency\"}[1m])) by (le, jobId)) != histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\",dimension=\"consumer-concurrency\"}[1m])) by (le, jobId))) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
           "legendFormat": "{{jobId}} - 获取消费许可排队耗时",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))",
+          "expr": "(histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) unless histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId)) != histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId))) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
           "legendFormat": "{{jobId}} - 出缓存到终结耗时",
           "refId": "D"
         }
@@ -1197,8 +1224,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "(sum(rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m])) * 60) or (sum(app_template_flow_launchers_active{instance=~\"$instance\",job=\"$job\"}) * 0)",
-          "legendFormat": "报错/分钟",
+          "expr": "(sum by (jobId) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) * 60) or (sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0)",
+          "legendFormat": "{{jobId}} - 报错/分钟",
           "refId": "A"
         }
       ]
@@ -1241,7 +1268,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "label_replace(label_replace(label_replace(label_replace(histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId, dimension)), \"dimension\", \"消费并发\", \"dimension\", \"consumer-concurrency\"), \"dimension\", \"在途数据\", \"dimension\", \"in-flight\"), \"dimension\", \"生产线程\", \"dimension\", \"producer-threads\"), \"dimension\", \"存储容量\", \"dimension\", \"storage\")",
+          "expr": "label_replace(label_replace(label_replace(label_replace((histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId, dimension)) unless histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId, dimension)) != histogram_quantile(0.99, sum(rate(app_template_flow_limits_acquire_wait_duration_seconds_bucket{instance=~\"$instance\",jobId=~\"$jobId\"}[1m])) by (le, jobId, dimension))), \"dimension\", \"消费并发\", \"dimension\", \"consumer-concurrency\"), \"dimension\", \"在途数据\", \"dimension\", \"in-flight\"), \"dimension\", \"生产线程\", \"dimension\", \"producer-threads\"), \"dimension\", \"存储容量\", \"dimension\", \"storage\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"dimension\", \"消费并发\", \"jobId\", \".*\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"dimension\", \"在途数据\", \"jobId\", \".*\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"dimension\", \"生产线程\", \"jobId\", \".*\") or label_replace(sum by (jobId) (app_template_flow_limits_consumer_concurrency_limit{instance=~\"$instance\",jobId=~\"$jobId\"}) * 0, \"dimension\", \"存储容量\", \"jobId\", \".*\")",
           "legendFormat": "{{jobId}} - {{dimension}}",
           "refId": "A"
         }

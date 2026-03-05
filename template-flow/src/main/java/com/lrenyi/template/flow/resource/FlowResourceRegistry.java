@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.resource;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -268,30 +269,62 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     public void submitConsumerToGlobal(Orchestrator orchestrator, int permits, Runnable task) {
         globalPendingConsumerAdder.add(permits);
-        java.util.concurrent.Semaphore perJobSemaphore = orchestrator.resourceContext().getJobConsumerSemaphore();
+        Semaphore perJobSemaphore = orchestrator.resourceContext().getJobConsumerSemaphore();
+        AtomicBoolean acquiredForSubmission = new AtomicBoolean(false);
+        AtomicBoolean pendingCompensated = new AtomicBoolean(false);
         BoundedVirtualExecutor.PermitStrategy strategy = new BoundedVirtualExecutor.PermitStrategy() {
             @Override
-            public void acquire() throws InterruptedException {
-                for (int i = 0; i < permits; i++) {
-                    orchestrator.acquire();
+            public void acquire() throws InterruptedException, TimeoutException {
+                int acquiredPermits = 0;
+                try {
+                    for (int i = 0; i < permits; i++) {
+                        orchestrator.acquire();
+                        acquiredPermits++;
+                    }
+                    acquiredForSubmission.set(true);
+                } catch (InterruptedException | TimeoutException | RuntimeException e) {
+                    rollbackAcquire(acquiredPermits);
+                    pendingCompensated.set(true);
+                    throw e;
                 }
             }
             
             @Override
             public void release() {
-                globalPendingConsumerAdder.add(-permits);
-                for (int i = 0; i < permits; i++) {
-                    orchestrator.releaseWithoutSemaphore();
+                acquiredForSubmission.set(false);
+                extracted(permits, permits, orchestrator, perJobSemaphore);
+            }
+            
+            private void rollbackAcquire(int acquiredPermits) {
+                if (acquiredPermits <= 0) {
+                    globalPendingConsumerAdder.add(-permits);
+                    return;
                 }
-                if (perJobSemaphore != null) {
-                    com.lrenyi.template.flow.resource.PermitPair.createHeld(globalSemaphore, perJobSemaphore, permits)
-                            .release();
-                } else {
-                    globalSemaphore.release(permits);
-                }
+                extracted(acquiredPermits, permits, orchestrator, perJobSemaphore);
             }
         };
-        flowConsumerExecutor.submitWithStrategy(strategy, task);
+        try {
+            flowConsumerExecutor.submitWithStrategy(strategy, task);
+        } catch (RuntimeException e) {
+            if (acquiredForSubmission.get()) {
+                strategy.release();
+            } else if (!pendingCompensated.get()) {
+                globalPendingConsumerAdder.add(-permits);
+            }
+            throw e;
+        }
+    }
+    
+    private void extracted(int acquiredPermits, int permits, Orchestrator orchestrator, Semaphore perJobSemaphore) {
+        globalPendingConsumerAdder.add(-permits);
+        for (int i = 0; i < acquiredPermits; i++) {
+            orchestrator.releaseWithoutSemaphore();
+        }
+        if (perJobSemaphore != null) {
+            PermitPair.createHeld(globalSemaphore, perJobSemaphore, acquiredPermits).release();
+        } else {
+            globalSemaphore.release(acquiredPermits);
+        }
     }
     
     /**

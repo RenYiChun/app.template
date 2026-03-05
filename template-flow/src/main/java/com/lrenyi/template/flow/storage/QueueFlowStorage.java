@@ -6,14 +6,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
-import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -25,28 +26,22 @@ import lombok.extern.slf4j.Slf4j;
  * @param <T> 存储的数据类型
  */
 @Slf4j
-public class QueueFlowStorage<T> implements FlowStorage<T> {
+public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements FlowStorage<T> {
     private final BlockingQueue<FlowEntry<T>> queue;
     private final long maxCacheSize;
-    private final ProgressTracker progressTracker;
-    private final FlowFinalizer<T> finalizer;
     private final AtomicBoolean stopped = new AtomicBoolean(false);
-    private final FlowResourceRegistry resourceRegistry;
-    private final MeterRegistry meterRegistry;
     private ScheduledFuture<?> scheduledFuture;
     
     public QueueFlowStorage(int capacity,
+            FlowJoiner<T> joiner,
             ProgressTracker progressTracker,
             FlowFinalizer<T> finalizer,
             String jobId,
             long drainIntervalMs,
             MeterRegistry meterRegistry) {
+        super(joiner, finalizer, progressTracker, meterRegistry);
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
-        this.progressTracker = progressTracker;
-        this.finalizer = finalizer;
-        this.resourceRegistry = finalizer.resourceRegistry();
-        this.meterRegistry = meterRegistry;
         
         Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, queue, BlockingQueue::size)
              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
@@ -57,7 +52,7 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
              .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue").description("每 Job 缓存容量上限")
              .register(meterRegistry);
         
-        ScheduledExecutorService egressExecutor = resourceRegistry.getStorageEgressExecutor();
+        ScheduledExecutorService egressExecutor = resourceRegistry().getStorageEgressExecutor();
         if (egressExecutor != null && drainIntervalMs > 0) {
             this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
                                                                          drainIntervalMs,
@@ -68,33 +63,40 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
     }
     
     private void drainLoop() {
-        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for drainLoop");
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                   .register(meterRegistry)
+                   .register(meterRegistry())
                    .increment();
             return;
         }
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
-            resourceRegistry.releaseGlobalStorage(1);
-            FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-            if (launcher == null) {
-                if (progressTracker != null) {
-                    progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
+            try {
+                resourceRegistry().releaseGlobalStorage(1);
+                FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+                if (launcher == null) {
+                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                    continue;
                 }
-                Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                       .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                       .tag(FlowMetricNames.TAG_REASON, "SHUTDOWN")
-                       .register(meterRegistry)
+                String key = joiner().joinKey(entry.getData());
+                handleEgress(key, entry, FailureReason.TIMEOUT);
+            } catch (Throwable t) {
+                Counter.builder(FlowMetricNames.ERRORS)
+                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
+                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                       .register(meterRegistry())
                        .increment();
-                entry.close();
-                continue;
+                log.error("Queue drain failed for job {}", entry.getJobId(), t);
+                try {
+                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                } catch (Throwable ignored) {
+                    entry.close();
+                }
             }
-            finalizer.submitBodyOnly(entry, launcher);
         }
     }
     
@@ -113,14 +115,40 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
                .tag(FlowMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(FlowMetricNames.TAG_REASON, "REJECT")
-               .register(meterRegistry)
+               .register(meterRegistry())
                .increment();
         Counter.builder(FlowMetricNames.ERRORS)
                .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_full_rejected")
                .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-               .register(meterRegistry)
+               .register(meterRegistry())
                .increment();
         return false;
+    }
+    
+    @Override
+    public PreRetryResult preRetry(String key, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+        return PreRetryResult.PROCEED_TO_REQUEUE;
+    }
+    
+    @Override
+    public boolean tryRequeue(FlowEntry<T> entry) {
+        return doDeposit(entry);
+    }
+    
+    @Override
+    public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
+        try (entry) {
+            joiner().onFailed(entry.getData(), entry.getJobId(), reason);
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, reason.name())
+                   .register(meterRegistry())
+                   .increment();
+        } finally {
+            if (progressTracker() != null) {
+                progressTracker().onPassiveEgress(reason);
+            }
+        }
     }
     
     @Override
@@ -141,9 +169,14 @@ public class QueueFlowStorage<T> implements FlowStorage<T> {
         }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
-            resourceRegistry.releaseGlobalStorage(1);
-            if (progressTracker != null) {
-                progressTracker.onPassiveEgress(FailureReason.SHUTDOWN);
+            resourceRegistry().releaseGlobalStorage(1);
+            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
+                   .tag(FlowMetricNames.TAG_JOB_ID, remaining.getJobId())
+                   .tag(FlowMetricNames.TAG_REASON, FailureReason.SHUTDOWN.name())
+                   .register(meterRegistry())
+                   .increment();
+            if (progressTracker() != null) {
+                progressTracker().onPassiveEgress(FailureReason.SHUTDOWN);
             }
             remaining.close();
         }

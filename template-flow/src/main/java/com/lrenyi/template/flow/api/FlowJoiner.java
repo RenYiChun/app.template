@@ -68,11 +68,15 @@ public interface FlowJoiner<T> {
         return true;
     }
     
+    default boolean isRetryable(T item, String jobId) {
+        return false;
+    }
+    
     /**
      * 孤立数据/失败数据处理出口（带失败原因）。
      * 以下情形会触发：
      * 1. 【超时】TIMEOUT：needMatched=true 时，数据在缓存中等待配对超时。
-     * 2. 【容量驱逐】EVICTION：缓存达到 maxSize 或队列满，导致数据被踢出。
+     * 2. 【容量驱逐】EVICTION：缓存达到 maxSize 导致数据被踢出。
      * 3. 【冲突替换】REPLACE：非配对模式下，Key 冲突导致旧数据被替换。
      * 4. 【逻辑不匹配】MISMATCH：isMatched 返回 false，两条均走失败出口。
      * 5. 【拒绝准入】REJECT：背压/过载等拒绝准入。

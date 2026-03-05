@@ -37,4 +37,34 @@ class FlowEntryTest {
         e.close();
         assertEquals(1, e.getRefCntForTest());
     }
+    
+    @Test
+    void initRetryRemainingOnlyOnce() {
+        FlowEntry<String> e = new FlowEntry<>("d", "j");
+        e.initRetryRemaining(3);
+        assertEquals(3, e.getRetryRemaining());
+        e.initRetryRemaining(10);
+        assertEquals(3, e.getRetryRemaining());
+    }
+
+    @Test
+    void initRetryRemainingWithMinusOneKeepsDefault() {
+        FlowEntry<String> e = new FlowEntry<>("d", "j");
+        assertEquals(-1, e.getRetryRemaining());
+        e.initRetryRemaining(-1);
+        assertEquals(-1, e.getRetryRemaining());
+    }
+    
+    @Test
+    void tryConsumeOneRetryUntilZero() {
+        FlowEntry<String> e = new FlowEntry<>("d", "j");
+        e.initRetryRemaining(2);
+        assertEquals(2, e.getRetryRemaining());
+        org.junit.jupiter.api.Assertions.assertTrue(e.tryConsumeOneRetry());
+        assertEquals(1, e.getRetryRemaining());
+        org.junit.jupiter.api.Assertions.assertTrue(e.tryConsumeOneRetry());
+        assertEquals(0, e.getRetryRemaining());
+        org.junit.jupiter.api.Assertions.assertFalse(e.tryConsumeOneRetry());
+        assertEquals(0, e.getRetryRemaining());
+    }
 }

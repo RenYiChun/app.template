@@ -7,6 +7,7 @@ import lombok.Getter;
 public class FlowEntry<T> implements AutoCloseable {
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> REF_UPDATER;
     private static final AtomicIntegerFieldUpdater<FlowEntry<?>> STATUS_UPDATER;
+    private static final AtomicIntegerFieldUpdater<FlowEntry<?>> RETRY_REMAINING_UPDATER;
     private static final int BIT_LOGIC_CLAIMED = 1;
     
     static {
@@ -14,6 +15,7 @@ public class FlowEntry<T> implements AutoCloseable {
             @SuppressWarnings("unchecked") Class<FlowEntry<?>> clazz = (Class<FlowEntry<?>>) (Class<?>) FlowEntry.class;
             REF_UPDATER = AtomicIntegerFieldUpdater.newUpdater(clazz, "refCnt");
             STATUS_UPDATER = AtomicIntegerFieldUpdater.newUpdater(clazz, "status");
+            RETRY_REMAINING_UPDATER = AtomicIntegerFieldUpdater.newUpdater(clazz, "retryRemaining");
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -23,6 +25,7 @@ public class FlowEntry<T> implements AutoCloseable {
     private final String jobId;
     private volatile int refCnt = 1;
     private volatile int status = 0;
+    private volatile int retryRemaining = -1;
     
     public FlowEntry(T data, String jobId) {
         this.data = data;
@@ -40,6 +43,30 @@ public class FlowEntry<T> implements AutoCloseable {
     /** 包级可见，供单元测试验证 refCnt */
     int getRefCntForTest() {
         return refCnt;
+    }
+    
+    /**
+     * 初始化重试次数。仅当当前为 -1（未初始化）时生效。
+     *
+     * @param maxTimes 最大重试次数；-1 表示不重试，保持默认不变；>=0 时从 -1 设为该值
+     */
+    public void initRetryRemaining(int maxTimes) {
+        if (maxTimes < 0) {
+            return; // -1 表示不重试，保持默认 -1，不覆盖
+        }
+        RETRY_REMAINING_UPDATER.compareAndSet(this, -1, maxTimes);
+    }
+    
+    public boolean tryConsumeOneRetry() {
+        while (true) {
+            int current = retryRemaining;
+            if (current <= 0) {
+                return false;
+            }
+            if (RETRY_REMAINING_UPDATER.compareAndSet(this, current, current - 1)) {
+                return true;
+            }
+        }
     }
     
     /**

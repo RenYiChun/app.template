@@ -64,4 +64,8 @@ public interface FlowStorage<T> {
     default long getRemovalSubmittedCount() {
         return 0L;
     }
+    
+    default boolean requeue(FlowEntry<T> entry) {
+        return deposit(entry);
+    }
 }

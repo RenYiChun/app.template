@@ -2,6 +2,7 @@ package com.lrenyi.template.flow.internal;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -9,6 +10,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BackpressureControllerTest {
@@ -18,7 +20,7 @@ class BackpressureControllerTest {
     private BackpressureController controller;
     
     @Test
-    void awaitSpaceWhenStorageNotFullReturnsImmediately() throws InterruptedException {
+    void awaitSpaceWhenStorageNotFullReturnsImmediately() throws InterruptedException, TimeoutException {
         MockFlowStorage storage = new MockFlowStorage(2, 1);
         controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         
@@ -28,7 +30,7 @@ class BackpressureControllerTest {
     }
     
     @Test
-    void awaitSpaceWhenStopCheckReturnsTrueExitsImmediately() throws InterruptedException {
+    void awaitSpaceWhenStopCheckReturnsTrueExitsImmediately() throws InterruptedException, TimeoutException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
         controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
         AtomicBoolean stopCheckCalled = new AtomicBoolean(false);
@@ -57,6 +59,7 @@ class BackpressureControllerTest {
                 controller.awaitSpace(() -> false);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } catch (TimeoutException ignored) {
             } finally {
                 testDone.countDown();
             }
@@ -86,6 +89,7 @@ class BackpressureControllerTest {
                 released.set(true);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } catch (TimeoutException ignored) {
             }
         });
         producer.start();
@@ -97,6 +101,14 @@ class BackpressureControllerTest {
         
         producer.join(3000);
         assertTrue(released.get(), "Producer should have been released");
+    }
+    
+    @Test
+    void awaitSpaceWhenMaxWaitExceededThrowsTimeoutException() {
+        MockFlowStorage storage = new MockFlowStorage(2, 2);
+        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        
+        assertThrows(TimeoutException.class, () -> controller.awaitSpace(() -> false, 50));
     }
     
     private static class MockFlowStorage implements FlowStorage<Object> {

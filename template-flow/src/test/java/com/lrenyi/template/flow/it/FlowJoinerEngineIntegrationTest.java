@@ -18,6 +18,7 @@ import com.lrenyi.template.flow.QueueJoiner;
 import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.engine.FlowJoinerEngine;
 import com.lrenyi.template.flow.health.FlowHealth;
@@ -26,7 +27,9 @@ import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.storage.CaffeineFlowStorage;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -292,6 +295,32 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
+    void itCaffeineRetryPreRetryHandledByMatchedPair() throws Exception {
+        String jobId = "job-caffeine-retry-preretry-handled";
+        String key = "retry-key";
+        RetryablePairingJoiner joiner = new RetryablePairingJoiner();
+        TemplateConfigProperties.Flow retryFlow = new TemplateConfigProperties.Flow();
+        retryFlow.getLimits().getPerJob().setProducerThreads(10);
+        retryFlow.getLimits().getPerJob().setStorage(1000);
+        retryFlow.getLimits().getPerJob().setCacheTtlMill(5000);
+        
+        var inlet = engine.startPush(jobId, joiner, retryFlow);
+        inlet.push(new PairItem(key, "v2", "B"));
+        awaitCondition(() -> manager.getActiveLauncher(jobId) != null, 10_000);
+        FlowLauncher<?> launcher = manager.getActiveLauncher(jobId);
+        assertNotNull(launcher);
+        awaitCondition(() -> launcher.getStorage().size() >= 1, 10_000);
+        CaffeineFlowStorage<PairItem> storage = (CaffeineFlowStorage<PairItem>) launcher.getStorage();
+        FlowEntry<PairItem> retryEntry = new FlowEntry<>(new PairItem(key, "v1", "A"), jobId);
+        PreRetryResult result = storage.preRetry(key, retryEntry, (FlowLauncher<Object>) launcher);
+        assertEquals(PreRetryResult.HANDLED, result);
+        awaitCondition(() -> joiner.getOnSuccessCount() >= 1, 10_000);
+        inlet.stop(true);
+        
+        assertEquals(1L, joiner.getOnSuccessCount());
+    }
+    
+    @Test
     void itFailureReasonInSnapshot() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-snapshot-reason", joiner, flowConfig);
@@ -503,4 +532,12 @@ class FlowJoinerEngineIntegrationTest {
         awaitCondition(() -> joiner2.getOnConsumeCount() >= 1, 10_000);
         assertEquals(1, joiner2.getOnConsumeCount());
     }
+    
+    private static final class RetryablePairingJoiner extends PairingJoiner {
+        @Override
+        public boolean isRetryable(PairItem item, String jobId) {
+            return true;
+        }
+    }
+    
 }
