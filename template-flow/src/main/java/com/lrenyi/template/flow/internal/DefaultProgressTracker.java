@@ -13,7 +13,9 @@ import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FailureReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Counter;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class DefaultProgressTracker implements ProgressTracker {
     private final FlowManager flowManager;
     private final String jobId;
@@ -163,6 +165,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         if (acquired != term) {
             return;
         }
+        log.debug("Job {} completed, acquired: {}, terminated: {}", jobId, acquired, term);
         finishLock.lock();
         try {
             if (endTimeMillis.get() == 0L) {
