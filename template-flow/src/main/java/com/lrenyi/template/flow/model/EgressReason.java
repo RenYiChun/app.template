@@ -1,10 +1,19 @@
 package com.lrenyi.template.flow.model;
 
 /**
- * 被动出口/失败原因枚举。
- * 用于 {@link com.lrenyi.template.flow.api.FlowJoiner#onFailed} 和进度/指标按原因统计。
+ * 消费数据的出口原因，覆盖所有消费场景。
+ * PAIR_MATCHED 对应 onPairConsumed；SINGLE_CONSUMED 对应单条正常消费；其余对应 onSingleConsumed(reason)（被动/损耗等）。
+ * 统计口径：仅「被动原因」计入 onPassiveEgress / passiveEgressByReason，见 {@link #isPassive()}。
  */
-public enum FailureReason {
+public enum EgressReason {
+    /**
+     * 配对成功，走 onPairConsumed（主动）
+     */
+    PAIR_MATCHED,
+    /**
+     * 单条正常消费，走 onSingleConsumed（主动）
+     */
+    SINGLE_CONSUMED,
     /**
      * 缓存等待配对超时（TTL 到期）
      */
@@ -44,5 +53,13 @@ public enum FailureReason {
     /**
      * 未知或未分类
      */
-    UNKNOWN
+    UNKNOWN;
+    
+    /**
+     * 是否为被动出口原因（用于 ProgressTracker.onPassiveEgress 与 passiveEgressByReason 统计）。
+     * PAIR_MATCHED、SINGLE_CONSUMED 为主动，不计入被动统计。
+     */
+    public boolean isPassive() {
+        return this != PAIR_MATCHED && this != SINGLE_CONSUMED;
+    }
 }

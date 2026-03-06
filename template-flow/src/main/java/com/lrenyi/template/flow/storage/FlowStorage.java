@@ -68,4 +68,14 @@ public interface FlowStorage<T> {
     default boolean requeue(FlowEntry<T> entry) {
         return deposit(entry);
     }
+    
+    /**
+     * 当 source 已结束时，将存储内剩余条目排空并交给 finalizer（SINGLE_CONSUMED）。
+     * 仅 Caffeine 等支持「完成时排空」的实现覆写；默认无操作。
+     *
+     * @return 本次排空并提交的条目数
+     */
+    default int drainRemainingToFinalizer() {
+        return 0;
+    }
 }

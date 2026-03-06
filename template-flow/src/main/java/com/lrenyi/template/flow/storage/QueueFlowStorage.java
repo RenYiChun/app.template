@@ -9,10 +9,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import io.micrometer.core.instrument.Counter;
@@ -34,12 +35,11 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
     
     public QueueFlowStorage(int capacity,
             FlowJoiner<T> joiner,
-            ProgressTracker progressTracker,
-            FlowFinalizer<T> finalizer,
+            ProgressTracker progressTracker, FlowFinalizer<T> finalizer, FlowEgressHandler<T> egressHandler,
             String jobId,
             long drainIntervalMs,
             MeterRegistry meterRegistry) {
-        super(joiner, finalizer, progressTracker, meterRegistry);
+        super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
         
@@ -78,12 +78,12 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
             try {
                 resourceRegistry().releaseGlobalStorage(1);
                 FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+                String key = joiner().joinKey(entry.getData());
                 if (launcher == null) {
-                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                    handleEgress(key, entry, EgressReason.SHUTDOWN, true);
                     continue;
                 }
-                String key = joiner().joinKey(entry.getData());
-                handleEgress(key, entry, FailureReason.TIMEOUT);
+                handleEgress(key, entry, EgressReason.TIMEOUT, false);
             } catch (Throwable t) {
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
@@ -92,7 +92,8 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                        .increment();
                 log.error("Queue drain failed for job {}", entry.getJobId(), t);
                 try {
-                    handlePassiveFailure(entry, FailureReason.SHUTDOWN);
+                    String key = joiner().joinKey(entry.getData());
+                    handleEgress(key, entry, EgressReason.SHUTDOWN, true);
                 } catch (Throwable ignored) {
                     entry.close();
                 }
@@ -112,16 +113,9 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         if (log.isWarnEnabled()) {
             log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
         }
-        Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-               .tag(FlowMetricNames.TAG_JOB_ID, ctx.getJobId())
-               .tag(FlowMetricNames.TAG_REASON, "REJECT")
-               .register(meterRegistry())
-               .increment();
-        Counter.builder(FlowMetricNames.ERRORS)
-               .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_full_rejected")
-               .tag(FlowMetricNames.TAG_PHASE, "STORAGE")
-               .register(meterRegistry())
-               .increment();
+        // 本分支不释放 globalStorage，由调用方 FlowLauncher 在 deposit 返回 false 时统一释放，禁止在此调用 releaseGlobalStorage(1) 以防双释放
+        String key = joiner().joinKey(ctx.getData());
+        handleEgress(key, ctx, EgressReason.REJECT, true);
         return false;
     }
     
@@ -133,22 +127,6 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
     @Override
     public boolean tryRequeue(FlowEntry<T> entry) {
         return doDeposit(entry);
-    }
-    
-    @Override
-    public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
-        try (entry) {
-            joiner().onFailed(entry.getData(), entry.getJobId(), reason);
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, reason.name())
-                   .register(meterRegistry())
-                   .increment();
-        } finally {
-            if (progressTracker() != null) {
-                progressTracker().onPassiveEgress(reason);
-            }
-        }
     }
     
     @Override
@@ -170,15 +148,8 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
             resourceRegistry().releaseGlobalStorage(1);
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, remaining.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, FailureReason.SHUTDOWN.name())
-                   .register(meterRegistry())
-                   .increment();
-            if (progressTracker() != null) {
-                progressTracker().onPassiveEgress(FailureReason.SHUTDOWN);
-            }
-            remaining.close();
+            String key = joiner().joinKey(remaining.getData());
+            handleEgress(key, remaining, EgressReason.SHUTDOWN, true);
         }
         if (log.isDebugEnabled()) {
             log.debug("QueueFlowStorage shut down, drain task cancelled, queue drained.");

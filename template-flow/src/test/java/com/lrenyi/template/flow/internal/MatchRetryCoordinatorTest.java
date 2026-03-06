@@ -6,7 +6,7 @@ import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -51,18 +51,18 @@ class MatchRetryCoordinatorTest {
         
         FlowEntry<String> entry = new FlowEntry<>("b", "job-b");
         coordinator.initRetryRemainingIfNecessary(entry);
-        assertFalse(coordinator.tryConsumeRetry(FailureReason.TIMEOUT, entry));
-        assertTrue(coordinator.tryConsumeRetry(FailureReason.EVICTION, entry));
-        assertFalse(coordinator.tryConsumeRetry(FailureReason.EVICTION, entry));
+        assertFalse(coordinator.tryConsumeRetry(EgressReason.TIMEOUT, entry));
+        assertTrue(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
+        assertFalse(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
         
         double attempted = registry.get(FlowMetricNames.MATCH_RETRY_ATTEMPTED)
                                    .tag(FlowMetricNames.TAG_JOB_ID, "job-b")
-                                   .tag(FlowMetricNames.TAG_REASON, FailureReason.EVICTION.name())
+                                   .tag(FlowMetricNames.TAG_REASON, EgressReason.EVICTION.name())
                                    .counter()
                                    .count();
         double exhausted = registry.get(FlowMetricNames.MATCH_RETRY_EXHAUSTED)
                                    .tag(FlowMetricNames.TAG_JOB_ID, "job-b")
-                                   .tag(FlowMetricNames.TAG_REASON, FailureReason.EVICTION.name())
+                                   .tag(FlowMetricNames.TAG_REASON, EgressReason.EVICTION.name())
                                    .counter()
                                    .count();
         assertEquals(1.0, attempted);
@@ -94,7 +94,13 @@ class MatchRetryCoordinatorTest {
         }
         
         @Override
-        public void onSuccess(String existing, String incoming, String jobId) {
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+        
+        }
+        
+        @Override
+        public void onSingleConsumed(String item, String jobId, EgressReason reason) {
+        
         }
         
         @Override
@@ -105,10 +111,6 @@ class MatchRetryCoordinatorTest {
         @Override
         public boolean isRetryable(String item, String jobId) {
             return retryable;
-        }
-        
-        @Override
-        public void onFailed(String item, String jobId) {
         }
     }
 }

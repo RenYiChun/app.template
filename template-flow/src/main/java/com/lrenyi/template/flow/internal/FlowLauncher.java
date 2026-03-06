@@ -16,7 +16,7 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.PermitPair;
@@ -49,6 +49,7 @@ public class FlowLauncher<T> {
     private final MatchRetryCoordinator<T> matchRetryCoordinator;
     private volatile boolean stopped = false;
     
+    @SuppressWarnings("unchecked")
     private FlowLauncher(String jobId,
             FlowManager flowManager,
             FlowJoiner<T> flowJoiner,
@@ -188,13 +189,9 @@ public class FlowLauncher<T> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
                 if (stopped) {
-                    tracker.onPassiveEgress(FailureReason.SHUTDOWN);
-                    flowJoiner.onFailed(data, jobId, FailureReason.SHUTDOWN);
-                    Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                           .tag(FlowMetricNames.TAG_REASON, "SHUTDOWN")
-                           .register(registry())
-                           .increment();
+                    @SuppressWarnings("unchecked") var handler =
+                            (FlowEgressHandler<T>) resourceContext.getEgressHandler();
+                    handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
                     return;
                 }
                 
@@ -247,6 +244,10 @@ public class FlowLauncher<T> {
     
     public ExecutorService getProducerExecutor() {
         return resourceContext.getProducerExecutor();
+    }
+    
+    public boolean isCompleted() {
+        return taskOrchestrator.tracker().isCompleted();
     }
     
     public void stop(boolean force) {

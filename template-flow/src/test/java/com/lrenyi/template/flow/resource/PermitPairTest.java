@@ -4,6 +4,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,15 +15,15 @@ class PermitPairTest {
         Semaphore global = new Semaphore(2, true);
         Semaphore perJob = new Semaphore(2, true);
         
-        boolean acquired = PermitPair.tryAcquireBoth(global, perJob, 1);
+        boolean acquired = PermitPair.tryAcquireBoth(global, perJob, 1, 50, TimeUnit.MILLISECONDS);
         assertTrue(acquired);
-        assertTrue(global.availablePermits() == 1);
-        assertTrue(perJob.availablePermits() == 1);
+        assertEquals(1, global.availablePermits());
+        assertEquals(1, perJob.availablePermits());
         
         PermitPair pair = PermitPair.createHeld(global, perJob, 1);
         pair.release();
-        assertTrue(global.availablePermits() == 2);
-        assertTrue(perJob.availablePermits() == 2);
+        assertEquals(2, global.availablePermits());
+        assertEquals(2, perJob.availablePermits());
     }
     
     @Test
@@ -30,10 +31,10 @@ class PermitPairTest {
         Semaphore global = new Semaphore(2, true);
         Semaphore perJob = new Semaphore(0, true);
         
-        boolean acquired = PermitPair.tryAcquireBoth(global, perJob, 1);
+        boolean acquired = PermitPair.tryAcquireBoth(global, perJob, 1, 50, TimeUnit.MILLISECONDS);
         assertFalse(acquired);
-        assertTrue(global.availablePermits() == 2);
-        assertTrue(perJob.availablePermits() == 0);
+        assertEquals(2, global.availablePermits());
+        assertEquals(0, perJob.availablePermits());
     }
     
     @Test
@@ -42,10 +43,10 @@ class PermitPairTest {
         
         boolean acquired = PermitPair.tryAcquireBoth(null, perJob, 1);
         assertTrue(acquired);
-        assertTrue(perJob.availablePermits() == 0);
+        assertEquals(0, perJob.availablePermits());
         
         PermitPair.createHeld(null, perJob, 1).release();
-        assertTrue(perJob.availablePermits() == 1);
+        assertEquals(1, perJob.availablePermits());
     }
     
     @Test
@@ -57,8 +58,8 @@ class PermitPairTest {
         PermitPair pair = PermitPair.createHeld(global, perJob, 1);
         pair.release();
         
-        assertTrue(global.availablePermits() == 1);
-        assertTrue(perJob.availablePermits() == 1);
+        assertEquals(1, global.availablePermits());
+        assertEquals(1, perJob.availablePermits());
     }
     
     @Test
@@ -78,6 +79,6 @@ class PermitPairTest {
         
         boolean acquired = PermitPair.tryAcquireBoth(global, perJob, 1, 50, TimeUnit.MILLISECONDS);
         assertFalse(acquired);
-        assertTrue(global.availablePermits() == 1);
+        assertEquals(1, global.availablePermits());
     }
 }

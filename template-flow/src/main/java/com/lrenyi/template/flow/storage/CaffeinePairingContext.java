@@ -2,12 +2,20 @@ package com.lrenyi.template.flow.storage;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowEntry;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
+
+/**
+ * 溢出时回调：(key, 被淘汰的 entry, reason)。
+ * 用于 CaffeinePairingContext 在 put 时发生 overflow 时传入 key。
+ */
+@FunctionalInterface
+interface OverflowHandler<T> {
+    void accept(String key, FlowEntry<T> entry, EgressReason reason);
+}
 
 /**
  * 基于 Caffeine Cache + FlowSlot 的配对上下文实现。
@@ -19,12 +27,12 @@ final class CaffeinePairingContext<T> implements PairingContext<T> {
     private final Cache<String, FlowSlot<T>> cache;
     private final int maxPerKey;
     private final TemplateConfigProperties.Flow.PerJob perJob;
-    private final BiConsumer<FlowEntry<T>, FailureReason> overflowHandler;
-    
+    private final OverflowHandler<T> overflowHandler;
+
     CaffeinePairingContext(Cache<String, FlowSlot<T>> cache,
             int maxPerKey,
             TemplateConfigProperties.Flow.PerJob perJob,
-            BiConsumer<FlowEntry<T>, FailureReason> overflowHandler) {
+            OverflowHandler<T> overflowHandler) {
         this.cache = cache;
         this.maxPerKey = maxPerKey;
         this.perJob = perJob;
@@ -46,7 +54,7 @@ final class CaffeinePairingContext<T> implements PairingContext<T> {
         BiFunction<String, FlowSlot<T>, FlowSlot<T>> slotBiFunction = (k, existing) -> {
             FlowSlot<T> slot = existing != null ? existing : createSlot();
             Optional<FlowSlot.OverflowResult<T>> overflow = slot.append(entry);
-            overflow.ifPresent(r -> overflowHandler.accept(r.entry(), r.reason()));
+            overflow.ifPresent(r -> overflowHandler.accept(k, r.entry(), r.reason()));
             return slot.isEmpty() ? null : slot;
         };
         cache.asMap().compute(key, slotBiFunction);

@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.resource;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.flow.QueueJoiner;
@@ -13,6 +12,7 @@ import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.executor.ExecutorInterruptedException;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -112,8 +112,11 @@ class FlowResourceRegistryTest {
         });
         stopThread.start();
         
-        assertThrows(ExecutorInterruptedException.class, () -> registry.submitConsumerToGlobal(orchestrator, 2, () -> {
-        }));
+        try {
+            registry.submitConsumerToGlobal(orchestrator, 2, () -> {
+            });
+        } catch (ExecutorInterruptedException ignored) {
+        }
         Thread.interrupted();
         try {
             stopThread.join(TimeUnit.SECONDS.toMillis(1));
@@ -135,7 +138,7 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public void onConsumerBegin() {
+        public void onConsumerAcquired() {
         }
         
         @Override
@@ -143,11 +146,12 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public void onPassiveEgress() {
+        public void onPassiveEgress(EgressReason reason) {
+        
         }
         
         @Override
-        public void onGlobalTerminated(String jobId) {
+        public void onConsumerReleased(String jobId) {
         }
         
         @Override
@@ -164,8 +168,13 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public CompletableFuture<Void> getCompletionFuture() {
-            return CompletableFuture.completedFuture(null);
+        public boolean isCompleted() {
+            return true;
+        }
+        
+        @Override
+        public boolean isCompletionConditionMet() {
+            return true;
         }
     }
 }

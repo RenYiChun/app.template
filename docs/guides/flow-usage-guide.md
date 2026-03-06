@@ -183,6 +183,8 @@ get(30,TimeUnit.SECONDS);
 
 可用于监控或测试断言（如完成率、成功率、按原因统计的损耗）。
 
+完成态收敛优化的设计细节与并发风险控制，见 [Flow 完成态收敛优化设计](../design/flow-completion-isCompleted.md)。
+
 ---
 
 ## 7. 失败原因与 onFailed

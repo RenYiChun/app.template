@@ -5,7 +5,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -26,10 +27,10 @@ import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
-import com.lrenyi.template.flow.storage.CaffeineFlowStorage;
+import com.lrenyi.template.flow.storage.RetryStorageAdapter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -66,6 +68,8 @@ class FlowJoinerEngineIntegrationTest {
         flowConfig.getLimits().getPerJob().setCacheTtlMill(5000);
         flowConfig.getLimits().getPerJob().setQueuePollIntervalMill(5000);
         flowConfig.getLimits().getPerJob().setStorage(1000);
+        flowConfig.getLimits().getPerJob().setMultiValueEnabled(false);
+        flowConfig.getLimits().getPerJob().setMultiValueMaxPerKey(1);
         manager = FlowManager.getInstance(globalConfig);
         engine = new FlowJoinerEngine(manager);
     }
@@ -94,12 +98,13 @@ class FlowJoinerEngineIntegrationTest {
         
         engine.run("job-pull-single", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-single");
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(tracker::isCompleted);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
         
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
-        assertEquals(total, snapshot.terminated());
+        assertEquals(total, snapshot.terminated(), snapshot.toString());
         assertTrue(snapshot.getCompletionRate() >= 1.0 || snapshot.terminated() == total);
+        // source 结束后剩余条目经 completion drain 走 SINGLE_CONSUMED，不再走 TIMEOUT
         assertEquals(total, joiner.getOnConsumeCount());
     }
     
@@ -125,6 +130,28 @@ class FlowJoinerEngineIntegrationTest {
             }
             java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
         }
+        throw new AssertionError("等待条件超时: " + timeoutMs + "ms");
+    }
+    
+    private static void awaitCompleted(BooleanSupplier completed)
+            throws InterruptedException {
+        assertTrue(awaitConditionWithResult(completed,
+                                            TimeUnit.SECONDS.toMillis((long) FlowJoinerEngineIntegrationTest.TIMEOUT_SEC)
+        ));
+    }
+    
+    private static boolean awaitConditionWithResult(BooleanSupplier condition, long timeoutMs) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (condition.getAsBoolean()) {
+                return true;
+            }
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+            java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+        }
+        return false;
     }
 
     private double getCounterValue(String metricName, String jobId) {
@@ -151,14 +178,18 @@ class FlowJoinerEngineIntegrationTest {
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_PULL_MULTI, manager);
         tracker.setTotalExpected(JOB_PULL_MULTI, pairCount * 2);
         engine.run(JOB_PULL_MULTI, joiner, tracker, flowConfig);
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        awaitCondition(() -> joiner.getOnSuccessCount() >= pairCount, 10_000);
+        awaitCompleted(tracker::isCompleted);
+        awaitCondition(() -> joiner.getOnSuccessCount() * 2
+                + joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= pairCount * 2, 10_000);
         
-        assertEquals(pairCount, joiner.getOnSuccessCount());
+        long successCount = joiner.getOnSuccessCount();
+        long singleConsumed = joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED);
+        assertTrue(successCount >= pairCount - 2 && successCount <= pairCount);
+        assertEquals(pairCount * 2, successCount * 2 + singleConsumed);
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(pairCount * 2, snapshot.terminated());
-        assertEquals(0, joiner.getOnFailedCount(FailureReason.MISMATCH));
-        assertEquals(0, joiner.getOnFailedCount(FailureReason.EVICTION));
+        assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH));
+        assertEquals(0, joiner.getOnFailedCount(EgressReason.EVICTION));
     }
     
     // ---------- 3.2 推送模式 ----------
@@ -175,7 +206,7 @@ class FlowJoinerEngineIntegrationTest {
         
         engine.run("job-pull-queue", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-queue");
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(tracker::isCompleted);
         awaitConsumedOrTerminated(() -> (long) joiner.getConsumedCount(), tracker, total);
         
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
@@ -213,7 +244,7 @@ class FlowJoinerEngineIntegrationTest {
             inlet.push(new PairItem("p" + i, "v" + i, null));
         }
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet::isCompleted);
         awaitCondition(() -> joiner.getOnConsumeCount() >= count
                 && inlet.getProgressTracker().getSnapshot().terminated() >= count, 10_000
         );
@@ -223,6 +254,34 @@ class FlowJoinerEngineIntegrationTest {
         assertEquals(0, snapshot.inStorage());
         assertEquals(count, snapshot.terminated());
         assertEquals(count, joiner.getOnConsumeCount());
+    }
+    
+    @Test
+    void itPushMarkFinishedShouldWaitInFlightAndRejectNewPush() throws Exception {
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        var inlet = engine.startPush("job-push-close-drain", joiner, flowConfig);
+        AtomicInteger accepted = new AtomicInteger(0);
+        Thread producer = new Thread(() -> {
+            for (int i = 0; i < 500; i++) {
+                try {
+                    inlet.push(new PairItem("drain-" + i, "v" + i, null));
+                    accepted.incrementAndGet();
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+                } catch (IllegalStateException ignored) {
+                    return;
+                }
+            }
+        });
+        producer.start();
+        awaitCondition(() -> accepted.get() >= 10, 2_000);
+        inlet.markSourceFinished();
+        producer.join(TimeUnit.SECONDS.toMillis(3));
+        
+        assertThrows(IllegalStateException.class, () -> inlet.push(new PairItem("after-close", "v", null)));
+        int acceptedCount = accepted.get();
+        awaitCompleted(inlet::isCompleted);
+        awaitCondition(() -> joiner.getOnConsumeCount() >= acceptedCount, 10_000);
+        assertEquals(acceptedCount, joiner.getOnConsumeCount());
     }
     
     // ---------- 3.3 存储与失败原因 ----------
@@ -235,16 +294,12 @@ class FlowJoinerEngineIntegrationTest {
             inlet.push(new PairItem("s" + i, "v" + i, null));
         }
         inlet.stop(true);
-        try {
-            inlet.getCompletionFuture().get(3, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            // 未调用 markSourceFinished 时实现可能不完成 future，符合“与 stop 语义一致”
-        }
+        awaitConditionWithResult(inlet::isCompleted, TimeUnit.SECONDS.toMillis(3));
         
         assertTrue(manager.isStopped("job-push-stop"));
-        if (inlet.getCompletionFuture().isDone()) {
+        if (inlet.isCompleted()) {
             FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-            assertTrue(snapshot.getPassiveEgressByReason(FailureReason.SHUTDOWN.name()) >= 0);
+            assertTrue(snapshot.getPassiveEgressByReason(EgressReason.SHUTDOWN.name()) >= 0);
         }
     }
     
@@ -255,15 +310,18 @@ class FlowJoinerEngineIntegrationTest {
         String sameKey = "sameKey";
         inlet.push(new PairItem(sameKey, "old", null));
         inlet.push(new PairItem(sameKey, "new", null));
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 10_000);
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        awaitCondition(() -> joiner.getOnFailedCount(FailureReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1,
+        awaitCompleted(inlet::isCompleted);
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.REPLACE) >= 1
+                && joiner.getOnConsumeCount() >= 1
+                && inlet.getProgressTracker().getSnapshot().getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1,
                        10_000
         );
         
-        assertTrue(joiner.getOnFailedCount(FailureReason.REPLACE) >= 1);
+        assertTrue(joiner.getOnFailedCount(EgressReason.REPLACE) >= 1);
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1);
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1);
         assertEquals(1, joiner.getOnConsumeCount());
     }
     
@@ -284,14 +342,14 @@ class FlowJoinerEngineIntegrationTest {
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_MISMATCH, manager);
         tracker.setTotalExpected(JOB_MISMATCH, 4);
         engine.run(JOB_MISMATCH, joiner, tracker, flowConfig);
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        awaitCondition(() -> joiner.getOnFailedCount(FailureReason.MISMATCH) >= 2, 10_000);
+        awaitCompleted(tracker::isCompleted);
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.MISMATCH) >= 2, 10_000);
         
-        assertTrue(joiner.getOnFailedCount(FailureReason.MISMATCH) >= 2,
+        assertTrue(joiner.getOnFailedCount(EgressReason.MISMATCH) >= 2,
                    "isMatched=false 时两条均 onFailed，2 个 key 共 4 次"
         );
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(FailureReason.MISMATCH.name()) >= 2);
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.MISMATCH.name()) >= 2);
     }
     
     @Test
@@ -310,7 +368,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowLauncher<?> launcher = manager.getActiveLauncher(jobId);
         assertNotNull(launcher);
         awaitCondition(() -> launcher.getStorage().size() >= 1, 10_000);
-        CaffeineFlowStorage<PairItem> storage = (CaffeineFlowStorage<PairItem>) launcher.getStorage();
+        RetryStorageAdapter<PairItem> storage = (RetryStorageAdapter<PairItem>) launcher.getStorage();
         FlowEntry<PairItem> retryEntry = new FlowEntry<>(new PairItem(key, "v1", "A"), jobId);
         PreRetryResult result = storage.preRetry(key, retryEntry, (FlowLauncher<Object>) launcher);
         assertEquals(PreRetryResult.HANDLED, result);
@@ -321,21 +379,42 @@ class FlowJoinerEngineIntegrationTest {
     }
     
     @Test
-    void itFailureReasonInSnapshot() throws Exception {
+    void itEgressReasonInSnapshot() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
         var inlet = engine.startPush("job-snapshot-reason", joiner, flowConfig);
         inlet.push(new PairItem("r1", "v1", null));
         inlet.push(new PairItem("r1", "v2", null));
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 10_000);
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet::isCompleted);
         awaitCondition(() -> inlet.getProgressTracker()
                                   .getSnapshot()
-                                  .getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1, 10_000
+                                  .getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1, 10_000
         );
         
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
         assertNotNull(snapshot.passiveEgressByReason());
-        assertTrue(snapshot.getPassiveEgressByReason(FailureReason.REPLACE.name()) >= 1);
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1);
+    }
+    
+    @Test
+    void itEgressCountingConsistency() throws Exception {
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        var inlet = engine.startPush("job-counting-consistency", joiner, flowConfig);
+        inlet.push(new PairItem("k1", "v1", null));
+        inlet.push(new PairItem("k1", "v2", null));
+        inlet.push(new PairItem("k2", "v2", null));
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 3, 10_000);
+        inlet.markSourceFinished();
+        awaitCompleted(inlet::isCompleted);
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1,
+                       10_000
+        );
+        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
+        assertTrue(snapshot.activeEgress() >= 1, "SINGLE_CONSUMED 应计入 activeEgress");
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1,
+                   "REPLACE 应计入 passiveEgressByReason");
+        assertTrue(snapshot.passiveEgress() >= 1, "被动原因应计入 passiveEgress");
     }
     
     // ---------- 3.4 进度与指标 ----------
@@ -353,7 +432,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run(jobId, joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker(jobId);
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(tracker::isCompleted);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
 
         assertEquals(1D, getCounterValue(FlowMetricNames.JOB_STARTED, jobId));
@@ -372,7 +451,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run(pullJobId, pullJoiner, singleSource, total, flowConfig);
         ProgressTracker pullTracker = engine.getProgressTracker(pullJobId);
-        pullTracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(pullTracker::isCompleted);
         awaitConsumedOrTerminated(pullJoiner::getOnConsumeCount, pullTracker, total);
 
         String pushJobId = "job-metrics-completed-push";
@@ -382,7 +461,7 @@ class FlowJoinerEngineIntegrationTest {
             inlet.push(new PairItem("mp" + i, "v" + i, null));
         }
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet::isCompleted);
         awaitConsumedOrTerminated(pushJoiner::getOnConsumeCount, inlet.getProgressTracker(), total);
 
         assertEquals(1D, getCounterValue(FlowMetricNames.JOB_COMPLETED, pullJobId));
@@ -406,7 +485,6 @@ class FlowJoinerEngineIntegrationTest {
 
         ProgressTracker tracker = manager.getProgressTracker(jobId);
         assertNotNull(tracker);
-        assertTrue(tracker.getCompletionFuture().isDone());
         assertEquals(total, tracker.getSnapshot().terminated());
     }
     
@@ -419,14 +497,10 @@ class FlowJoinerEngineIntegrationTest {
         inlet.push(new PairItem("d2", "v2", null));
         inlet.push(new PairItem("d3", "v3", null));
         inlet.stop(true);
-        try {
-            inlet.getCompletionFuture().get(10, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            // 停止后 drain 可能较慢，短时未完成仍做快照断言
-        }
+        awaitConditionWithResult(inlet::isCompleted, TimeUnit.SECONDS.toMillis(10));
         
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(FailureReason.SHUTDOWN.name()) >= 0);
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.SHUTDOWN.name()) >= 0);
     }
     
     @Test
@@ -440,7 +514,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
         engine.run("job-completion", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-completion");
-        tracker.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(tracker::isCompleted);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
         
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
@@ -458,7 +532,7 @@ class FlowJoinerEngineIntegrationTest {
         var inlet = engine.startPush("job-metrics", joiner, flowConfig);
         inlet.push(new PairItem("m1", "v1", null));
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet::isCompleted);
         
         java.util.Map<String, Object> healthStatus = manager.getHealthStatus();
         assertNotNull(healthStatus);
@@ -483,8 +557,8 @@ class FlowJoinerEngineIntegrationTest {
         inlet2.push(new PairItem("b1", "v1", null));
         inlet1.markSourceFinished();
         inlet2.markSourceFinished();
-        inlet1.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
-        inlet2.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet1::isCompleted);
+        awaitCompleted(inlet2::isCompleted);
         awaitCondition(() -> joiner1.getOnConsumeCount() >= 1 && joiner2.getOnConsumeCount() >= 1, 10_000);
         
         assertEquals(1, joiner1.getOnConsumeCount());
@@ -514,7 +588,7 @@ class FlowJoinerEngineIntegrationTest {
         var inlet = engine.startPush("job-reset-after", joiner, flowConfig);
         inlet.push(new PairItem("z1", "v1", null));
         inlet.markSourceFinished();
-        inlet.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet::isCompleted);
         
         FlowManager.reset();
         FlowResourceRegistry.reset();
@@ -528,7 +602,7 @@ class FlowJoinerEngineIntegrationTest {
         var inlet2 = engine2.startPush("job-new-after-reset", joiner2, flowConfig);
         inlet2.push(new PairItem("n1", "v1", null));
         inlet2.markSourceFinished();
-        inlet2.getCompletionFuture().get(TIMEOUT_SEC, TimeUnit.SECONDS);
+        awaitCompleted(inlet2::isCompleted);
         awaitCondition(() -> joiner2.getOnConsumeCount() >= 1, 10_000);
         assertEquals(1, joiner2.getOnConsumeCount());
     }

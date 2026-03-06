@@ -44,12 +44,12 @@ public final class PermitPair {
             perJobSemaphore.acquire(permits);
             return true;
         } catch (InterruptedException e) {
-            if (globalAcquired && globalSemaphore != null) {
+            if (globalAcquired) {
                 globalSemaphore.release(permits);
             }
             throw e;
         } catch (Exception e) {
-            if (globalAcquired && globalSemaphore != null) {
+            if (globalAcquired) {
                 globalSemaphore.release(permits);
             }
             return false;
