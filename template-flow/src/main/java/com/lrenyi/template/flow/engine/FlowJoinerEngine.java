@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.engine;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -10,6 +11,7 @@ import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
@@ -17,6 +19,7 @@ import com.lrenyi.template.flow.internal.FlowInletImpl;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.model.FlowConstants;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +64,26 @@ public class FlowJoinerEngine {
             Thread.onSpinWait();
         }
         awaitSubSourcesFinished(activeSubSources);
+        awaitInProductionDrained(launcher);
         launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
+    }
+    
+    private <T> void awaitInProductionDrained(FlowLauncher<T> launcher) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS);
+        while (!launcher.isStopped()) {
+            FlowProgressSnapshot snapshot = launcher.getTaskOrchestrator().tracker().getSnapshot();
+            if (snapshot.getInProductionCount() <= 0) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                return;
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+            if (Thread.interrupted()) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
     
     private void awaitSubSourcesFinished(AtomicInteger activeSubSources) {

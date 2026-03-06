@@ -79,14 +79,14 @@ public final class PermitPair {
             }
             long remaining = deadline - System.nanoTime();
             if (!perJobSemaphore.tryAcquire(permits, remaining, TimeUnit.NANOSECONDS)) {
-                if (globalAcquired && globalSemaphore != null) {
+                if (globalAcquired) {
                     globalSemaphore.release(permits);
                 }
                 return false;
             }
             return true;
         } catch (InterruptedException e) {
-            if (globalAcquired && globalSemaphore != null) {
+            if (globalAcquired) {
                 globalSemaphore.release(permits);
             }
             throw e;

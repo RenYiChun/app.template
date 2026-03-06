@@ -153,6 +153,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public boolean isCompletionConditionMet() {
+        drainStorageIfReady();
         return computeCompletionState().completionConditionMet();
     }
     
@@ -161,14 +162,7 @@ public class DefaultProgressTracker implements ProgressTracker {
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0。
      */
     private void checkCompletion() {
-        if (sourceFinished) {
-            FlowLauncher<Object> launcher = flowManager.getActiveLauncher(jobId);
-            if (launcher != null) {
-                FlowStorage<?> storage = launcher.getStorage();
-                int remain = storage.drainRemainingToFinalizer();
-                log.debug("the storage is draining, remain is {}", remain);
-            }
-        }
+        drainStorageIfReady();
         CompletionState state = computeCompletionState();
         if (!state.completionConditionMet()) {
             return;
@@ -219,8 +213,9 @@ public class DefaultProgressTracker implements ProgressTracker {
             inStorage = activeLauncher.getStorage().size();
         }
         long active = activeConsumers.sum();
+        long passive = passiveEgress.sum();
         long inProduction = acquired - released;
-        long pendingConsumer = released - inStorage - active - term;
+        long pendingConsumer = released - inStorage - active - term - passive;
         boolean completionConditionMet =
                 sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer <= 0L;
         return new CompletionState(acquired,
@@ -232,6 +227,23 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    pendingConsumer,
                                    completionConditionMet
         );
+    }
+    
+    private void drainStorageIfReady() {
+        if (!sourceFinished) {
+            return;
+        }
+        long inProduction = productionAcquired.sum() - productionReleased.sum();
+        if (inProduction > 0L) {
+            return;
+        }
+        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(jobId);
+        if (launcher == null) {
+            return;
+        }
+        FlowStorage<?> storage = launcher.getStorage();
+        int remain = storage.drainRemainingToFinalizer();
+        log.debug("the storage is draining, remain is {}", remain);
     }
     
     private record CompletionState(long acquired,
