@@ -179,15 +179,12 @@ class FlowJoinerEngineIntegrationTest {
         tracker.setTotalExpected(JOB_PULL_MULTI, pairCount * 2);
         engine.run(JOB_PULL_MULTI, joiner, tracker, flowConfig);
         awaitCompleted(tracker::isCompleted);
-        awaitCondition(() -> joiner.getOnSuccessCount() * 2
-                + joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= pairCount * 2, 10_000);
+        awaitCondition(() -> joiner.getOnSuccessCount() >= pairCount, 10_000);
         
-        long successCount = joiner.getOnSuccessCount();
-        long singleConsumed = joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED);
-        assertTrue(successCount >= pairCount - 2 && successCount <= pairCount);
-        assertEquals(pairCount * 2, successCount * 2 + singleConsumed);
+        assertEquals(pairCount, joiner.getOnSuccessCount());
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(pairCount * 2, snapshot.terminated());
+        assertEquals(0, joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED));
         assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH));
         assertEquals(0, joiner.getOnFailedCount(EgressReason.EVICTION));
     }
