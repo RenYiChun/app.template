@@ -4,7 +4,6 @@ import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -103,9 +102,10 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
-            FlowEntry<T> partner = findAndRemoveExisting(key);
-            if (partner != null) {
-                matchedPairProcessor.processMatchedPair(partner, entry, launcher);
+            PairingContext<T> ctx = new CaffeinePairingContext<>(cache);
+            Optional<FlowEntry<T>> partner = joiner().getPairingStrategy().findPartner(key, entry, ctx);
+            if (partner.isPresent()) {
+                matchedPairProcessor.processMatchedPair(partner.get(), entry, launcher);
                 return PreRetryResult.HANDLED;
             }
             return PreRetryResult.PROCEED_TO_REQUEUE;
@@ -127,15 +127,6 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             entry.close();
         }
         return requeued;
-    }
-    
-    private FlowEntry<T> findAndRemoveExisting(String key) {
-        final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
-        cache.asMap().computeIfPresent(key, (k, existing) -> {
-            matchFound.set(existing);
-            return null;
-        });
-        return matchFound.get();
     }
     
     private boolean acquireGlobalStorageForRequeue(String jobId) {
@@ -230,16 +221,13 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
-            final AtomicReference<FlowEntry<T>> matchFound = new AtomicReference<>();
-            cache.asMap().compute(key, (k, existing) -> {
-                                      if (existing != null) {
-                                          matchFound.set(existing);
-                                          return null;
-                                      }
-                                      return entry;
-                                  }
-            );
-            return matchFound.get();
+            PairingContext<T> ctx = new CaffeinePairingContext<>(cache);
+            Optional<FlowEntry<T>> partner = joiner().getPairingStrategy().findPartner(key, entry, ctx);
+            if (partner.isEmpty()) {
+                ctx.put(key, entry);
+                return null;
+            }
+            return partner.get();
         } finally {
             stripe.unlock();
         }

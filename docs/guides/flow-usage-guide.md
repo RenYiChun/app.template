@@ -21,7 +21,30 @@ Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇
 - **必实现**：`getDataType()`、`joinKey(T)`、`sourceProvider()`（推送模式可用 `FlowSourceAdapters.emptyProvider()`）、
   `onSuccess(T, T, String)`、`onFailed(T, String)`；建议同时实现 `onFailed(T, String, FailureReason)` 以便按原因统计。
 - **可选**：`needMatched()` 返回 `true` 表示双流配对；`isMatched(existing, incoming)` 做配对校验；`onConsume(T, String)`
-  在单条覆盖或队列模式下被调用。
+  在单条覆盖或队列模式下被调用；`getPairingStrategy()` 覆写可自定义配对查找逻辑。
+
+### 配对策略（PairingStrategy）
+
+仅当 `needMatched()` 为 `true` 时生效。默认采用 **key 等值 1:1 配对**：同 `joinKey` 的条目相遇即尝试配对，`isMatched` 做业务校验。
+
+业务可覆写 `FlowJoiner.getPairingStrategy()` 以实现自定义配对语义，例如：
+
+- **多 key 尝试**：对 incoming 派生多个候选 key，依次 `ctx.getAndRemove(k)` 直到命中
+- **自定义候选选择**：在 `PairingContext` 提供的 `getAndRemove`/`put` 基础上实现更复杂逻辑
+
+```java
+@Override
+public PairingStrategy<MyItem> getPairingStrategy() {
+    return (key, incoming, ctx) -> {
+        // 示例：多 key 尝试
+        for (String k : deriveCandidateKeys(incoming.getData())) {
+            Optional<FlowEntry<MyItem>> p = ctx.getAndRemove(k);
+            if (p.isPresent()) return p;
+        }
+        return Optional.empty();  // 未找到，incoming 将由存储层存入等待
+    };
+}
+```
 
 ### 存储类型（FlowStorageType）
 
@@ -283,7 +306,8 @@ get(30,TimeUnit.SECONDS);
     - `com.lrenyi.template.flow.model`：FlowStorageType
     - `com.lrenyi.template.flow.context`：FlowProgressSnapshot
     - `com.lrenyi.template.flow.manager`：FlowManager
-    - `com.lrenyi.template.flow.api`：FlowSource、FlowSourceProvider、FlowSourceAdapters
+    - `com.lrenyi.template.flow.api`：FlowSource、FlowSourceProvider、FlowSourceAdapters、PairingStrategy
+    - `com.lrenyi.template.flow.storage`：PairingContext、DefaultKeyEqualsPairingStrategy
     - `com.lrenyi.template.flow.health`：FlowHealth、HealthStatus
     - `com.lrenyi.template.flow.metrics`：FlowMetricNames
 - **集成测试**：`template-flow/src/test/java/com/lrenyi/template/flow/it/FlowJoinerEngineIntegrationTest.java`
