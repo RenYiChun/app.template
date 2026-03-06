@@ -20,12 +20,12 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
     
     @Override
     public void push(T item) {
-        if (sourceClosing.get() || sourceClosed.get()) {
+        if (sourceClosed.get()) {
             throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
         }
         inFlightPush.incrementAndGet();
         try {
-            if (sourceClosing.get() || sourceClosed.get()) {
+            if (sourceClosed.get()) {
                 throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
             }
             launcher.launch(item);
