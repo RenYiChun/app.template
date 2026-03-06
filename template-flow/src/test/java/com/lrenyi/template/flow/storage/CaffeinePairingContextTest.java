@@ -82,4 +82,26 @@ class CaffeinePairingContextTest {
         assertTrue(removed2.isPresent());
         assertEquals("second", removed2.get().getData());
     }
+    
+    @Test
+    void putBackPartnerAtEndAppendsToSlot() {
+        FlowEntry<String> a = new FlowEntry<>("a", "job-1");
+        FlowEntry<String> b = new FlowEntry<>("b", "job-1");
+        ctx.put("k1", a);
+        ctx.put("k1", b);
+        
+        Optional<FlowEntry<String>> first = ctx.getAndRemove("k1");
+        assertTrue(first.isPresent());
+        assertEquals("a", first.get().getData());
+        
+        ctx.putBackPartnerAtEnd("k1", first.get());
+        
+        Optional<FlowEntry<String>> second = ctx.getAndRemove("k1");
+        assertTrue(second.isPresent());
+        assertEquals("b", second.get().getData());
+        
+        Optional<FlowEntry<String>> third = ctx.getAndRemove("k1");
+        assertTrue(third.isPresent());
+        assertEquals("a", third.get().getData());
+    }
 }

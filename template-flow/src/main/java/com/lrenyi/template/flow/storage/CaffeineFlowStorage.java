@@ -9,7 +9,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
@@ -175,17 +177,12 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
-            CaffeinePairingContext<T> ctx =
-                    new CaffeinePairingContext<>(cache, maxPerKey, perJob, this::handleOverflowDropped);
-            Optional<FlowEntry<T>> partner = joiner().getPairingStrategy().findPartner(key, entry, ctx);
-            if (partner.isPresent()) {
-                if (joiner().isMatched(partner.get().getData(), entry.getData())) {
-                    matchedPairProcessor.processMatchedPair(partner.get(), entry, launcher);
-                    return PreRetryResult.HANDLED;
-                }
-                ctx.putBackPartner(key, partner.get());
-            }
-            return PreRetryResult.PROCEED_TO_REQUEUE;
+            boolean matched = tryMatchFromSlot(key,
+                                               entry,
+                                               (p, e) -> matchedPairProcessor.processMatchedPair(p, e, launcher),
+                                               c -> {}
+            );
+            return matched ? PreRetryResult.HANDLED : PreRetryResult.PROCEED_TO_REQUEUE;
         } finally {
             stripe.unlock();
         }
@@ -303,19 +300,8 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
         stripe.lock();
         try {
-            CaffeinePairingContext<T> ctx;
-            ctx = new CaffeinePairingContext<>(cache, maxPerKey, perJob, this::handleOverflowDropped);
-            Optional<FlowEntry<T>> partner = joiner().getPairingStrategy().findPartner(key, entry, ctx);
-            if (partner.isPresent()) {
-                if (joiner().isMatched(partner.get().getData(), entry.getData())) {
-                    processMatchedPair(partner.get(), entry);
-                    return false;
-                }
-                ctx.putWithMismatch(key, partner.get(), entry);
-                return true;
-            }
-            ctx.put(key, entry);
-            return true;
+            boolean matched = tryMatchFromSlot(key, entry, this::processMatchedPair, c -> c.put(key, entry));
+            return !matched;
         } finally {
             stripe.unlock();
         }
@@ -358,6 +344,57 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             return;
         }
         matchedPairProcessor.processMatchedPair(partner, entry, launcher);
+    }
+    
+    /**
+     * 多候选尝试配对：依次尝试 slot 内候选，直到匹配或全部试完。
+     *
+     * @param key               聚合键
+     * @param entry             待配对的 entry（incoming 或重入 entry）
+     * @param matchedPairHandler 匹配成功时的处理逻辑
+     * @param onNoMatch         无匹配时的回调（如 handleMatchingMode 需 put，preRetry 可空操作）
+     * @return true 若找到匹配并处理，false 若无匹配
+     */
+    private boolean tryMatchFromSlot(String key,
+            FlowEntry<T> entry,
+            BiConsumer<FlowEntry<T>, FlowEntry<T>> matchedPairHandler,
+            Consumer<PairingContext<T>> onNoMatch) {
+        CaffeinePairingContext<T> ctx =
+                new CaffeinePairingContext<>(cache, maxPerKey, perJob, this::handleOverflowDropped);
+        List<FlowEntry<T>> candidates = new ArrayList<>();
+        while (true) {
+            Optional<FlowEntry<T>> partner = ctx.getAndRemove(key);
+            if (partner.isEmpty()) {
+                break;
+            }
+            candidates.add(partner.get());
+        }
+        for (FlowEntry<T> partner : candidates) {
+            if (joiner().isMatched(partner.getData(), entry.getData())) {
+                matchedPairHandler.accept(partner, entry);
+                if (!perJob.isPairingMultiMatchEnabled()) {
+                    for (FlowEntry<T> e : candidates) {
+                        if (e != partner) {
+                            e.resetRetryToIneligible();
+                            resourceRegistry().releaseGlobalStorage(1);
+                            handlePassiveFailure(e, FailureReason.CLEARED_AFTER_PAIR_SUCCESS);
+                        }
+                    }
+                } else {
+                    for (FlowEntry<T> e : candidates) {
+                        if (e != partner) {
+                            ctx.putBackPartnerAtEnd(key, e);
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+        for (FlowEntry<T> e : candidates) {
+            ctx.putBackPartnerAtEnd(key, e);
+        }
+        onNoMatch.accept(ctx);
+        return false;
     }
     
     private FlowSlot<T> createNewSlot() {

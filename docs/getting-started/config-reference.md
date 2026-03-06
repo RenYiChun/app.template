@@ -57,6 +57,7 @@ app:
           multi-value-enabled: false   # 是否开启同 key 多 value，默认 false
           multi-value-max-per-key: 1   # 单 key 最大 value 数，开启后建议 16
           multi-value-overflow-policy: DROP_OLDEST  # 超限策略：DROP_OLDEST / DROP_NEWEST
+          pairing-multi-match-enabled: false  # 是否启用多对匹配；false 时配对成功后清空槽位内剩余条目并立即驱逐（CLEARED_AFTER_PAIR_SUCCESS）；true 时剩余条目继续留在槽位
 ```
 
 启动时 `validateConfig()` 会校验上述必填项，不满足时抛出 `IllegalArgumentException` 并中止启动。详见 [Flow 配置优化与全局化设计](../design/flow-limits-globalization.md)。同 key 多 value 详细说明见 [Flow 同 Key 多 Value 使用指南](../guides/flow-multi-value-guide.md)。

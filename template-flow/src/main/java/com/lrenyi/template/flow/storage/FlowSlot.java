@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.model.FailureReason;
@@ -107,6 +108,22 @@ public final class FlowSlot<T> {
     public void offerFirstAll(List<FlowEntry<T>> entries) {
         for (int i = entries.size() - 1; i >= 0; i--) {
             deque.addFirst(entries.get(i));
+        }
+    }
+    
+    /**
+     * 将 entry 放回队尾（用于多候选尝试时，不匹配的 partner 放回以便尝试下一个）。
+     */
+    public void offerLast(FlowEntry<T> entry) {
+        deque.addLast(entry);
+    }
+    
+    /**
+     * 对槽位内所有 entry 执行操作（只读，不修改槽位）。
+     */
+    public void forEachEntry(Consumer<FlowEntry<T>> action) {
+        for (FlowEntry<T> e : deque) {
+            action.accept(e);
         }
     }
 }
