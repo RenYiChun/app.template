@@ -325,7 +325,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
      * @param entry             待配对的 entry（incoming 或重入 entry）
      * @param matchedPairHandler 匹配成功时的处理逻辑
      * @param onNoMatch         无匹配时的回调（如 handleMatchingMode 需 put，preRetry 可空操作）
-     * @return true 若找到匹配并处理，false 若无匹配
+     * @return true 数据已保存进缓存，false 数据没有入缓存
      */
     private boolean tryMatchFromSlot(String key,
             FlowEntry<T> entry,
@@ -341,29 +341,32 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             }
             candidates.add(partner.get());
         }
-        // 有候选时始终交给 handler：runnable 内再根据 isMatched 走 onPairConsumed 或 onSingleConsumed(MISMATCH)
-        if (!candidates.isEmpty()) {
-            FlowEntry<T> partner = candidates.getFirst();
-            matchedPairHandler.accept(partner, entry);
-            if (!perJob.isPairingMultiMatchEnabled()) {
-                for (FlowEntry<T> e : candidates) {
-                    if (e != partner) {
-                        e.resetRetryToIneligible();
-                        resourceRegistry().releaseGlobalStorage(1);
-                        handleEgress(key, e, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
-                    }
-                }
-            } else {
-                for (FlowEntry<T> e : candidates) {
-                    if (e != partner) {
-                        ctx.putBackPartnerAtEnd(key, e);
-                    }
-                }
+        boolean matched = false;
+        FlowEntry<T> parent = null;
+        for (FlowEntry<T> candidate : candidates) {
+            matched = joiner().isMatched(candidate.getData(), entry.getData());
+            if (matched) {
+                matchedPairHandler.accept(candidate, entry);
+                parent = candidate;
+                break;
             }
-            return true;
         }
-        onNoMatch.accept(ctx);
-        return false;
+        for (FlowEntry<T> next : candidates) {
+            if (parent != null && parent.equals(next)) {
+                continue;
+            }
+            if (matched && !perJob.isPairingMultiMatchEnabled()) {
+                next.resetRetryToIneligible();
+                resourceRegistry().releaseGlobalStorage(1);
+                handleEgress(key, next, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
+            } else {
+                ctx.putBackPartnerAtEnd(key, next);
+            }
+        }
+        if (!matched) {
+            onNoMatch.accept(ctx);
+        }
+        return matched;
     }
     
     private FlowSlot<T> createNewSlot() {
