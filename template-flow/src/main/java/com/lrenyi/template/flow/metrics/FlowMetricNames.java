@@ -55,8 +55,6 @@ public final class FlowMetricNames {
      * 高：消费端饱和导致 acquire 久，或 onSuccess 回调慢。
      */
     public static final String MATCH_DURATION = PREFIX + ".match.duration";
-    /** 获取全局消费信号量的耗时。高：消费端资源争用严重 */
-    public static final String ACQUIRE_DURATION = PREFIX + ".acquire.duration";
     /**
      * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onConsume 完成。
      * 高：消费执行器积压或 onConsume 回调慢。
@@ -115,6 +113,8 @@ public final class FlowMetricNames {
     public static final String LIMITS_STORAGE_GLOBAL_USED = LIMITS_PREFIX + ".storage.global.used";
     /** 存储容量：全主机容量上限 */
     public static final String LIMITS_STORAGE_GLOBAL_LIMIT = LIMITS_PREFIX + ".storage.global.limit";
+    /** 多值模式：丢弃/覆盖计数，reason 标签 overflow_drop_oldest / overflow_drop_newest */
+    public static final String STORAGE_MULTI_VALUE_DISCARD_TOTAL = PREFIX + ".storage.multi-value.discard.total";
     /** 配对重入：尝试次数 */
     public static final String MATCH_RETRY_ATTEMPTED = PREFIX + ".match.retry.attempted";
     /** 配对重入：成功回灌次数 */

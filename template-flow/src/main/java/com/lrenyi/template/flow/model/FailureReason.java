@@ -18,6 +18,14 @@ public enum FailureReason {
      */
     REPLACE,
     /**
+     * 多值模式超限：淘汰最老项
+     */
+    OVERFLOW_DROP_OLDEST,
+    /**
+     * 多值模式超限：丢弃新入项
+     */
+    OVERFLOW_DROP_NEWEST,
+    /**
      * 配对逻辑不匹配（isMatched 返回 false）
      */
     MISMATCH,
