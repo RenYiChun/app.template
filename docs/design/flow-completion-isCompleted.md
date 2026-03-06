@@ -85,7 +85,7 @@
 
 ### 7.1 事件触发点
 
-- `onGlobalTerminated(...)`：数据终结时触发完成检测。
+- `onConsumerReleased(...)`：数据终结时触发完成检测。
 - `onPassiveEgress(...)`：发生被动出口（TIMEOUT/EVICTION/REPLACE/SHUTDOWN 等）时触发完成检测，并将其计入 `terminated`。
 - `markSourceFinished(...)`：Source 结束时置位，并允许完成检测继续推进。
 

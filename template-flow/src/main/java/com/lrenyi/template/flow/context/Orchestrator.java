@@ -42,7 +42,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
     }
     
     private void runReleaseHooks() {
-        tracker.onGlobalTerminated(jobId);
+        tracker.onConsumerReleased(jobId);
         
         Counter.builder(FlowMetricNames.TERMINATED)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
@@ -159,7 +159,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
             }
         }
         registration.increment();
-        tracker.onConsumerBegin();
+        tracker.onConsumerAcquired();
 
         long acquireLatency = System.currentTimeMillis() - acquireStartTime;
         Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)

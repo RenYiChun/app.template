@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -19,18 +21,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CaffeinePairingContextTest {
     private Cache<String, FlowSlot<String>> cache;
     private CaffeinePairingContext<String> ctx;
-    private TemplateConfigProperties.Flow.PerJob perJob;
-
+    
     @BeforeEach
     void setUp() {
         cache = Caffeine.newBuilder()
                         .maximumSize(100)
                         .expireAfterWrite(10, TimeUnit.SECONDS)
                         .build();
-        perJob = new TemplateConfigProperties.Flow.PerJob();
+        TemplateConfigProperties.Flow.PerJob perJob = new TemplateConfigProperties.Flow.PerJob();
         perJob.setMultiValueEnabled(true);
         perJob.setMultiValueMaxPerKey(16);
-        ctx = new CaffeinePairingContext<>(cache, 16, perJob, (e, r) -> {});
+        ctx = new CaffeinePairingContext<>(cache, 16, perJob, (key, entry, reason) -> {});
     }
 
     @Test
@@ -51,7 +52,7 @@ class CaffeinePairingContextTest {
 
         assertTrue(result.isPresent());
         assertEquals("data", result.get().getData());
-        assertTrue(cache.getIfPresent("k1") == null);
+        assertNull(cache.getIfPresent("k1"));
     }
     
     @Test
@@ -60,9 +61,9 @@ class CaffeinePairingContextTest {
         ctx.put("k1", entry);
 
         FlowSlot<String> slot = cache.getIfPresent("k1");
-        assertTrue(slot != null);
+        assertNotNull(slot);
         FlowEntry<String> got = slot.peek().orElse(null);
-        assertTrue(got != null);
+        assertNotNull(got);
         assertEquals("data", got.getData());
     }
     

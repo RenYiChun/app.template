@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.storage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,11 +23,12 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.internal.MatchedPairProcessor;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -65,16 +67,14 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
     public CaffeineFlowStorage(TemplateConfigProperties.Flow config,
             FlowJoiner<T> joiner,
             FlowFinalizer<T> finalizer,
-            ProgressTracker progressTracker,
-            MeterRegistry meterRegistry,
+            ProgressTracker progressTracker, MeterRegistry meterRegistry, FlowEgressHandler<T> egressHandler,
             String jobId) {
-        super(joiner, finalizer, progressTracker, meterRegistry);
+        super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
         this.perJob = config.getLimits().getPerJob();
         this.maxCacheSize = perJob.getStorage();
         this.maxPerKey = perJob.getEffectiveMultiValueMaxPerKey();
         FlowResourceRegistry resourceRegistry = resourceRegistry();
-        this.matchedPairProcessor =
-                new MatchedPairProcessor<>(joiner, progressTracker, meterRegistry, resourceRegistry);
+        this.matchedPairProcessor = new MatchedPairProcessor<>(joiner, egressHandler, meterRegistry, resourceRegistry);
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxCacheSize)
                              .expireAfterWrite(perJob.getCacheTtlMill(), TimeUnit.MILLISECONDS)
@@ -99,22 +99,22 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         if (slot == null) {
             return;
         }
-        FailureReason reason = mapRemovalCause(cause);
-        if (reason == FailureReason.SHUTDOWN) {
+        EgressReason reason = mapRemovalCause(cause);
+        if (reason == EgressReason.SHUTDOWN) {
             for (FlowEntry<T> e : slot.drainAll()) {
                 resourceRegistry().releaseGlobalStorage(1);
-                handlePassiveFailure(e, reason);
+                handleEgress(key, e, reason, true);
             }
             return;
         }
-        processEvictedSlot(slot, reason);
+        processEvictedSlot(key, slot, reason);
     }
-    
+
     /**
      * 驱逐槽位全量配对：每条 entry 与其余所有 entry 尝试匹配。
      * 若有至少一对配对成功，则未匹配条目的重入标志重置为 -1，防止后续继续走重入漏极。
      */
-    private void processEvictedSlot(FlowSlot<T> slot, FailureReason reason) {
+    private void processEvictedSlot(String key, FlowSlot<T> slot, EgressReason reason) {
         List<FlowEntry<T>> entries = slot.drainAll();
         int n = entries.size();
         if (n == 0) {
@@ -125,8 +125,9 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         boolean hasAnyPairSucceeded = false;
         ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
         FlowLauncher<Object> launcher = null;
-        if (launcherLookup != null) {
-            launcher = launcherLookup.getActiveLauncher(entries.getFirst().getJobId());
+        FlowEntry<T> first = entries.getFirst();
+        if (launcherLookup != null && first != null) {
+            launcher = launcherLookup.getActiveLauncher(first.getJobId());
         }
         
         for (int i = 0; i < n; i++) {
@@ -165,7 +166,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             }
         }
         for (FlowEntry<T> e : unmatched) {
-            handlePassiveFailure(e, reason);
+            handleEgress(key, e, reason, true);
         }
     }
     
@@ -215,45 +216,29 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         }
     }
     
-    private FailureReason mapRemovalCause(RemovalCause cause) {
+    private EgressReason mapRemovalCause(RemovalCause cause) {
         if (cause == RemovalCause.EXPIRED) {
-            return FailureReason.TIMEOUT;
+            return EgressReason.TIMEOUT;
         }
         if (cause == RemovalCause.SIZE) {
-            return FailureReason.EVICTION;
+            return EgressReason.EVICTION;
         }
         if (cause == RemovalCause.EXPLICIT && shuttingDown.get()) {
-            return FailureReason.SHUTDOWN;
+            return EgressReason.SHUTDOWN;
         }
         return null;
     }
     
-    private void handleOverflowDropped(FlowEntry<T> dropped, FailureReason reason) {
+    private void handleOverflowDropped(String key, FlowEntry<T> dropped, EgressReason reason) {
         resourceRegistry().releaseGlobalStorage(1);
-        handlePassiveFailure(dropped, reason);
+        handleEgress(key, dropped, reason, true);
         Counter.builder(FlowMetricNames.STORAGE_MULTI_VALUE_DISCARD_TOTAL)
                .tag(FlowMetricNames.TAG_JOB_ID, dropped.getJobId())
                .tag(FlowMetricNames.TAG_REASON, reason.name().toLowerCase())
                .register(meterRegistry())
                .increment();
     }
-    
-    @Override
-    public void handlePassiveFailure(FlowEntry<T> entry, FailureReason reason) {
-        try (entry) {
-            joiner().onFailed(entry.getData(), entry.getJobId(), reason);
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, reason.name())
-                   .register(meterRegistry())
-                   .increment();
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.STORAGE, "eviction_process_failed");
-        } finally {
-            progressTracker().onPassiveEgress(reason);
-        }
-    }
-    
+
     @Override
     public boolean doDeposit(FlowEntry<T> entry) {
         String key = joiner().joinKey(entry.getData());
@@ -275,14 +260,15 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                 FlowSlot<T> oldSlot = cache.asMap().put(key, newSlot);
                 if (oldSlot != null) {
                     for (FlowEntry<T> e : oldSlot.drainAll()) {
-                        handleReplacedEntry(e);
+                        resourceRegistry().releaseGlobalStorage(1);
+                        handleEgress(key, e, EgressReason.REPLACE, true);
                     }
                 }
             } else {
                 BiFunction<String, FlowSlot<T>, FlowSlot<T>> slotBiFunction = (k, existing) -> {
                     FlowSlot<T> slot = existing != null ? existing : createNewSlot();
                     Optional<FlowSlot.OverflowResult<T>> overflow = slot.append(entry);
-                    overflow.ifPresent(r -> handleOverflowDropped(r.entry(), r.reason()));
+                    overflow.ifPresent(r -> handleOverflowDropped(k, r.entry(), r.reason()));
                     return slot.isEmpty() ? null : slot;
                 };
                 cache.asMap().compute(key, slotBiFunction);
@@ -304,23 +290,6 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         }
     }
     
-    private void handleReplacedEntry(FlowEntry<T> oldEntry) {
-        resourceRegistry().releaseGlobalStorage(1);
-        try (oldEntry) {
-            joiner().onFailed(oldEntry.getData(), oldEntry.getJobId(), FailureReason.REPLACE);
-            Counter.builder(FlowMetricNames.EGRESS_PASSIVE)
-                   .tag(FlowMetricNames.TAG_JOB_ID, oldEntry.getJobId())
-                   .tag(FlowMetricNames.TAG_REASON, "REPLACE")
-                   .register(meterRegistry())
-                   .increment();
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(oldEntry.getJobId(), null, e, FlowPhase.STORAGE,
-                    "replace_process_failed");
-        } finally {
-            progressTracker().onPassiveEgress(FailureReason.REPLACE);
-        }
-    }
-    
     private void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry) {
         resourceRegistry().releaseGlobalStorage(1);
         ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
@@ -331,13 +300,19 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                    .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
                    .register(meterRegistry())
                    .increment();
-            partner.close();
+            try (partner; entry) {
+                egressHandler().performSingleConsumed(partner, EgressReason.SHUTDOWN);
+                egressHandler().performSingleConsumed(entry, EgressReason.SHUTDOWN);
+            }
             return;
         }
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             log.warn("No active launcher found for job id {}", entry.getJobId());
-            partner.close();
+            try (partner; entry) {
+                egressHandler().performSingleConsumed(partner, EgressReason.SHUTDOWN);
+                egressHandler().performSingleConsumed(entry, EgressReason.SHUTDOWN);
+            }
             return;
         }
         matchedPairProcessor.processMatchedPair(partner, entry, launcher);
@@ -366,29 +341,26 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             }
             candidates.add(partner.get());
         }
-        for (FlowEntry<T> partner : candidates) {
-            if (joiner().isMatched(partner.getData(), entry.getData())) {
-                matchedPairHandler.accept(partner, entry);
-                if (!perJob.isPairingMultiMatchEnabled()) {
-                    for (FlowEntry<T> e : candidates) {
-                        if (e != partner) {
-                            e.resetRetryToIneligible();
-                            resourceRegistry().releaseGlobalStorage(1);
-                            handlePassiveFailure(e, FailureReason.CLEARED_AFTER_PAIR_SUCCESS);
-                        }
-                    }
-                } else {
-                    for (FlowEntry<T> e : candidates) {
-                        if (e != partner) {
-                            ctx.putBackPartnerAtEnd(key, e);
-                        }
+        // 有候选时始终交给 handler：runnable 内再根据 isMatched 走 onPairConsumed 或 onSingleConsumed(MISMATCH)
+        if (!candidates.isEmpty()) {
+            FlowEntry<T> partner = candidates.getFirst();
+            matchedPairHandler.accept(partner, entry);
+            if (!perJob.isPairingMultiMatchEnabled()) {
+                for (FlowEntry<T> e : candidates) {
+                    if (e != partner) {
+                        e.resetRetryToIneligible();
+                        resourceRegistry().releaseGlobalStorage(1);
+                        handleEgress(key, e, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
                     }
                 }
-                return true;
+            } else {
+                for (FlowEntry<T> e : candidates) {
+                    if (e != partner) {
+                        ctx.putBackPartnerAtEnd(key, e);
+                    }
+                }
             }
-        }
-        for (FlowEntry<T> e : candidates) {
-            ctx.putBackPartnerAtEnd(key, e);
+            return true;
         }
         onNoMatch.accept(ctx);
         return false;
@@ -424,5 +396,41 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
     @Override
     public long getRemovalSubmittedCount() {
         return removalSubmittedCount.sum();
+    }
+    
+    /**
+     * Source 已结束时将槽位内剩余条目排空并提交给 finalizer（SINGLE_CONSUMED），
+     * 使完成阶段剩余数据走正常消费而非 SHUTDOWN/TIMEOUT。
+     */
+    @Override
+    public int drainRemainingToFinalizer() {
+        if (shuttingDown.get()) {
+            return 0;
+        }
+        Set<String> keys = Set.copyOf(cache.asMap().keySet());
+        int drained = 0;
+        for (String key : keys) {
+            Lock stripe = KEY_STRIPES[((key.hashCode() & 0x7FFFFFFF) % STRIPE_COUNT)];
+            stripe.lock();
+            try {
+                FlowSlot<T> slot = cache.getIfPresent(key);
+                if (slot == null) {
+                    continue;
+                }
+                List<FlowEntry<T>> entries = slot.drainAll();
+                if (entries.isEmpty()) {
+                    continue;
+                }
+                cache.invalidate(key);
+                for (FlowEntry<T> entry : entries) {
+                    resourceRegistry().releaseGlobalStorage(1);
+                    handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
+                    drained++;
+                }
+            } finally {
+                stripe.unlock();
+            }
+        }
+        return drained;
     }
 }

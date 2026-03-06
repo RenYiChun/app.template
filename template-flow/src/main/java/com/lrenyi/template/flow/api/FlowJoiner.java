@@ -1,6 +1,6 @@
 package com.lrenyi.template.flow.api;
 
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.DefaultKeyEqualsPairingStrategy;
 
@@ -35,19 +35,24 @@ public interface FlowJoiner<T> {
     String joinKey(T item);
     
     /**
-     * 聚合成功：当两个具有相同 key 的数据相遇时触发
+     * 配对消费：当两个具有相同 key 的数据匹配成功时触发。
+     * needMatched=false 时可 default 空实现。
      *
      * @param existing 先到达的数据（从缓存中取出）
      * @param incoming 后到达的数据（触发聚合的当前项）
+     * @param jobId   任务 ID
      */
-    void onSuccess(T existing, T incoming, String jobId);
+    void onPairConsumed(T existing, T incoming, String jobId);
     
     /**
-     * 简单消费钩子：仅在非配对场景下被 onSuccess 默认调用
+     * 单条消费：数据以给定原因离开/消费时触发，带消费原因。
+     * 必实现；业务可按 reason 区分（如 SINGLE_CONSUMED 为正常消费，其余为损耗等）。
+     *
+     * @param item   数据项
+     * @param jobId  任务 ID
+     * @param reason 消费原因（出口原因）
      */
-    default void onConsume(T item, String jobId) {
-        // 默认空实现或抛错，由子类选择性覆写
-    }
+    void onSingleConsumed(T item, String jobId, EgressReason reason);
     
     /**
      * 只有双流对齐任务才需要覆写此方法为 true。
@@ -82,31 +87,4 @@ public interface FlowJoiner<T> {
     default boolean isRetryable(T item, String jobId) {
         return false;
     }
-    
-    /**
-     * 孤立数据/失败数据处理出口（带失败原因）。
-     * 以下情形会触发：
-     * 1. 【超时】TIMEOUT：needMatched=true 时，数据在缓存中等待配对超时。
-     * 2. 【容量驱逐】EVICTION：缓存达到 maxSize 导致数据被踢出。
-     * 3. 【冲突替换】REPLACE：非配对模式下，Key 冲突导致旧数据被替换。
-     * 4. 【逻辑不匹配】MISMATCH：isMatched 返回 false，两条均走失败出口。
-     * 5. 【拒绝准入】REJECT：背压/过载等拒绝准入。
-     * 6. 【系统关闭】SHUTDOWN：Shutdown 时存储内残留的未处理数据。
-     *
-     * @param item   未完成流程的数据项
-     * @param jobId  所属任务ID
-     * @param reason 失败原因，用于排障与按原因统计
-     */
-    default void onFailed(T item, String jobId, FailureReason reason) {
-        onFailed(item, jobId);
-    }
-    
-    /**
-     * 孤立数据/失败数据处理出口（无原因，兼容旧实现）。
-     * 框架内部会调用 {@link #onFailed(Object, String, FailureReason)}，未覆写带原因版本时由此兜底。
-     *
-     * @param item  未完成流程的数据项
-     * @param jobId 所属任务ID
-     */
-    void onFailed(T item, String jobId);
 }

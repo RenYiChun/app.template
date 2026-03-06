@@ -6,8 +6,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
-import com.lrenyi.template.flow.model.FailureReason;
-import com.lrenyi.template.flow.model.FlowStorageType;
+import com.lrenyi.template.flow.model.EgressReason;
 
 /**
  * 测试用 Joiner：单 Key 覆盖（needMatched=false），Caffeine 存储。
@@ -16,22 +15,13 @@ import com.lrenyi.template.flow.model.FlowStorageType;
 public class OverwriteJoiner implements FlowJoiner<PairItem> {
     
     private final AtomicLong onConsumeCount = new AtomicLong(0);
-    private final Map<FailureReason, AtomicLong> onFailedByReason = new ConcurrentHashMap<>();
+    private final Map<EgressReason, AtomicLong> onFailedByReason = new ConcurrentHashMap<>();
     private volatile FlowSourceProvider<PairItem> sourceProvider;
     
     public OverwriteJoiner() {
-        for (FailureReason r : FailureReason.values()) {
+        for (EgressReason r : EgressReason.values()) {
             onFailedByReason.put(r, new AtomicLong(0));
         }
-    }
-    
-    public void setSourceProvider(FlowSourceProvider<PairItem> sourceProvider) {
-        this.sourceProvider = sourceProvider;
-    }
-    
-    @Override
-    public FlowStorageType getStorageType() {
-        return FlowStorageType.CAFFEINE;
     }
     
     @Override
@@ -50,32 +40,24 @@ public class OverwriteJoiner implements FlowJoiner<PairItem> {
     }
     
     @Override
-    public void onSuccess(PairItem existing, PairItem incoming, String jobId) {
-        // 覆盖模式一般不触发 onSuccess
+    public void onPairConsumed(PairItem existing, PairItem incoming, String jobId) {
+    
     }
     
     @Override
-    public void onConsume(PairItem item, String jobId) {
-        onConsumeCount.incrementAndGet();
-    }
-    
-    @Override
-    public void onFailed(PairItem item, String jobId, FailureReason reason) {
-        if (reason != null) {
-            onFailedByReason.computeIfAbsent(reason, k -> new AtomicLong(0)).incrementAndGet();
+    public void onSingleConsumed(PairItem item, String jobId, EgressReason reason) {
+        if (reason == EgressReason.SINGLE_CONSUMED) {
+            onConsumeCount.incrementAndGet();
+            return;
         }
-    }
-    
-    @Override
-    public void onFailed(PairItem item, String jobId) {
-        onFailedByReason.get(FailureReason.UNKNOWN).incrementAndGet();
+        onFailedByReason.computeIfAbsent(reason, k -> new AtomicLong(0)).incrementAndGet();
     }
     
     public long getOnConsumeCount() {
         return onConsumeCount.get();
     }
     
-    public long getOnFailedCount(FailureReason reason) {
+    public long getOnFailedCount(EgressReason reason) {
         AtomicLong counter = onFailedByReason.get(reason);
         return counter != null ? counter.get() : 0;
     }

@@ -5,7 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -38,7 +38,7 @@ public class MatchRetryCoordinator<T> {
         entry.initRetryRemaining(retryRemaining);
     }
     
-    public boolean tryConsumeRetry(FailureReason reason, FlowEntry<T> entry) {
+    public boolean tryConsumeRetry(EgressReason reason, FlowEntry<T> entry) {
         if (!perJob.isMustMatchRetryEnabled() || !joiner.needMatched()) {
             return false;
         }
@@ -57,21 +57,21 @@ public class MatchRetryCoordinator<T> {
         return true;
     }
     
-    public void onRetrySucceeded(FailureReason reason) {
+    public void onRetrySucceeded(EgressReason reason) {
         increment(FlowMetricNames.MATCH_RETRY_SUCCEEDED, reason);
     }
     
-    private boolean supportReason(FailureReason reason) {
-        if (reason == FailureReason.TIMEOUT) {
+    private boolean supportReason(EgressReason reason) {
+        if (reason == EgressReason.TIMEOUT) {
             return perJob.isMustMatchRetryOnTimeout();
         }
-        if (reason == FailureReason.EVICTION) {
+        if (reason == EgressReason.EVICTION) {
             return perJob.isMustMatchRetryOnEviction();
         }
         return false;
     }
     
-    private void increment(String metricName, FailureReason reason) {
+    private void increment(String metricName, EgressReason reason) {
         Counter.builder(metricName)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                .tag(FlowMetricNames.TAG_REASON, reason.name())

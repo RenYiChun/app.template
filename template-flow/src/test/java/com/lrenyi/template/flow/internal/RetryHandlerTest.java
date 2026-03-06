@@ -5,7 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.context.FlowEntry;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.storage.RetryStorageAdapter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -25,7 +25,7 @@ class RetryHandlerTest {
         TestAdapter adapter = new TestAdapter();
         RetryHandler<String> handler = new RetryHandler<>(coordinator, adapter, 0);
         
-        boolean handled = handler.tryHandleRetry("k", entry, FailureReason.TIMEOUT, null);
+        boolean handled = handler.tryHandleRetry("k", entry, EgressReason.TIMEOUT, null);
         
         assertFalse(handled);
         assertEquals(0, adapter.preRetryCalls);
@@ -40,7 +40,7 @@ class RetryHandlerTest {
         adapter.preRetryResult = PreRetryResult.HANDLED;
         RetryHandler<String> handler = new RetryHandler<>(coordinator, adapter, 0);
         
-        boolean handled = handler.tryHandleRetry("k", entry, FailureReason.TIMEOUT, null);
+        boolean handled = handler.tryHandleRetry("k", entry, EgressReason.TIMEOUT, null);
         
         assertTrue(handled);
         assertEquals(1, adapter.preRetryCalls);
@@ -58,7 +58,7 @@ class RetryHandlerTest {
         adapter.tryRequeueReturn = true;
         RetryHandler<String> handler = new RetryHandler<>(coordinator, adapter, 0);
         
-        boolean handled = handler.tryHandleRetry("k", entry, FailureReason.TIMEOUT, null);
+        boolean handled = handler.tryHandleRetry("k", entry, EgressReason.TIMEOUT, null);
         
         assertTrue(handled);
         assertEquals(1, adapter.tryRequeueCalls);
@@ -75,12 +75,12 @@ class RetryHandlerTest {
         adapter.tryRequeueReturn = false;
         RetryHandler<String> handler = new RetryHandler<>(coordinator, adapter, 0);
         
-        boolean handled = handler.tryHandleRetry("k", entry, FailureReason.TIMEOUT, null);
+        boolean handled = handler.tryHandleRetry("k", entry, EgressReason.TIMEOUT, null);
         
         assertTrue(handled);
         assertEquals(1, adapter.tryRequeueCalls);
         assertEquals(1, adapter.handlePassiveFailureCalls);
-        assertEquals(FailureReason.TIMEOUT, adapter.lastReason);
+        assertEquals(EgressReason.TIMEOUT, adapter.lastReason);
     }
     
     private MatchRetryCoordinator<String> createCoordinator(String jobId, int maxRetryTimes) {
@@ -97,7 +97,7 @@ class RetryHandlerTest {
         private int handlePassiveFailureCalls;
         private PreRetryResult preRetryResult = PreRetryResult.PROCEED_TO_REQUEUE;
         private boolean tryRequeueReturn;
-        private FailureReason lastReason;
+        private EgressReason lastReason;
         
         @Override
         public PreRetryResult preRetry(String key, FlowEntry<String> entry, FlowLauncher<Object> launcher) {
@@ -112,7 +112,7 @@ class RetryHandlerTest {
         }
         
         @Override
-        public void handlePassiveFailure(FlowEntry<String> entry, FailureReason reason) {
+        public void handlePassiveFailure(FlowEntry<String> entry, EgressReason reason) {
             handlePassiveFailureCalls++;
             lastReason = reason;
         }
@@ -135,7 +135,13 @@ class RetryHandlerTest {
         }
         
         @Override
-        public void onSuccess(String existing, String incoming, String jobId) {
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+        
+        }
+        
+        @Override
+        public void onSingleConsumed(String item, String jobId, EgressReason reason) {
+        
         }
         
         @Override
@@ -146,10 +152,6 @@ class RetryHandlerTest {
         @Override
         public boolean isRetryable(String item, String jobId) {
             return true;
-        }
-        
-        @Override
-        public void onFailed(String item, String jobId) {
         }
     }
 }

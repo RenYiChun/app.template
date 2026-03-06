@@ -40,6 +40,7 @@ public interface FlowStorageFactory {
      * @param config            Job 配置
      * @param finalizer         FlowFinalizer 实例
      * @param progressTracker   ProgressTracker 实例
+     * @param egressHandler     统一出口记账（joiner 回调 + 指标 + tracker）
      * @param resourceRegistry  全局资源注册表（Storage 离库时释放 global storage 额度）
      * @param meterRegistry     指标注册表
      * @param <T>               数据类型
@@ -51,6 +52,7 @@ public interface FlowStorageFactory {
             TemplateConfigProperties.Flow config,
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
+            com.lrenyi.template.flow.internal.FlowEgressHandler<T> egressHandler,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry);
     

@@ -4,12 +4,13 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
 import com.lrenyi.template.flow.internal.RetryHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.Counter;
@@ -22,24 +23,31 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     private final ProgressTracker progressTracker;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
-    
+    private final FlowEgressHandler<T> egressHandler;
+
     protected AbstractEgressFlowStorage(FlowJoiner<T> joiner,
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            FlowEgressHandler<T> egressHandler) {
         this.joiner = joiner;
         this.finalizer = finalizer;
         this.progressTracker = progressTracker;
         this.resourceRegistry = finalizer.resourceRegistry();
         this.meterRegistry = meterRegistry;
+        this.egressHandler = egressHandler;
     }
     
-    protected final void handleEgress(String key, FlowEntry<T> entry, FailureReason reason) {
+    protected final void handleEgress(String key, FlowEntry<T> entry, EgressReason reason, boolean skipRetry) {
         if (entry == null) {
             return;
         }
         if (reason == null) {
             entry.close();
+            return;
+        }
+        if (skipRetry) {
+            handlePassiveFailure(entry, reason);
             return;
         }
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
@@ -78,6 +86,17 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         }
     }
     
+    @Override
+    public void handlePassiveFailure(FlowEntry<T> entry, EgressReason reason) {
+        try (entry) {
+            egressHandler.performSingleConsumed(entry, reason);
+        }
+    }
+    
+    protected final FlowEgressHandler<T> egressHandler() {
+        return egressHandler;
+    }
+    
     private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
         long backoffMill = launcher.getFlow().getLimits().getPerJob().getMustMatchRetryBackoffMill();
@@ -88,10 +107,6 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     
     protected final FlowJoiner<T> joiner() {
         return joiner;
-    }
-    
-    protected final ProgressTracker progressTracker() {
-        return progressTracker;
     }
     
     protected final FlowResourceRegistry resourceRegistry() {

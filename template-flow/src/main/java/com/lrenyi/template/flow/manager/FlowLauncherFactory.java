@@ -11,6 +11,7 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.internal.BackpressureController;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
@@ -51,9 +52,16 @@ final class FlowLauncherFactory {
                                                                                            ) :
                 resourceRegistry.getExecutorProvider().createProducerExecutor(jobProducerSemaphore);
         
-        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry);
-        FlowStorage<T> storage =
-                resourceRegistry.getCacheManager().getOrCreateStorage(jobId, flowJoiner, flow, finalizer, tracker);
+        FlowEgressHandler<T> egressHandler = new FlowEgressHandler<>(flowJoiner, tracker, meterRegistry);
+        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry, egressHandler);
+        FlowStorage<T> storage = resourceRegistry.getCacheManager()
+                                                 .getOrCreateStorage(jobId,
+                                                                     flowJoiner,
+                                                                     flow,
+                                                                     finalizer,
+                                                                     tracker,
+                                                                     egressHandler
+                                                 );
         
         IntSupplier consumerPermits = () -> resourceRegistry.getGlobalSemaphore().availablePermits();
         LongSupplier perJobPendingCount = () -> tracker.getSnapshot().getPendingConsumerCount();
@@ -84,6 +92,7 @@ final class FlowLauncherFactory {
                                                                  .producerExecutor(producerExecutor)
                                                                  .inFlightProductionSemaphore(inFlightProductionSemaphore)
                                                                  .jobConsumerSemaphore(jobConsumerSemaphore)
+                                                                 .egressHandler(egressHandler)
                                                                  .build();
         
         // limits 维度指标

@@ -7,6 +7,7 @@ import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.engine.FlowJoinerEngine;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -57,7 +58,13 @@ class MustMatchRetryConstraintTest {
         }
         
         @Override
-        public void onSuccess(String existing, String incoming, String jobId) {
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+        
+        }
+        
+        @Override
+        public void onSingleConsumed(String item, String jobId, EgressReason reason) {
+        
         }
         
         @Override
@@ -68,10 +75,6 @@ class MustMatchRetryConstraintTest {
         @Override
         public boolean isRetryable(String item, String jobId) {
             return true;
-        }
-        
-        @Override
-        public void onFailed(String item, String jobId) {
         }
     }
 }

@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.manager;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -35,26 +36,27 @@ public class FlowCacheManager {
             FlowJoiner<T> joiner,
             TemplateConfigProperties.Flow config,
             FlowFinalizer<T> finalizer,
-            ProgressTracker progressTracker) {
+            ProgressTracker progressTracker,
+            com.lrenyi.template.flow.internal.FlowEgressHandler<T> egressHandler) {
         FlowStorageType type = joiner.getStorageType();
         String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
         
-        return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, k -> {
-                                                                    FlowStorageFactory factory =
-                                                                            FlowStorageFactoryLoader.findFactory(type);
-                                                                    if (factory == null) {
-                                                                        throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
-                                                                    }
-                                                                    return factory.createStorage(jobId,
-                                                                                                 joiner,
-                                                                                                 config,
-                                                                                                 finalizer,
-                                                                                                 progressTracker,
-                                                                                                 resourceRegistry,
-                                                                                                 resourceRegistry.getMeterRegistry()
-                                                                    );
-                                                                }
-        );
+        Function<String, FlowStorage<?>> storageFunction = k -> {
+            FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
+            if (factory == null) {
+                throw new IllegalArgumentException("未找到支持类型 " + type + " 的存储工厂");
+            }
+            return factory.createStorage(jobId,
+                                         joiner,
+                                         config,
+                                         finalizer,
+                                         progressTracker,
+                                         egressHandler,
+                                         resourceRegistry,
+                                         resourceRegistry.getMeterRegistry()
+            );
+        };
+        return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, storageFunction);
     }
     
     /**

@@ -20,19 +20,12 @@ public final class FlowMetricNames {
     public static final String PRODUCTION_ACQUIRED = PREFIX + ".production.acquired";
     /** 已成功存入 Storage 的数据条数（入库量）。acquired - released = 在途生产中 */
     public static final String PRODUCTION_RELEASED = PREFIX + ".production.released";
-    /** 主动出口累计数（业务达成量）。配对成功 onSuccess 或 Finalizer onConsume 时 +1 */
+    /** 主动出口累计数（业务达成量）。onPairConsumed 或 onSingleConsumed(SINGLE_CONSUMED) 时 +1 */
     public static final String EGRESS_ACTIVE = PREFIX + ".egress.active";
     /**
      * 被动出口累计数（损耗量），按 reason 标签区分原因。
-     * <p>reason 值域：
-     * <ul>
-     *   <li>TIMEOUT — TTL 过期，数据未等到配对即超时</li>
-     *   <li>EVICTION — 容量淘汰，maxSize 满 LRU 策略踢出</li>
-     *   <li>REPLACE — 覆盖模式下同 Key 新数据顶替旧数据</li>
-     *   <li>MISMATCH — 配对模式下 isMatched() 返回 false</li>
-     *   <li>REJECT — Queue 满，新数据被拒绝入队</li>
-     *   <li>SHUTDOWN — 系统关闭时缓存中残留的未处理数据</li>
-     * </ul>
+     * <p>reason 值域：TIMEOUT / EVICTION / REPLACE / MISMATCH / REJECT / SHUTDOWN / CLEARED_AFTER_PAIR_SUCCESS /
+     * OVERFLOW_DROP_* 等。
      * {@code passive / (active + passive)} = 损耗率，高于 10% 需关注。
      */
     public static final String EGRESS_PASSIVE = PREFIX + ".egress.passive";
@@ -40,7 +33,8 @@ public final class FlowMetricNames {
     public static final String TERMINATED = PREFIX + ".terminated";
     /**
      * 统一错误计数器，按 errorType + phase 维度聚合。
-     * <p>errorType 值域：job_failed / deposit_failed / onConsume_failed / match_process_failed 等。
+     * <p>errorType 值域：job_failed / deposit_failed / onSingleConsumed_failed / onPairConsumed_failed /
+     * match_process_failed 等。
      * <br>phase 值域：PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION。
      * <br>不携带 jobId 标签（防高基数），通过日志关联具体 Job。
      * <br>高：系统异常频繁，需按 errorType 和 phase 下钻定位。
@@ -52,12 +46,12 @@ public final class FlowMetricNames {
     // ==================== Timers ====================
     /**
      * Caffeine 配对处理的端到端耗时（含消费许可获取等待）。
-     * 高：消费端饱和导致 acquire 久，或 onSuccess 回调慢。
+     * 高：消费端饱和导致 acquire 久，或 onPairConsumed 回调慢。
      */
     public static final String MATCH_DURATION = PREFIX + ".match.duration";
     /**
-     * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onConsume 完成。
-     * 高：消费执行器积压或 onConsume 回调慢。
+     * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onSingleConsumed 完成。
+     * 高：消费执行器积压或 onSingleConsumed 回调慢。
      */
     public static final String FINALIZE_DURATION = PREFIX + ".finalize.duration";
     /** 背压等待总耗时。生产者因缓存满/许可耗尽阻塞。高：生产远超消费，系统过载 */

@@ -3,7 +3,7 @@ package com.lrenyi.template.flow.internal;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.storage.RetryStorageAdapter;
 
@@ -18,7 +18,7 @@ public class RetryHandler<T> {
         this.backoffMill = backoffMill;
     }
     
-    public boolean tryHandleRetry(String key, FlowEntry<T> entry, FailureReason reason, FlowLauncher<Object> launcher) {
+    public boolean tryHandleRetry(String key, FlowEntry<T> entry, EgressReason reason, FlowLauncher<Object> launcher) {
         if (!retryCoordinator.tryConsumeRetry(reason, entry)) {
             return false;
         }

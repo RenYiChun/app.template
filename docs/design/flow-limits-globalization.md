@@ -171,7 +171,7 @@ app:
 ### 5.5 语义关系：pending-consumer 与 consumer-concurrency
 
 - **consumer-concurrency**：限制同时持有消费许可的数量（正在执行 `onSuccess`/`onConsume` 回调）。
-- **pending-consumer**：限制“已离库未终结”的数量，即已提交 `submitConsumerToGlobal` 但尚未调用 `onGlobalTerminated` 的数据（含等待 acquire 的 + 正在消费的）。
+- **pending-consumer**：限制“已离库未终结”的数量，即已提交 `submitConsumerToGlobal` 但尚未调用 `onConsumerReleased` 的数据（含等待 acquire 的 + 正在消费的）。
 - 两者独立：`pending` 不含 `activeConsumers`（`getPendingConsumerCount = productionReleased - inStorage - activeConsumers - terminated`）。
 - 配置建议：`pending-consumer >= consumer-concurrency`，避免背压过早触发；典型取相同值或略大。
 

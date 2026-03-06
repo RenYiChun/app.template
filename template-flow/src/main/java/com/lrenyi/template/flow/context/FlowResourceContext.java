@@ -6,6 +6,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.flow.internal.BackpressureController;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -70,7 +71,12 @@ public class FlowResourceContext {
      * 每 Job 消费并发信号量：限制该 Job 同时持有的消费许可数
      */
     private final Semaphore jobConsumerSemaphore;
-    
+
+    /**
+     * 统一出口记账：供 FlowLauncher 在 stopped 等场景调用 performSingleConsumed
+     */
+    private final FlowEgressHandler<?> egressHandler;
+
     // ========== 全局资源访问便捷方法 ==========
     
     /**

@@ -17,6 +17,7 @@
 - [加密与 Coder](design/encryption-and-coder.md) - 密码与配置解密
 - [JSON 处理器](design/json-processor.md) - 可切换 JSON 实现
 - [Flow 完成态收敛优化](design/flow-completion-isCompleted.md) - isCompleted 轮询与并发风险控制
+- [Flow 消费出口统一设计](design/flow-egress-unification.md) - 统一 handleEgress 出口与迁移策略
 
 ## 参考
 

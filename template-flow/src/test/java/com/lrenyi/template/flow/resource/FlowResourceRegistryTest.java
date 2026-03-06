@@ -12,6 +12,7 @@ import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.executor.ExecutorInterruptedException;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -137,7 +138,7 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public void onConsumerBegin() {
+        public void onConsumerAcquired() {
         }
         
         @Override
@@ -145,11 +146,12 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public void onPassiveEgress() {
+        public void onPassiveEgress(EgressReason reason) {
+        
         }
         
         @Override
-        public void onGlobalTerminated(String jobId) {
+        public void onConsumerReleased(String jobId) {
         }
         
         @Override

@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowEntry;
-import com.lrenyi.template.flow.model.FailureReason;
+import com.lrenyi.template.flow.model.EgressReason;
 
 /**
  * 流式存储槽位：封装同 key 下多 value 的 Deque 结构，支持 append、poll、overflow 策略。
@@ -19,7 +19,7 @@ import com.lrenyi.template.flow.model.FailureReason;
 public final class FlowSlot<T> {
     
     /** 溢出时被淘汰的条目及原因 */
-    public record OverflowResult<E>(FlowEntry<E> entry, FailureReason reason) {}
+    public record OverflowResult<E>(FlowEntry<E> entry, EgressReason reason) {}
     
     private final Deque<FlowEntry<T>> deque;
     private final int maxPerKey;
@@ -40,7 +40,7 @@ public final class FlowSlot<T> {
      */
     public Optional<OverflowResult<T>> append(FlowEntry<T> entry) {
         if (maxPerKey <= 0) {
-            return Optional.of(new OverflowResult<>(entry, FailureReason.OVERFLOW_DROP_NEWEST));
+            return Optional.of(new OverflowResult<>(entry, EgressReason.OVERFLOW_DROP_NEWEST));
         }
         if (deque.size() < maxPerKey) {
             deque.addLast(entry);
@@ -48,12 +48,12 @@ public final class FlowSlot<T> {
         }
         switch (overflowPolicy) {
             case DROP_NEWEST:
-                return Optional.of(new OverflowResult<>(entry, FailureReason.OVERFLOW_DROP_NEWEST));
+                return Optional.of(new OverflowResult<>(entry, EgressReason.OVERFLOW_DROP_NEWEST));
             case DROP_OLDEST:
             default:
                 FlowEntry<T> d = deque.pollFirst();
                 deque.addLast(entry);
-                return Optional.ofNullable(d).map(x -> new OverflowResult<>(x, FailureReason.OVERFLOW_DROP_OLDEST));
+                return Optional.ofNullable(d).map(x -> new OverflowResult<>(x, EgressReason.OVERFLOW_DROP_OLDEST));
         }
     }
     
