@@ -53,9 +53,13 @@ app:
           pending-consumer: 0     # 每 Job 背压阈值，>0 显式值，0 使用 per-job.consumer-concurrency
           cache-ttl-mill: 10000       # 每 Job Caffeine 缓存过期时间（毫秒，必须 >0）
           queue-poll-interval-mill: 10000  # 每 Job Queue 轮询间隔（毫秒，必须 >0）
+          # 同 key 多 value（仅 Caffeine 存储）
+          multi-value-enabled: false   # 是否开启同 key 多 value，默认 false
+          multi-value-max-per-key: 1   # 单 key 最大 value 数，开启后建议 16
+          multi-value-overflow-policy: DROP_OLDEST  # 超限策略：DROP_OLDEST / DROP_NEWEST
 ```
 
-启动时 `validateConfig()` 会校验上述必填项，不满足时抛出 `IllegalArgumentException` 并中止启动。详见 [Flow 配置优化与全局化设计](../design/flow-limits-globalization.md)。
+启动时 `validateConfig()` 会校验上述必填项，不满足时抛出 `IllegalArgumentException` 并中止启动。详见 [Flow 配置优化与全局化设计](../design/flow-limits-globalization.md)。同 key 多 value 详细说明见 [Flow 同 Key 多 Value 使用指南](../guides/flow-multi-value-guide.md)。
 
 ### 应用基础配置
 

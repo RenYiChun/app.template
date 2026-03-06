@@ -70,6 +70,14 @@ public class FlowEntry<T> implements AutoCloseable {
     }
     
     /**
+     * 将重入标志重置为 -1，使后续不再走重入流程。
+     * 用于驱逐场景：当同槽位内有配对成功时，未匹配条目应直接走失败出口，避免重入耗尽。
+     */
+    public void resetRetryToIneligible() {
+        RETRY_REMAINING_UPDATER.set(this, -1);
+    }
+    
+    /**
      * 抢占执行权：确保配对和驱逐只有一个能成功，
      * 只有抢占成功的线程，才有资格去 Orchestrator 申请和释放席位。
      */

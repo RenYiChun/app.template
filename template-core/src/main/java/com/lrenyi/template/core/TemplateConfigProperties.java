@@ -103,6 +103,15 @@ public class TemplateConfigProperties implements InitializingBean {
             throw new IllegalArgumentException("flow.limits.per-job.must-match-retry-backoff-mill 必须 >= 0，当前值: "
                                                        + perJob.getMustMatchRetryBackoffMill());
         }
+        if (perJob.isMultiValueEnabled() && perJob.getMultiValueMaxPerKey() <= 0) {
+            throw new IllegalArgumentException("flow.limits.per-job.multi-value-max-per-key 必须 > 0，当前值: "
+                                                       + perJob.getMultiValueMaxPerKey());
+        }
+        if (perJob.isMultiValueEnabled()) {
+            long maxEntries = (long) perJob.getStorage() * perJob.getEffectiveMultiValueMaxPerKey();
+            log.info("[配置摘要] flow.multiValueEnabled=true, multiValueMaxPerKey={}, 预估最大 entry 数={}",
+                     perJob.getEffectiveMultiValueMaxPerKey(), maxEntries);
+        }
         if (security.isEnabled() && !security.isLocalJwtPublicKey()
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
@@ -268,10 +277,30 @@ public class TemplateConfigProperties implements InitializingBean {
             /** 仅配对模式：TIMEOUT 原因是否允许重入 */
             private boolean mustMatchRetryOnTimeout = true;
             
+            /** 同 key 多 value：是否开启（默认 false，保持单值语义） */
+            private boolean multiValueEnabled = false;
+            /** 同 key 多 value：单 key 最大 value 数（开启后建议 16） */
+            private int multiValueMaxPerKey = 1;
+            /** 同 key 多 value：超限策略 DROP_OLDEST / DROP_NEWEST */
+            private Flow.MultiValueOverflowPolicy multiValueOverflowPolicy = Flow.MultiValueOverflowPolicy.DROP_OLDEST;
+            
             /** 有效背压阈值：pendingConsumer>0 时取该值，否则取 per-job.consumer-concurrency */
             public int getEffectivePendingConsumer() {
                 return pendingConsumer > 0 ? pendingConsumer : consumerConcurrency;
             }
+            
+            /** 有效单 key 最大 value 数：multiValueEnabled=false 时恒为 1 */
+            public int getEffectiveMultiValueMaxPerKey() {
+                return multiValueEnabled ? Math.max(1, multiValueMaxPerKey) : 1;
+            }
+        }
+        
+        /** 同 key 多 value 超限策略 */
+        public enum MultiValueOverflowPolicy {
+            /** 超限时淘汰最老项 */
+            DROP_OLDEST,
+            /** 超限时丢弃新入项 */
+            DROP_NEWEST
         }
     }
     

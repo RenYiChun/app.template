@@ -31,8 +31,7 @@ public class CaffeineFlowStorageFactory implements FlowStorageFactory {
             ProgressTracker progressTracker,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new CaffeineFlowStorage<>(config.getLimits().getPerJob().getStorage(),
-                                         config.getLimits().getPerJob().getCacheTtlMill(),
+        return new CaffeineFlowStorage<>(config,
                                          joiner,
                                          finalizer,
                                          progressTracker,
