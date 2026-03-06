@@ -249,6 +249,10 @@ public class FlowLauncher<T> {
         return resourceContext.getProducerExecutor();
     }
     
+    public boolean isCompleted() {
+        return taskOrchestrator.tracker().isCompleted();
+    }
+    
     public void stop(boolean force) {
         if (stopped) {
             return;

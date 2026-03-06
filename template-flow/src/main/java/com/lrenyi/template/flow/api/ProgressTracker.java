@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.api;
 
-import java.util.concurrent.CompletableFuture;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.model.FailureReason;
 
@@ -94,8 +93,12 @@ public interface ProgressTracker {
     void markSourceFinished(String jobId);
     
     /**
-     * 任务完成的 Future。
-     * 完成触发条件：markSourceFinished 已调用 且 当前活跃许可(Consumer)归零。
+     * 是否已完成。
      */
-    CompletableFuture<Void> getCompletionFuture();
+    boolean isCompleted();
+    
+    /**
+     * 当前是否满足完成条件（只读判定，不产生额外副作用）。
+     */
+    boolean isCompletionConditionMet();
 }

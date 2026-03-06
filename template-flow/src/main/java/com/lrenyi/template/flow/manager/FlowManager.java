@@ -237,6 +237,11 @@ public class FlowManager implements ActiveLauncherLookup {
         return completedTrackers.get(jobId);
     }
     
+    public boolean isCompleted(String jobId) {
+        ProgressTracker tracker = getProgressTracker(jobId);
+        return tracker != null && tracker.isCompleted();
+    }
+    
     @Override
     @SuppressWarnings("unchecked")
     public <T> FlowLauncher<T> getActiveLauncher(String jobId) {

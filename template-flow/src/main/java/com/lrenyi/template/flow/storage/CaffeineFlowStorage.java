@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import com.github.benmanes.caffeine.cache.Scheduler;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -76,13 +75,11 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
         FlowResourceRegistry resourceRegistry = resourceRegistry();
         this.matchedPairProcessor =
                 new MatchedPairProcessor<>(joiner, progressTracker, meterRegistry, resourceRegistry);
-        RemovalListener<String, FlowSlot<T>> removalListener =
-                (String key, FlowSlot<T> slot, RemovalCause cause) -> onSlotRemoved(slot, cause);
         this.cache = Caffeine.newBuilder()
                              .maximumSize(maxCacheSize)
                              .expireAfterWrite(perJob.getCacheTtlMill(), TimeUnit.MILLISECONDS)
                              .executor(resourceRegistry.getCacheRemovalExecutor())
-                             .removalListener(removalListener)
+                             .removalListener(this::onSlotRemoved)
                              .scheduler(Scheduler.systemScheduler())
                              .build();
         
@@ -98,7 +95,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
              .register(meterRegistry);
     }
     
-    private void onSlotRemoved(FlowSlot<T> slot, RemovalCause cause) {
+    private void onSlotRemoved(String key, FlowSlot<T> slot, RemovalCause cause) {
         if (slot == null) {
             return;
         }

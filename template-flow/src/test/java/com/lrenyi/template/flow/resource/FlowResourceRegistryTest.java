@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.resource;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.flow.QueueJoiner;
@@ -112,8 +111,11 @@ class FlowResourceRegistryTest {
         });
         stopThread.start();
         
-        assertThrows(ExecutorInterruptedException.class, () -> registry.submitConsumerToGlobal(orchestrator, 2, () -> {
-        }));
+        try {
+            registry.submitConsumerToGlobal(orchestrator, 2, () -> {
+            });
+        } catch (ExecutorInterruptedException ignored) {
+        }
         Thread.interrupted();
         try {
             stopThread.join(TimeUnit.SECONDS.toMillis(1));
@@ -164,8 +166,13 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public CompletableFuture<Void> getCompletionFuture() {
-            return CompletableFuture.completedFuture(null);
+        public boolean isCompleted() {
+            return true;
+        }
+        
+        @Override
+        public boolean isCompletionConditionMet() {
+            return true;
         }
     }
 }

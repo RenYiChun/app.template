@@ -61,8 +61,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void onProductionAcquired() {
         productionAcquired.increment();
         if (totalExpected != -1 && productionAcquired.sum() >= totalExpected) {
-            // 告诉 Tracker：生产端已关闭。
-            // 这样当 activeConsumers 归零时，getCompletionFuture() 就会完成。
             markSourceFinished(jobId);
         }
     }
@@ -89,19 +87,22 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void onPassiveEgress(FailureReason reason) {
         passiveEgress.increment();
         passiveEgressByReason.get(reason != null ? reason : FailureReason.UNKNOWN).increment();
+        terminated.increment();
+        checkCompletion();
     }
     
     @Override
     public void onPassiveEgress() {
         passiveEgress.increment();
         passiveEgressByReason.get(FailureReason.UNKNOWN).increment();
+        terminated.increment();
+        checkCompletion();
     }
     
     @Override
     public void onGlobalTerminated(String jobId) {
         terminated.increment();
         activeConsumers.decrement();
-        // 尝试触发终结判定
         checkCompletion();
     }
     
@@ -146,8 +147,17 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     @Override
-    public CompletableFuture<Void> getCompletionFuture() {
-        return completionFuture;
+    public boolean isCompleted() {
+        if (completionFuture.isDone()) {
+            return true;
+        }
+        checkCompletion();
+        return completionFuture.isDone();
+    }
+    
+    @Override
+    public boolean isCompletionConditionMet() {
+        return computeCompletionState().completionConditionMet();
     }
     
     /**
@@ -155,39 +165,30 @@ public class DefaultProgressTracker implements ProgressTracker {
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0。
      */
     private void checkCompletion() {
-        if (!sourceFinished) {
-            return;
-        }
-        long inStorage = 0L;
-        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
-        if (activeLauncher != null) {
-            inStorage = activeLauncher.getStorage().size();
-        }
-        long active = activeConsumers.sum();
-        long acquired = productionAcquired.sum();
-        long released = productionReleased.sum();
-        long term = terminated.sum();
-        long inProduction = acquired - released;
-        long pendingConsumer = released - inStorage - active - term;
-        if (inStorage > 0L || active > 0L || inProduction > 0L || pendingConsumer > 0L) {
+        CompletionState state = computeCompletionState();
+        if (!state.completionConditionMet()) {
             return;
         }
         log.debug("Job {} completed, acquired: {}, released: {}, terminated: {}, inStorage: {}, activeConsumers: {},"
                           + " inProduction: {}, pendingConsumer: {}",
                   jobId,
-                  acquired,
-                  released,
-                  term,
-                  inStorage,
-                  active,
-                  inProduction,
-                  pendingConsumer
+                  state.acquired(),
+                  state.released(),
+                  state.terminated(),
+                  state.inStorage(),
+                  state.activeConsumers(),
+                  state.inProduction(),
+                  state.pendingConsumer()
         );
         finishLock.lock();
         try {
             if (endTimeMillis.get() == 0L) {
+                CompletionState lockedState = computeCompletionState();
+                if (!lockedState.completionConditionMet()) {
+                    return;
+                }
                 endTimeMillis.set(System.currentTimeMillis());
-                activeLauncher = flowManager.getActiveLauncher(jobId);
+                FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
                 boolean stopped =
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
                 if (!stopped) {
@@ -202,5 +203,40 @@ public class DefaultProgressTracker implements ProgressTracker {
         } finally {
             finishLock.unlock();
         }
+    }
+    
+    private CompletionState computeCompletionState() {
+        long acquired = productionAcquired.sum();
+        long released = productionReleased.sum();
+        long term = terminated.sum();
+        long inStorage = 0L;
+        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        if (activeLauncher != null) {
+            inStorage = activeLauncher.getStorage().size();
+        }
+        long active = activeConsumers.sum();
+        long inProduction = acquired - released;
+        long pendingConsumer = released - inStorage - active - term;
+        boolean completionConditionMet =
+                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer <= 0L;
+        return new CompletionState(acquired,
+                                   released,
+                                   term,
+                                   inStorage,
+                                   active,
+                                   inProduction,
+                                   pendingConsumer,
+                                   completionConditionMet
+        );
+    }
+    
+    private record CompletionState(long acquired,
+                                   long released,
+                                   long terminated,
+                                   long inStorage,
+                                   long activeConsumers,
+                                   long inProduction,
+                                   long pendingConsumer,
+                                   boolean completionConditionMet) {
     }
 }
