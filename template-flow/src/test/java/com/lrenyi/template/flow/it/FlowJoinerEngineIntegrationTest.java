@@ -414,6 +414,27 @@ class FlowJoinerEngineIntegrationTest {
         assertTrue(snapshot.passiveEgress() >= 1, "被动原因应计入 passiveEgress");
     }
     
+    @Test
+    void itTerminatedEqualsReleasedUnderMixedEgress() throws Exception {
+        OverwriteJoiner joiner = new OverwriteJoiner();
+        var inlet = engine.startPush("job-terminated-released-invariant", joiner, flowConfig);
+        inlet.push(new PairItem("same", "v1", null));
+        inlet.push(new PairItem("same", "v2", null));
+        inlet.push(new PairItem("other", "v3", null));
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 3, 10_000);
+        inlet.markSourceFinished();
+        awaitCompleted(inlet::isCompleted);
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1,
+                       10_000
+        );
+        
+        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
+        assertEquals(snapshot.productionReleased(),
+                     snapshot.terminated(),
+                     "每条 released 数据应恰好终结一次"
+        );
+    }
+    
     // ---------- 3.4 进度与指标 ----------
 
     @Test
