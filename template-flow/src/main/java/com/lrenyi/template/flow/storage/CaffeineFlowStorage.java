@@ -363,7 +363,7 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                 new CaffeinePairingContext<>(cache, maxPerKey, perJob, this::handleOverflowDropped);
         List<FlowEntry<T>> candidates = new ArrayList<>();
         while (true) {
-            Optional<FlowEntry<T>> partner = ctx.getAndRemove(key);
+            Optional<FlowEntry<T>> partner = joiner().getPairingStrategy().findPartner(key, entry, ctx);
             if (partner.isEmpty()) {
                 break;
             }
