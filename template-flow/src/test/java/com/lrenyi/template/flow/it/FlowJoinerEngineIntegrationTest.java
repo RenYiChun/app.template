@@ -340,13 +340,17 @@ class FlowJoinerEngineIntegrationTest {
         tracker.setTotalExpected(JOB_MISMATCH, 4);
         engine.run(JOB_MISMATCH, joiner, tracker, flowConfig);
         awaitCompleted(tracker::isCompleted);
-        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.MISMATCH) >= 2, 10_000);
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2, 10_000);
         
-        assertTrue(joiner.getOnFailedCount(EgressReason.MISMATCH) >= 2,
-                   "isMatched=false 时两条均 onFailed，2 个 key 共 4 次"
+        assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH),
+                     "不匹配场景改为回槽，不应直接记 MISMATCH"
+        );
+        assertTrue(joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2,
+                   "不匹配数据应在完成阶段排空为 SINGLE_CONSUMED"
         );
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.MISMATCH.name()) >= 2);
+        assertEquals(0, snapshot.getPassiveEgressByReason(EgressReason.MISMATCH.name()));
+        assertEquals(snapshot.productionReleased(), snapshot.terminated());
     }
     
     @Test
