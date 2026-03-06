@@ -38,6 +38,10 @@ public enum FailureReason {
      */
     SHUTDOWN,
     /**
+     * 配对成功后清空剩余（多对匹配关闭时，槽位内未匹配条目被主动驱逐）
+     */
+    CLEARED_AFTER_PAIR_SUCCESS,
+    /**
      * 未知或未分类
      */
     UNKNOWN

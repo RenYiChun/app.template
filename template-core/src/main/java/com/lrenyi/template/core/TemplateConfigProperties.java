@@ -283,6 +283,8 @@ public class TemplateConfigProperties implements InitializingBean {
             private int multiValueMaxPerKey = 1;
             /** 同 key 多 value：超限策略 DROP_OLDEST / DROP_NEWEST */
             private Flow.MultiValueOverflowPolicy multiValueOverflowPolicy = Flow.MultiValueOverflowPolicy.DROP_OLDEST;
+            /** 配对模式：是否启用多对匹配；false 时配对成功后清空槽位内剩余条目并立即驱逐 */
+            private boolean pairingMultiMatchEnabled = false;
             
             /** 有效背压阈值：pendingConsumer>0 时取该值，否则取 per-job.consumer-concurrency */
             public int getEffectivePendingConsumer() {

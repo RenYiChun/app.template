@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.storage;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -53,22 +52,11 @@ final class CaffeinePairingContext<T> implements PairingContext<T> {
         cache.asMap().compute(key, slotBiFunction);
     }
     
-    void putBackPartner(String key, FlowEntry<T> partner) {
-        BiFunction<String, FlowSlot<T>, FlowSlot<T>> slotBiFunction = (k, slot) -> {
-            slot.offerFirst(partner);
-            return slot;
-        };
-        cache.asMap().computeIfPresent(key, slotBiFunction);
-    }
-    
-    void putWithMismatch(String key, FlowEntry<T> partner, FlowEntry<T> entry) {
+    void putBackPartnerAtEnd(String key, FlowEntry<T> partner) {
         BiFunction<String, FlowSlot<T>, FlowSlot<T>> slotBiFunction = (k, existing) -> {
             FlowSlot<T> slot = existing != null ? existing : createSlot();
-            slot.offerFirstAll(List.of(partner, entry));
-            while (slot.size() > maxPerKey) {
-                slot.poll().ifPresent(e -> overflowHandler.accept(e, FailureReason.OVERFLOW_DROP_OLDEST));
-            }
-            return slot.isEmpty() ? null : slot;
+            slot.offerLast(partner);
+            return slot;
         };
         cache.asMap().compute(key, slotBiFunction);
     }

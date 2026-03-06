@@ -5,7 +5,7 @@
 Flow 引擎的 **同 Key 多 Value** 功能允许在 Caffeine 存储模式下，**同一个 `joinKey` 下缓存多条等待数据**，而不再局限于「一 key 一 value」的单值语义。
 
 - **默认行为**：`multiValueEnabled=false`，保持原有单值语义，升级零影响。
-- **开启后**：同一 key 可容纳多条数据（由 `multiValueMaxPerKey` 控制），支持 FIFO 配对、超限策略等。
+- **开启后**：同一 key 可容纳多条数据（由 `multiValueMaxPerKey` 控制），支持**多候选配对**（incoming 依次尝试 slot 内所有候选直到匹配或全部试完）、超限策略等。
 - **适用范围**：仅作用于 `FlowStorageType.CAFFEINE` 的存储路径；`QUEUE` 存储不受影响。
 
 ---
@@ -16,11 +16,11 @@ Flow 引擎的 **同 Key 多 Value** 功能允许在 Caffeine 存储模式下，
 
 | 需求 | 说明 |
 |------|------|
-| **多候选配对** | 同一 key 下有多条等待数据，新数据到达时可与其中任意一条配对（默认 FIFO：与队首最老项尝试配对） |
+| **多候选配对** | 同一 key 下有多条等待数据，新数据到达时**依次尝试** slot 内所有候选（A、B、C…），直到匹配或全部试完；不匹配的 partner 放回队尾，继续尝试下一个 |
 | **配对失败回写** | `isMatched(partner, incoming)=false` 时，两条数据会写回槽位继续等待，而非立即走 `MISMATCH` 失败出口 |
 | **覆盖模式多值** | 非配对模式下，同 key 可暂存多条，超限时按策略淘汰（DROP_OLDEST / DROP_NEWEST） |
 | **驱逐全量配对** | 槽位被 TTL/容量驱逐时，槽内每条 entry 与其余所有 entry 依次尝试 `isMatched`，最大化配对机会 |
-| **preRetry 多值** | 配对重入时，从槽位队首 poll 作为 partner；若 `isMatched=false`，将 partner 放回队首，避免丢失 |
+| **preRetry 多值** | 配对重入时，多候选尝试：依次 poll 槽位内候选，直到匹配或全部试完；不匹配的 partner 放回队尾 |
 
 ### 2.2 典型业务场景
 
@@ -46,6 +46,7 @@ Flow 引擎的 **同 Key 多 Value** 功能允许在 Caffeine 存储模式下，
 | `multi-value-enabled` | boolean | false | 是否开启同 key 多 value |
 | `multi-value-max-per-key` | int | 1 | 单 key 最大 value 数；开启后建议 16 |
 | `multi-value-overflow-policy` | enum | DROP_OLDEST | 超限策略：`DROP_OLDEST`（淘汰最老项）或 `DROP_NEWEST`（丢弃新入项） |
+| `pairing-multi-match-enabled` | boolean | false | 是否启用多对匹配；false 时配对成功后清空槽位内剩余条目并立即驱逐（`CLEARED_AFTER_PAIR_SUCCESS`）；true 时不做处理 |
 
 ### 3.2 校验规则
 
@@ -64,6 +65,7 @@ app:
           multi-value-enabled: true
           multi-value-max-per-key: 16
           multi-value-overflow-policy: DROP_OLDEST  # 或 DROP_NEWEST
+          pairing-multi-match-enabled: false  # 配对成功后是否保留槽位内剩余条目
           # 其他 per-job 配置
           storage: 40000
           cache-ttl-mill: 10000
@@ -78,6 +80,7 @@ flowConfig.getLimits().getPerJob().setMultiValueEnabled(true);
 flowConfig.getLimits().getPerJob().setMultiValueMaxPerKey(16);
 flowConfig.getLimits().getPerJob().setMultiValueOverflowPolicy(
     TemplateConfigProperties.Flow.MultiValueOverflowPolicy.DROP_OLDEST);
+flowConfig.getLimits().getPerJob().setPairingMultiMatchEnabled(false);  // 配对成功后是否保留槽位内剩余条目
 ```
 
 ### 3.5 启动日志
@@ -106,9 +109,9 @@ flowConfig.getLimits().getPerJob().setMultiValueOverflowPolicy(
 | 模式 | 行为 |
 |------|------|
 | **单值** | 一进一出，与原有逻辑一致 |
-| **多值** | 新数据到达时，从槽位队首 poll 最老等待项尝试配对；若无等待项则入队等待 |
-| **配对失败** | `isMatched(partner, incoming)=false` 时，将 partner 与 incoming 按顺序写回槽位（partner 在前），再执行超限裁剪；不立即走 `MISMATCH` |
-| **配对顺序** | FIFO：先入队的先尝试配对 |
+| **多值** | 新数据到达时，**多候选尝试**：依次从槽位 poll 候选（A、B、C…），与 incoming 尝试 `isMatched`，直到匹配或全部试完；不匹配的 partner 放回队尾；若无等待项则入队等待 |
+| **配对失败** | `isMatched(partner, incoming)=false` 时，将 partner 放回队尾，继续尝试下一个候选；全部不匹配则将 partner 与 incoming 写回槽位，再执行超限裁剪；不立即走 `MISMATCH` |
+| **配对成功后** | 根据 `pairing-multi-match-enabled`：**false** 时清空槽位内剩余条目（`retryRemaining` 置为 -1），逐个走 `onFailed(..., CLEARED_AFTER_PAIR_SUCCESS)`；**true** 时不做处理，剩余条目继续留在槽位 |
 
 ### 4.3 驱逐（TTL 过期 / 容量满）
 
@@ -121,19 +124,21 @@ flowConfig.getLimits().getPerJob().setMultiValueOverflowPolicy(
 
 ### 4.4 preRetry（配对重入）
 
-- 从槽位队首 poll 作为 partner
-- 若 `isMatched(partner, entry)=false`，将 partner 放回队首，返回 `PROCEED_TO_REQUEUE`，避免 partner 丢失
+- **多候选尝试**：与入缓存一致，依次从槽位 poll 候选（A、B、C…），与重入 entry 尝试 `isMatched`，直到匹配或全部试完；不匹配的 partner 放回队尾
+- 若匹配成功：处理配对，并根据 `pairing-multi-match-enabled` 决定是否清空槽位内剩余条目
+- 若全部不匹配：返回 `PROCEED_TO_REQUEUE`，重入 entry 继续入队
 
 ---
 
 ## 5. 失败原因（FailureReason）
 
-多值模式新增两种细粒度 overflow 原因：
+多值模式新增细粒度原因：
 
 | 原因 | 含义 |
 |------|------|
 | `OVERFLOW_DROP_OLDEST` | 多值模式超限时，淘汰最老项（对应 `multi-value-overflow-policy: DROP_OLDEST`） |
 | `OVERFLOW_DROP_NEWEST` | 多值模式超限时，丢弃新入项（对应 `multi-value-overflow-policy: DROP_NEWEST`） |
+| `CLEARED_AFTER_PAIR_SUCCESS` | 配对成功后清空剩余（`pairing-multi-match-enabled=false` 时，槽位内未匹配条目被主动驱逐） |
 
 ### 5.1 onFailed 处理示例
 
@@ -148,6 +153,10 @@ public void onFailed(T item, String jobId, FailureReason reason) {
         case OVERFLOW_DROP_NEWEST:
             // 新入项被拒绝，可记录或重试
             log.warn("Item dropped (newest): jobId={}, key={}", jobId, joinKey(item));
+            break;
+        case CLEARED_AFTER_PAIR_SUCCESS:
+            // 配对成功后槽位内剩余条目被清空
+            log.warn("Item cleared after pair success: jobId={}, key={}", jobId, joinKey(item));
             break;
         case TIMEOUT:
         case EVICTION:
@@ -167,9 +176,11 @@ public void onFailed(T item, String jobId, FailureReason reason) {
 |--------|------|------|------|
 | `app.template.flow.storage.multi-value.discard.total` | Counter | `jobId`, `reason` | 多值模式超限时丢弃的条数；`reason` 为 `overflow_drop_oldest` 或 `overflow_drop_newest` |
 
+`EGRESS_PASSIVE` 指标在 `CLEARED_AFTER_PAIR_SUCCESS` 场景下也会累加，`reason` 标签为 `CLEARED_AFTER_PAIR_SUCCESS`。
+
 ### 6.2 进度快照
 
-`FlowProgressSnapshot.passiveEgressByReason` 中可获取 `OVERFLOW_DROP_OLDEST`、`OVERFLOW_DROP_NEWEST` 的计数，与指标一致。
+`FlowProgressSnapshot.passiveEgressByReason` 中可获取 `OVERFLOW_DROP_OLDEST`、`OVERFLOW_DROP_NEWEST`、`CLEARED_AFTER_PAIR_SUCCESS` 的计数，与指标一致。
 
 ---
 
@@ -230,10 +241,18 @@ FlowJoiner<OrderLogisticsPair> joiner = new FlowJoiner<OrderLogisticsPair>() {
     
     @Override
     public void onFailed(OrderLogisticsPair item, String jobId, FailureReason reason) {
-        if (reason == FailureReason.OVERFLOW_DROP_OLDEST || reason == FailureReason.OVERFLOW_DROP_NEWEST) {
-            log.warn("Overflow: jobId={}, reason={}", jobId, reason);
+        switch (reason) {
+            case OVERFLOW_DROP_OLDEST:
+            case OVERFLOW_DROP_NEWEST:
+                log.warn("Overflow: jobId={}, reason={}", jobId, reason);
+                break;
+            case CLEARED_AFTER_PAIR_SUCCESS:
+                log.warn("Cleared after pair success: jobId={}, key={}", jobId, joinKey(item));
+                break;
+            default:
+                // 其他失败处理
+                break;
         }
-        // 其他失败处理
     }
     
     @Override
@@ -269,7 +288,14 @@ engine.run("order-logistics-job", joiner, tracker, flowConfig);
 - 优化 `isMatched` 逻辑，减少无效配对尝试
 - 适当增大 `multiValueMaxPerKey`，避免频繁 overflow
 
-### 8.4 兼容性
+### 8.4 pairing-multi-match-enabled 选择
+
+| 配置值 | 适用场景 |
+|--------|----------|
+| `false`（默认） | 同一 key 下只需一对配对成功即可，剩余条目应尽快清空，避免重入漏极；适合订单-物流等 1:1 配对 |
+| `true` | 同一 key 下允许多对配对，剩余条目继续留在槽位等待后续 incoming；适合同一 key 下多组数据需分别配对的场景 |
+
+### 8.5 兼容性
 
 - 默认 `multiValueEnabled=false`，升级后行为零变化
 - 老配置无需变更即可启动
