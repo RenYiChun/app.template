@@ -84,6 +84,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onActiveEgress() {
         activeEgress.increment();
+        terminated.increment();
+        checkCompletion();
     }
     
     @Override
@@ -97,7 +99,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public void onConsumerReleased(String jobId) {
-        terminated.increment();
         activeConsumers.decrement();
         checkCompletion();
     }
@@ -167,15 +168,14 @@ public class DefaultProgressTracker implements ProgressTracker {
         if (!state.completionConditionMet()) {
             return;
         }
-        log.debug("Job {} completed, acquired: {}, released: {}, terminated: {}, inStorage: {}, activeConsumers: {},"
-                          + " inProduction: {}, pendingConsumer: {}",
+        log.debug("Job {} completed, productionAcquired: {}, productionReleased: {}, terminated: {}, inStorage: {}, "
+                          + "activeConsumers: {}, pendingConsumer: {}",
                   jobId,
                   state.acquired(),
                   state.released(),
                   state.terminated(),
                   state.inStorage(),
                   state.activeConsumers(),
-                  state.inProduction(),
                   state.pendingConsumer()
         );
         finishLock.lock();
@@ -213,9 +213,8 @@ public class DefaultProgressTracker implements ProgressTracker {
             inStorage = activeLauncher.getStorage().size();
         }
         long active = activeConsumers.sum();
-        long passive = passiveEgress.sum();
         long inProduction = acquired - released;
-        long pendingConsumer = released - inStorage - active - term - passive;
+        long pendingConsumer = released - inStorage - active - term;
         boolean completionConditionMet =
                 sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer <= 0L;
         return new CompletionState(acquired,
@@ -242,8 +241,7 @@ public class DefaultProgressTracker implements ProgressTracker {
             return;
         }
         FlowStorage<?> storage = launcher.getStorage();
-        int remain = storage.drainRemainingToFinalizer();
-        log.debug("the storage is draining, remain is {}", remain);
+        storage.drainRemainingToFinalizer();
     }
     
     private record CompletionState(long acquired,
