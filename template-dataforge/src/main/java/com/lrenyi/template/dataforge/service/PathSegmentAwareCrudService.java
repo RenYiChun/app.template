@@ -11,7 +11,7 @@ public interface PathSegmentAwareCrudService extends EntityCrudService {
     
     /**
      * 该实现负责的实体 pathSegment（如 "users"、"orders"），与
-     * {@link com.lrenyi.template.dataforge.meta.EntityMeta#getPathSegment()} 一致。
+     * {@code EntityMeta#getPathSegment()} 一致。
      */
     String getPathSegment();
 }
