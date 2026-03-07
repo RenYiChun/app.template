@@ -111,6 +111,16 @@ public class FlowLauncher<T> {
                                          .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_IN_FLIGHT)
                                          .register(registry()));
                 if (!acquired) {
+                    int perJobInFlightPermits = perJobInFlight.availablePermits();
+                    Integer globalInFlightPermits =
+                            globalInFlight != null ? globalInFlight.availablePermits() : null;
+                    log.warn("In-flight permit acquire timeout, jobId={}, timeoutMs={}, perJobInFlightPermits={}, "
+                                     + "globalInFlightPermits={}",
+                             jobId,
+                             FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS,
+                             perJobInFlightPermits,
+                             globalInFlightPermits
+                    );
                     TimeoutException e = new TimeoutException(
                             "In-flight permit acquire timeout for job " + jobId
                                     + ", acquireTimeoutMs=" + FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS
@@ -154,6 +164,11 @@ public class FlowLauncher<T> {
             if (inFlightPair != null) {
                 inFlightPair.release();
             }
+            log.warn("Backpressure interrupted, jobId={}, storageSize={}, storageLimit={}",
+                     jobId,
+                     storage.size(),
+                     storage.maxCacheSize()
+            );
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_interrupted");
             return;
         } catch (TimeoutException e) {
@@ -161,6 +176,27 @@ public class FlowLauncher<T> {
             if (inFlightPair != null) {
                 inFlightPair.release();
             }
+            int perJobConsumerPermits = resourceContext.getJobConsumerSemaphore().availablePermits();
+            int perJobProducerPermits = jobProducerSemaphore.availablePermits();
+            Integer globalConsumerPermits = resourceContext.getGlobalSemaphore().availablePermits();
+            Integer globalInFlightPermits = resourceContext.getResourceRegistry().getGlobalInFlightSemaphore() != null
+                    ? resourceContext.getResourceRegistry().getGlobalInFlightSemaphore().availablePermits()
+                    : null;
+            Integer globalStoragePermits = resourceContext.getResourceRegistry().getGlobalStorageSemaphore() != null
+                    ? resourceContext.getResourceRegistry().getGlobalStorageSemaphore().availablePermits()
+                    : null;
+            log.warn("Backpressure timeout, jobId={}, storageSize={}, storageLimit={}, jobConsumerPermits={}, "
+                             + "jobProducerPermits={}, globalConsumerPermits={}, globalInFlightPermits={}, "
+                             + "globalStoragePermits={}",
+                     jobId,
+                     storage.size(),
+                     storage.maxCacheSize(),
+                     perJobConsumerPermits,
+                     perJobProducerPermits,
+                     globalConsumerPermits,
+                     globalInFlightPermits,
+                     globalStoragePermits
+            );
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_timeout");
             return;
         }
@@ -189,6 +225,7 @@ public class FlowLauncher<T> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
                 if (stopped) {
+                    log.info("Deposit task skipped because job already stopped, jobId={}", jobId);
                     @SuppressWarnings("unchecked") var handler =
                             (FlowEgressHandler<T>) resourceContext.getEgressHandler();
                     handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
@@ -228,6 +265,7 @@ public class FlowLauncher<T> {
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
             } catch (Throwable e) {
+                log.error("Deposit task failed, jobId={}", jobId, e);
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed");
             } finally {
                 tracker.onProductionReleased();

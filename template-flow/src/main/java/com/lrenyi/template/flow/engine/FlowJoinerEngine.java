@@ -59,13 +59,20 @@ public class FlowJoinerEngine {
     }
     
     private <T> void runUntilNoMoreSubSources(FlowSourceProvider<T> provider, String jobId, FlowLauncher<T> launcher) {
+        long startMillis = System.currentTimeMillis();
         AtomicInteger activeSubSources = new AtomicInteger(0);
-        while (tryRunNextSubSource(provider, jobId, launcher, activeSubSources)) {
+        AtomicInteger submittedSubSources = new AtomicInteger(0);
+        while (tryRunNextSubSource(provider, jobId, launcher, activeSubSources, submittedSubSources)) {
             Thread.onSpinWait();
         }
         awaitSubSourcesFinished(activeSubSources);
         awaitInProductionDrained(launcher);
         launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
+        log.info("子流生产阶段结束, jobId={}, submittedSubSources={}, elapsedMs={}",
+                 jobId,
+                 submittedSubSources.get(),
+                 System.currentTimeMillis() - startMillis
+        );
     }
     
     private <T> void awaitInProductionDrained(FlowLauncher<T> launcher) {
@@ -99,7 +106,8 @@ public class FlowJoinerEngine {
     private <T> boolean tryRunNextSubSource(FlowSourceProvider<T> provider,
             String jobId,
             FlowLauncher<T> launcher,
-            AtomicInteger activeSubSources) {
+            AtomicInteger activeSubSources,
+            AtomicInteger submittedSubSources) {
         try {
             if (!provider.hasNextSubSource()) {
                 return false;
@@ -109,10 +117,11 @@ public class FlowJoinerEngine {
             Thread.currentThread().interrupt();
             return false;
         }
+        int subSourceSeq = submittedSubSources.incrementAndGet();
         activeSubSources.incrementAndGet();
         launcher.getProducerExecutor().submit(() -> {
             try {
-                runSubSourceInVirtualThread(provider, launcher, jobId);
+                runSubSourceInVirtualThread(provider, launcher, jobId, subSourceSeq);
             } finally {
                 activeSubSources.decrementAndGet();
             }
@@ -122,18 +131,27 @@ public class FlowJoinerEngine {
     
     private <T> void runSubSourceInVirtualThread(FlowSourceProvider<T> provider,
             FlowLauncher<T> launcher,
-            String jobId) {
+            String jobId,
+            int subSourceSeq) {
         FlowSource<T> sub = provider.nextSubSource();
+        long startMillis = System.currentTimeMillis();
         try (sub) {
-            drainSubSource(sub, launcher);
+            long pulledCount = drainSubSource(sub, launcher);
+            log.info("子流处理完成, jobId={}, subSourceSeq={}, pulledCount={}, elapsedMs={}",
+                     jobId,
+                     subSourceSeq,
+                     pulledCount,
+                     System.currentTimeMillis() - startMillis
+            );
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "subsource_failed");
-            log.error("子流消费异常 jobId={}", jobId, e);
+            log.error("子流消费异常, jobId={}, subSourceSeq={}", jobId, subSourceSeq, e);
         }
     }
     
-    private <T> void drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher) {
+    private <T> long drainSubSource(FlowSource<T> sub, FlowLauncher<T> launcher) {
         Optional<T> item = pollNext(sub);
+        long pulledCount = 0L;
         while (item.isPresent()) {
             if (launcher.isStopped()) {
                 launcher.getTaskOrchestrator().tracker().onProductionReleased();
@@ -142,11 +160,14 @@ public class FlowJoinerEngine {
                        .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
-                return;
+                log.warn("子流处理提前停止, jobId={}, pulledCount={}", launcher.getJobId(), pulledCount);
+                return pulledCount;
             }
             launcher.launch(item.get());
+            pulledCount++;
             item = pollNext(sub);
         }
+        return pulledCount;
     }
     
     private <T> Optional<T> pollNext(FlowSource<T> sub) {
@@ -203,6 +224,7 @@ public class FlowJoinerEngine {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, flowConfig);
+        log.info("推送模式任务启动, jobId={}, totalExpected={}", jobId, total);
         return new FlowInletImpl<>(launcher);
     }
     

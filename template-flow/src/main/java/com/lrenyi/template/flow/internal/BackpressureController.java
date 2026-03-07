@@ -62,6 +62,7 @@ public class BackpressureController {
             long waitStartNanos = System.nanoTime();
             long maxWaitNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(0L, maxWaitMs));
             int waitCount = 0;
+            boolean loggedBlocked = false;
             
             while (!stopCheck.getAsBoolean()) {
                 boolean cacheFull = flowStorage.size() >= flowStorage.maxCacheSize();
@@ -74,8 +75,47 @@ public class BackpressureController {
                 if (!cacheFull && !consumerSaturated && !perJobPendingOverflow && !globalPendingOverflow) {
                     break;
                 }
+                if (!loggedBlocked && log.isDebugEnabled()) {
+                    Integer consumerPermits =
+                            consumerAvailablePermitsSupplier != null ? consumerAvailablePermitsSupplier.getAsInt() : null;
+                    Long perJobPending =
+                            perJobPendingCountSupplier != null ? perJobPendingCountSupplier.getAsLong() : null;
+                    Long globalPending =
+                            globalPendingCountSupplier != null ? globalPendingCountSupplier.getAsLong() : null;
+                    log.debug("Backpressure triggered, jobId={}, cacheSize={}, cacheLimit={}, consumerPermits={}, "
+                                      + "perJobPending={}/{}, globalPending={}/{}, waitLimitMs={}",
+                              jobId,
+                              flowStorage.size(),
+                              flowStorage.maxCacheSize(),
+                              consumerPermits,
+                              perJobPending,
+                              perJobPendingLimit,
+                              globalPending,
+                              globalPendingLimit,
+                              maxWaitMs
+                    );
+                    loggedBlocked = true;
+                }
                 if (maxWaitNanos > 0 && System.nanoTime() - waitStartNanos >= maxWaitNanos) {
                     long waitDuration = System.currentTimeMillis() - waitStartTime;
+                    Integer consumerPermits =
+                            consumerAvailablePermitsSupplier != null ? consumerAvailablePermitsSupplier.getAsInt() : null;
+                    Long perJobPending =
+                            perJobPendingCountSupplier != null ? perJobPendingCountSupplier.getAsLong() : null;
+                    Long globalPending =
+                            globalPendingCountSupplier != null ? globalPendingCountSupplier.getAsLong() : null;
+                    log.warn("Backpressure timeout, jobId={}, waitedMs={}, cacheSize={}, cacheLimit={}, "
+                                     + "consumerPermits={}, perJobPending={}/{}, globalPending={}/{}",
+                             jobId,
+                             waitDuration,
+                             flowStorage.size(),
+                             flowStorage.maxCacheSize(),
+                             consumerPermits,
+                             perJobPending,
+                             perJobPendingLimit,
+                             globalPending,
+                             globalPendingLimit
+                    );
                     throw new TimeoutException(
                             "Backpressure awaitSpace exceeded maxWaitMs=" + maxWaitMs + ", jobId=" + jobId
                                     + ", waitedMs=" + waitDuration);
@@ -93,6 +133,9 @@ public class BackpressureController {
                      .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                      .register(meterRegistry)
                      .record(waitDuration, TimeUnit.MILLISECONDS);
+                if (log.isDebugEnabled()) {
+                    log.debug("Backpressure released, jobId={}, waitCount={}, waitedMs={}", jobId, waitCount, waitDuration);
+                }
             }
         } finally {
             lock.unlock();
