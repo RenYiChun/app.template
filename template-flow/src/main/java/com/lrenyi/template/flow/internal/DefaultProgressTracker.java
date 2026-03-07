@@ -168,16 +168,6 @@ public class DefaultProgressTracker implements ProgressTracker {
         if (!state.completionConditionMet()) {
             return;
         }
-        log.debug("Job {} completed, productionAcquired: {}, productionReleased: {}, terminated: {}, inStorage: {}, "
-                          + "activeConsumers: {}, pendingConsumer: {}",
-                  jobId,
-                  state.acquired(),
-                  state.released(),
-                  state.terminated(),
-                  state.inStorage(),
-                  state.activeConsumers(),
-                  state.pendingConsumer()
-        );
         finishLock.lock();
         try {
             if (endTimeMillis.get() == 0L) {
@@ -189,6 +179,20 @@ public class DefaultProgressTracker implements ProgressTracker {
                 FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
                 boolean stopped =
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
+                log.info("Job completion confirmed, jobId={}, sourceFinished={}, productionAcquired={}, "
+                                 + "productionReleased={}, terminated={}, inStorage={}, activeConsumers={}, "
+                                 + "inProduction={}, pendingConsumer={}, stopped={}",
+                         jobId,
+                         sourceFinished,
+                         lockedState.acquired(),
+                         lockedState.released(),
+                         lockedState.terminated(),
+                         lockedState.inStorage(),
+                         lockedState.activeConsumers(),
+                         lockedState.inProduction(),
+                         lockedState.pendingConsumer(),
+                         stopped
+                );
                 if (!stopped) {
                     Counter.builder(FlowMetricNames.JOB_COMPLETED)
                            .tag(FlowMetricNames.TAG_JOB_ID, jobId)

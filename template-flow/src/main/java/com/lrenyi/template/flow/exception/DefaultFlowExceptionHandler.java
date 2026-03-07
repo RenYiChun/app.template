@@ -15,6 +15,7 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
         String jobId = context.getJobId();
         String entryId = context.getEntryId();
         FlowPhase phase = context.getPhase();
+        String errorType = context.getErrorType();
         Throwable exception = context.getException();
         
         // 构建详细的错误信息
@@ -24,6 +25,9 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
             message.append(", entryId=").append(entryId);
         }
         message.append(", phase=").append(phase);
+        if (errorType != null) {
+            message.append(", errorType=").append(errorType);
+        }
         
         // 添加上下文信息
         if (!context.getContext().isEmpty()) {
