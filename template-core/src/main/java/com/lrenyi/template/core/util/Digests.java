@@ -10,6 +10,10 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 摘要工具类。MD5、SHA-1 仅适用于非安全场景（如校验和、缓存 key）。
+ * 密码存储应使用 {@code PasswordEncoder}（如 BCrypt、PBKDF2）。
+ */
 @Slf4j
 public class Digests {
     
@@ -18,22 +22,15 @@ public class Digests {
     
     private static final SecureRandom random = new SecureRandom();
     
+    private Digests() {
+        throw new IllegalStateException("Utility class");
+    }
+    
     /**
-     * 对输入字符串进行md5散列.
+     * 对输入进行 MD5 散列。仅用于非安全场景（如校验和），不用于密码等敏感数据。
      */
     public static byte[] md5(byte[] input) {
         return digest(input, MD5, null, 1);
-    }
-    
-    public static byte[] md5(byte[] input, int iterations) {
-        return digest(input, MD5, null, iterations);
-    }
-    
-    /**
-     * 对文件进行md5散列.
-     */
-    public static byte[] md5(InputStream input) throws IOException {
-        return digest(input, MD5);
     }
     
     /**
@@ -52,9 +49,20 @@ public class Digests {
             }
             return result;
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
+    }
+    
+    public static byte[] md5(byte[] input, int iterations) {
+        return digest(input, MD5, null, iterations);
+    }
+    
+    /**
+     * 对文件进行 MD5 散列。仅用于非安全场景（如文件校验和）。
+     */
+    public static byte[] md5(InputStream input) throws IOException {
+        return digest(input, MD5);
     }
     
     private static byte[] digest(InputStream input, String algorithm) throws IOException {
@@ -71,13 +79,13 @@ public class Digests {
             
             return messageDigest.digest();
         } catch (GeneralSecurityException e) {
-            log.error("", e);
+            log.error("Digest failed for input stream, algorithm: {}", algorithm, e);
+            throw new IllegalStateException("Digest failed for algorithm: " + algorithm, e);
         }
-        return null;
     }
     
     /**
-     * 对输入字符串进行sha1散列.
+     * 对输入进行 SHA-1 散列。仅用于非安全场景（如缓存 key），不用于密码存储。
      */
     public static byte[] sha1(byte[] input) {
         return digest(input, SHA1, null, 1);
@@ -92,7 +100,7 @@ public class Digests {
     }
     
     /**
-     * 对文件进行sha1散列.
+     * 对文件进行 SHA-1 散列。仅用于非安全场景（如文件校验和）。
      */
     public static byte[] sha1(InputStream input) throws IOException {
         return digest(input, SHA1);
@@ -114,7 +122,9 @@ public class Digests {
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
-            return original;
+            throw new IllegalStateException("SHA-256 algorithm not available.  This is required for Digest.shorten.",
+                                            e
+            );
         }
         byte[] hashBytes = digest.digest(original.getBytes(StandardCharsets.UTF_8));
         
@@ -127,7 +137,9 @@ public class Digests {
         StringBuilder hexString = new StringBuilder();
         for (byte b : bytes) {
             String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) {hexString.append('0');}
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
             hexString.append(hex);
         }
         return hexString.toString();

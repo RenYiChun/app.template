@@ -36,13 +36,14 @@ public class Result<T> {
         setCode(MCode.EXCEPTION.getCode());
         String info;
         TemplateConfigProperties config = SpringContextUtil.getBean(TemplateConfigProperties.class);
-        if (config != null && config.getWeb().isExportExceptionDetail()) {
+        String info1 = cause.getClass().getName() + "->" + defaultMessage;
+        if (config != null && config.getWeb() != null && config.getWeb().isExportExceptionDetail()) {
             info = cause.getMessage();
             if (!StringUtils.hasLength(info)) {
-                info = cause.getClass().getName() + "->" + defaultMessage;
+                info = info1;
             }
         } else {
-            info = cause.getClass().getName() + "->" + defaultMessage;
+            info = info1;
         }
         message = info;
     }

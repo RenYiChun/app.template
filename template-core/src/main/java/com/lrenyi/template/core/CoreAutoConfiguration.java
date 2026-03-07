@@ -1,26 +1,37 @@
 package com.lrenyi.template.core;
 
+import java.util.Objects;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
+import com.lrenyi.template.core.json.DefaultJacksonConfiguration;
 import com.lrenyi.template.core.json.JacksonJsonProcessor;
 import com.lrenyi.template.core.json.JsonProcessor;
 import com.lrenyi.template.core.json.JsonService;
+import com.lrenyi.template.core.metrics.AppMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ComponentScan
 @Configuration(proxyBeanMethods = false)
-@Import(CoreAutoConfiguration.WebConfig.class)
+@Import({CoreAutoConfiguration.WebConfig.class, DefaultJacksonConfiguration.class})
 @AutoConfigureAfter(JacksonAutoConfiguration.class)
 @EnableConfigurationProperties(TemplateConfigProperties.class)
 public class CoreAutoConfiguration {
+    
+    private CoreAutoConfiguration() {
+        //ignore
+    }
     
     @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
     static class WebConfig {
@@ -39,10 +50,16 @@ public class CoreAutoConfiguration {
             return new JsonService(jsonProcessor);
         }
         
-        @Bean
-        @ConditionalOnMissingBean
+        @Bean("passwordEncoder")
+        @ConditionalOnMissingBean(PasswordEncoder.class)
         public DefaultTemplateEncryptService defaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
             return new DefaultTemplateEncryptService(templateConfigProperties);
+        }
+        
+        @Bean
+        public AppMetrics appMetrics(ObjectProvider<MeterRegistry> registryProvider) {
+            MeterRegistry registry = registryProvider.getIfAvailable();
+            return new AppMetrics(Objects.requireNonNullElseGet(registry, CompositeMeterRegistry::new));
         }
     }
 }

@@ -1,13 +1,13 @@
 package com.lrenyi.oauth2.service.oauth2.token;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.core.util.SpringContextUtil;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 import org.springframework.security.oauth2.core.ClaimAccessor;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
@@ -27,6 +27,11 @@ import org.springframework.util.StringUtils;
 public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2AccessToken> {
     private final StringKeyGenerator accessTokenGenerator = new UuidKeyGenerator();
     private OAuth2TokenCustomizer<OAuth2TokenClaimsContext> accessTokenCustomizer;
+    private TemplateConfigProperties templateConfigProperties;
+    
+    public void setTemplateConfigProperties(TemplateConfigProperties templateConfigProperties) {
+        this.templateConfigProperties = templateConfigProperties;
+    }
     
     @Override
     public OAuth2AccessToken generate(OAuth2TokenContext context) {
@@ -45,9 +50,8 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         
         Instant issuedAt = Instant.now();
         Duration duration = registeredClient.getTokenSettings().getAccessTokenTimeToLive();
-        TemplateConfigProperties properties = SpringContextUtil.getBean(TemplateConfigProperties.class);
-        if (properties != null) {
-            TemplateConfigProperties.SecurityProperties security = properties.getSecurity();
+        if (templateConfigProperties != null) {
+            TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
             Long seconds = security.getSessionTimeOutSeconds();
             if (seconds != null && security.isSessionIdleTimeout() && seconds > 0) {
                 duration = Duration.ofSeconds(seconds);
@@ -114,9 +118,28 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
         this.accessTokenCustomizer = accessTokenCustomizer;
     }
     
-    private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements
-            ClaimAccessor {
-        private final Map<String, Object> claims;
+    @Override
+    public int hashCode() {
+        return Objects.hash(accessTokenCustomizer, templateConfigProperties);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        UuidOAuth2TokenGenerator other = (UuidOAuth2TokenGenerator) obj;
+        return Objects.equals(accessTokenCustomizer, other.accessTokenCustomizer) && Objects.equals(
+                templateConfigProperties,
+                other.templateConfigProperties
+        );
+    }
+    
+    private static final class OAuth2AccessTokenClaims extends OAuth2AccessToken implements ClaimAccessor {
+        private final transient Map<String, Object> claims;
         
         private OAuth2AccessTokenClaims(TokenType tokenType,
                 String tokenValue,
@@ -133,5 +156,21 @@ public class UuidOAuth2TokenGenerator implements OAuth2TokenGenerator<OAuth2Acce
             return this.claims;
         }
         
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            OAuth2AccessTokenClaims other = (OAuth2AccessTokenClaims) obj;
+            return super.equals(obj) && Objects.equals(claims, other.claims);
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), claims);
+        }
     }
 }

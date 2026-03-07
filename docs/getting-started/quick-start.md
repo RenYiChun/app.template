@@ -1,0 +1,219 @@
+# App Template 最小配置文档
+
+本文档提供运行 App Template 框架的最小配置要求。
+
+## 环境要求
+
+- **JDK**: 21
+- **Spring Boot**: __SPRING_BOOT__
+- **Spring Cloud**: __SPRING_CLOUD__
+
+## 快速开始
+
+### 1. 创建新项目
+
+创建一个新的 Maven 项目，在 `pom.xml` 中继承 template-dependencies：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-dependencies</artifactId>
+        <version>__APP_VERSION__</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>my-app</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- 选择一个应用类型 -->
+
+        <!-- 前端服务接口应用 -->
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-api</artifactId>
+        </dependency>
+
+        <!-- 或者 OAuth2 认证服务 -->
+        <!--
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-oauth2-service</artifactId>
+        </dependency>
+        -->
+    </dependencies>
+</project>
+```
+
+### 2. 创建启动类
+
+```java
+package com.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+}
+```
+
+### 3. 最小配置文件
+
+创建 `application.yml`：
+
+```yaml
+spring:
+  application:
+    name: your-app-name
+
+# 框架总开关
+app:
+  template:
+    enabled: true  # 如果不需要框架所有功能，可以禁用
+
+    # 安全配置
+    security:
+      enabled: true  # 如果不需要安全功能，可以禁用
+      security-key: "default"  # 密码编码器密钥
+      authorization:
+        store-type: "memory"  # 授权存储类型: memory, redis, jdbc
+
+      # 免认证 URL 配置
+      permit-urls:
+        your-app-name: # 应用名称
+          - "/public/**"
+          - "/health"
+          - "/info"
+
+    # OAuth2 配置
+    oauth2:
+      enabled: true  # 是否启用 OAuth2 功能
+      skip-pre-authentication: false  # 是否跳过预认证检查
+
+    # 方法级安全（@PreAuthorize 等是否生效）
+    method-security:
+      enabled: true
+
+    # 审计日志配置
+    audit:
+      enabled: true  # 是否启用审计日志
+
+    # Feign 配置（引入 template-cloud 时生效）
+    feign:
+      enabled: true  # 是否启用 Feign 客户端
+      # 内部调用放行：生产环境建议配置 internal-call-allowed-ip-patterns（如 10.0.0.0/8）防伪造，详见《详细配置教程》Feign 配置与内部调用安全
+
+    # Web 配置
+    web:
+      json-processor-type: "jackson"  # JSON 处理器类型: jackson, gson
+      export-exception-detail: false  # 是否导出异常详情
+```
+
+### 4. OAuth2 认证服务最小配置
+
+如果使用 OAuth2 认证服务，需要额外配置：
+
+#### 4.1 实现用户认证接口
+
+```java
+package com.example.service;
+
+import com.lrenyi.oauth2.service.oauth2.password.IRbacService;
+import com.lrenyi.oauth2.service.oauth2.password.LoginNameType;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class DefaultLoginNameUserDetailService implements IRbacService {
+    
+    @Override
+    public String loginNameType() {
+        return LoginNameType.USER_NAME.getCode(); // 登录名类型
+    }
+    
+    @Override
+    public UserDetails loadUserDetail(String username) throws UsernameNotFoundException {
+        // 根据用户名加载用户信息
+        // 这里需要实现你的用户查询逻辑
+        return User.builder().username(username).password("{noop}app.template") // 使用明文密码，生产环境请使用加密
+                   .authorities("ROLE_USER").build();
+    }
+}
+```
+
+#### 4.2 OAuth2 客户端配置
+
+在 `application.yml` 中添加：
+
+```yaml
+spring:
+  security:
+    oauth2:
+      authorization-server:
+        client:
+          default-client-id:
+            registration:
+              client-id: default-client-id
+              client-secret: "{default}app.template"
+              client-authentication-methods:
+                - client_secret_post
+                - client_secret_get
+              authorization-grant-types:
+                - authorization_code
+                - authorization_password
+                - client_credentials
+              scopes:
+                - openid
+              redirect-uris:
+                - http://localhost/
+              post-logout-redirect-uris:
+                - http://localhost/logout
+            token:
+              access-token-time-to-live: 60m
+              access-token-format: reference
+```
+
+### 5. 运行应用
+
+```bash
+mvn spring-boot:run
+```
+
+## 测试 OAuth2 认证
+
+### 获取访问令牌
+
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`
+来获取访问令牌。
+
+### 访问受保护资源
+
+在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`
+来测试受保护的接口。
+
+## 常见问题
+
+1. **启动失败**: 检查 JDK 版本是否为 21
+2. **认证失败**: 确保实现了 `IRbacService` 接口
+3. **端口冲突**: 在配置文件中修改 `server.port`
+4. **依赖冲突**: 确保使用正确的 Spring Boot 和 Spring Cloud 版本
+
+## 下一步
+
+- 查看[配置参考](config-reference.md)了解更多高级配置
+- 查看[安全配置](config-reference.md#安全配置)了解安全相关配置

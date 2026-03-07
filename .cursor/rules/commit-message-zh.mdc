@@ -1,0 +1,45 @@
+---
+description: 提交代码时自动生成的提交注释使用中文
+alwaysApply: true
+---
+
+# 提交注释生成规则
+
+**强制要求**：生成 Git 提交注释时，**仅输出中文**，禁止使用英文。
+
+即使输入或上下文为英文，输出的 commit message 也必须翻译为中文。
+
+## 格式要求
+
+- **标题**：简明扼要，50 字以内，使用中文
+- **正文**（可选）：详细说明变更原因或影响，使用中文
+
+## 示例
+
+```
+✅ 正确：
+fix: 修复 FlowManager 与 ActiveLauncherLookup 的方法签名冲突
+feat: 新增 FlowLauncherFactory 工厂类，抽离 Launcher 创建逻辑
+refactor: 将 configEquals 改为 configChanged，避免布尔方法取反
+
+❌ 错误：
+fix: Resolve method signature conflict
+feat: Add FlowLauncherFactory
+```
+
+## 英文输入需翻译为中文
+
+输入为英文时，输出必须翻译为中文：
+
+- "Update X to use UTF-8 encoding" → `refactor: 将 X 改为使用 UTF-8 编码`
+- "Update DefaultTemplateDataCoder and NatsFlowSourceTest to use UTF-8" → `refactor: 将 DefaultTemplateDataCoder 和 NatsFlowSourceTest 改为使用 UTF-8 编码`
+
+## 常用动词
+
+- 修复：fix、修复
+- 新增：feat、添加
+- 重构：refactor、重构
+- 文档：docs、文档
+- 样式：style、格式
+- 测试：test、测试
+- 构建：chore、构建

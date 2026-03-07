@@ -1,34 +1,54 @@
 package com.lrenyi.template.cloud.config;
 
+import java.util.Enumeration;
+import java.util.List;
+import com.lrenyi.template.cloud.service.OauthUtilService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.util.TemplateConstant;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Enumeration;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+/**
+ * Feign 请求拦截：打标内部调用、透传指定 Header、无用户上下文时用 Client 凭证。
+ * <p>
+ * 安全注意：
+ * <ul>
+ *   <li>app.template.feign.headers 仅配置可信且需透传的 Header（如 Authorization），避免透传客户端可控且下游信任的 Header 导致越权。</li>
+ *   <li>无 RequestContext 时使用 Client 凭证，下游收到的是服务身份而非用户身份，需按需区分。</li>
+ *   <li>X-Internal-Call 由本拦截器设置，下游若据此放行需配合 app.template.feign.internal-call-allowed-ip-patterns 防伪造。</li>
+ * </ul>
+ * </p>
+ */
 @Slf4j
 public class TemplateRequestInterceptor implements RequestInterceptor {
     private final TemplateConfigProperties templateConfigProperties;
+    private final OauthUtilService oauthUtilService;
     
-    public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties) {
+    public TemplateRequestInterceptor(TemplateConfigProperties templateConfigProperties,
+            OauthUtilService oauthUtilService) {
         this.templateConfigProperties = templateConfigProperties;
+        this.oauthUtilService = oauthUtilService;
     }
     
     @Override
     public void apply(RequestTemplate template) {
         TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
-        List<String> headers = feign.getHeaders();
         template.header(TemplateConstant.HEADER_NAME, "true");
+        if (feign.isNotOauth()) {
+            return;
+        }
         // 获取对象
         ServletRequestAttributes attribute = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attribute == null || headers == null || headers.isEmpty()) {
+        if (attribute == null) {
+            makeClientOauth(template);
+            return;
+        }
+        List<String> headers = feign.getHeaders();
+        if (headers == null || headers.isEmpty()) {
             return;
         }
         // 获取请求对象
@@ -42,25 +62,27 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         List<String> lowerHeader = headers.stream().map(String::toLowerCase).toList();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
-            if ("authorization".equalsIgnoreCase(headerName)) {
-                haveAuthorization = true;
-            }
             if (lowerHeader.contains(headerName.toLowerCase())) {
-                log.info("headerName:{} It will be automatically passed to the downstream service", headerName);
+                log.debug("headerName:{} passed to downstream", headerName);
                 String headerValue = request.getHeader(headerName);
                 // 将header向下传递
                 template.header(headerName, headerValue);
+                if ("authorization".equalsIgnoreCase(headerName)) {
+                    haveAuthorization = true;
+                }
             }
         }
         if (!haveAuthorization) {
-            String oauthClientId = feign.getOauthClientId();
-            String oauthClientSecret = feign.getOauthClientSecret();
-            if (oauthClientId == null || oauthClientSecret == null) {
-                return;
-            }
-            String auth = oauthClientId + ":" + oauthClientSecret;
-            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-            template.header("Authorization", "Basic " + encodedAuth);
+            makeClientOauth(template);
         }
+    }
+    
+    private void makeClientOauth(RequestTemplate template) {
+        if (!templateConfigProperties.isFeignEffectivelyEnabled()
+                || !templateConfigProperties.isSecurityEffectivelyEnabled()) {
+            return;
+        }
+        String token = oauthUtilService.fetchToken("server");
+        template.header("Authorization", "Bearer " + token);
     }
 }

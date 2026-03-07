@@ -1,0 +1,63 @@
+/* Global CSS Resets and Style Overrides */
+:root {
+    --dataforge-bg: #f8fafc;
+    --sidebar-bg: #0f172a;
+    --primary-color: #6366f1;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    background-color: var(--dataforge-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+    height: 100%;
+    width: 100%;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Element Plus Customizations */
+.el-card {
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.el-button {
+    border-radius: 8px !important;
+}
+
+.el-button + .el-button {
+    margin-left: 5px !important;
+}
+
+.el-input__inner, .el-select__wrapper {
+    border-radius: 8px !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}

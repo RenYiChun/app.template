@@ -1,10 +1,10 @@
 package com.lrenyi.template.core.coder;
 
-import com.lrenyi.template.core.TemplateConfigProperties;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -17,11 +17,8 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class DefaultTemplateEncryptService implements TemplateEncryptService, InitializingBean {
     private static final Map<String, PasswordEncoder> ALL_ENCODER = new HashMap<>();
-    private final TemplateConfigProperties templateConfigProperties;
-    
-    public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
-        this.templateConfigProperties = templateConfigProperties;
-    }
+    private static String defaultPasswordEncoderKey;
+    private static PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
     
     static {
         ServiceLoader<TemplateEncryptService> load = ServiceLoader.load(TemplateEncryptService.class);
@@ -32,7 +29,7 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         if (defaultPasswordEncoder instanceof DelegatingPasswordEncoder delegatingPasswordEncoder) {
             try {
                 Field encoder = DelegatingPasswordEncoder.class.getDeclaredField("idToPasswordEncoder");
-                encoder.setAccessible(true);
+                encoder.setAccessible(true); //NOSONAR
                 Object mapValue = encoder.get(delegatingPasswordEncoder);
                 if (mapValue instanceof Map<?, ?> map) {
                     map.forEach((key, value) -> {
@@ -41,19 +38,16 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
                         }
                     });
                 }
-            } catch (NoSuchFieldException | IllegalAccessException ignore) {}
+            } catch (NoSuchFieldException | IllegalAccessException ignore) {
+                // 忽略反射访问异常，使用默认编码器
+            }
         }
     }
     
-    private static String defaultPasswordEncoderKey;
-    private static PasswordEncoder defaultPasswordEncoderForMatches = new UnmappedIdPasswordEncoder();
+    private final TemplateConfigProperties templateConfigProperties;
     
-    public static void setDefaultPasswordEncoderForMatches(String encoderKey) {
-        if (!StringUtils.hasLength(encoderKey)) {
-            throw new IllegalArgumentException("defaultPasswordEncoderForMatches cannot be null");
-        }
-        defaultPasswordEncoderKey = encoderKey;
-        defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
+    public DefaultTemplateEncryptService(TemplateConfigProperties templateConfigProperties) {
+        this.templateConfigProperties = templateConfigProperties;
     }
     
     @Override
@@ -85,6 +79,26 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         String extractId = extractId(encodedPassword);
         String password = extractEncodedPassword(encodedPassword);
         return new KeyPassword(extractId, password);
+    }
+    
+    private static String extractId(String prefixEncodedPassword) {
+        if (prefixEncodedPassword == null) {
+            return null;
+        }
+        int start = prefixEncodedPassword.indexOf("{");
+        if (start != 0) {
+            return null;
+        }
+        int end = prefixEncodedPassword.indexOf("}", start);
+        if (end < 0) {
+            return null;
+        }
+        return prefixEncodedPassword.substring(start + 1, end);
+    }
+    
+    private static String extractEncodedPassword(String prefixEncodedPassword) {
+        int start = prefixEncodedPassword.indexOf("}");
+        return prefixEncodedPassword.substring(start + 1);
     }
     
     @Override
@@ -136,26 +150,6 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
         }
     }
     
-    private static String extractId(String prefixEncodedPassword) {
-        if (prefixEncodedPassword == null) {
-            return null;
-        }
-        int start = prefixEncodedPassword.indexOf("{");
-        if (start != 0) {
-            return null;
-        }
-        int end = prefixEncodedPassword.indexOf("}", start);
-        if (end < 0) {
-            return null;
-        }
-        return prefixEncodedPassword.substring(start + 1, end);
-    }
-    
-    private static String extractEncodedPassword(String prefixEncodedPassword) {
-        int start = prefixEncodedPassword.indexOf("}");
-        return prefixEncodedPassword.substring(start + 1);
-    }
-    
     @Override
     public void afterPropertiesSet() {
         String defaultEncryptKey = "default";
@@ -163,6 +157,14 @@ public class DefaultTemplateEncryptService implements TemplateEncryptService, In
             defaultEncryptKey = templateConfigProperties.getSecurity().getSecurityKey();
         }
         setDefaultPasswordEncoderForMatches(defaultEncryptKey);
+    }
+    
+    public static void setDefaultPasswordEncoderForMatches(String encoderKey) {
+        if (!StringUtils.hasLength(encoderKey)) {
+            throw new IllegalArgumentException("defaultPasswordEncoderForMatches cannot be null");
+        }
+        defaultPasswordEncoderKey = encoderKey;
+        defaultPasswordEncoderForMatches = ALL_ENCODER.get(encoderKey);
     }
     
     @Data

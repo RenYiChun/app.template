@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+        xmlns="http://maven.apache.org/POM/4.0.0"
+>
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lrenyi</groupId>
+        <artifactId>template-flow-sources</artifactId>
+        <version>2.5.1</version>
+    </parent>
+    <artifactId>template-flow-sources-paged</artifactId>
+    <name>Template Flow Sources Paged</name>
+    <description>FlowSource implementation for paged API (HTTP/RPC)</description>
+
+    <properties>
+        <checkstyle.skip>false</checkstyle.skip>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-flow</artifactId>
+        </dependency>
+    </dependencies>
+</project>

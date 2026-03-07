@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 测试中抑制 Flow 异常处理器的预期 ERROR/WARN 日志，避免噪音 -->
+    <logger name="com.lrenyi.template.core.flow.exception.DefaultFlowExceptionHandler" level="OFF"/>
+    <logger name="com.lrenyi.template.core.flow.exception.FlowExceptionHelper" level="OFF"/>
+    <root level="INFO"/>
+</configuration>

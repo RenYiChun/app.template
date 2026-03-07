@@ -1,0 +1,58 @@
+package com.lrenyi.template.dataforge.service;
+
+import java.util.List;
+import com.lrenyi.template.dataforge.meta.EntityMeta;
+import com.lrenyi.template.dataforge.support.ListCriteria;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+/**
+ * 委托型 CRUD 服务：将请求转发给默认实现。业务方可继承此类，仅重写需要特殊逻辑的实体或方法，
+ * 其余调用 {@code defaultService}。
+ * <p>
+ * 使用方式：实现类加 {@code @Primary} 并注入 {@code @Qualifier("defaultEntityCrudService") EntityCrudService}，
+ * 在需要自定义的逻辑里编写业务，否则调用 {@code defaultService.list/create/...}。
+ */
+public class DelegatingEntityCrudService implements EntityCrudService {
+    
+    protected final EntityCrudService defaultService;
+    
+    public DelegatingEntityCrudService(EntityCrudService defaultService) {
+        this.defaultService = defaultService;
+    }
+    
+    @Override
+    public Page<Object> list(EntityMeta entityMeta, Pageable pageable, ListCriteria criteria) {
+        return defaultService.list(entityMeta, pageable, criteria);
+    }
+    
+    @Override
+    public Object get(EntityMeta entityMeta, Object id) {
+        return defaultService.get(entityMeta, id);
+    }
+    
+    @Override
+    public Object create(EntityMeta entityMeta, Object body) {
+        return defaultService.create(entityMeta, body);
+    }
+    
+    @Override
+    public Object update(EntityMeta entityMeta, Object id, Object body) {
+        return defaultService.update(entityMeta, id, body);
+    }
+    
+    @Override
+    public void delete(EntityMeta entityMeta, Object id) {
+        defaultService.delete(entityMeta, id);
+    }
+    
+    @Override
+    public void deleteBatch(EntityMeta entityMeta, List<?> ids) {
+        defaultService.deleteBatch(entityMeta, ids);
+    }
+    
+    @Override
+    public List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities) {
+        return defaultService.updateBatch(entityMeta, entities);
+    }
+}
