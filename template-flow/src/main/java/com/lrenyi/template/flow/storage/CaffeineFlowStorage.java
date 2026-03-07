@@ -100,8 +100,20 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
             return;
         }
         EgressReason reason = mapRemovalCause(cause);
+        List<FlowEntry<T>> flowEntries = slot.drainAll();
+        if (flowEntries.isEmpty()) {
+            return;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("数据被驱逐，原因: {}, 槽位数据量：{}, job: {}, key: {}",
+                      cause,
+                      flowEntries.size(),
+                      flowEntries.getFirst().getJobId(),
+                      key
+            );
+        }
         if (reason == EgressReason.SHUTDOWN) {
-            for (FlowEntry<T> e : slot.drainAll()) {
+            for (FlowEntry<T> e : flowEntries) {
                 resourceRegistry().releaseGlobalStorage(1);
                 handleEgress(key, e, reason, true);
             }
@@ -116,7 +128,11 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
      */
     private void processEvictedSlot(String key, FlowSlot<T> slot, EgressReason reason) {
         List<FlowEntry<T>> entries = slot.drainAll();
-        log.debug("驱逐槽位 {} 全量配对，共 {} 条 entry", key, entries.size());
+        if (reason == EgressReason.TIMEOUT || reason == EgressReason.EVICTION) {
+            log.info("驱逐槽位 {} 全量配对，reason={}, 共 {} 条 entry", key, reason, entries.size());
+        } else {
+            log.debug("驱逐槽位 {} 全量配对，reason={}, 共 {} 条 entry", key, reason, entries.size());
+        }
         int n = entries.size();
         if (n == 0) {
             return;
@@ -165,11 +181,23 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                 unmatched.add(x);
             }
         }
-        log.debug("槽位 {} 全量配对完成，共 {} 条 entry，成功配对 {} 对，未匹配 {} 条",
-                key,
-                n,
-                hasAnyPairSucceeded ? 1 : 0,
-                unmatched.size());
+        if (reason == EgressReason.TIMEOUT || reason == EgressReason.EVICTION) {
+            log.info("槽位 {} 全量配对完成，reason={}, 共 {} 条 entry，成功配对 {} 对，未匹配 {} 条",
+                     key,
+                     reason,
+                     n,
+                     hasAnyPairSucceeded ? 1 : 0,
+                     unmatched.size()
+            );
+        } else {
+            log.debug("槽位 {} 全量配对完成，reason={}, 共 {} 条 entry，成功配对 {} 对，未匹配 {} 条",
+                      key,
+                      reason,
+                      n,
+                      hasAnyPairSucceeded ? 1 : 0,
+                      unmatched.size()
+            );
+        }
         if (hasAnyPairSucceeded && !multiMatchEnabled) {
             for (int i = 0; i < n; i++) {
                 FlowEntry<T> current = entries.get(i);

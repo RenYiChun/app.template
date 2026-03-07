@@ -44,6 +44,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
     // 使用 Lock 替代 synchronized，避免虚拟线程 Pinning 现象
     private final ReentrantLock finishLock = new ReentrantLock();
+    private final AtomicLong lastCompletionBlockedLogMillis = new AtomicLong(0L);
     // 业务预期的总条数，由 Source 探测或业务方指定
     private volatile long totalExpected = -1L;
     // 生产端状态：标记 Source 是否已经彻底读完
@@ -140,7 +141,23 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public void markSourceFinished(String jobId) {
+        if (sourceFinished) {
+            return;
+        }
         this.sourceFinished = true;
+        CompletionState state = computeCompletionState();
+        log.info("Source marked finished, jobId={}, productionAcquired={}, productionReleased={}, terminated={}, "
+                         + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}",
+                 this.jobId,
+                 state.acquired(),
+                 state.released(),
+                 state.terminated(),
+                 state.inStorage(),
+                 state.activeConsumers(),
+                 state.inProduction(),
+                 state.pendingConsumer()
+        );
+        checkCompletion();
     }
     
     @Override
@@ -166,6 +183,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         drainStorageIfReady();
         CompletionState state = computeCompletionState();
         if (!state.completionConditionMet()) {
+            logCompletionBlocked(state);
             return;
         }
         finishLock.lock();
@@ -205,6 +223,37 @@ public class DefaultProgressTracker implements ProgressTracker {
         } finally {
             finishLock.unlock();
         }
+    }
+    
+    private void logCompletionBlocked(CompletionState state) {
+        long now = System.currentTimeMillis();
+        long last = lastCompletionBlockedLogMillis.get();
+        if (now - last < 10_000L || !lastCompletionBlockedLogMillis.compareAndSet(last, now)) {
+            return;
+        }
+        boolean waitingSourceFinished = !sourceFinished;
+        boolean waitingStorageDrained = state.inStorage() > 0L;
+        boolean waitingConsumerReleased = state.activeConsumers() > 0L;
+        boolean waitingProductionReleased = state.inProduction() > 0L;
+        boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
+        log.info("Job completion pending, jobId={}, waitingSourceFinished={}, waitingStorageDrained={}, "
+                         + "waitingConsumerReleased={}, waitingProductionReleased={}, waitingPendingConsumer={}, "
+                         + "productionAcquired={}, productionReleased={}, terminated={}, inStorage={}, "
+                         + "activeConsumers={}, inProduction={}, pendingConsumer={}",
+                 jobId,
+                 waitingSourceFinished,
+                 waitingStorageDrained,
+                 waitingConsumerReleased,
+                 waitingProductionReleased,
+                 waitingPendingConsumer,
+                 state.acquired(),
+                 state.released(),
+                 state.terminated(),
+                 state.inStorage(),
+                 state.activeConsumers(),
+                 state.inProduction(),
+                 state.pendingConsumer()
+        );
     }
     
     private CompletionState computeCompletionState() {
