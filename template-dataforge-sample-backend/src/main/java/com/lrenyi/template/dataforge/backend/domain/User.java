@@ -59,7 +59,8 @@ public class User extends BaseEntity<Long> {
     private String phone;
 
     @Column(name = "department_id")
-    @DataforgeField(label = "部门", group = "组织与状态", groupOrder = 2, formOrder = 5)
+    @DataforgeField(label = "部门", group = "组织与状态", groupOrder = 2, formOrder = 5, columnOrder = 2,
+            foreignKey = true, referencedEntity = "Department", displayField = "name")
     @DataforgeDto(include = {DtoType.CREATE, DtoType.UPDATE, DtoType.PAGE_RESPONSE})
     private Long departmentId;
 

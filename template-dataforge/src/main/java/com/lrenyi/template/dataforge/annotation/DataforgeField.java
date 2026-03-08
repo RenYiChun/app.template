@@ -318,6 +318,26 @@ public @interface DataforgeField {
     boolean lazyLoad() default true;
 
     /**
+     * 级联删除策略。
+     * <ul>
+     *   <li>RESTRICT: 限制删除，如果有关联数据则禁止删除（默认）</li>
+     *   <li>SET_NULL: 删除时将关联字段设为 NULL</li>
+     *   <li>CASCADE: 级联删除关联数据（危险，需谨慎使用）</li>
+     * </ul>
+     */
+    CascadeStrategy cascadeDelete() default CascadeStrategy.RESTRICT;
+
+    /**
+     * 关联字段导出格式。
+     * <ul>
+     *   <li>id: 导出 ID 值（默认）</li>
+     *   <li>display: 导出显示字段值</li>
+     * </ul>
+     * 导出时优先使用 {@code @DataforgeExport(format)}，未配置时使用本属性。
+     */
+    String exportFormat() default "id";
+
+    /**
      * 用于支持 {@code @DataforgeField} 的重复注解（类级别覆盖多个父类字段时使用）。
      */
     @Documented

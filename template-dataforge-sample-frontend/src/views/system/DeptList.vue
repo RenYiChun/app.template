@@ -147,14 +147,14 @@ import {
   ElTag,
   ElTreeSelect
 } from 'element-plus';
-import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
+import {BusinessError, useDataforge} from '@lrenyi/dataforge-headless/vue';
 import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
 import {useI18n} from 'vue-i18n';
 import {useDataforgeUiLocale} from '@/i18n';
 
 const {t} = useI18n();
-const {client} = useDataforge();
-const {search} = useEntityCrud('departments');
+const dataforge = useDataforge();
+const {client} = dataforge;
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -237,7 +237,7 @@ const handleSubmit = async () => {
       ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
-    search();
+    dataforge.refreshCrud('departments');
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -255,7 +255,7 @@ const handleDelete = async (row: any) => {
   try {
     await deptClient.delete(row.id);
     ElMessage.success(t('system.dept.deleteSuccess'));
-    search();
+    dataforge.refreshCrud('departments');
   } catch (error: any) {
     if (error === 'cancel') return;
     ElMessage.error(error instanceof Error ? error.message : t('system.dept.deleteFailed'));

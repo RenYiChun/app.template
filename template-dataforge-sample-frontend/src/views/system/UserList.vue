@@ -193,14 +193,15 @@ import {
   ElPagination,
   ElTag
 } from 'element-plus';
-import {BusinessError, useDataforge, useEntityCrud, useEntityMeta} from '@lrenyi/dataforge-headless/vue';
+import {BusinessError, useDataforge, useEntityMeta} from '@lrenyi/dataforge-headless/vue';
 import {EntityCrudPage, EntityForm, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
 import {onMounted} from 'vue';
 import {useI18n} from 'vue-i18n';
 import {useDataforgeUiLocale} from '@/i18n';
 
 const {t} = useI18n();
-const {client, meta} = useDataforge();
+const dataforge = useDataforge();
+const {client, meta} = dataforge;
 const {meta: entityMeta, refresh: refreshMeta} = useEntityMeta(meta, 'users');
 
 const dataforgeUiLocale = useDataforgeUiLocale();
@@ -222,9 +223,6 @@ const userClient = client.define<User>('users');
 const deptClient = client.define<any>('departments');
 const roleClient = client.define<any>('roles');
 const userRoleClient = client.define<any>('user_roles');
-
-const {search} = useEntityCrud<User>('users');
-
 
 const submitting = ref(false);
 const rolesLoading = ref(false);
@@ -348,7 +346,7 @@ const handleFormSubmit = async (data: any) => {
       ElMessage.success(t('common.createSuccess'));
     }
     dialogVisible.value = false;
-    search();
+    dataforge.refreshCrud('users');
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -366,7 +364,7 @@ const handleDelete = async (row: any) => {
   try {
     await userClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
-    search();
+    dataforge.refreshCrud('users');
   } catch (error: any) {
     if (error === 'cancel') return;
     ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));

@@ -2,7 +2,14 @@
  * 通用 EntityClient：按 pathSegment 调用 template-dataforge REST API
  */
 
-import type {PagedResult, Result, SearchRequest, ServiceConfig} from './types.js';
+import type {
+    EntityOption,
+    PagedResult,
+    Result,
+    SearchRequest,
+    ServiceConfig,
+    TreeNode,
+} from './types.js';
 import {SUCCESS_CODE} from './types.js';
 import {ensureSlash, joinPath} from './utils.js';
 import {AuthError, BusinessError, HttpError, NetworkError} from './errors.js';
@@ -209,6 +216,66 @@ export class EntityClient {
             body: body ? JSON.stringify(body) : undefined,
         });
         return this.handleResult<T>(res);
+    }
+
+    /**
+     * 获取实体的选项列表（按 entityName 调用，供关联下拉等使用）
+     */
+    async getOptions(
+        entityName: string,
+        params?: { query?: string; page?: number; size?: number; sort?: string }
+    ): Promise<PagedResult<EntityOption>> {
+        const p = params ?? {};
+        const search = new URLSearchParams();
+        if (p.query != null && p.query !== '') search.set('query', p.query);
+        if (p.page != null) search.set('page', String(p.page));
+        if (p.size != null) search.set('size', String(p.size));
+        if (p.sort != null) search.set('sort', p.sort);
+        const qs = search.toString();
+        const url = qs ? `${entityName}/options?${qs}` : `${entityName}/options`;
+        const res = await this.requestFn(this.url(url), { method: 'GET' });
+        const data = await this.handleResult<PagedResult<EntityOption>>(res);
+        return data ?? { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 };
+    }
+
+    /**
+     * 获取树形数据（按 entityName，仅树形实体可用）
+     */
+    async getTree(
+        entityName: string,
+        params?: { parentId?: string | null; maxDepth?: number; includeDisabled?: boolean }
+    ): Promise<TreeNode[]> {
+        const p = params ?? {};
+        const search = new URLSearchParams();
+        if (p.parentId != null && p.parentId !== '') search.set('parentId', p.parentId);
+        if (p.maxDepth != null) search.set('maxDepth', String(p.maxDepth));
+        if (p.includeDisabled === true) search.set('includeDisabled', 'true');
+        const qs = search.toString();
+        const url = qs ? `${entityName}/tree?${qs}` : `${entityName}/tree`;
+        const res = await this.requestFn(this.url(url), { method: 'GET' });
+        const data = await this.handleResult<TreeNode[]>(res);
+        return Array.isArray(data) ? data : [];
+    }
+
+    /**
+     * 批量查显示值（按 entityName，ids 逗号分隔，单次最多 1000）
+     * @param fields 可选，逗号分隔的字段名，返回对象中仅包含这些键；未指定时默认 id、label
+     */
+    async batchLookup(
+        entityName: string,
+        ids: string | (string | number)[],
+        options?: { fields?: string }
+    ): Promise<Record<string | number, { id: unknown; label: string; [key: string]: unknown }>> {
+        const idStr = Array.isArray(ids) ? ids.join(',') : String(ids);
+        if (!idStr.trim()) return {};
+        const search = new URLSearchParams({ ids: idStr });
+        if (options?.fields?.trim()) search.set('fields', options.fields.trim());
+        const res = await this.requestFn(
+            this.url(`${entityName}/batch-lookup?${search.toString()}`),
+            { method: 'GET' }
+        );
+        const data = await this.handleResult<Record<string, { id: unknown; label: string; [key: string]: unknown }>>(res);
+        return (data as Record<string | number, { id: unknown; label: string; [key: string]: unknown }>) ?? {};
     }
 
     /**

@@ -65,6 +65,41 @@
                       autocomplete="new-password"
                     />
 
+                    <!-- 关联远程下拉 (foreignKey + SELECT + getOptions) -->
+                    <el-select
+                      v-else-if="(schema as any).foreignKey && ((schema as any).component === 'SELECT' || (schema as any).component === 'Select') && getOptions"
+                      v-model="formData[key]"
+                      :placeholder="formatText(selectPlaceholder, { label: getFieldLabel(key, schema) })"
+                      :disabled="readonly"
+                      filterable
+                      remote
+                      :remote-method="(q: string) => loadOptionsForKey(key, schema, q)"
+                      :loading="optionsLoading[key]"
+                      clearable
+                      class="elegant-select"
+                    >
+                      <el-option
+                        v-for="opt in (optionsByKey[key] || [])"
+                        :key="String(opt.id)"
+                        :label="opt.label"
+                        :value="opt.id"
+                      />
+                    </el-select>
+
+                    <!-- 关联树选择 (foreignKey + TREE_SELECT + getTree) -->
+                    <el-tree-select
+                      v-else-if="(schema as any).foreignKey && ((schema as any).component === 'TREE_SELECT' || (schema as any).component === 'TreeSelect') && getTree"
+                      v-model="formData[key]"
+                      :placeholder="formatText(selectPlaceholder, { label: getFieldLabel(key, schema) })"
+                      :disabled="readonly"
+                      clearable
+                      :data="(treeDataByKey[key] || [])"
+                      node-key="id"
+                      :props="{ label: 'label', value: 'id' }"
+                      class="elegant-select"
+                      @visible-change="(v: boolean) => v && loadTreeForKey(key, schema)"
+                    />
+
                     <!-- Select/Enum -->
                     <el-select
                       v-else-if="schema.enum"
@@ -288,17 +323,13 @@ const props = withDefaults(
       loading?: boolean;
       labelPosition?: 'left' | 'right' | 'top';
       labelWidth?: string | number;
+      /** 关联实体选项加载（entityName, params）-> { content: { id, label }[] }，用于 foreignKey + SELECT 远程下拉 */
+      getOptions?: (entityName: string, params?: { query?: string; page?: number; size?: number }) => Promise<{ content: { id: string | number; label: string }[] }>;
+      /** 关联实体树加载（entityName）-> TreeNode[]，用于 foreignKey + TREE_SELECT */
+      getTree?: (entityName: string, params?: { parentId?: string | null }) => Promise<{ id: string | number; label: string; children?: unknown[] }[]>;
       locale?: {
-        common?: {
-          submit?: string;
-          reset?: string;
-        };
-        form?: {
-          inputPlaceholder?: string;
-          selectPlaceholder?: string;
-          required?: string;
-          email?: string;
-        };
+        common?: { submit?: string; reset?: string };
+        form?: { inputPlaceholder?: string; selectPlaceholder?: string; required?: string; email?: string };
       };
     }>(),
     {
@@ -316,6 +347,34 @@ const emit = defineEmits<(e: 'submit', data: Record<string, unknown>) => void>()
 const formRef = ref<FormInstance>();
 const formData = reactive<Record<string, unknown>>({});
 const rules = reactive<FormRules>({});
+const optionsByKey = reactive<Record<string, { id: string | number; label: string }[]>>({});
+const optionsLoading = reactive<Record<string, boolean>>({});
+const treeDataByKey = reactive<Record<string, { id: string | number; label: string; children?: unknown[] }[]>>({});
+
+async function loadOptionsForKey(key: string, schema: SchemaProperty, query: string) {
+  const getOptions = props.getOptions;
+  const entityName = (schema as any).referencedEntity;
+  if (!getOptions || !entityName) return;
+  optionsLoading[key] = true;
+  try {
+    const res = await getOptions(entityName, { query: query || undefined, page: 0, size: 50 });
+    optionsByKey[key] = (res?.content ?? []).map((o: { id: string | number; label: string }) => ({ id: o.id, label: o.label }));
+  } finally {
+    optionsLoading[key] = false;
+  }
+}
+
+async function loadTreeForKey(key: string, schema: SchemaProperty) {
+  const getTree = props.getTree;
+  const entityName = (schema as any).referencedEntity;
+  if (!getTree || !entityName || treeDataByKey[key]?.length) return;
+  try {
+    const nodes = await getTree(entityName, {});
+    treeDataByKey[key] = Array.isArray(nodes) ? nodes : [];
+  } catch {
+    treeDataByKey[key] = [];
+  }
+}
 
 const formFields = computed(() => props.schema ?? {});
 

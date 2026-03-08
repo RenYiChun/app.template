@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.dataforge.annotation.StorageTypes;
 import com.lrenyi.template.dataforge.domain.DataforgePersistable;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
+import com.lrenyi.template.dataforge.meta.FieldMeta;
+import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
 import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
 import com.lrenyi.template.dataforge.support.FilterCondition;
@@ -20,10 +22,16 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.LookupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.bson.Document;
 
 /**
  * 基于 MongoTemplate 的通用 CRUD 实现。实体需继承 MongoBaseDocument，主键类型可为 String、Long、ObjectId。
@@ -42,10 +50,16 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
     
     private final MongoTemplate mongoTemplate;
     private final ObjectMapper objectMapper;
-    
+    private final EntityRegistry entityRegistry;
+
     public MongoEntityCrudService(MongoTemplate mongoTemplate, ObjectMapper objectMapper) {
+        this(mongoTemplate, objectMapper, null);
+    }
+
+    public MongoEntityCrudService(MongoTemplate mongoTemplate, ObjectMapper objectMapper, EntityRegistry entityRegistry) {
         this.mongoTemplate = mongoTemplate;
         this.objectMapper = objectMapper;
+        this.entityRegistry = entityRegistry;
     }
     
     @Override
@@ -60,8 +74,20 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        String collection = entityMeta.getTableName();
         ListCriteria c = criteria != null ? criteria : ListCriteria.empty();
+        List<FieldMeta> foreignKeyFields = entityMeta.getFields() == null ? List.of() : entityMeta.getFields().stream()
+                .filter(FieldMeta::isForeignKey)
+                .filter(f -> StringUtils.hasText(f.getReferencedEntity()) && entityRegistry != null
+                        && entityRegistry.getByEntityName(f.getReferencedEntity().trim()) != null)
+                .toList();
+        if (foreignKeyFields.isEmpty()) {
+            return listSimple(entityMeta, entityClass, pageable, c);
+        }
+        return listWithLookup(entityMeta, entityClass, pageable, c, foreignKeyFields);
+    }
+
+    private Page<Object> listSimple(EntityMeta entityMeta, Class<Object> entityClass, Pageable pageable, ListCriteria c) {
+        String collection = entityMeta.getTableName();
         Query query = buildQuery(entityClass, c.getFilters());
         addSoftDeleteCriteria(query);
         long total = mongoTemplate.count(query, entityClass, collection);
@@ -70,6 +96,59 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         query.skip(pageable.getOffset());
         query.limit(pageable.getPageSize());
         List<Object> content = mongoTemplate.find(query, entityClass, collection);
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private Page<Object> listWithLookup(EntityMeta entityMeta, Class<Object> entityClass, Pageable pageable,
+            ListCriteria c, List<FieldMeta> foreignKeyFields) {
+        String collection = entityMeta.getTableName();
+        Set<String> allowedFields = getEntityFieldNames(entityClass);
+        List<Criteria> matchCriteriaList = new ArrayList<>();
+        matchCriteriaList.add(Criteria.where(FIELD_DELETED).ne(true));
+        for (FilterCondition fc : c.getFilters()) {
+            if (isUsableFilter(fc, allowedFields)) {
+                matchCriteriaList.add(toCriteria(fc));
+            }
+        }
+        MatchOperation match = Aggregation.match(new Criteria().andOperator(matchCriteriaList.toArray(Criteria[]::new)));
+        Query countQuery = buildQuery(entityClass, c.getFilters());
+        addSoftDeleteCriteria(countQuery);
+        long total = mongoTemplate.count(countQuery, entityClass, collection);
+
+        List<org.springframework.data.mongodb.core.aggregation.AggregationOperation> ops = new ArrayList<>();
+        ops.add(match);
+        for (FieldMeta field : foreignKeyFields) {
+            EntityMeta refMeta = entityRegistry.getByEntityName(field.getReferencedEntity().trim());
+            if (refMeta == null) {
+                continue;
+            }
+            String refCollection = refMeta.getTableName();
+            String localField = StringUtils.hasText(field.getColumnName()) ? field.getColumnName() : field.getName();
+            String asField = field.getName() + "_obj";
+            ops.add(LookupOperation.newLookup().from(refCollection).localField(localField).foreignField("_id").as(asField));
+            ops.add(Aggregation.unwind(asField, true));
+        }
+        Set<String> includeFields = getEntityFieldNames(entityClass);
+        ProjectionOperation project = Aggregation.project(includeFields.toArray(new String[0]));
+        for (FieldMeta fk : foreignKeyFields) {
+            String disp = StringUtils.hasText(fk.getDisplayField()) ? fk.getDisplayField() : "name";
+            project = project.and(fk.getName() + "_obj." + disp).as(fk.getName() + "_display");
+        }
+        ops.add(project);
+        Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
+        if (sort.isSorted()) {
+            ops.add(Aggregation.sort(org.springframework.data.domain.Sort.by(sort.stream()
+                    .map(o -> new org.springframework.data.domain.Sort.Order(
+                            o.isAscending() ? org.springframework.data.domain.Sort.Direction.ASC
+                                    : org.springframework.data.domain.Sort.Direction.DESC,
+                            o.getProperty()))
+                    .toList())));
+        }
+        ops.add(Aggregation.skip(pageable.getOffset()));
+        ops.add(Aggregation.limit(pageable.getPageSize()));
+        Aggregation aggregation = Aggregation.newAggregation(ops);
+        List<Object> content = mongoTemplate.aggregate(aggregation, collection, Document.class).getMappedResults()
+                .stream().map(doc -> (Object) new java.util.LinkedHashMap<String, Object>(doc)).toList();
         return new PageImpl<>(content, pageable, total);
     }
     

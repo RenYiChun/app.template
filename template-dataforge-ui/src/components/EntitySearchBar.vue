@@ -14,6 +14,24 @@
                 @keyup.enter="handleSearch"
             />
             <el-select
+                v-else-if="f.foreignKey && f.referencedEntity && getOptions"
+                v-model="formModel[f.field]"
+                :placeholder="formatText(selectPlaceholder, { label: f.label })"
+                filterable
+                remote
+                :remote-method="(q: string) => loadSearchOptions(f.field, f.referencedEntity!, q)"
+                :loading="searchOptionsLoading[f.field]"
+                clearable
+            >
+              <el-option :label="allText" value=""/>
+              <el-option
+                  v-for="opt in (searchOptionsByKey[f.field] || [])"
+                  :key="String(opt.id)"
+                  :label="opt.label"
+                  :value="opt.id"
+              />
+            </el-select>
+            <el-select
                 v-else-if="f.type === 'boolean' || f.type === 'Boolean'"
                 v-model="formModel[f.field]"
                 :placeholder="formatText(selectPlaceholder, { label: f.label })"
@@ -64,6 +82,8 @@ const props = withDefaults(
       fields?: string[] | any[];
       modelValue?: FilterCondition[];
       exportLoading?: boolean;
+      /** 关联实体选项加载，用于 searchable + foreignKey 字段的下拉 */
+      getOptions?: (entityName: string, params?: { query?: string; page?: number; size?: number }) => Promise<{ content: { id: string | number; label: string }[] }>;
       locale?: {
         common?: {
           search?: string;
@@ -98,6 +118,8 @@ interface SearchField {
   type: string;
   operators: Op[];
   order: number;
+  foreignKey?: boolean;
+  referencedEntity?: string;
 }
 
 const formatText = (template: string, vars?: Record<string, string | number>) => {
@@ -133,34 +155,55 @@ const searchFields = computed<SearchField[]>(() => {
 
           const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
 
+          const fieldMeta = meta?.fields?.find((fm: any) => fm.name === fieldName);
           return {
             field: fieldName,
             label: label,
             type: (typeof f === 'object' && f.type) ? f.type : (info.type ?? 'string'),
             operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
             order: (info as any).order ?? 0,
+            foreignKey: fieldMeta?.foreignKey,
+            referencedEntity: fieldMeta?.referencedEntity,
           };
         })
         .sort((a, b) => a.order - b.order);
-  }
+}
 
   // 否则使用 queryableFields 中的所有字段，并排序
   const list = Object.keys(qf);
+  const fieldsList = meta?.fields ?? [];
   return list
       .map((f) => {
         const info = qf[f];
+        const fieldMeta = fieldsList.find((fm: any) => fm.name === f);
         return {
           field: f,
           label: (info as any).label || f,
           type: info.type ?? 'string',
           operators: info.operators ?? [Op.EQ, Op.NE, Op.LIKE],
           order: (info as any).order ?? 0,
+          foreignKey: fieldMeta?.foreignKey,
+          referencedEntity: fieldMeta?.referencedEntity,
         };
       })
       .sort((a, b) => a.order - b.order);
 });
 
 const formModel = reactive<Record<string, unknown>>({});
+const searchOptionsByKey = reactive<Record<string, { id: string | number; label: string }[]>>({});
+const searchOptionsLoading = reactive<Record<string, boolean>>({});
+const getOptions = props.getOptions;
+
+async function loadSearchOptions(fieldKey: string, entityName: string, query: string) {
+  if (!getOptions) return;
+  searchOptionsLoading[fieldKey] = true;
+  try {
+    const res = await getOptions(entityName, { query: query || undefined, page: 0, size: 50 });
+    searchOptionsByKey[fieldKey] = (res?.content ?? []).map((o: { id: string | number; label: string }) => ({ id: o.id, label: o.label }));
+  } finally {
+    searchOptionsLoading[fieldKey] = false;
+  }
+}
 
 watch(
     () => props.fields ?? props.entityMeta?.queryableFields,

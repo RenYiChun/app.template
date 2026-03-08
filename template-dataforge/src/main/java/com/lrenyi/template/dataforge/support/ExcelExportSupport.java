@@ -5,12 +5,18 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
+import com.lrenyi.template.dataforge.registry.EntityRegistry;
+import com.lrenyi.template.dataforge.service.EntityCrudService;
+import org.springframework.util.StringUtils;
 
 /**
  * 将实体列表按 {@link EntityMeta} 中可导出字段（未标 {@link com.lrenyi.template.dataforge.annotation.DataforgeExport}(enabled
@@ -25,10 +31,19 @@ public final class ExcelExportSupport {
     }
     
     /**
-     * 生成 Excel 字节数组。第一行为表头（字段名），后续为数据行；仅包含未标记 exportExcluded 的字段。
+     * 生成 Excel 字节数组（不解析关联 display）。
      * 运行时需存在 poi-ooxml，否则抛出异常。
      */
     public static byte[] toExcel(EntityMeta meta, List<?> data) throws ReflectiveOperationException {
+        return toExcel(meta, data, null, null);
+    }
+
+    /**
+     * 生成 Excel 字节数组。当 registry 与 crudService 非空时，对 foreignKey 且 exportFormat 为 "display" 的字段
+     * 批量解析关联实体并写入显示值。
+     */
+    public static byte[] toExcel(EntityMeta meta, List<?> data,
+            EntityRegistry registry, EntityCrudService crudService) throws ReflectiveOperationException {
         List<FieldMeta> exportFields = meta.getFields()
                                            .stream()
                                            .filter(f -> !f.isExportExcluded())
@@ -48,6 +63,7 @@ public final class ExcelExportSupport {
         }
         List<String> columnNames = exportFields.stream().map(FieldMeta::getName).toList();
         Map<String, ExportValueConverter> converterCache = new HashMap<>();
+        Map<String, Map<Object, Object>> displayMaps = buildDisplayMaps(meta, data, exportFields, registry, crudService);
         Object wb = reflect.newWorkbook();
         try {
             Object sheet = reflect.createSheet(wb);
@@ -63,7 +79,7 @@ public final class ExcelExportSupport {
                     String propName = columnNames.get(i);
                     Object value = accessor != null ? accessor.get(entity, propName) : null;
                     FieldMeta field = exportFields.get(i);
-                    Object exportValue = applyConverter(field, value, converterCache);
+                    Object exportValue = resolveExportValue(field, value, converterCache, displayMaps.get(propName));
                     reflect.setCellValue(row, i, exportValue);
                 }
             }
@@ -71,6 +87,59 @@ public final class ExcelExportSupport {
         } finally {
             reflect.close(wb);
         }
+    }
+
+    private static Map<String, Map<Object, Object>> buildDisplayMaps(EntityMeta meta, List<?> data,
+            List<FieldMeta> exportFields, EntityRegistry registry, EntityCrudService crudService) {
+        Map<String, Map<Object, Object>> out = new HashMap<>();
+        if (registry == null || crudService == null || data == null || meta.getAccessor() == null) {
+            return out;
+        }
+        for (FieldMeta field : exportFields) {
+            if (!field.isForeignKey() || !"display".equalsIgnoreCase(field.getExportFormat())) {
+                continue;
+            }
+            String refEntity = field.getReferencedEntity();
+            if (!StringUtils.hasText(refEntity)) {
+                continue;
+            }
+            EntityMeta refMeta = registry.getByEntityName(refEntity.trim());
+            if (refMeta == null) {
+                continue;
+            }
+            Set<Object> ids = new HashSet<>();
+            for (Object entity : data) {
+                Object id = meta.getAccessor().get(entity, field.getName());
+                if (id != null) {
+                    ids.add(id);
+                }
+            }
+            Map<Object, Object> idToLabel = new HashMap<>();
+            String displayField = StringUtils.hasText(field.getDisplayField()) ? field.getDisplayField() : "name";
+            var refAccessor = refMeta.getAccessor();
+            if (refAccessor != null) {
+                for (Object id : ids) {
+                    Object refEntityObj = crudService.get(refMeta, id);
+                    if (refEntityObj != null) {
+                        Object label = refAccessor.get(refEntityObj, displayField);
+                        idToLabel.put(id, label != null ? label : id);
+                    }
+                }
+            }
+            out.put(field.getName(), idToLabel);
+        }
+        return out;
+    }
+
+    private static Object resolveExportValue(FieldMeta field, Object value,
+            Map<String, ExportValueConverter> converterCache, Map<Object, Object> idToDisplay) {
+        if (idToDisplay != null && value != null) {
+            Object display = idToDisplay.get(value);
+            if (display != null) {
+                return display;
+            }
+        }
+        return applyConverter(field, value, converterCache);
     }
     
     private static Object applyConverter(FieldMeta field, Object value, Map<String, ExportValueConverter> cache) {

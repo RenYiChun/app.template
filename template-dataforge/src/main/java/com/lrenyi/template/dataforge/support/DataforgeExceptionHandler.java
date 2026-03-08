@@ -27,6 +27,15 @@ public class DataforgeExceptionHandler {
         this.properties = properties;
     }
     
+    @ExceptionHandler(DataforgeHttpException.class)
+    public ResponseEntity<Result<Object>> handleDataforgeHttpException(DataforgeHttpException e) {
+        log.debug("Dataforge HTTP exception: status={}, code={}, message={}", e.getHttpStatus(), e.getErrorCode(), e.getMessage());
+        String message = properties.isExposeExceptionMessage() ? e.getMessage() : GENERIC_ERROR_MESSAGE;
+        Result<Object> r = Result.getError(null, message);
+        r.setCode(e.getErrorCode());
+        return ResponseEntity.status(e.getHttpStatus()).body(r);
+    }
+
     @ExceptionHandler(HttpStatusException.class)
     public ResponseEntity<Result<Object>> handleHttpStatusException(HttpStatusException e) {
         log.debug("HTTP status exception: {} - {}", e.getStatusCode(), e.getMessage());

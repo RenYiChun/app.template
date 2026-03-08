@@ -3,7 +3,8 @@ import {CrudState, EntityCrudManager, EntityMeta} from '@lrenyi/dataforge-headle
 import {ColumnConfig, resolveColumns, useDataforge} from '@lrenyi/dataforge-headless/vue';
 
 export function useEntityCrud<T extends { id: string | number }>(entityName: string) {
-    const {client, meta} = useDataforge();
+    const dataforge = useDataforge();
+    const {client, meta} = dataforge;
 
     const entityCrudManager = new EntityCrudManager<T>(entityName, client, meta);
 
@@ -95,9 +96,12 @@ export function useEntityCrud<T extends { id: string | number }>(entityName: str
         refreshMeta(); // Load meta on mount
         entityCrudManager.init();
         entityCrudManager.search();
+        // 注册列表刷新，业务在创建/更新/删除成功后调用 dataforge.refreshCrud(entityName) 即可更新表格
+        dataforge.registerCrudRefresh(entityName, entityCrudManager.search.bind(entityCrudManager));
     });
 
     onUnmounted(() => {
+        dataforge.unregisterCrudRefresh(entityName);
         unsubscribe?.();
     });
 

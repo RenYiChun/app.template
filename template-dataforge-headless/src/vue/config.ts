@@ -30,7 +30,7 @@ export function getEntityConfig(pathSegment: string): EntityConfig | undefined {
     return registry.get(pathSegment);
 }
 
-/** 列配置由后端元数据解析；注册表仅作覆盖（如 label、formatter）。表格列用实体字段：优先 meta.properties（实体 schema），避免用列表响应的 PagedResult 或 search 请求体。列顺序按 meta.fields 的 columnOrder。 */
+/** 列配置由后端元数据解析；注册表仅作覆盖（如 label、formatter）。表格列顺序严格按 meta.fields 的 columnOrder，仅包含在 pageResponse 中存在的字段。 */
 export function resolveColumns(
     pathSegment: string,
     meta: EntityMeta | null
@@ -39,10 +39,16 @@ export function resolveColumns(
     if (!props || typeof props !== 'object') return [];
 
     const config = registry.get(pathSegment);
-    const keys = Object.keys(props);
+    const propsObj = props as Record<string, unknown>;
+    let keys: string[];
     if (meta?.fields?.length) {
-        const orderMap = new Map(meta.fields.map((f, i) => [f.name, f.columnOrder ?? i]));
-        keys.sort((a, b) => (orderMap.get(a) ?? 999) - (orderMap.get(b) ?? 999));
+        const sortedFields = [...meta.fields].sort((a, b) => (a.columnOrder ?? 999) - (b.columnOrder ?? 999));
+        keys = sortedFields.map((f) => f.name).filter((name) => Object.prototype.hasOwnProperty.call(propsObj, name));
+        const keySet = new Set(keys);
+        const extra = Object.keys(propsObj).filter((k) => !keySet.has(k));
+        keys = keys.concat(extra);
+    } else {
+        keys = Object.keys(propsObj);
     }
     return keys.map((prop) => {
         const configCol = config?.columns?.find((c) => c.prop === prop);

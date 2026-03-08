@@ -58,6 +58,15 @@ public final class ListCriteria {
     public static ListCriteria empty() {
         return new ListCriteria(List.of(), List.of());
     }
+
+    /**
+     * 使用指定的过滤条件和排序构建 ListCriteria（用于 options 等场景）。
+     */
+    public static ListCriteria of(List<FilterCondition> filters, List<SortOrder> sortOrders) {
+        return new ListCriteria(
+                filters != null ? filters : List.of(),
+                sortOrders != null ? sortOrders : List.of());
+    }
     
     private static List<SortOrder> validateSort(SearchRequest req, EntityMeta entityMeta) {
         if (req == null || req.sort() == null || req.sort().isEmpty()) {

@@ -699,11 +699,45 @@ public class MetaScanner {
         FieldMeta fm = new FieldMeta();
         fm.setName(f.getName());
         fm.setType(f.getType().getSimpleName());
-        fm.setColumnName(toSnakeCase(f.getName()));
+        fm.setColumnName(resolveColumnName(f));
         fm.setPrimaryKey(isPrimaryKeyField(f));
         fm.setRequired(fm.isPrimaryKey());
         fm.setQueryable(searchableFields.contains(f.getName()));
         return fm;
+    }
+
+    /**
+     * 解析列名：优先 JPA {@code @Column(name)}，其次 Mongo {@code @Field(value)}，否则 toSnakeCase(字段名)。
+     */
+    private static String resolveColumnName(Field f) {
+        String defaultName = toSnakeCase(f.getName());
+        for (java.lang.annotation.Annotation ann : f.getDeclaredAnnotations()) {
+            Class<?> annClass = ann.annotationType();
+            String cname = annClass.getName();
+            if ("jakarta.persistence.Column".equals(cname)) {
+                try {
+                    String name = (String) annClass.getMethod("name").invoke(ann);
+                    if (StringUtils.hasText(name)) {
+                        return name;
+                    }
+                } catch (Exception ignored) {
+                    // ignore
+                }
+                break;
+            }
+            if ("org.springframework.data.mongodb.core.mapping.Field".equals(cname)) {
+                try {
+                    String value = (String) annClass.getMethod("value").invoke(ann);
+                    if (StringUtils.hasText(value)) {
+                        return value;
+                    }
+                } catch (Exception ignored) {
+                    // ignore
+                }
+                break;
+            }
+        }
+        return defaultName;
     }
     
     private void applyDataforgeField(Field f, FieldMeta fm) {
@@ -782,6 +816,8 @@ public class MetaScanner {
         fm.setDisplayField(df.displayField());
         fm.setValueField(df.valueField());
         fm.setLazyLoad(df.lazyLoad());
+        fm.setCascadeDelete(df.cascadeDelete());
+        fm.setExportFormat(StringUtils.hasText(df.exportFormat()) ? df.exportFormat() : "id");
         if (df.searchable()) {
             fm.setQueryable(true);
             fm.setSearchOrder(df.searchOrder());
@@ -796,7 +832,9 @@ public class MetaScanner {
         fm.setExportEnabled(exp.enabled());
         fm.setExportHeader(exp.header());
         fm.setExportOrder(exp.order());
-        fm.setExportFormat(exp.format());
+        if (StringUtils.hasText(exp.format())) {
+            fm.setExportFormat(exp.format());
+        }
         if (exp.converter() != null && exp.converter() != ExportValueConverter.class) {
             fm.setExportConverterClassName(exp.converter().getName());
         }

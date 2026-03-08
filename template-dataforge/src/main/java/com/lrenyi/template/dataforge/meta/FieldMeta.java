@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.meta;
 
+import com.lrenyi.template.dataforge.annotation.CascadeStrategy;
 import com.lrenyi.template.dataforge.annotation.ColumnAlign;
 import com.lrenyi.template.dataforge.annotation.ColumnFixed;
 import com.lrenyi.template.dataforge.annotation.FormComponent;
@@ -101,7 +102,9 @@ public class FieldMeta {
     private String displayField = "name";
     private String valueField = "id";
     private boolean lazyLoad = true;
-    
+    /** 级联删除策略，仅对关联字段有效 */
+    private CascadeStrategy cascadeDelete = CascadeStrategy.RESTRICT;
+
     // 导入导出配置
     private boolean exportEnabled = true;
     private String exportHeader = "";

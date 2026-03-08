@@ -35,7 +35,9 @@
           <span v-else-if="col.formatter && scope.row[col.prop] !== undefined">{{
               col.formatter!(scope.row[col.prop], scope.row)
             }}</span>
-          <span v-else>{{ scope.row[col.prop] }}</span>
+          <span v-else :class="{ 'entity-table__cell-deleted': scope.row[col.prop + '_status'] === 'deleted' }">
+            {{ scope.row[col.prop + '_status'] === 'deleted' ? '已删除' : (scope.row[col.prop + '_display'] ?? scope.row[col.prop]) }}
+          </span>
         </template>
       </el-table-column>
       <el-table-column
@@ -234,3 +236,10 @@ const onSelectionChange = (rows: Record<string, unknown>[]) => {
   emit('selection-change', rows, ids);
 };
 </script>
+
+<style scoped>
+.entity-table__cell-deleted {
+  color: var(--el-text-color-secondary);
+  font-style: italic;
+}
+</style>

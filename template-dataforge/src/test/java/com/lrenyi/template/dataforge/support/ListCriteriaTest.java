@@ -68,4 +68,17 @@ class ListCriteriaTest {
         ListCriteria c = ListCriteria.from(req, null);
         assertThat(c.getFilters()).isEmpty();
     }
+
+    @Test
+    void ofBuildsCriteriaWithFiltersAndSort() {
+        List<FilterCondition> filters = List.of(new FilterCondition("name", Op.LIKE, "%x%"));
+        List<SortOrder> sortOrders = List.of(new SortOrder("name", "asc"));
+        ListCriteria c = ListCriteria.of(filters, sortOrders);
+        assertThat(c.getFilters()).hasSize(1);
+        assertThat(c.getFilters().get(0).field()).isEqualTo("name");
+        assertThat(c.getFilters().get(0).op()).isEqualTo(Op.LIKE);
+        assertThat(c.getSortOrders()).hasSize(1);
+        assertThat(c.getSortOrders().get(0).field()).isEqualTo("name");
+        assertThat(c.getSortOrders().get(0).dir()).isEqualTo("asc");
+    }
 }
