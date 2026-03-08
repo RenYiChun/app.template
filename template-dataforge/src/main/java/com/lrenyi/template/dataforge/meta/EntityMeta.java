@@ -38,6 +38,8 @@ public class EntityMeta {
     private String permissionDelete = "";
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
+    /** 表单分组列数配置，key 为分组名，value 为列数 */
+    private Map<String, Integer> formGroupCols = new HashMap<>();
     /**
      * 前端 Schema 配置（create/update/pageResponse/response），由后端计算好直接下发。
      * 格式：Map<String, Map<String, Object>>

@@ -90,8 +90,10 @@ const props = withDefaults(
       selectable?: boolean;
       /** 行唯一标识字段 */
       rowKey?: string;
-      /** 操作列宽度 */
+      /** 操作列宽度（显式指定时使用） */
       rowActionsWidth?: number;
+      /** 自定义插槽时传入的按钮文案列表，用于精确计算列宽（宽度=内容宽度，无多余） */
+      rowActionsLabels?: string[];
       locale?: {
         common?: {
           actions?: string;
@@ -104,7 +106,7 @@ const props = withDefaults(
     }>(),
     {
       loading: false,
-      rowActions: () => ['view', 'edit', 'delete'],
+      rowActions: () => ['view', 'edit', 'delete'], // 默认含详情、编辑、删除
       selectable: false,
       rowKey: 'id',
       // rowActionsWidth 默认不设值，通过 computed 自动计算
@@ -192,32 +194,36 @@ const emitAction = (act: string, row: Record<string, unknown>) => {
   else emit('action', act, row);
 };
 
-// 自动计算操作列宽度
+/** 根据按钮文案列表精确计算操作列宽度（刚好等于内容宽度，无多余） */
+function calcActionsWidthFromLabels(labels: string[]): number {
+  if (!labels.length) return 120;
+  const BTN_PADDING = 10;   // el-button link 水平内边距（紧凑）
+  const GAP = 5;            // 按钮间距
+  const CELL_PADDING = 16;  // 单元格左右 padding
+  const total = labels.reduce((acc, label) => acc + estimateTextWidth(label) + BTN_PADDING, 0)
+      + GAP * (labels.length - 1)
+      + CELL_PADDING;
+  return Math.ceil(total);
+}
+
+// 自动计算操作列宽度（精确等于内容宽度）
 const calculatedActionsWidth = computed(() => {
-  // 1. 如果 props 显式传入了宽度，优先使用
+  // 1. 显式传入宽度时使用
   if (props.rowActionsWidth) return props.rowActionsWidth;
 
-  // 2. 如果没有自定义插槽，且有默认的操作按钮，根据按钮数量和文字长度估算宽度
-  if (!slots['row-actions'] && props.rowActions && props.rowActions.length > 0) {
-    const buttonsWidth = props.rowActions.reduce((acc, act) => {
-      const label = actionLabel(act);
-      // 估算：每个汉字约 14px，英文约 8px。
-      // 文字链接没有边框和大的内边距，所以 buffer 可以减小。
-      // 这里简化为：字符数 * 14 + 12 (margin)
-      const textWidth = label.length * 14;
-      const btnWidth = textWidth + 12;
-
-      // 按钮之间的间距已包含在 btnWidth 估算中
-      return acc + btnWidth;
-    }, 0);
-
-    // 加上单元格左右 padding (通常是 12px * 2 = 24px)
-    // 额外加 10px buffer 以防万一
-    return buttonsWidth + 24 + 10;
+  // 2. 自定义插槽时，若传入 rowActionsLabels 则按文案精确计算
+  if (slots['row-actions'] && props.rowActionsLabels?.length) {
+    return calcActionsWidthFromLabels(props.rowActionsLabels);
   }
 
-  // 3. 如果使用了插槽或者无法估算，使用默认值 180
-  return 180;
+  // 3. 默认操作按钮（view/edit/delete），按文案精确计算
+  if (!slots['row-actions'] && props.rowActions && props.rowActions.length > 0) {
+    const labels = props.rowActions.map((act) => actionLabel(act));
+    return calcActionsWidthFromLabels(labels);
+  }
+
+  // 4. 插槽但未传 labels，使用保守默认
+  return 200;
 });
 
 const onSelectionChange = (rows: Record<string, unknown>[]) => {

@@ -54,6 +54,7 @@
             :loading="loading"
             :selectable="selectable"
             :sort="sort"
+            :row-actions-labels="[$t('common.edit'), $t('system.role.assignPerms'), $t('common.delete')]"
             @selection-change="handleSelectionChange"
         >
           <template #row-actions="{ row }">

@@ -195,12 +195,20 @@ export class MetaService {
 
         for (const f of formFields) {
             const jsType = this.mapToJsType(f.type ?? '');
-            const prop = {
+            const prop: Record<string, unknown> = {
                 type: jsType,
                 description: f.label,
                 required: f.required || f.uiRequired,
-                enum: f.allowedValues?.length ? f.allowedValues : undefined
+                enum: f.allowedValues?.length ? f.allowedValues : undefined,
+                group: f.group || undefined,
+                groupOrder: f.groupOrder,
+                order: f.formOrder
             };
+            if (f.format) prop.format = f.format;
+            if (f.format === 'textarea') prop.colSpan = 2;
+            if (f.placeholder) prop.placeholder = f.placeholder;
+            if (f.minLength) prop.minLength = f.minLength;
+            if (f.maxLength) prop.maxLength = f.maxLength;
             createProps[f.name] = prop;
             updateProps[f.name] = prop;
         }

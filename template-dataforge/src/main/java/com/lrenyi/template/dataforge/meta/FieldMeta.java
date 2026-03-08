@@ -39,7 +39,9 @@ public class FieldMeta {
     private int columnOrder = 0;
     /** 表单字段排序权重，值越小越靠前 */
     private int formOrder = 0;
-    
+    /** 该分组在表单中的列数（0 表示默认 2 列） */
+    private int groupCols = 0;
+
     // 表格列配置
     private boolean columnVisible = true;
     private boolean columnResizable = true;

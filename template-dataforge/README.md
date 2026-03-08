@@ -7,8 +7,7 @@
 - **实体基类**：所有 `@DataforgeEntity` 实体**必须继承** `com.lrenyi.template.dataforge.domain.BaseEntity<ID>`。BaseEntity
   提供统一主键及审计字段：`id`、`createTime`、`updateTime`、`createBy`、`updateBy`、`deleted`、`remark`。主键类型 `ID` 支持
   `Long`、`Integer`、`UUID`、`String`。`createTime`/`updateTime` 由 `@PrePersist`/`@PreUpdate` 自动填充；`createBy`/
-  `updateBy` 可由业务在创建/更新时赋值，或启用 JPA Auditing（`@EnableJpaAuditing` + `AuditorAware` Bean）后由
-  `AuditingEntityListener` 自动填充。
+  `updateBy` 在引入 `template-api`（提供 AuditorAware）与 `template-dataforge-jpa` 时，由框架自动启用 JPA Auditing 填充当前登录用户名，业务无需配置。
 - **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用
   `GET/POST/PUT/DELETE /api/{entity}/{id}/{actionName}`，HTTP 方法由 `@EntityAction(method = ...)` 指定，默认 POST。导出使用
   `POST /api/{entity}/export`。

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import com.lrenyi.template.api.config.DefaultSecurityFilterChainBuilder;
+import com.lrenyi.template.api.config.JpaAuditingConfig;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.core.CoreAutoConfiguration;
@@ -53,7 +54,8 @@ import org.springframework.security.web.SecurityFilterChain;
 //@formatter:off
 @Import({
         ApiAutoConfiguration.SecurityAutoConfiguration.class,
-        ApiAutoConfiguration.MethodSecurityConfig.class
+        ApiAutoConfiguration.MethodSecurityConfig.class,
+        JpaAuditingConfig.class
 })
 //@formatter:on
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)

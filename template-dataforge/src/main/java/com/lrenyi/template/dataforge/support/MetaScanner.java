@@ -401,8 +401,20 @@ public class MetaScanner {
         applyEntityDtoInfo(meta, clazz, ann);
         
         meta.setFields(buildFieldMetas(clazz));
+        buildFormGroupCols(meta);
         buildSchemas(meta);
         return meta;
+    }
+
+    private void buildFormGroupCols(EntityMeta meta) {
+        if (meta.getFields() == null) return;
+        Map<String, Integer> cols = new HashMap<>();
+        for (FieldMeta f : meta.getFields()) {
+            if (f.getGroupCols() > 0 && f.getGroup() != null && !f.getGroup().isEmpty()) {
+                cols.put(f.getGroup(), f.getGroupCols());
+            }
+        }
+        meta.setFormGroupCols(cols);
     }
     
     private void buildSchemas(EntityMeta meta) {
@@ -460,12 +472,60 @@ public class MetaScanner {
         for (FieldMeta f : updateFields) {
             updateProps.put(f.getName(), buildFormProp(f, mapToJsType(f.getType())));
         }
+        // 详情 schema：含 PAGE_RESPONSE/RESPONSE 字段，排除密码，具备完整表单展示元数据（group/order/format）
+        List<FieldMeta> detailFields = allFields.stream()
+                .filter(f -> shouldShowInDetail(f,
+                        toIncludeList(f.getDtoIncludeTypes()),
+                        strictByType.get(DtoType.PAGE_RESPONSE),
+                        strictByType.get(DtoType.RESPONSE)))
+                .filter(f -> !"password".equals(f.getName()))
+                .sorted(MetaScanner::compareDetailFields)
+                .toList();
+        Map<String, Object> detailProps = new LinkedHashMap<>();
+        for (FieldMeta f : detailFields) {
+            detailProps.put(f.getName(), buildDetailProp(f, mapToJsType(f.getType())));
+        }
         Map<String, Object> schemas = new HashMap<>();
         schemas.put("pageResponse", pageResponseProps);
         schemas.put("create", createProps);
         schemas.put("update", updateProps);
+        schemas.put("detail", detailProps);
         schemas.put("query", queryProps);
         meta.setSchemas(schemas);
+    }
+
+    /** 详情字段排序：有分组的按 group/groupOrder/formOrder，审计字段放最后 */
+    private static int compareDetailFields(FieldMeta a, FieldMeta b) {
+        boolean aAudit = SYSTEM_FIELDS.contains(a.getName());
+        boolean bAudit = SYSTEM_FIELDS.contains(b.getName());
+        if (aAudit != bAudit) return aAudit ? 1 : -1;
+        if (aAudit) return Integer.compare(a.getColumnOrder(), b.getColumnOrder());
+        return compareFormFields(a, b);
+    }
+
+    private static boolean shouldShowInDetail(FieldMeta f, List<String> includes,
+            Set<String> strictPage, Set<String> strictResp) {
+        if (!f.isColumnVisible() && !includes.contains(DtoType.RESPONSE.name())) {
+            return false;
+        }
+        if ("id".equals(f.getName())) return true;
+        if (includes.contains(DtoType.PAGE_RESPONSE.name()) || includes.contains(DtoType.RESPONSE.name())) {
+            return true;
+        }
+        if (!strictPage.isEmpty() || (strictResp != null && !strictResp.isEmpty())) {
+            return false;
+        }
+        return !SYSTEM_FIELDS.contains(f.getName());
+    }
+
+    private Map<String, Object> buildDetailProp(FieldMeta f, String jsType) {
+        Map<String, Object> prop = buildFormProp(f, jsType);
+        // 审计字段无分组时，归入「审计信息」
+        if (SYSTEM_FIELDS.contains(f.getName()) && (f.getGroup() == null || f.getGroup().isEmpty())) {
+            prop.put("group", "审计信息");
+            prop.put("groupOrder", 99);
+        }
+        return prop;
     }
     
     /** 表单字段排序：先按 group，再 groupOrder，再 formOrder */
@@ -481,7 +541,7 @@ public class MetaScanner {
     
     private static Map<DtoType, Set<String>> collectStrictFieldsByType(List<FieldMeta> allFields) {
         Map<DtoType, Set<String>> result = new EnumMap<>(DtoType.class);
-        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
+        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
             result.put(t, new HashSet<>());
         }
         for (FieldMeta f : allFields) {
@@ -489,7 +549,7 @@ public class MetaScanner {
                 continue;
             }
             List<String> types = Arrays.asList(f.getDtoIncludeTypes());
-            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
+            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
                 if (types.contains(t.name())) {
                     result.get(t).add(f.getName());
                 }
@@ -569,6 +629,22 @@ public class MetaScanner {
         if (f.getAllowedValues() != null && f.getAllowedValues().length > 0) {
             prop.put("enum", f.getAllowedValues());
         }
+        if (f.getGroup() != null && !f.getGroup().isEmpty()) {
+            prop.put("group", f.getGroup());
+            prop.put("groupOrder", f.getGroupOrder());
+        }
+        prop.put("order", f.getFormOrder());
+        if (f.getFormat() != null && !f.getFormat().isEmpty()) {
+            prop.put("format", f.getFormat());
+            if ("textarea".equals(f.getFormat())) {
+                prop.put("colSpan", 2);
+            }
+        }
+        if (f.getPlaceholder() != null && !f.getPlaceholder().isEmpty()) {
+            prop.put("placeholder", f.getPlaceholder());
+        }
+        if (f.getMinLength() > 0) prop.put("minLength", f.getMinLength());
+        if (f.getMaxLength() > 0) prop.put("maxLength", f.getMaxLength());
         return prop;
     }
     
@@ -659,6 +735,7 @@ public class MetaScanner {
         fm.setGroupOrder(df.groupOrder());
         fm.setColumnOrder(df.columnOrder());
         fm.setFormOrder(df.formOrder());
+        fm.setGroupCols(df.groupCols());
         fm.setColumnVisible(df.columnVisible());
         fm.setColumnResizable(df.columnResizable());
         fm.setColumnSortable(df.columnSortable());

@@ -55,6 +55,7 @@
             :loading="loading"
             :selectable="selectable"
             :sort="sort"
+            :row-actions-labels="[t('common.view'), t('common.edit'), t('system.user.assignRoles'), t('common.delete')]"
             @selection-change="handleSelectionChange"
         >
           <!-- 自定义状态列 -->
@@ -64,8 +65,9 @@
             </el-tag>
           </template>
 
-          <!-- 自定义行操作 -->
+          <!-- 自定义行操作：详情、编辑、分配角色、删除 -->
           <template #row-actions="{ row }">
+            <el-button link type="primary" @click="handleView(row)">{{ $t('common.view') }}</el-button>
             <el-button link type="primary" @click="handleEdit(row)">{{ $t('common.edit') }}</el-button>
             <el-button link type="warning" @click="handleAssignRoles(row)">{{
                 $t('system.user.assignRoles')
@@ -91,53 +93,75 @@
       </template>
     </EntityCrudPage>
 
-    <!-- 新增/编辑对话框 -->
+    <!-- 新增/编辑/查看对话框：查看时复用表单，只读展示 -->
     <el-dialog
         v-model="dialogVisible"
         :title="dialogTitle"
-        width="600px"
+        width="680px"
+        class="elegant-dialog user-form-dialog"
+        destroy-on-close
         @close="handleDialogClose"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item :label="$t('system.user.username')" prop="username">
-          <el-input v-model="form.username" :disabled="!!form.id"/>
-        </el-form-item>
-        <el-form-item :label="$t('system.user.nickname')" prop="nickname">
-          <el-input v-model="form.nickname"/>
-        </el-form-item>
-        <el-form-item v-if="!form.id" :label="$t('system.user.password')" prop="password">
-          <el-input v-model="form.password" show-password type="password"/>
-        </el-form-item>
-        <el-form-item :label="$t('system.user.email')" prop="email">
-          <el-input v-model="form.email"/>
-        </el-form-item>
-        <el-form-item :label="$t('system.user.phone')" prop="phone">
-          <el-input v-model="form.phone"/>
-        </el-form-item>
-        <el-form-item :label="$t('system.user.dept')" prop="departmentId">
+      <EntityForm
+          ref="entityFormRef"
+          :schema="formSchema"
+          :initial="form"
+          :label-width="80"
+          :group-cols="entityMeta?.formGroupCols"
+          :rules-override="formRulesOverride"
+          :rules-mode="formRulesOverride ? 'replace' : undefined"
+          :readonly="formDialogMode === 'view'"
+          :loading="submitting"
+          @submit="handleFormSubmit"
+      >
+        <!-- 部门选择插槽：只读时显示部门名 -->
+        <template #field-departmentId="{ model, readonly }">
+          <span v-if="readonly">{{ model.deptName ?? model.departmentId ?? '-' }}</span>
           <el-cascader
-              v-model="form.departmentId"
+              v-else
+              v-model="model.departmentId"
               :options="deptTreeData"
               :placeholder="$t('system.user.selectDept')"
               :props="{ label: 'name', value: 'id', checkStrictly: true, emitPath: false }"
+              class="elegant-cascader"
               clearable
               style="width: 100%"
           />
-        </el-form-item>
-        <el-form-item :label="$t('system.role.remark')" prop="remark">
-          <el-input v-model="form.remark" type="textarea"/>
-        </el-form-item>
-        <el-form-item :label="$t('system.user.status')" prop="status">
-          <el-radio-group v-model="form.status">
-            <el-radio label="1">{{ $t('common.enable') }}</el-radio>
-            <el-radio label="0">{{ $t('common.disable') }}</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button :loading="submitting" type="primary" @click="handleSubmit">{{ $t('common.confirm') }}</el-button>
-      </template>
+        </template>
+
+        <!-- 状态选择插槽 -->
+        <template #field-status="{ model, readonly }">
+          <div class="switch-container">
+            <el-switch
+                v-model="model.status"
+                :active-value="'1'"
+                :inactive-value="'0'"
+                :active-text="$t('common.enable')"
+                :inactive-text="$t('common.disable')"
+                :disabled="readonly"
+                inline-prompt
+                class="modern-switch"
+            />
+          </div>
+        </template>
+
+        <!-- 底部按钮：查看时显示关闭+编辑，编辑/新增时显示取消+确定 -->
+        <template #footer>
+          <template v-if="formDialogMode === 'view'">
+            <el-button @click="dialogVisible = false">{{ $t('common.close') }}</el-button>
+            <el-button type="primary" @click="handleSwitchToEdit">{{ $t('common.edit') }}</el-button>
+          </template>
+          <template v-else>
+            <el-button class="action-btn action-btn-cancel" @click="dialogVisible = false">
+              {{ $t('common.cancel') }}
+            </el-button>
+            <el-button :loading="submitting" class="action-btn action-btn-submit" type="primary" @click="triggerSubmit">
+              <el-icon class="btn-icon"><Check /></el-icon>
+              {{ $t('common.confirm') }}
+            </el-button>
+          </template>
+        </template>
+      </EntityForm>
     </el-dialog>
 
     <!-- 分配角色对话框 -->
@@ -156,25 +180,28 @@
 </template>
 
 <script lang="ts" setup>
-import {reactive, ref} from 'vue';
+import {computed, reactive, ref} from 'vue';
+import {Check} from '@element-plus/icons-vue';
 import {
   ElAlert,
   ElButton,
   ElCheckbox,
   ElCheckboxGroup,
-  ElInput,
+  ElIcon,
   ElMessage,
   ElMessageBox,
   ElPagination,
   ElTag
 } from 'element-plus';
-import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
-import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
+import {BusinessError, useDataforge, useEntityCrud, useEntityMeta} from '@lrenyi/dataforge-headless/vue';
+import {EntityCrudPage, EntityForm, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
+import {onMounted} from 'vue';
 import {useI18n} from 'vue-i18n';
 import {useDataforgeUiLocale} from '@/i18n';
 
 const {t} = useI18n();
-const {client} = useDataforge();
+const {client, meta} = useDataforge();
+const {meta: entityMeta, refresh: refreshMeta} = useEntityMeta(meta, 'users');
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -207,9 +234,10 @@ const currentUser = ref<any>(null);
 const deptTreeData = ref<any[]>([]);
 
 const dialogVisible = ref(false);
+const formDialogMode = ref<'view' | 'edit' | 'create'>('create');
 const roleDialogVisible = ref(false);
 const dialogTitle = ref(t('system.user.add'));
-const formRef = ref();
+const entityFormRef = ref();
 
 const form = reactive({
   id: null as number | null,
@@ -223,12 +251,34 @@ const form = reactive({
   status: '1',
 });
 
-const rules = {
-  username: [{required: true, message: t('system.user.inputUsername'), trigger: 'blur'}],
-  password: [{required: true, message: t('system.user.inputPassword'), trigger: 'blur'}],
-};
+// 表单 schema：查看模式用后端 detail schema（含完整展示元数据），编辑/新增用 create/update
+const formSchema = computed(() => {
+  const meta = entityMeta.value;
+  if (formDialogMode.value === 'view') {
+    return meta?.schemas?.detail ?? meta?.schemas?.pageResponse ?? {};
+  }
+  const isCreate = !form.id;
+  const schema = isCreate ? meta?.schemas?.create : meta?.schemas?.update;
+  if (!schema) return {};
+
+  const result = {...schema};
+  // 编辑时密码改为可选，占位符提示
+  if (!isCreate && result.password) {
+    result.password = {...result.password, required: false, placeholder: '留空表示不修改密码'};
+  }
+  return result;
+});
+
+const formRulesOverride = computed(() => {
+  const isCreate = !form.id;
+  if (isCreate) return undefined;
+  return {password: []};
+});
+
+onMounted(() => refreshMeta());
 
 const handleAdd = () => {
+  formDialogMode.value = 'create';
   dialogTitle.value = t('system.user.add');
   Object.assign(form, {
     id: null,
@@ -249,7 +299,21 @@ const handleExport = () => {
   ElMessage.info(t('common.operationFailed'));
 };
 
+const handleView = (row: any) => {
+  formDialogMode.value = 'view';
+  dialogTitle.value = t('system.user.detail');
+  Object.assign(form, {...row, password: ''});
+  dialogVisible.value = true;
+};
+
+const handleSwitchToEdit = () => {
+  formDialogMode.value = 'edit';
+  dialogTitle.value = t('system.user.edit');
+  loadDeptTree();
+};
+
 const handleEdit = (row: any) => {
+  formDialogMode.value = 'edit';
   dialogTitle.value = t('system.user.edit');
   Object.assign(form, {...row, password: ''});
   dialogVisible.value = true;
@@ -257,14 +321,23 @@ const handleEdit = (row: any) => {
 };
 
 const handleDialogClose = () => {
-  formRef.value?.resetFields();
+  entityFormRef.value?.handleReset();
 };
 
-const handleSubmit = async () => {
-  await formRef.value.validate();
+const triggerSubmit = () => {
+  entityFormRef.value?.handleSubmit();
+};
+
+const handleFormSubmit = async (data: any) => {
   submitting.value = true;
   try {
-    const submitData = {...form};
+    const submitData = {...data};
+    // Ensure ID is from original form if editing, though data should contain it if initial had it?
+    // EntityForm initial sets formData. If form.id was in initial, it's in data.
+    // However, form.id is outside formData in EntityForm (it copies keys from schema).
+    // Wait, EntityForm only copies keys present in schema? No, it copies `initial`.
+    // But let's use `form.id` to be safe as it's the source of truth for "edit mode".
+
     if (form.id) {
       if (!submitData.password) delete (submitData as any).password;
       await userClient.update(form.id, submitData);
@@ -396,5 +469,283 @@ const handleSaveRoles = async () => {
 <style scoped>
 .user-list-container {
   padding: 0;
+}
+
+/* 紧凑表单样式 */
+.elegant-form {
+  --form-gap: 12px;
+  --label-color: #374151;
+  --label-font-size: 12px;
+  --input-bg: #f9fafb;
+  --input-border: #e5e7eb;
+  --input-hover-border: #3b82f6;
+  --input-focus-bg: #ffffff;
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 柔和的网格布局 */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--form-gap);
+}
+
+/* 表单字段 */
+.form-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.form-field.field-full {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* 标签样式 */
+.field-label {
+  font-size: var(--label-font-size);
+  font-weight: 600;
+  color: var(--label-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  min-width: 70px;
+}
+
+.required-mark {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* 输入框包装器 */
+.field-input-wrapper {
+  width: 100%;
+}
+
+/* 优雅的输入框样式 */
+:deep(.elegant-input .el-input__wrapper),
+:deep(.elegant-cascader .el-input__wrapper) {
+  background-color: var(--input-bg);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--input-border) inset;
+  transition: var(--transition);
+  padding: 0 12px;
+}
+
+:deep(.elegant-input .el-input__inner) {
+  height: 36px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+:deep(.elegant-input .el-input__wrapper:hover),
+:deep(.elegant-cascader .el-input__wrapper:hover) {
+  background-color: var(--input-focus-bg);
+  box-shadow: 0 0 0 1px var(--input-hover-border) inset;
+}
+
+:deep(.elegant-input .el-input__wrapper.is-focus),
+:deep(.elegant-cascader .el-input__wrapper.is-focus) {
+  background-color: var(--input-focus-bg);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15), 0 0 0 1px var(--input-hover-border) inset;
+}
+
+/* Textarea 样式 */
+:deep(.elegant-input.el-textarea .el-textarea__inner) {
+  background-color: var(--input-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-height: 56px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: var(--transition);
+}
+
+:deep(.elegant-input.el-textarea .el-textarea__inner:hover) {
+  background-color: var(--input-focus-bg);
+}
+
+:deep(.elegant-input.el-textarea .el-textarea__inner:focus) {
+  background-color: var(--input-focus-bg);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+/* Switch 容器 */
+.switch-container {
+  display: flex;
+  align-items: center;
+}
+
+:deep(.modern-switch .el-switch__core) {
+  border-radius: 10px;
+  background-color: #e5e7eb;
+  height: 24px;
+  transition: var(--transition);
+}
+
+:deep(.modern-switch .el-switch__core::after) {
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.modern-switch.is-checked .el-switch__core) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+:deep(.modern-switch .el-switch__label) {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* 底部操作区 */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* 优雅的按钮样式 */
+.action-btn {
+  padding: 9px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: var(--transition);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-btn-cancel {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.action-btn-cancel:hover {
+  background-color: #e5e7eb;
+  color: #374151;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn-submit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.3);
+}
+
+.action-btn-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px -2px rgba(102, 126, 234, 0.4);
+}
+
+.action-btn-submit:active {
+  transform: translateY(0);
+}
+
+.btn-icon {
+  font-size: 14px;
+}
+
+/* 紧凑对话框样式 */
+.elegant-dialog {
+  --dialog-border-radius: 8px;
+  --dialog-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08), 0 6px 8px -5px rgba(0, 0, 0, 0.03);
+  --dialog-header-padding: 14px 20px 12px;
+  --dialog-body-padding: 12px 20px;
+  --dialog-footer-padding: 12px 20px 14px;
+}
+
+.user-form-dialog :deep(.el-dialog__body) {
+  padding: 12px 20px 16px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+:deep(.elegant-dialog .el-dialog) {
+  border-radius: var(--dialog-border-radius);
+  box-shadow: var(--dialog-shadow);
+}
+
+:deep(.elegant-dialog .el-dialog__header) {
+  padding: var(--dialog-header-padding);
+  margin-right: 0;
+  /* 移除标题下横线，避免与关闭按钮区域视觉重复 */
+}
+
+:deep(.elegant-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+:deep(.elegant-dialog .el-dialog__body) {
+  padding: var(--dialog-body-padding);
+}
+
+:deep(.elegant-dialog .el-dialog__footer) {
+  padding: var(--dialog-footer-padding);
+  border-top: 1px solid #f3f4f6;
+}
+
+:deep(.elegant-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 16px;
+}
+
+:deep(.elegant-dialog .el-dialog__headerbtn .el-dialog__close) {
+  font-size: 18px;
+  color: #9ca3af;
+}
+
+:deep(.elegant-dialog .el-dialog__headerbtn:hover .el-dialog__close) {
+  color: #6b7280;
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* 移动端对话框调整 */
+  :deep(.elegant-dialog .el-dialog) {
+    width: 90vw !important;
+    max-width: 90vw;
+    margin: 0 auto;
+  }
+
+  :deep(.elegant-dialog .el-dialog__header),
+  :deep(.elegant-dialog .el-dialog__body),
+  :deep(.elegant-dialog .el-dialog__footer) {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  :deep(.elegant-dialog .el-dialog__headerbtn) {
+    right: 16px;
+  }
 }
 </style>

@@ -148,6 +148,8 @@ export type EntityMeta = {
 
     // 字段列表 (核心)
     fields: FieldMeta[];
+    /** 表单分组列数配置，key 为分组名，value 为列数 */
+    formGroupCols?: Record<string, number>;
 
     // 功能开关
     crudEnabled?: boolean;
