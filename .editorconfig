@@ -1,0 +1,27 @@
+# 由 CodeStyleV4.xml 与 Checkstyle 约定转换，供各编辑器统一基础格式
+# 注：换行宽度(120)、import 顺序、大括号等由 IDE 方案 / Checkstyle 控制，.editorconfig 不表达
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Java / Kotlin：与 CodeStyleV4 一致，4 空格缩进；Checkstyle 禁止 Tab，故用 space
+[*.{java,kt}]
+indent_style = space
+indent_size = 4
+
+# 前端与配置
+[*.{js,ts,vue,json,yaml,yml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.xml]
+indent_style = space
+indent_size = 4
