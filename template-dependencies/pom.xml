@@ -32,7 +32,23 @@
         <url>https://github.com/RenYiChun/app.template</url>
     </scm>
 
+    <distributionManagement>
+        <repository>
+            <id>${deployment.repository.id}</id>
+            <url>${deployment.repository.url}</url>
+        </repository>
+        <snapshotRepository>
+            <id>${deployment.repository.id}</id>
+            <url>${deployment.repository.snapshotUrl}</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
+        <deployment.repository.id>ossrh</deployment.repository.id>
+        <deployment.repository.url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/
+        </deployment.repository.url>
+        <deployment.repository.snapshotUrl>https://s01.oss.sonatype.org/content/repositories/snapshots/
+        </deployment.repository.snapshotUrl>
         <app.template.version>${project.version}</app.template.version>
         <nats-spring.version>1.5.8</nats-spring.version>
         <jnats.version>2.21.2</jnats.version>
