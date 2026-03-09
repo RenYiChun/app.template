@@ -12,15 +12,18 @@ import com.lrenyi.template.dataforge.controller.GenericEntityController;
 import com.lrenyi.template.dataforge.controller.MetadataController;
 import com.lrenyi.template.dataforge.controller.OpenApiController;
 import com.lrenyi.template.dataforge.mapper.BaseMapper;
+import com.lrenyi.template.dataforge.permission.DataPermissionApplicator;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.permission.DefaultDataforgePermissionChecker;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
+import com.lrenyi.template.dataforge.service.CascadeDeleteService;
 import com.lrenyi.template.dataforge.service.EntityCrudService;
 import com.lrenyi.template.dataforge.service.EntityCrudServiceRouter;
 import com.lrenyi.template.dataforge.service.InMemoryEntityCrudService;
 import com.lrenyi.template.dataforge.service.PathSegmentAwareCrudService;
 import com.lrenyi.template.dataforge.service.StorageTypeAwareCrudService;
+import com.lrenyi.template.dataforge.validation.AssociationValidator;
 import com.lrenyi.template.dataforge.support.DataforgeAspect;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
@@ -140,6 +143,20 @@ public class DataforgeAutoConfiguration {
     }
     
     @Bean
+    @ConditionalOnMissingBean(AssociationValidator.class)
+    public AssociationValidator associationValidator(EntityRegistry entityRegistry,
+            EntityCrudService entityCrudService) {
+        return new AssociationValidator(entityRegistry, entityCrudService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CascadeDeleteService.class)
+    public CascadeDeleteService cascadeDeleteService(EntityRegistry entityRegistry,
+            EntityCrudService entityCrudService) {
+        return new CascadeDeleteService(entityRegistry, entityCrudService);
+    }
+
+    @Bean
     public DataforgeServices dataforgeServices(EntityRegistry entityRegistry,
             ActionRegistry actionRegistry,
             EntityCrudService entityCrudService,
@@ -148,7 +165,12 @@ public class DataforgeAutoConfiguration {
             ObjectMapper objectMapper,
             ObjectProvider<Validator> validatorProvider,
             ConversionService conversionService,
-            EntityMapperProvider entityMapperProvider) {
+            EntityMapperProvider entityMapperProvider,
+            ObjectProvider<AssociationValidator> associationValidatorProvider,
+            ObjectProvider<CascadeDeleteService> cascadeDeleteServiceProvider,
+            ObjectProvider<DataPermissionApplicator> dataPermissionApplicatorProvider,
+            ObjectProvider<com.lrenyi.template.dataforge.support.EntityChangeNotifier> entityChangeNotifierProvider,
+            ObjectProvider<com.lrenyi.template.dataforge.support.AssociationChangeAuditor> associationChangeAuditorProvider) {
         return new DataforgeServices(entityRegistry,
                                      actionRegistry,
                                      entityCrudService,
@@ -157,7 +179,12 @@ public class DataforgeAutoConfiguration {
                                      objectMapper,
                                      validatorProvider,
                                      conversionService,
-                                     entityMapperProvider
+                                     entityMapperProvider,
+                                     associationValidatorProvider,
+                                     cascadeDeleteServiceProvider,
+                                     dataPermissionApplicatorProvider,
+                                     entityChangeNotifierProvider,
+                                     associationChangeAuditorProvider
         );
     }
     

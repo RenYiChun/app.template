@@ -23,13 +23,19 @@ import com.lrenyi.template.dataforge.annotation.DataforgeDto;
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
 import com.lrenyi.template.dataforge.annotation.DataforgeExport;
 import com.lrenyi.template.dataforge.annotation.DataforgeField;
+import com.lrenyi.template.dataforge.annotation.EntityUiLayout;
+import com.lrenyi.template.dataforge.annotation.MasterDetailTree;
+import com.lrenyi.template.dataforge.annotation.RootSelectionMode;
+import com.lrenyi.template.dataforge.annotation.UiLayoutMode;
 import com.lrenyi.template.dataforge.annotation.DataforgeImport;
 import com.lrenyi.template.dataforge.annotation.DtoType;
 import com.lrenyi.template.dataforge.annotation.EntityAction;
 import com.lrenyi.template.dataforge.domain.DataforgePersistable;
 import com.lrenyi.template.dataforge.meta.ActionMeta;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
+import com.lrenyi.template.dataforge.meta.EntityUiLayoutMeta;
 import com.lrenyi.template.dataforge.meta.FieldMeta;
+import com.lrenyi.template.dataforge.meta.MasterDetailTreeMeta;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
 import jakarta.persistence.EntityManagerFactory;
@@ -218,6 +224,7 @@ public class MetaScanner {
      * 仅扫描并注册 @DataforgeEntity 实体（不触发 getBeansOfType，避免在 SmartInitializingSingleton
      * 等阶段卡住）。scan-packages 非空时优先 classpath 扫描（覆盖 JPA 与非 JPA 的 @DataforgeEntity）；
      * 否则且 JPA 可用时从 Metamodel 获取。
+     * 注册完成后对 uiLayout.mode=masterDetailTree 的实体执行元数据校验。
      */
     public void registerEntitiesOnly() {
         if (StringUtils.hasText(basePackage)) {
@@ -225,6 +232,7 @@ public class MetaScanner {
         } else if (entityManagerFactory != null) {
             registerFromMetamodel();
         }
+        validateAllUiLayouts();
     }
     
     /**
@@ -261,6 +269,70 @@ public class MetaScanner {
         registerActionExecutors(actionExecutorBeans);
     }
     
+    /**
+     * 当 uiLayout.mode=masterDetailTree 时校验：masterDetailTree 必填、treeEntity 可解析、
+     * relationField 存在于主实体、树实体具备 treeIdField/treeParentField/treeLabelField（及 treeSortField 若配置）。
+     */
+    private void validateAllUiLayouts() {
+        for (EntityMeta meta : entityRegistry.getAll()) {
+            EntityUiLayoutMeta layout = meta.getUiLayout();
+            if (layout == null || !"masterDetailTree".equals(layout.getMode())) {
+                continue;
+            }
+            MasterDetailTreeMeta mdt = layout.getMasterDetailTree();
+            String pathSeg = meta.getPathSegment();
+            if (mdt == null) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": mode=masterDetailTree 时 masterDetailTree 必填");
+            }
+            String treeEntity = mdt.getTreeEntity();
+            if (!StringUtils.hasText(treeEntity)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": masterDetailTree.treeEntity 必填");
+            }
+            EntityMeta treeMeta = entityRegistry.getByPathSegment(treeEntity);
+            if (treeMeta == null) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": treeEntity \"" + treeEntity + "\" 无法解析到已注册实体");
+            }
+            String relationField = mdt.getRelationField();
+            if (!StringUtils.hasText(relationField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": masterDetailTree.relationField 必填");
+            }
+            Set<String> mainFieldNames = meta.getFields() == null
+                    ? Set.of()
+                    : meta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
+            if (!mainFieldNames.contains(relationField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": relationField \"" + relationField + "\" 在主实体字段中不存在");
+            }
+            Set<String> treeFieldNames = treeMeta.getFields() == null
+                    ? Set.of()
+                    : treeMeta.getFields().stream().map(FieldMeta::getName).collect(Collectors.toSet());
+            String idField = StringUtils.hasText(mdt.getTreeIdField()) ? mdt.getTreeIdField() : "id";
+            String parentField = StringUtils.hasText(mdt.getTreeParentField()) ? mdt.getTreeParentField() : "parentId";
+            String labelField = StringUtils.hasText(mdt.getTreeLabelField()) ? mdt.getTreeLabelField() : "name";
+            if (!treeFieldNames.contains(idField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": treeEntity \"" + treeEntity + "\" 中缺少字段 " + idField);
+            }
+            if (!treeFieldNames.contains(parentField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": treeEntity \"" + treeEntity + "\" 中缺少字段 " + parentField);
+            }
+            if (!treeFieldNames.contains(labelField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": treeEntity \"" + treeEntity + "\" 中缺少字段 " + labelField);
+            }
+            String sortField = mdt.getTreeSortField();
+            if (StringUtils.hasText(sortField) && !treeFieldNames.contains(sortField)) {
+                throw new IllegalStateException(
+                        "[uiLayout] entity " + pathSeg + ": treeEntity \"" + treeEntity + "\" 中缺少 treeSortField " + sortField);
+            }
+        }
+    }
+
     /** 从 JPA Metamodel 获取实体，避免 classpath 扫描。 */
     private void registerFromMetamodel() {
         Set<String> packagePrefixes = basePackage.isEmpty() ? Set.of() : Arrays.stream(basePackage.split(","))
@@ -399,10 +471,45 @@ public class MetaScanner {
         meta.setExportTemplate(ann.exportTemplate());
         
         applyEntityDtoInfo(meta, clazz, ann);
-        
+
         meta.setFields(buildFieldMetas(clazz));
+        buildFormGroupCols(meta);
         buildSchemas(meta);
+        meta.setUiLayout(buildUiLayoutMeta(ann));
         return meta;
+    }
+
+    private static EntityUiLayoutMeta buildUiLayoutMeta(DataforgeEntity ann) {
+        EntityUiLayout uil = ann.uiLayout();
+        EntityUiLayoutMeta meta = new EntityUiLayoutMeta();
+        meta.setMode(uil.mode() == UiLayoutMode.MASTER_DETAIL_TREE ? "masterDetailTree" : "table");
+        if (uil.mode() == UiLayoutMode.MASTER_DETAIL_TREE) {
+            MasterDetailTree mdt = uil.masterDetailTree();
+            MasterDetailTreeMeta treeMeta = new MasterDetailTreeMeta();
+            treeMeta.setTreeEntity(mdt.treeEntity());
+            treeMeta.setTreeEntityLabel(mdt.treeEntityLabel());
+            treeMeta.setTreeIdField(StringUtils.hasText(mdt.treeIdField()) ? mdt.treeIdField() : "id");
+            treeMeta.setTreeParentField(StringUtils.hasText(mdt.treeParentField()) ? mdt.treeParentField() : "parentId");
+            treeMeta.setTreeLabelField(StringUtils.hasText(mdt.treeLabelField()) ? mdt.treeLabelField() : "name");
+            treeMeta.setTreeSortField(StringUtils.hasText(mdt.treeSortField()) ? mdt.treeSortField() : "sortOrder");
+            treeMeta.setRelationField(mdt.relationField());
+            treeMeta.setRootSelectionMode(mdt.rootSelectionMode() == RootSelectionMode.NONE ? "none" : "all");
+            treeMeta.setIncludeDescendants(mdt.includeDescendants());
+            treeMeta.setHideTableSearchRelationField(mdt.hideTableSearchRelationField());
+            meta.setMasterDetailTree(treeMeta);
+        }
+        return meta;
+    }
+
+    private void buildFormGroupCols(EntityMeta meta) {
+        if (meta.getFields() == null) return;
+        Map<String, Integer> cols = new HashMap<>();
+        for (FieldMeta f : meta.getFields()) {
+            if (f.getGroupCols() > 0 && f.getGroup() != null && !f.getGroup().isEmpty()) {
+                cols.put(f.getGroup(), f.getGroupCols());
+            }
+        }
+        meta.setFormGroupCols(cols);
     }
     
     private void buildSchemas(EntityMeta meta) {
@@ -460,12 +567,60 @@ public class MetaScanner {
         for (FieldMeta f : updateFields) {
             updateProps.put(f.getName(), buildFormProp(f, mapToJsType(f.getType())));
         }
+        // 详情 schema：含 PAGE_RESPONSE/RESPONSE 字段，排除密码，具备完整表单展示元数据（group/order/format）
+        List<FieldMeta> detailFields = allFields.stream()
+                .filter(f -> shouldShowInDetail(f,
+                        toIncludeList(f.getDtoIncludeTypes()),
+                        strictByType.get(DtoType.PAGE_RESPONSE),
+                        strictByType.get(DtoType.RESPONSE)))
+                .filter(f -> !"password".equals(f.getName()))
+                .sorted(MetaScanner::compareDetailFields)
+                .toList();
+        Map<String, Object> detailProps = new LinkedHashMap<>();
+        for (FieldMeta f : detailFields) {
+            detailProps.put(f.getName(), buildDetailProp(f, mapToJsType(f.getType())));
+        }
         Map<String, Object> schemas = new HashMap<>();
         schemas.put("pageResponse", pageResponseProps);
         schemas.put("create", createProps);
         schemas.put("update", updateProps);
+        schemas.put("detail", detailProps);
         schemas.put("query", queryProps);
         meta.setSchemas(schemas);
+    }
+
+    /** 详情字段排序：有分组的按 group/groupOrder/formOrder，审计字段放最后 */
+    private static int compareDetailFields(FieldMeta a, FieldMeta b) {
+        boolean aAudit = SYSTEM_FIELDS.contains(a.getName());
+        boolean bAudit = SYSTEM_FIELDS.contains(b.getName());
+        if (aAudit != bAudit) return aAudit ? 1 : -1;
+        if (aAudit) return Integer.compare(a.getColumnOrder(), b.getColumnOrder());
+        return compareFormFields(a, b);
+    }
+
+    private static boolean shouldShowInDetail(FieldMeta f, List<String> includes,
+            Set<String> strictPage, Set<String> strictResp) {
+        if (!f.isColumnVisible() && !includes.contains(DtoType.RESPONSE.name())) {
+            return false;
+        }
+        if ("id".equals(f.getName())) return true;
+        if (includes.contains(DtoType.PAGE_RESPONSE.name()) || includes.contains(DtoType.RESPONSE.name())) {
+            return true;
+        }
+        if (!strictPage.isEmpty() || (strictResp != null && !strictResp.isEmpty())) {
+            return false;
+        }
+        return !SYSTEM_FIELDS.contains(f.getName());
+    }
+
+    private Map<String, Object> buildDetailProp(FieldMeta f, String jsType) {
+        Map<String, Object> prop = buildFormProp(f, jsType);
+        // 审计字段无分组时，归入「审计信息」
+        if (SYSTEM_FIELDS.contains(f.getName()) && (f.getGroup() == null || f.getGroup().isEmpty())) {
+            prop.put("group", "审计信息");
+            prop.put("groupOrder", 99);
+        }
+        return prop;
     }
     
     /** 表单字段排序：先按 group，再 groupOrder，再 formOrder */
@@ -481,7 +636,7 @@ public class MetaScanner {
     
     private static Map<DtoType, Set<String>> collectStrictFieldsByType(List<FieldMeta> allFields) {
         Map<DtoType, Set<String>> result = new EnumMap<>(DtoType.class);
-        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
+        for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
             result.put(t, new HashSet<>());
         }
         for (FieldMeta f : allFields) {
@@ -489,7 +644,7 @@ public class MetaScanner {
                 continue;
             }
             List<String> types = Arrays.asList(f.getDtoIncludeTypes());
-            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
+            for (DtoType t : new DtoType[]{DtoType.PAGE_RESPONSE, DtoType.RESPONSE, DtoType.CREATE, DtoType.UPDATE, DtoType.QUERY}) {
                 if (types.contains(t.name())) {
                     result.get(t).add(f.getName());
                 }
@@ -569,6 +724,22 @@ public class MetaScanner {
         if (f.getAllowedValues() != null && f.getAllowedValues().length > 0) {
             prop.put("enum", f.getAllowedValues());
         }
+        if (f.getGroup() != null && !f.getGroup().isEmpty()) {
+            prop.put("group", f.getGroup());
+            prop.put("groupOrder", f.getGroupOrder());
+        }
+        prop.put("order", f.getFormOrder());
+        if (f.getFormat() != null && !f.getFormat().isEmpty()) {
+            prop.put("format", f.getFormat());
+            if ("textarea".equals(f.getFormat())) {
+                prop.put("colSpan", 2);
+            }
+        }
+        if (f.getPlaceholder() != null && !f.getPlaceholder().isEmpty()) {
+            prop.put("placeholder", f.getPlaceholder());
+        }
+        if (f.getMinLength() > 0) prop.put("minLength", f.getMinLength());
+        if (f.getMaxLength() > 0) prop.put("maxLength", f.getMaxLength());
         return prop;
     }
     
@@ -623,11 +794,45 @@ public class MetaScanner {
         FieldMeta fm = new FieldMeta();
         fm.setName(f.getName());
         fm.setType(f.getType().getSimpleName());
-        fm.setColumnName(toSnakeCase(f.getName()));
+        fm.setColumnName(resolveColumnName(f));
         fm.setPrimaryKey(isPrimaryKeyField(f));
         fm.setRequired(fm.isPrimaryKey());
         fm.setQueryable(searchableFields.contains(f.getName()));
         return fm;
+    }
+
+    /**
+     * 解析列名：优先 JPA {@code @Column(name)}，其次 Mongo {@code @Field(value)}，否则 toSnakeCase(字段名)。
+     */
+    private static String resolveColumnName(Field f) {
+        String defaultName = toSnakeCase(f.getName());
+        for (java.lang.annotation.Annotation ann : f.getDeclaredAnnotations()) {
+            Class<?> annClass = ann.annotationType();
+            String cname = annClass.getName();
+            if ("jakarta.persistence.Column".equals(cname)) {
+                try {
+                    String name = (String) annClass.getMethod("name").invoke(ann);
+                    if (StringUtils.hasText(name)) {
+                        return name;
+                    }
+                } catch (Exception ignored) {
+                    // ignore
+                }
+                break;
+            }
+            if ("org.springframework.data.mongodb.core.mapping.Field".equals(cname)) {
+                try {
+                    String value = (String) annClass.getMethod("value").invoke(ann);
+                    if (StringUtils.hasText(value)) {
+                        return value;
+                    }
+                } catch (Exception ignored) {
+                    // ignore
+                }
+                break;
+            }
+        }
+        return defaultName;
     }
     
     private void applyDataforgeField(Field f, FieldMeta fm) {
@@ -659,6 +864,7 @@ public class MetaScanner {
         fm.setGroupOrder(df.groupOrder());
         fm.setColumnOrder(df.columnOrder());
         fm.setFormOrder(df.formOrder());
+        fm.setGroupCols(df.groupCols());
         fm.setColumnVisible(df.columnVisible());
         fm.setColumnResizable(df.columnResizable());
         fm.setColumnSortable(df.columnSortable());
@@ -705,6 +911,8 @@ public class MetaScanner {
         fm.setDisplayField(df.displayField());
         fm.setValueField(df.valueField());
         fm.setLazyLoad(df.lazyLoad());
+        fm.setCascadeDelete(df.cascadeDelete());
+        fm.setExportFormat(StringUtils.hasText(df.exportFormat()) ? df.exportFormat() : "id");
         if (df.searchable()) {
             fm.setQueryable(true);
             fm.setSearchOrder(df.searchOrder());
@@ -719,7 +927,9 @@ public class MetaScanner {
         fm.setExportEnabled(exp.enabled());
         fm.setExportHeader(exp.header());
         fm.setExportOrder(exp.order());
-        fm.setExportFormat(exp.format());
+        if (StringUtils.hasText(exp.format())) {
+            fm.setExportFormat(exp.format());
+        }
         if (exp.converter() != null && exp.converter() != ExportValueConverter.class) {
             fm.setExportConverterClassName(exp.converter().getName());
         }

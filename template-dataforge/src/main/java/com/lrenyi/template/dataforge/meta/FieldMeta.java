@@ -1,5 +1,6 @@
 package com.lrenyi.template.dataforge.meta;
 
+import com.lrenyi.template.dataforge.annotation.CascadeStrategy;
 import com.lrenyi.template.dataforge.annotation.ColumnAlign;
 import com.lrenyi.template.dataforge.annotation.ColumnFixed;
 import com.lrenyi.template.dataforge.annotation.FormComponent;
@@ -39,7 +40,9 @@ public class FieldMeta {
     private int columnOrder = 0;
     /** 表单字段排序权重，值越小越靠前 */
     private int formOrder = 0;
-    
+    /** 该分组在表单中的列数（0 表示默认 2 列） */
+    private int groupCols = 0;
+
     // 表格列配置
     private boolean columnVisible = true;
     private boolean columnResizable = true;
@@ -99,7 +102,9 @@ public class FieldMeta {
     private String displayField = "name";
     private String valueField = "id";
     private boolean lazyLoad = true;
-    
+    /** 级联删除策略，仅对关联字段有效 */
+    private CascadeStrategy cascadeDelete = CascadeStrategy.RESTRICT;
+
     // 导入导出配置
     private boolean exportEnabled = true;
     private String exportHeader = "";

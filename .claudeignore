@@ -1,0 +1,65 @@
+# Claude Code 忽略文件配置
+# 此文件告诉 Claude Code 在分析代码时应该忽略哪些文件和目录
+
+### 构建输出 ###
+target/
+build/
+**/dist/
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
+.flattened-pom.xml
+
+### 依赖和包管理 ###
+node_modules/
+.mvn/wrapper/maven-wrapper.jar
+.pnpm-store/
+
+### IDE 配置文件 ###
+.idea/
+.vscode/
+.cursor/
+*.iws
+*.iml
+*.ipr
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### 日志文件 ###
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### 临时文件和本地配置 ###
+*.local
+.env.local
+.env.*.local
+cookies.txt
+HELP.md
+
+### 操作系统文件 ###
+.DS_Store
+Thumbs.db
+
+### Git 目录 ###
+.git/
+
+### 前端构建产物 ###
+**/src/main/resources/static/
+
+### 其他工具目录 ###
+.trae/

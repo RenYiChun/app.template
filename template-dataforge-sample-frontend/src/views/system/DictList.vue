@@ -256,13 +256,14 @@ import {
   ElPagination,
   ElRow
 } from 'element-plus';
-import {BusinessError, useDataforge, useEntityCrud} from '@lrenyi/dataforge-headless/vue';
+import {BusinessError, useDataforge} from '@lrenyi/dataforge-headless/vue';
 import {EntityCrudPage, EntitySearchBar, EntityTable, EntityToolbar} from '@lrenyi/dataforge-ui';
 import {useI18n} from 'vue-i18n';
 import {useDataforgeUiLocale} from '@/i18n';
 
 const {t} = useI18n();
-const {client} = useDataforge();
+const dataforge = useDataforge();
+const {client} = dataforge;
 
 const dataforgeUiLocale = useDataforgeUiLocale();
 
@@ -284,9 +285,6 @@ interface DictItem {
 
 const dictClient = client.define<Dict>('dicts');
 const dictItemClient = client.define<DictItem>('sys_dict_items');
-
-const {search: dictSearch} = useEntityCrud<Dict>(client, 'dicts');
-const {search: itemSearch} = useEntityCrud<DictItem>(client, 'sys_dict_items');
 
 const submitting = ref(false);
 const currentDict = ref<Dict | null>(null);
@@ -363,7 +361,7 @@ const handleSubmitDict = async () => {
       ElMessage.success(t('common.createSuccess'));
     }
     dictDialogVisible.value = false;
-    dictSearch();
+    dataforge.refreshCrud('sys_dicts');
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -381,10 +379,10 @@ const handleDeleteDict = async (row: Dict) => {
   try {
     await dictClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
-    dictSearch();
+    dataforge.refreshCrud('sys_dicts');
     if (currentDict.value?.id === row.id) {
       currentDict.value = null;
-      itemSearch(); // Refresh item list if the current dict is deleted
+      dataforge.refreshCrud('sys_dict_items');
     }
   } catch (error: any) {
     if (error === 'cancel') return;
@@ -403,7 +401,7 @@ const handleExportDict = async () => {
 
 const handleViewDictItems = (row: Dict) => {
   currentDict.value = row;
-  itemSearch();
+  dataforge.refreshCrud('sys_dict_items');
 };
 
 // 字典项操作
@@ -448,7 +446,7 @@ const handleSubmitItem = async () => {
       ElMessage.success(t('common.createSuccess'));
     }
     itemDialogVisible.value = false;
-    itemSearch();
+    itemCrudPageRef.value?.refresh();
   } catch (error: any) {
     if (error instanceof BusinessError) {
       ElMessage.error(error.message);
@@ -466,7 +464,7 @@ const handleDeleteDictItem = async (row: DictItem) => {
   try {
     await dictItemClient.delete(row.id);
     ElMessage.success(t('common.deleteSuccess'));
-    itemSearch();
+    dataforge.refreshCrud('sys_dict_items');
   } catch (error: any) {
     if (error === 'cancel') return;
     ElMessage.error(error instanceof Error ? error.message : t('common.deleteFailed'));

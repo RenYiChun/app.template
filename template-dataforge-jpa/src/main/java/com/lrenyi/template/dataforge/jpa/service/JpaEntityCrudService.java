@@ -90,9 +90,34 @@ public class JpaEntityCrudService implements EntityCrudService {
         if (existing == null) {
             throw new IllegalArgumentException("Entity not found with id: " + id);
         }
-        Object entity = objectMapper.convertValue(body, entityClass);
-        setEntityId(entity, id);
-        return repo.save(entity);
+        // 合并：仅将 body 中非 null 的字段写入 existing，避免未提交字段（如 password）被置为 null 导致违反 NOT NULL 约束
+        mergeNonNullFields(body, existing, entityClass);
+        return repo.save(existing);
+    }
+
+    /**
+     * 将 source 中非 null 的字段复制到 target，跳过 id。用于部分更新时保留未提交的必填字段（如密码）。
+     */
+    private static void mergeNonNullFields(Object source, Object target, Class<?> entityClass) {
+        for (Class<?> c = entityClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if ("id".equals(f.getName())) {
+                    continue;
+                }
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+                try {
+                    f.setAccessible(true); // NOSONAR
+                    Object value = f.get(source);
+                    if (value != null) {
+                        f.set(target, value); // NOSONAR
+                    }
+                } catch (IllegalAccessException ignored) {
+                    // skip
+                }
+            }
+        }
     }
     
     @Override

@@ -38,6 +38,8 @@ public class EntityMeta {
     private String permissionDelete = "";
     private List<FieldMeta> fields = new ArrayList<>();
     private List<ActionMeta> actions = new ArrayList<>();
+    /** 表单分组列数配置，key 为分组名，value 为列数 */
+    private Map<String, Integer> formGroupCols = new HashMap<>();
     /**
      * 前端 Schema 配置（create/update/pageResponse/response），由后端计算好直接下发。
      * 格式：Map<String, Map<String, Object>>
@@ -88,7 +90,10 @@ public class EntityMeta {
     private boolean enableImport = true;
     private String importTemplate = "";
     private String exportTemplate = "";
-    
+
+    /** 列表页 UI 布局（table / masterDetailTree 左树右表），未配置时前端默认表格 */
+    private EntityUiLayoutMeta uiLayout;
+
     // ==================== DTO Info ====================
     private String dtoCreate = "";
     private String dtoUpdate = "";

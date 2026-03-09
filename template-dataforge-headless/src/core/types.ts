@@ -148,6 +148,8 @@ export type EntityMeta = {
 
     // 字段列表 (核心)
     fields: FieldMeta[];
+    /** 表单分组列数配置，key 为分组名，value 为列数 */
+    formGroupCols?: Record<string, number>;
 
     // 功能开关
     crudEnabled?: boolean;
@@ -183,10 +185,76 @@ export type EntityMeta = {
     queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
     actions?: ActionMeta[];
 
+    /** 列表页 UI 布局：table 普通表格 | masterDetailTree 左树右表 */
+    uiLayout?: EntityUiLayoutMeta;
+
     [key: string]: any;
 };
 
+/** 实体列表页 UI 布局元数据 */
+export interface EntityUiLayoutMeta {
+    mode: 'table' | 'masterDetailTree';
+    masterDetailTree?: MasterDetailTreeMeta;
+}
+
+/** 左树右表布局下左侧树的配置 */
+export interface MasterDetailTreeMeta {
+    treeEntity: string;
+    treeEntityLabel?: string;
+    treeIdField?: string;
+    treeParentField?: string;
+    treeLabelField?: string;
+    treeSortField?: string;
+    relationField: string;
+    rootSelectionMode?: 'all' | 'none';
+    includeDescendants?: boolean;
+    hideTableSearchRelationField?: boolean;
+}
+
 export const SUCCESS_CODE = 200;
+
+/** options 接口单项 */
+export interface EntityOption {
+    id: string | number;
+    label: string;
+    extra?: Record<string, unknown>;
+}
+
+/** tree 接口节点 */
+export interface TreeNode {
+    id: string | number;
+    label: string;
+    parentId?: string | number | null;
+    children?: TreeNode[];
+    disabled?: boolean;
+    leaf?: boolean;
+}
+
+/** 业务错误码 3000–3071（关联/实体/批量/导入等） */
+export const DATAFORGE_ERROR_CODES = {
+    ENTITY_NOT_FOUND: 3000,
+    ASSOCIATION_TARGET_NOT_FOUND: 3001,
+    CASCADE_DELETE_RESTRICT: 3010,
+    BATCH_LOOKUP_IDS_OVERFLOW: 3041,
+    IMPORT_ASSOCIATION_NOT_FOUND: 3020,
+    IMPORT_ASSOCIATION_PRELOAD_FAILED: 3070,
+    CIRCULAR_REFERENCE: 3071,
+} as const;
+
+/** 错误码对应前端文案 */
+export const DATAFORGE_ERROR_MESSAGES: Record<number, string> = {
+    3000: '实体不存在',
+    3001: '关联目标不存在或已删除',
+    3010: '存在关联数据，无法删除',
+    3020: '导入失败：关联数据不存在',
+    3041: '单次查询 ID 数量超限',
+    3070: '导入时关联数据加载失败',
+    3071: '检测到循环引用',
+};
+
+export function getDataforgeErrorMessage(code: number): string {
+    return DATAFORGE_ERROR_MESSAGES[code] ?? `操作失败(${code})`;
+}
 
 export interface CrudState<T> {
     items: T[];

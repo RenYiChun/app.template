@@ -118,6 +118,7 @@ export default {
       createTime: '创建时间',
       add: '新增用户',
       edit: '编辑用户',
+      detail: '用户详情',
       assignRoles: '分配角色',
       assignRolesSuccess: '角色分配成功',
       deleteConfirm: '确定删除该用户吗？',
@@ -128,6 +129,10 @@ export default {
       loadRolesFailed: '加载角色失败',
       loadUserRolesFailed: '加载用户角色失败',
       loadDeptTreeFailed: '加载部门树失败',
+      groupBasic: '基本信息',
+      groupContact: '联系方式',
+      groupOrg: '组织与状态',
+      groupRemark: '备注',
     },
     log: {
       title: '操作日志',

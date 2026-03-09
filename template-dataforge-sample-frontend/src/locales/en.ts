@@ -118,6 +118,7 @@ export default {
       createTime: 'Create Time',
       add: 'Add User',
       edit: 'Edit User',
+      detail: 'User Details',
       assignRoles: 'Assign Roles',
       assignRolesSuccess: 'Roles assigned successfully',
       deleteConfirm: 'Are you sure to delete this user?',
@@ -128,6 +129,10 @@ export default {
       loadRolesFailed: 'Failed to load roles',
       loadUserRolesFailed: 'Failed to load user roles',
       loadDeptTreeFailed: 'Failed to load department tree',
+      groupBasic: 'Basic Info',
+      groupContact: 'Contact',
+      groupOrg: 'Organization & Status',
+      groupRemark: 'Remarks',
     },
     log: {
       title: 'Operation Log',

@@ -1,4 +1,4 @@
-import {CrudState, FilterCondition, SearchRequest} from './types.js';
+import {CrudState, FilterCondition, SearchRequest, SortOrder} from './types.js';
 import {EntityClient} from './client.js';
 import {MetaService} from './meta.js';
 
@@ -90,6 +90,11 @@ export class EntityCrudManager<T extends { id: string | number }> {
 
     setSize(size: number): void {
         this.setState({size, page: 0});
+    }
+
+    /** 仅更新排序状态，不自动 search */
+    setSort(sort: SortOrder[]): void {
+        this.setState({sort, page: 0});
     }
 
     setSelectedIds(selectedIds: (string | number)[]): void {

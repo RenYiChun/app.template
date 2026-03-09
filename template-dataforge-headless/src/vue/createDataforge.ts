@@ -13,10 +13,20 @@ export interface DataforgeOptions {
     allowGlobalFallback?: boolean;
 }
 
+/** 实体名 -> 刷新列表函数的注册表，供 CRUD 页挂载时注册、创建/更新成功后统一刷新 */
+const crudRefreshRegistry = new Map<string, () => void>();
+
 export interface DataforgeInstance {
     client: EntityClient;
     meta: MetaService;
     authClient: AuthClient | null;
+
+    /** 注册某实体的列表刷新函数（由 EntityCrudPage 挂载时调用） */
+    registerCrudRefresh(entityName: string, refresh: () => void): void;
+    /** 注销某实体的列表刷新函数（由 EntityCrudPage 卸载时调用） */
+    unregisterCrudRefresh(entityName: string): void;
+    /** 刷新某实体的列表（创建/更新/删除成功后由业务调用，无需 ref） */
+    refreshCrud(entityName: string): void;
 
     install(app: App): void;
 }
@@ -81,14 +91,28 @@ export function createDataforge(options: DataforgeOptions = {}): DataforgeInstan
     defaultMeta = meta;
     defaultAuthClient = authClient;
 
-    return {
+    const registerCrudRefresh = (entityName: string, refresh: () => void) => {
+        crudRefreshRegistry.set(entityName, refresh);
+    };
+    const unregisterCrudRefresh = (entityName: string) => {
+        crudRefreshRegistry.delete(entityName);
+    };
+    const refreshCrud = (entityName: string) => {
+        crudRefreshRegistry.get(entityName)?.();
+    };
+
+    const instance: DataforgeInstance = {
         client,
         meta,
         authClient,
+        registerCrudRefresh,
+        unregisterCrudRefresh,
+        refreshCrud,
         install(app: App) {
             app.provide(DataforgeSymbol, this);
-        }
+        },
     };
+    return instance;
 }
 
 export function useDataforge() {
@@ -102,7 +126,7 @@ export function useDataforge() {
     return getDataforge();
 }
 
-export function getDataforge() {
+export function getDataforge(): DataforgeInstance {
     if (!defaultClient || !defaultMeta) {
         throw new Error('Dataforge 未初始化，请先在应用入口调用 createDataforge()');
     }
@@ -110,5 +134,11 @@ export function getDataforge() {
         client: defaultClient,
         meta: defaultMeta,
         authClient: defaultAuthClient ?? null,
+        registerCrudRefresh: (entityName: string, refresh: () => void) => crudRefreshRegistry.set(entityName, refresh),
+        unregisterCrudRefresh: (entityName: string) => crudRefreshRegistry.delete(entityName),
+        refreshCrud: (entityName: string) => crudRefreshRegistry.get(entityName)?.(),
+        install() {
+            // getDataforge() 返回的实例通常不用于 install
+        },
     };
 }
