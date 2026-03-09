@@ -34,20 +34,19 @@
 
     <distributionManagement>
         <repository>
-            <id>${deployment.repository.id}</id>
+            <id>releases</id>
             <url>${deployment.repository.url}</url>
         </repository>
         <snapshotRepository>
-            <id>${deployment.repository.id}</id>
+            <id>snapshots</id>
             <url>${deployment.repository.snapshotUrl}</url>
         </snapshotRepository>
     </distributionManagement>
 
     <properties>
-        <deployment.repository.id>ossrh</deployment.repository.id>
-        <deployment.repository.url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/
+        <deployment.repository.url>http://nexus.htcc.com:8081/repository/maven-releases/
         </deployment.repository.url>
-        <deployment.repository.snapshotUrl>https://s01.oss.sonatype.org/content/repositories/snapshots/
+        <deployment.repository.snapshotUrl>http://nexus.htcc.com:8081/repository/maven-snapshots/
         </deployment.repository.snapshotUrl>
         <app.template.version>${project.version}</app.template.version>
         <nats-spring.version>1.5.8</nats-spring.version>
