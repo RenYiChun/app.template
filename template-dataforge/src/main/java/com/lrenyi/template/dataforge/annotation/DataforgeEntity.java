@@ -312,4 +312,10 @@ public @interface DataforgeEntity {
      * 导出模板文件路径。
      */
     String exportTemplate() default "";
+
+    /**
+     * 列表页 UI 布局配置。未配置或 mode=TABLE 时前端使用普通表格布局；
+     * mode=MASTER_DETAIL_TREE 时使用左树右表布局，需同时配置 masterDetailTree。
+     */
+    EntityUiLayout uiLayout() default @EntityUiLayout(mode = UiLayoutMode.TABLE);
 }

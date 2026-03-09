@@ -90,7 +90,10 @@ public class EntityMeta {
     private boolean enableImport = true;
     private String importTemplate = "";
     private String exportTemplate = "";
-    
+
+    /** 列表页 UI 布局（table / masterDetailTree 左树右表），未配置时前端默认表格 */
+    private EntityUiLayoutMeta uiLayout;
+
     // ==================== DTO Info ====================
     private String dtoCreate = "";
     private String dtoUpdate = "";

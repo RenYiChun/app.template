@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.lrenyi</groupId>
         <artifactId>app.template</artifactId>
-        <version>2.5.1</version>
+        <version>2.5.2-SNAPSHOT</version>
     </parent>
     <artifactId>template-dataforge-sample-backend</artifactId>
     <name>Template Dataforge Sample Backend</name>

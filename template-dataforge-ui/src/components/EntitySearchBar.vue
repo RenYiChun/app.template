@@ -145,16 +145,20 @@ const isDateField = (f: SearchField) =>
 const searchFields = computed<SearchField[]>(() => {
   const meta = props.entityMeta;
   const qf = meta?.queryableFields ?? {};
+  const mdt = meta?.uiLayout?.masterDetailTree;
+  const hideRelationField = !!mdt?.hideTableSearchRelationField && !!mdt?.relationField;
+  const relationFieldToHide = mdt?.relationField ?? '';
+
+  const filterHidden = (list: SearchField[]) =>
+      hideRelationField ? list.filter((f) => f.field !== relationFieldToHide) : list;
 
   // 如果提供了 fields prop，则优先使用，并按元数据 order 排序
   if (props.fields?.length) {
-    return props.fields
+    const mapped = props.fields
         .map((f) => {
           const fieldName = typeof f === 'string' ? f : f.field;
           const info = qf[fieldName] ?? {type: 'string', operators: [Op.EQ, Op.NE, Op.LIKE]};
-
           const label = (typeof f === 'object' && f.label) ? f.label : ((info as any).label || fieldName);
-
           const fieldMeta = meta?.fields?.find((fm: any) => fm.name === fieldName);
           return {
             field: fieldName,
@@ -167,12 +171,13 @@ const searchFields = computed<SearchField[]>(() => {
           };
         })
         .sort((a, b) => a.order - b.order);
-}
+    return filterHidden(mapped);
+  }
 
   // 否则使用 queryableFields 中的所有字段，并排序
   const list = Object.keys(qf);
   const fieldsList = meta?.fields ?? [];
-  return list
+  const result = list
       .map((f) => {
         const info = qf[f];
         const fieldMeta = fieldsList.find((fm: any) => fm.name === f);
@@ -187,6 +192,7 @@ const searchFields = computed<SearchField[]>(() => {
         };
       })
       .sort((a, b) => a.order - b.order);
+  return filterHidden(result);
 });
 
 const formModel = reactive<Record<string, unknown>>({});

@@ -1,4 +1,5 @@
 <template>
+  <!-- 用户页布局由实体元数据 uiLayout 驱动：User 配置了 masterDetailTree，故默认呈现左部门树、右用户表 -->
   <div class="user-list-container">
     <EntityCrudPage
         :locale="dataforgeUiLocale"

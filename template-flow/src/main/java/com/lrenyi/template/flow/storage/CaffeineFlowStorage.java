@@ -128,14 +128,14 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
      */
     private void processEvictedSlot(String key, FlowSlot<T> slot, EgressReason reason) {
         List<FlowEntry<T>> entries = slot.drainAll();
+        int n = entries.size();
+        if (n == 0) {
+            return;
+        }
         if (reason == EgressReason.TIMEOUT || reason == EgressReason.EVICTION) {
             log.info("驱逐槽位 {} 全量配对，reason={}, 共 {} 条 entry", key, reason, entries.size());
         } else {
             log.debug("驱逐槽位 {} 全量配对，reason={}, 共 {} 条 entry", key, reason, entries.size());
-        }
-        int n = entries.size();
-        if (n == 0) {
-            return;
         }
         boolean[] processed = new boolean[n];
         List<FlowEntry<T>> unmatched = new ArrayList<>(n);

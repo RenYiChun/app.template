@@ -185,8 +185,31 @@ export type EntityMeta = {
     queryableFields?: Record<string, { type: string; operators: Op[]; label?: string; order?: number }>;
     actions?: ActionMeta[];
 
+    /** 列表页 UI 布局：table 普通表格 | masterDetailTree 左树右表 */
+    uiLayout?: EntityUiLayoutMeta;
+
     [key: string]: any;
 };
+
+/** 实体列表页 UI 布局元数据 */
+export interface EntityUiLayoutMeta {
+    mode: 'table' | 'masterDetailTree';
+    masterDetailTree?: MasterDetailTreeMeta;
+}
+
+/** 左树右表布局下左侧树的配置 */
+export interface MasterDetailTreeMeta {
+    treeEntity: string;
+    treeEntityLabel?: string;
+    treeIdField?: string;
+    treeParentField?: string;
+    treeLabelField?: string;
+    treeSortField?: string;
+    relationField: string;
+    rootSelectionMode?: 'all' | 'none';
+    includeDescendants?: boolean;
+    hideTableSearchRelationField?: boolean;
+}
 
 export const SUCCESS_CODE = 200;
 

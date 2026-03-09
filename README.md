@@ -86,6 +86,7 @@
 - [配置参考](docs/getting-started/config-reference.md)
 - [框架选型收益](docs/design/framework-benefits.md)
 - [架构优势](docs/design/architecture-advantages.md)
+- [Dataforge 实体 UI 布局元数据设计](docs/design/dataforge-entity-ui-layout.md)
 - [Flow 流聚合使用指导](docs/guides/flow-usage-guide.md)
 - [指标监控指南](docs/guides/metrics-guide.md)
 - [质量评分卡](docs/reference/quality-scorecard.md)

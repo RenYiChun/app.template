@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {computed, ref} from 'vue';
-import {useEntityCrud} from '../composables/useEntityCrud';
+import {useEntityCrud, type TreeNode} from '../composables/useEntityCrud';
 import type {SortOrder} from '@lrenyi/dataforge-headless/vue';
 
 interface CrudEntity extends Record<string, unknown> {
@@ -41,6 +41,13 @@ const {
   canBatchDelete,
   canBatchUpdate,
   selectable,
+  isMasterDetailTree,
+  masterDetailTreeConfig,
+  treeData,
+  treeLoading,
+  treeSelectedKey,
+  onTreeSelect,
+  listBlockedByTreeSelection,
 } = useEntityCrud<CrudEntity>(props.entity);
 
 const showSearch = ref(true);
@@ -56,7 +63,14 @@ const handleSearch = () => {
 };
 
 const handleExport = async () => {
-  await exportExcel();
+  try {
+    await exportExcel();
+  } catch (e: unknown) {
+    if (e instanceof Error && listBlockedByTreeSelection.value) {
+      return;
+    }
+    throw e;
+  }
 };
 
 const handleDelete = async () => {
@@ -93,6 +107,11 @@ const handleBatchUpdate = () => {
 };
 
 const total = computed(() => pagedResult.value?.totalElements ?? 0);
+
+/** 树节点点击：el-tree 传入 (data) 即 TreeNode */
+const handleTreeSelect = (data: unknown) => {
+  onTreeSelect((data as TreeNode | null) ?? null);
+};
 </script>
 
 <style scoped>
@@ -202,20 +221,134 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
 .entity-crud-page :deep(.column-setting-popover .column-checkbox-item) {
   margin-bottom: 4px;
 }
+
+/* 左树右表布局 */
+.master-detail-layout {
+  display: flex;
+  gap: 12px;
+  min-height: 400px;
+}
+
+.master-detail-tree-pane {
+  flex: 0 0 240px;
+  background-color: var(--el-bg-color-overlay);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-lighter);
+  padding: 12px;
+  overflow: auto;
+}
+
+.master-detail-tree-pane .tree-pane-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.master-detail-content-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.master-detail-content-pane .crud-table-card {
+  flex: 1;
+}
+
+.master-detail-block-hint {
+  margin-bottom: 10px;
+}
 </style>
 
 <template>
   <div class="entity-crud-page">
     <slot :error="error" name="alert"/>
 
-    <!-- 顶部卡片：搜索区域（历史版本无 header） -->
-    <div :class="{ 'is-hidden': !showSearch }" class="crud-search-card">
-      <slot :entityMeta="entityMeta" :filters="filters" :handleSearch="handleSearch" :setFilters="setFilters"
-            :showSearch="showSearch" name="search"/>
-    </div>
+    <!-- 左树右表布局 -->
+    <template v-if="isMasterDetailTree">
+      <div class="master-detail-layout">
+        <aside class="master-detail-tree-pane">
+          <div class="tree-pane-title">{{ masterDetailTreeConfig?.treeEntityLabel || masterDetailTreeConfig?.treeEntity || '树' }}</div>
+          <el-tree
+            v-loading="treeLoading"
+            :data="treeData"
+            :current-node-key="treeSelectedKey ?? undefined"
+            :props="{ label: 'label', value: 'id' }"
+            default-expand-all
+            highlight-current
+            node-key="id"
+            @node-click="handleTreeSelect"
+          />
+        </aside>
+        <main class="master-detail-content-pane">
+          <el-alert
+              v-if="listBlockedByTreeSelection"
+              class="master-detail-block-hint"
+              show-icon
+              type="info"
+          >
+            请先选择左侧树节点以查询、分页或导出数据
+          </el-alert>
+          <div :class="{ 'is-hidden': !showSearch }" class="crud-search-card">
+            <slot :entityMeta="entityMeta" :filters="filters" :handleSearch="handleSearch" :setFilters="setFilters"
+                  :showSearch="showSearch" name="search"/>
+          </div>
+          <div class="crud-table-card">
+            <div class="crud-toolbar">
+        <slot
+            :allColumns="allColumns"
+            :canBatchDelete="canBatchDelete"
+            :canBatchUpdate="canBatchUpdate"
+            :displayColumns="displayColumns"
+            :handleBatchUpdate="handleBatchUpdate"
+            :handleDelete="handleDelete"
+            :handleExport="handleExport"
+            :handleSearch="handleSearch"
+            :listBlockedByTreeSelection="listBlockedByTreeSelection"
+            :selectedIds="selectedIds"
+            :setVisibleColumnProps="setVisibleColumnProps"
+            :showSearch="showSearch"
+            :toggleSearch="toggleSearch"
+            :visibleColumnProps="visibleColumnProps"
+            name="toolbar"
+          />
+            </div>
+            <div class="crud-table">
+              <slot
+                  :displayColumns="displayColumns"
+                  :handleSelectionChange="handleSelectionChange"
+                  :handleSortChange="handleSortChange"
+                  :items="items"
+                  :loading="loading"
+                  :selectable="selectable"
+                  :sort="sort"
+                  name="table"
+              />
+            </div>
+            <div class="crud-pagination">
+              <slot
+                  :handlePageChange="handlePageChange"
+                  :handleSizeChange="handleSizeChange"
+                  :page="page"
+                  :size="size"
+                  :total="total"
+                  name="pagination"
+              />
+            </div>
+          </div>
+        </main>
+      </div>
+    </template>
 
-    <!-- 底部卡片：操作和表格区域 -->
-    <div class="crud-table-card">
+    <!-- 普通表格布局 -->
+    <template v-else>
+      <div :class="{ 'is-hidden': !showSearch }" class="crud-search-card">
+        <slot :entityMeta="entityMeta" :filters="filters" :handleSearch="handleSearch" :setFilters="setFilters"
+              :showSearch="showSearch" name="search"/>
+      </div>
+      <div class="crud-table-card">
       <!-- 工具栏 -->
       <div class="crud-toolbar">
         <slot
@@ -227,6 +360,7 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
             :handleDelete="handleDelete"
             :handleExport="handleExport"
             :handleSearch="handleSearch"
+            :listBlockedByTreeSelection="listBlockedByTreeSelection"
             :selectedIds="selectedIds"
             :setVisibleColumnProps="setVisibleColumnProps"
             :showSearch="showSearch"
@@ -262,5 +396,6 @@ const total = computed(() => pagedResult.value?.totalElements ?? 0);
         />
       </div>
     </div>
+    </template>
   </div>
 </template>

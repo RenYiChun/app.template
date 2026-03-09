@@ -4,6 +4,9 @@ import com.lrenyi.template.dataforge.annotation.DataforgeDto;
 import com.lrenyi.template.dataforge.annotation.DataforgeEntity;
 import com.lrenyi.template.dataforge.annotation.DataforgeField;
 import com.lrenyi.template.dataforge.annotation.DtoType;
+import com.lrenyi.template.dataforge.annotation.EntityUiLayout;
+import com.lrenyi.template.dataforge.annotation.MasterDetailTree;
+import com.lrenyi.template.dataforge.annotation.UiLayoutMode;
 import com.lrenyi.template.dataforge.jpa.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,7 +18,22 @@ import lombok.Setter;
 @Getter
 @Entity
 @Table(name = "users")
-@DataforgeEntity(pathSegment = "users", displayName = "用户")
+@DataforgeEntity(
+        pathSegment = "users",
+        displayName = "用户",
+        uiLayout = @EntityUiLayout(
+                mode = UiLayoutMode.MASTER_DETAIL_TREE,
+                masterDetailTree = @MasterDetailTree(
+                        treeEntity = "departments",
+                        treeEntityLabel = "部门",
+                        treeLabelField = "name",
+                        treeParentField = "parentId",
+                        treeSortField = "sortOrder",
+                        relationField = "departmentId",
+                        includeDescendants = true,
+                        hideTableSearchRelationField = true
+                )
+        ))
 @DataforgeDto(parentFieldName = "createBy", include = {DtoType.PAGE_RESPONSE, DtoType.RESPONSE})
 @DataforgeField(parentFieldName = "createBy", label = "创建人", columnOrder = 9)
 @DataforgeDto(parentFieldName = "updateBy", include = {DtoType.RESPONSE})
