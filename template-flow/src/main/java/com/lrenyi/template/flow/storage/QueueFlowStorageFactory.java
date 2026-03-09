@@ -33,7 +33,7 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             FlowEgressHandler<T> egressHandler,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorage(),
+        return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorageCapacity(),
                 joiner,
                 progressTracker,
                 finalizer,

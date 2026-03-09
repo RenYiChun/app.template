@@ -1365,15 +1365,13 @@ ExpiryQueue
 
 ### 25.3 `FlowEntry` 的最终字段设计
 
-推荐直接扩展 [FlowEntry.java](D:/github.com/app.template/template-flow/src/main/java/com/lrenyi/template/flow/context/FlowEntry.java)，加入运行时元数据字段。
+推荐直接扩展 [FlowEntry.java](D:/github.com/app.template/template-flow/src/main/java/com/lrenyi/template/flow/context/FlowEntry.java)，加入运行时元数据字段。**超时按 key 在 FlowSlot 上维护**（`earliestStoredAtEpochMs` + 配置的 soft/hard），entry 不保存每条 value 的过期时间。
 
 建议新增字段：
 
 ```java
 private long entryId;
 private long storedAtEpochMs;
-private long softExpireAtEpochMs;
-private long hardExpireAtEpochMs;
 private volatile int runtimeState;
 private volatile int slotVersion;
 ```
@@ -1382,8 +1380,6 @@ private volatile int slotVersion;
 
 - `entryId`：全局唯一或单 JVM 唯一递增 ID
 - `storedAtEpochMs`：入库时间
-- `softExpireAtEpochMs`：软超时时间
-- `hardExpireAtEpochMs`：硬超时时间
 - `runtimeState`：entry 当前状态，使用 `int` 常量表示
 - `slotVersion`：entry 最近一次被 slot 重排或重新登记时的逻辑版本
 
@@ -1415,10 +1411,11 @@ private volatile int slotVersion;
 
 推荐保留 [FlowSlot.java](D:/github.com/app.template/template-flow/src/main/java/com/lrenyi/template/flow/storage/FlowSlot.java) 作为核心容器，但将其强化为“数据 + 调度元信息”的最小聚合单元。
 
-建议新增 slot 元字段：
+建议新增 slot 元字段（**超时按 key**：以该 key 首次写入时间为起点）：
 
 ```java
 private long slotId;
+private long earliestStoredAtEpochMs;  // 该 key 首次写入时间，用于计算 slot 级 soft/hard
 private long earliestSoftExpireAt;
 private long earliestHardExpireAt;
 private long nextCheckAt;
@@ -1430,8 +1427,9 @@ private boolean draining;
 字段语义：
 
 - `slotId`：slot 唯一 ID
-- `earliestSoftExpireAt`：slot 内最早软超时 entry 的时间
-- `earliestHardExpireAt`：slot 内最早硬超时 entry 的时间
+- `earliestStoredAtEpochMs`：该 key 下首次写入时间（epoch ms），创建 slot 时设置且不再更新
+- `earliestSoftExpireAt`：由 `earliestStoredAtEpochMs + softTimeoutMill` 计算
+- `earliestHardExpireAt`：由 `earliestStoredAtEpochMs + hardTimeoutMill` 计算
 - `nextCheckAt`：当前 slot 下一次应被协调器检查的时间
 - `version`：slot 调度版本号
 - `queuedForExpiry`：当前是否已有逻辑有效 token 在队列中

@@ -134,13 +134,11 @@ EvictionCoordinator
 
 ### 4.1 `FlowEntry` 最终字段
 
-建议新增以下字段：
+超时按 **key** 在 `FlowSlot` 上维护（`earliestStoredAtEpochMs` + soft/hard 配置），entry 仅保留入库时间与状态：
 
 ```java
 private long entryId;
 private long storedAtEpochMs;
-private long softExpireAtEpochMs;
-private long hardExpireAtEpochMs;
 private volatile int runtimeState;
 private volatile int slotVersion;
 ```
@@ -162,10 +160,13 @@ public static final int STATE_REMOVED = 3;
 
 ### 4.2 `FlowSlot<T>` 最终字段
 
+超时按 key：以该 key 首次写入时间为起点，soft/hard 由 slot 级时间 + 配置计算。
+
 建议新增字段：
 
 ```java
 private final long slotId;
+private long earliestStoredAtEpochMs;  // 该 key 首次写入时间
 private long earliestSoftExpireAt;
 private long earliestHardExpireAt;
 private long nextCheckAt;
@@ -178,6 +179,7 @@ private final ArrayDeque<FlowEntry<T>> entries;
 字段约束：
 
 - `slotId` 创建后不可变
+- `earliestStoredAtEpochMs` 在 slot 创建时设置，不再更新
 - `version` 仅在以下场景递增：
   - slot 首次登记 token
   - 延期重新登记
@@ -510,19 +512,25 @@ int drainExpiredEntries(long slotId, int expectedVersion, long now) {
 }
 ```
 
-### 8.5 软超时收集
+### 8.5 软超时收集（按 key）
+
+超时以 slot 的 `earliestStoredAtEpochMs` + 配置的 soft 时间为准，到点则整 slot 内所有 entry 视为软超时：
 
 ```java
 List<FlowEntry<T>> collectSoftExpired(FlowSlot<T> slot, long now) {
-    List<FlowEntry<T>> expired = new ArrayList<>();
+    long softAt = slot.getEarliestSoftExpireAt();
+    if (softAt <= 0L || now < softAt) {
+        return new ArrayList<>();
+    }
+    List<FlowEntry<T>> result = new ArrayList<>();
     for (FlowEntry<T> entry : slot.entries()) {
-        if (entry.getRuntimeState() == STATE_ACTIVE && entry.getSoftExpireAtEpochMs() <= now) {
+        if (entry.getRuntimeState() == STATE_ACTIVE) {
             entry.setRuntimeState(STATE_SOFT_EXPIRED);
             expiryReadyEntryCount.increment();
-            expired.add(entry);
         }
+        result.add(entry);
     }
-    return expired;
+    return result;
 }
 ```
 

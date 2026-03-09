@@ -2,12 +2,14 @@ package com.lrenyi.template.flow.internal;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
@@ -27,13 +29,27 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         long startTime = System.currentTimeMillis();
         Semaphore slotSemaphore = launcher.getResourceContext().getPendingConsumerSlotSemaphore();
         boolean slotAcquired = false;
+        TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
+        boolean strictPending = perJob.isStrictPendingConsumerSlot();
         if (slotSemaphore != null) {
             try {
                 slotAcquired = slotSemaphore.tryAcquire(PENDING_SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 if (!slotAcquired) {
-                    log.warn("Pending consumer slot acquire timeout, jobId={}, timeoutMs={}, submitting anyway (limit "
-                                     + "may be exceeded)", jobId, PENDING_SLOT_ACQUIRE_TIMEOUT_MS
+                    log.warn("Pending consumer slot acquire timeout, jobId={}, timeoutMs={}",
+                             jobId,
+                             PENDING_SLOT_ACQUIRE_TIMEOUT_MS
                     );
+                    Counter.builder(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(meterRegistry)
+                           .increment();
+                    if (strictPending) {
+                        Counter.builder(FlowMetricNames.FINALIZER_SUBMIT_SKIPPED)
+                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                               .register(meterRegistry)
+                               .increment();
+                        return;
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -79,7 +95,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     }
                 }
             } finally {
-                if (releaseSlot) {
+                if (releaseSlot && slotToRelease != null) {
                     slotToRelease.release();
                 }
             }

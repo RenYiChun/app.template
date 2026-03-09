@@ -3,8 +3,6 @@ package com.lrenyi.template.flow.manager;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.IntSupplier;
-import java.util.function.LongSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -46,7 +44,7 @@ final class FlowLauncherFactory {
         Semaphore globalProducerThreads = resourceRegistry.getGlobalProducerThreadsSemaphore();
         int inFlightLimit = perJob.getInFlightProduction();
         Semaphore inFlightProductionSemaphore = new Semaphore(inFlightLimit, fair);
-        int consumerConcurrencyLimit = perJob.getConsumerConcurrency();
+        int consumerConcurrencyLimit = perJob.getConsumerThreads();
         // per-job=0 时仅用全局限制，不创建 per-job 信号量，否则 Semaphore(0) 会导致 acquire 永远拿不到许可、使用中恒为 0 且 removal 线程全部阻塞
         Semaphore jobConsumerSemaphore =
                 consumerConcurrencyLimit > 0 ? new Semaphore(consumerConcurrencyLimit, fair) : null;
@@ -80,18 +78,20 @@ final class FlowLauncherFactory {
                                                                      egressHandler
                                                  );
 
-        IntSupplier consumerPermits = () -> resourceRegistry.getGlobalSemaphore().availablePermits();
-        LongSupplier perJobPendingCount = () -> tracker.getSnapshot().getPendingConsumerCount();
-        LongSupplier globalPendingCount = () -> resourceRegistry.getGlobalPendingConsumerAdder().sum();
-        BackpressureController backpressureController = new BackpressureController(storage,
-                                                                                   consumerPermits,
-                                                                                   perJobPendingCount,
-                                                                                   effectivePendingConsumer,
-                                                                                   globalPendingCount,
-                                                                                   global.getPendingConsumer(),
-                                                                                   meterRegistry,
-                                                                                   jobId
-        );
+        var snapshotProvider = new com.lrenyi.template.flow.internal.ResourceBackpressureSnapshotProvider(
+                storage,
+                limits,
+                jobProducerSemaphore,
+                inFlightProductionSemaphore,
+                jobConsumerSemaphore,
+                pendingConsumerSlotSemaphore);
+        BackpressureController backpressureController =
+                new BackpressureController(storage,
+                        meterRegistry,
+                        jobId,
+                        flow,
+                        snapshotProvider,
+                        new com.lrenyi.template.flow.internal.DefaultBackpressurePolicy());
 
         FlowResourceContext resourceContext = FlowResourceContext.builder()
                                                                  .resourceRegistry(resourceRegistry)
@@ -187,7 +187,7 @@ final class FlowLauncherFactory {
         }
 
         Semaphore globalSemaphore = resourceRegistry.getGlobalSemaphore();
-        int globalConsumerLimit = global.getConsumerConcurrency();
+        int globalConsumerLimit = global.getConsumerThreads();
         if (globalConsumerLimit > 0
                 && meterRegistry.find(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED).gauge() == null) {
             Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED,
@@ -201,7 +201,7 @@ final class FlowLauncherFactory {
         Semaphore globalStorageSem = resourceRegistry.getGlobalStorageSemaphore();
         if (globalStorageSem != null
                 && meterRegistry.find(FlowMetricNames.LIMITS_STORAGE_GLOBAL_USED).gauge() == null) {
-            int globalStorageLimit = global.getStorage();
+            int globalStorageLimit = global.getStorageCapacity();
             Gauge.builder(FlowMetricNames.LIMITS_STORAGE_GLOBAL_USED,
                           globalStorageSem,
                           s -> globalStorageLimit - s.availablePermits()
@@ -210,7 +210,7 @@ final class FlowLauncherFactory {
                  .description("全主机缓存容量上限")
                  .register(meterRegistry);
         }
-        int globalPendingLimit = global.getPendingConsumer();
+        int globalPendingLimit = global.getInFlightConsumer();
         if (globalPendingLimit > 0
                 && meterRegistry.find(FlowMetricNames.LIMITS_PENDING_CONSUMER_GLOBAL_COUNT).gauge() == null) {
             Gauge.builder(FlowMetricNames.LIMITS_PENDING_CONSUMER_GLOBAL_COUNT,

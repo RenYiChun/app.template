@@ -147,7 +147,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         this.sourceFinished = true;
         CompletionState state = computeCompletionState();
         log.info("Source marked finished, jobId={}, productionAcquired={}, productionReleased={}, terminated={}, "
-                         + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}",
+                         + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
                  this.jobId,
                  state.acquired(),
                  state.released(),
@@ -155,7 +155,8 @@ public class DefaultProgressTracker implements ProgressTracker {
                  state.inStorage(),
                  state.activeConsumers(),
                  state.inProduction(),
-                 state.pendingConsumer()
+                 state.pendingConsumer(),
+                 state.inFlightPush()
         );
         checkCompletion();
     }
@@ -177,7 +178,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     /**
      * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
-     * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0。
+     * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
      */
     private void checkCompletion() {
         drainStorageIfReady();
@@ -199,7 +200,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
                 log.info("Job completion confirmed, jobId={}, sourceFinished={}, productionAcquired={}, "
                                  + "productionReleased={}, terminated={}, inStorage={}, activeConsumers={}, "
-                                 + "inProduction={}, pendingConsumer={}, stopped={}",
+                                 + "inProduction={}, pendingConsumer={}, inFlightPush={}, stopped={}",
                          jobId,
                          sourceFinished,
                          lockedState.acquired(),
@@ -209,6 +210,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                          lockedState.activeConsumers(),
                          lockedState.inProduction(),
                          lockedState.pendingConsumer(),
+                         lockedState.inFlightPush(),
                          stopped
                 );
                 if (!stopped) {
@@ -236,23 +238,26 @@ public class DefaultProgressTracker implements ProgressTracker {
         boolean waitingConsumerReleased = state.activeConsumers() > 0L;
         boolean waitingProductionReleased = state.inProduction() > 0L;
         boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
+        boolean waitingInFlightPush = state.inFlightPush() > 0;
         log.info("Job completion pending, jobId={}, waitingSourceFinished={}, waitingStorageDrained={}, "
                          + "waitingConsumerReleased={}, waitingProductionReleased={}, waitingPendingConsumer={}, "
-                         + "productionAcquired={}, productionReleased={}, terminated={}, inStorage={}, "
-                         + "activeConsumers={}, inProduction={}, pendingConsumer={}",
+                         + "waitingInFlightPush={}, productionAcquired={}, productionReleased={}, terminated={}, "
+                         + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
                  jobId,
                  waitingSourceFinished,
                  waitingStorageDrained,
                  waitingConsumerReleased,
                  waitingProductionReleased,
                  waitingPendingConsumer,
+                 waitingInFlightPush,
                  state.acquired(),
                  state.released(),
                  state.terminated(),
                  state.inStorage(),
                  state.activeConsumers(),
                  state.inProduction(),
-                 state.pendingConsumer()
+                 state.pendingConsumer(),
+                 state.inFlightPush()
         );
     }
     
@@ -261,15 +266,18 @@ public class DefaultProgressTracker implements ProgressTracker {
         long released = productionReleased.sum();
         long term = terminated.sum();
         long inStorage = 0L;
+        int inFlightPush = 0;
         FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
         if (activeLauncher != null) {
             inStorage = activeLauncher.getStorage().size();
+            inFlightPush = activeLauncher.getInFlightPushCount();
         }
         long active = activeConsumers.sum();
         long inProduction = acquired - released;
         long pendingConsumer = Math.max(0L, released - inStorage - active - term);
         boolean completionConditionMet =
-                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer == 0L;
+                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer == 0L
+                && inFlightPush == 0;
         return new CompletionState(acquired,
                                    released,
                                    term,
@@ -277,6 +285,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    active,
                                    inProduction,
                                    pendingConsumer,
+                                   inFlightPush,
                                    completionConditionMet
         );
     }
@@ -304,6 +313,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    long activeConsumers,
                                    long inProduction,
                                    long pendingConsumer,
+                                   int inFlightPush,
                                    boolean completionConditionMet) {
     }
 }

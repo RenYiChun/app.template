@@ -77,14 +77,14 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         TemplateConfigProperties.Flow.Global global = limits.getGlobal();
         boolean fair = global.isFairScheduling();
         
-        int concurrencyLimit = global.getConsumerConcurrency();
+        int concurrencyLimit = global.getConsumerThreads();
         this.globalSemaphore = concurrencyLimit > 0 ? new Semaphore(concurrencyLimit, fair) : null;
         log.info("FlowResourceRegistry 启动：全局消费并发限制={}（<=0 时禁用）", concurrencyLimit);
         
         int globalInFlight = global.getInFlightProduction();
         this.globalInFlightSemaphore = globalInFlight > 0 ? new Semaphore(globalInFlight, fair) : null;
         
-        int globalStorage = global.getStorage();
+        int globalStorage = global.getStorageCapacity();
         this.globalStorageSemaphore = globalStorage > 0 ? new Semaphore(globalStorage, fair) : null;
         
         int globalProducerThreads = global.getProducerThreads();
@@ -117,7 +117,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                     if (current != null) {
                         log.info("检测到配置变更 [Limit: {} -> {}], 正在重新初始化资源...",
                                  lastConcurrencyLimitRef.get(),
-                                 globalConfig.getLimits().getGlobal().getConsumerConcurrency()
+                                 globalConfig.getLimits().getGlobal().getConsumerThreads()
                         );
                         try {
                             current.shutdown();
@@ -127,7 +127,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                     }
                     FlowResourceRegistry newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimitRef.set(globalConfig.getLimits().getGlobal().getConsumerConcurrency());
+                    lastConcurrencyLimitRef.set(globalConfig.getLimits().getGlobal().getConsumerThreads());
                     return newInstance;
                 }
             }
@@ -139,7 +139,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerConcurrency() != lastConcurrencyLimitRef.get();
+        return config.getLimits().getGlobal().getConsumerThreads() != lastConcurrencyLimitRef.get();
     }
     
     private static FlowResourceRegistry create(TemplateConfigProperties.Flow globalConfig,

@@ -34,7 +34,7 @@ class FlowResourceRegistryTest {
     @Test
     void testConstructorCreatesInitializedInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerConcurrency(16);
+        config.getLimits().getGlobal().setConsumerThreads(16);
         
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), true);
         
@@ -58,7 +58,7 @@ class FlowResourceRegistryTest {
     @Test
     void testConstructorShutdownStopsExecutors() throws ResourceShutdownException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerConcurrency(8);
+        config.getLimits().getGlobal().setConsumerThreads(8);
         
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), false);
         assertFalse(registry.isShutdown());
@@ -71,7 +71,7 @@ class FlowResourceRegistryTest {
     @Test
     void submitConsumerToGlobalAcquireFailureShouldRollbackPendingCounter() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerConcurrency(4);
+        config.getLimits().getGlobal().setConsumerThreads(4);
         
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), false);
         Registration registration = new Registration("job-1", config);
@@ -94,8 +94,8 @@ class FlowResourceRegistryTest {
     @Test
     void submitConsumerToGlobalSecondAcquireInterruptedShouldRollbackPartialAcquire() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerConcurrency(2);
-        config.getLimits().getPerJob().setConsumerConcurrency(2);
+        config.getLimits().getGlobal().setConsumerThreads(2);
+        config.getLimits().getPerJob().setConsumerThreads(2);
         
         FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
         String jobId = "job-partial-acquire";

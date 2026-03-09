@@ -30,7 +30,7 @@ class MustMatchRetryConstraintTest {
         FlowJoinerEngine engine = new FlowJoinerEngine(manager);
         
         TemplateConfigProperties.Flow jobFlow = new TemplateConfigProperties.Flow();
-        jobFlow.getLimits().getPerJob().setMustMatchRetryEnabled(true);
+        jobFlow.getLimits().getPerJob().getKeyedCache().setMustMatchRetryEnabled(true);
         var inlet = engine.startPush("job-must-match-retry-queue", new QueueMatchedJoiner(), jobFlow);
         assertNotNull(inlet);
         inlet.stop(true);

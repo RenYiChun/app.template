@@ -14,7 +14,7 @@ public interface FlowJoiner<T> {
      * 实现类需显式返回，例如：return FlowStorageType.CAFFEINE;
      */
     default FlowStorageType getStorageType() {
-        return FlowStorageType.CAFFEINE; // 默认使用高频的本地缓存
+        return FlowStorageType.LOCAL_BOUNDED; // 默认使用受控超时的本地存储
     }
     
     /**

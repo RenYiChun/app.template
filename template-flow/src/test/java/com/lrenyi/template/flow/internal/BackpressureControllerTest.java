@@ -4,6 +4,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -22,7 +23,11 @@ class BackpressureControllerTest {
     @Test
     void awaitSpaceWhenStorageNotFullReturnsImmediately() throws InterruptedException, TimeoutException {
         MockFlowStorage storage = new MockFlowStorage(2, 1);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        controller = new BackpressureController(storage,
+                new SimpleMeterRegistry(),
+                TEST_JOB,
+                flow);
         
         controller.awaitSpace(() -> false);
         
@@ -32,7 +37,11 @@ class BackpressureControllerTest {
     @Test
     void awaitSpaceWhenStopCheckReturnsTrueExitsImmediately() throws InterruptedException, TimeoutException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        controller = new BackpressureController(storage,
+                new SimpleMeterRegistry(),
+                TEST_JOB,
+                flow);
         AtomicBoolean stopCheckCalled = new AtomicBoolean(false);
         
         long start = System.currentTimeMillis();
@@ -49,7 +58,11 @@ class BackpressureControllerTest {
     @Test
     void awaitSpaceWhenFullBlocksUntilSignalRelease() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        controller = new BackpressureController(storage,
+                new SimpleMeterRegistry(),
+                TEST_JOB,
+                flow);
         CountDownLatch producerBlocked = new CountDownLatch(1);
         CountDownLatch testDone = new CountDownLatch(1);
         
@@ -78,7 +91,11 @@ class BackpressureControllerTest {
     @Test
     void signalReleaseWakesOneWaiter() throws InterruptedException {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        controller = new BackpressureController(storage,
+                new SimpleMeterRegistry(),
+                TEST_JOB,
+                flow);
         AtomicBoolean released = new AtomicBoolean(false);
         
         CountDownLatch started = new CountDownLatch(1);
@@ -106,7 +123,11 @@ class BackpressureControllerTest {
     @Test
     void awaitSpaceWhenMaxWaitExceededThrowsTimeoutException() {
         MockFlowStorage storage = new MockFlowStorage(2, 2);
-        controller = new BackpressureController(storage, new SimpleMeterRegistry(), TEST_JOB);
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        controller = new BackpressureController(storage,
+                new SimpleMeterRegistry(),
+                TEST_JOB,
+                flow);
         
         assertThrows(TimeoutException.class, () -> controller.awaitSpace(() -> false, 50));
     }

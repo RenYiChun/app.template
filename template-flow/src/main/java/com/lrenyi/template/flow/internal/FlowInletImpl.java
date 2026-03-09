@@ -65,6 +65,11 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         }
     }
     
+    /** 供完成判定使用：当前尚未结束的 push 调用数（已 increment 未 decrement）。 */
+    public int getInFlightPushCount() {
+        return inFlightPush.get();
+    }
+
     @Override
     public ProgressTracker getProgressTracker() {
         return launcher.getTaskOrchestrator().tracker();

@@ -19,8 +19,9 @@ class MatchRetryCoordinatorTest {
     @Test
     void initRetryRemainingWhenRetryable() {
         TemplateConfigProperties.Flow.PerJob perJob = new TemplateConfigProperties.Flow.PerJob();
-        perJob.setMustMatchRetryEnabled(true);
-        perJob.setMustMatchRetryMaxTimes(3);
+        TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
+        cache.setMustMatchRetryEnabled(true);
+        cache.setMustMatchRetryMaxTimes(3);
         TestJoiner joiner = new TestJoiner(true, true);
         MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-a",
                                                                                  perJob,
@@ -37,10 +38,11 @@ class MatchRetryCoordinatorTest {
     @Test
     void tryConsumeRetryByReasonAndExhaust() {
         TemplateConfigProperties.Flow.PerJob perJob = new TemplateConfigProperties.Flow.PerJob();
-        perJob.setMustMatchRetryEnabled(true);
-        perJob.setMustMatchRetryMaxTimes(1);
-        perJob.setMustMatchRetryOnEviction(true);
-        perJob.setMustMatchRetryOnTimeout(false);
+        TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
+        cache.setMustMatchRetryEnabled(true);
+        cache.setMustMatchRetryMaxTimes(1);
+        cache.setMustMatchRetryOnEviction(true);
+        cache.setMustMatchRetryOnTimeout(false);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-b",
                                                                                  perJob,

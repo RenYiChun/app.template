@@ -43,6 +43,28 @@ public interface FlowStorage<T> {
     long size();
     
     long maxCacheSize();
+
+    /**
+     * 当前已使用的 entry 数量。支持受控超时实现按 entry 计数。
+     * 默认回退到 size()，以兼容旧实现。
+     */
+    default long usedEntries() {
+        return size();
+    }
+
+    /**
+     * entry 容量上限。默认回退到 maxCacheSize()。
+     */
+    default long entryLimit() {
+        return maxCacheSize();
+    }
+
+    /**
+     * 是否支持延迟驱逐（受控超时 + 下游压力协同）。
+     */
+    default boolean supportsDeferredExpiry() {
+        return false;
+    }
     
     /**
      * 系统关闭时的清理逻辑

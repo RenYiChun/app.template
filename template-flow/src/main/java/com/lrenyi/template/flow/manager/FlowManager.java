@@ -93,7 +93,7 @@ public class FlowManager implements ActiveLauncherLookup {
                 if (current == null || configChanged(globalConfig)) {
                     if (current != null) {
                         log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
-                                 lastConcurrencyLimit, globalConfig.getLimits().getGlobal().getConsumerConcurrency()
+                                 lastConcurrencyLimit, globalConfig.getLimits().getGlobal().getConsumerThreads()
                         );
                         try {
                             current.shutdownAll();
@@ -103,7 +103,7 @@ public class FlowManager implements ActiveLauncherLookup {
                     }
                     FlowManager newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerConcurrency();
+                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerThreads();
                 }
             }
         }
@@ -114,7 +114,7 @@ public class FlowManager implements ActiveLauncherLookup {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerConcurrency() != lastConcurrencyLimit;
+        return config.getLimits().getGlobal().getConsumerThreads() != lastConcurrencyLimit;
     }
     
     public void shutdownAll() {

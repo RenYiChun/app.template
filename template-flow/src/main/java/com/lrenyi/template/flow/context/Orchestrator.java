@@ -21,7 +21,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
     
     public void release() {
         PermitPair consumerPair = resourceContext.getConsumerPermitPair();
-        int concurrencyLimit = getManager().getGlobalConfig().getLimits().getGlobal().getConsumerConcurrency();
+        int concurrencyLimit = getManager().getGlobalConfig().getLimits().getGlobal().getConsumerThreads();
         try {
             consumerPair.release(1, concurrencyLimit);
             if (registration.getActiveCount().get() > 0) {
@@ -60,7 +60,12 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
     public void acquire() throws InterruptedException, TimeoutException {
         long acquireStartTime = System.currentTimeMillis();
         long acquireStartNanos = System.nanoTime();
-        long acquireTimeoutMs = FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS;
+        var flowConfig = registration.getFlow();
+        var mode = flowConfig.getConsumerAcquireBlockingMode();
+        long acquireTimeoutMs =
+                mode == com.lrenyi.template.core.TemplateConfigProperties.Flow.BackpressureBlockingMode.BLOCK_WITH_TIMEOUT
+                        ? flowConfig.getConsumerAcquireTimeoutMill()
+                        : 0L;
         long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
         
         FlowManager manager = getManager();
@@ -80,7 +85,7 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         }
         
         PermitPair consumerPair = resourceContext.getConsumerPermitPair();
-        int perJobLimit = registration.getFlow().getLimits().getPerJob().getConsumerConcurrency();
+        int perJobLimit = registration.getFlow().getLimits().getPerJob().getConsumerThreads();
         int fairShare = Math.max(1, perJobLimit);
         
         boolean globalExhausted = consumerPair.getGlobalAvailablePermits() == 0;
