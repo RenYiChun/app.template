@@ -267,9 +267,9 @@ public class DefaultProgressTracker implements ProgressTracker {
         }
         long active = activeConsumers.sum();
         long inProduction = acquired - released;
-        long pendingConsumer = released - inStorage - active - term;
+        long pendingConsumer = Math.max(0L, released - inStorage - active - term);
         boolean completionConditionMet =
-                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer <= 0L;
+                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer == 0L;
         return new CompletionState(acquired,
                                    released,
                                    term,
