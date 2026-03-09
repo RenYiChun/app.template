@@ -56,6 +56,9 @@ public class MatchedPairProcessor<T> {
     }
     
     private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {
+        if (!partner.claimLogic() || !entry.claimLogic()) {
+            return;
+        }
         if (joiner.isMatched(partner.getData(), entry.getData())) {
             handleMatchedSuccess(partner, entry);
             return;
