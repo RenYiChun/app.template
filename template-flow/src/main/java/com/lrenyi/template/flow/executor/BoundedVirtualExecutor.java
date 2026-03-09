@@ -11,6 +11,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 信号量受控的虚拟线程执行器。
@@ -19,6 +20,7 @@ import lombok.NonNull;
  * <p>
  * 支持可插拔的 {@link PermitStrategy}，用于自定义 acquire/release 逻辑（如公平 acquire）。
  */
+@Slf4j
 public class BoundedVirtualExecutor implements ExecutorService {
     
     private final ExecutorService delegate;
@@ -100,14 +102,21 @@ public class BoundedVirtualExecutor implements ExecutorService {
     }
     
     /**
-     * 只释放信号量，不获取（用于已在外部 acquire 的场景）
+     * 只释放信号量，不获取（用于已在外部 acquire 的场景）。
+     * 消费许可必须在 finally 中释放，否则会导致许可泄漏、耗尽（使用中=上限且等待升高）；若 release() 抛出也会泄漏。
      */
     private static Runnable runReleaseOnly(PermitStrategy strategy, Runnable task) {
         return () -> {
             try {
                 task.run();
             } finally {
-                strategy.release();
+                try {
+                    strategy.release();
+                } catch (Throwable t) {
+                    // release() 异常会导致许可未释放、耗尽，打日志便于排查「消费过程中未正常释放」类问题
+                    log.warn("Consumer permit release failed, permit may be leaked (exhausted permits): {}", t.getMessage());
+                    throw t;
+                }
             }
         };
     }

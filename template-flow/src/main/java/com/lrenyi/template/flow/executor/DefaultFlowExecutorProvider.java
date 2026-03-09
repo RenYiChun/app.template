@@ -24,13 +24,15 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     private final ExecutorService cacheRemovalExecutor;
     
     /**
-     * @param globalSemaphore         全局消费许可
+     * @param globalSemaphore         全局消费许可；为 null 时表示不启用全局限制，执行器内部不做许可控制（由 Orchestrator 按 per-job 或无限制处理）。
      * @param removalSubmissionLimit  用于限制 Caffeine 驱逐回调的并发数。
      *                                 改为使用 ThreadPoolExecutor + 有界队列 + CallerRunsPolicy，
      *                                 彻底解决无界队列在极端高并发驱逐下的 Heap OOM 问题。
      */
     public DefaultFlowExecutorProvider(Semaphore globalSemaphore, int removalSubmissionLimit) {
-        this.flowConsumerExecutor = new BoundedVirtualExecutor(globalSemaphore);
+        this.flowConsumerExecutor = globalSemaphore != null
+                ? new BoundedVirtualExecutor(globalSemaphore)
+                : new BoundedVirtualExecutor(noOpStrategy());
         this.storageEgressExecutor = Executors.newScheduledThreadPool(4, Thread.ofVirtual().factory());
         
         // 使用 ThreadPoolExecutor + Bounded Queue + CallerRunsPolicy：
@@ -47,7 +49,20 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
                                                            new ThreadPoolExecutor.CallerRunsPolicy()
         );
     }
-    
+
+    private static PermitStrategy noOpStrategy() {
+        return new PermitStrategy() {
+            @Override
+            public void acquire() {
+                // 全局未限制时由 Orchestrator 按 per-job 或无限制控制
+            }
+
+            @Override
+            public void release() {
+            }
+        };
+    }
+
     @Override
     public ExecutorService getFlowConsumerExecutor() {
         return flowConsumerExecutor;
@@ -74,24 +89,23 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     }
     
     @Override
-    public ExecutorService createProducerExecutor(Semaphore globalSemaphore,
-            Semaphore perJobSemaphore,
+    public ExecutorService createProducerExecutor(PermitPair permitPair,
             MeterRegistry meterRegistry,
             String jobId) {
-        if (globalSemaphore == null) {
-            return createProducerExecutor(perJobSemaphore);
+        if (permitPair == null) {
+            return createProducerExecutor(null, null);
         }
         PermitStrategy baseStrategy = new PermitStrategy() {
             @Override
             public void acquire() throws InterruptedException {
-                if (!PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1)) {
+                if (!permitPair.tryAcquireBoth(1)) {
                     throw new IllegalStateException("PermitPair.tryAcquireBoth returned false");
                 }
             }
-            
+
             @Override
             public void release() {
-                PermitPair.createHeld(globalSemaphore, perJobSemaphore, 1).release();
+                permitPair.release(1);
             }
         };
         PermitStrategy strategy = baseStrategy;
@@ -107,7 +121,7 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
                     baseStrategy.acquire();
                     sample.stop(timer);
                 }
-                
+
                 @Override
                 public void release() {
                     baseStrategy.release();
@@ -115,5 +129,16 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
             };
         }
         return new BoundedVirtualExecutor(strategy);
+    }
+
+    @Override
+    public ExecutorService createProducerExecutor(Semaphore globalSemaphore,
+            Semaphore perJobSemaphore,
+            MeterRegistry meterRegistry,
+            String jobId) {
+        if (globalSemaphore == null) {
+            return createProducerExecutor(perJobSemaphore);
+        }
+        return createProducerExecutor(PermitPair.of(globalSemaphore, perJobSemaphore), meterRegistry, jobId);
     }
 }

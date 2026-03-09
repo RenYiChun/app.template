@@ -50,7 +50,7 @@ public final class FlowMetricNames {
      */
     public static final String MATCH_DURATION = PREFIX + ".match.duration";
     /**
-     * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onSingleConsumed 完成。
+     * 终结处理端到端耗时（含排队等待），从 submitDataToConsumer 入口到 onSingleConsumed 完成。
      * 高：消费执行器积压或 onSingleConsumed 回调慢。
      */
     public static final String FINALIZE_DURATION = PREFIX + ".finalize.duration";

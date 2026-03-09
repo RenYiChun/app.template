@@ -78,8 +78,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         boolean fair = global.isFairScheduling();
         
         int concurrencyLimit = global.getConsumerConcurrency();
-        int effectiveGlobalLimit = concurrencyLimit > 0 ? concurrencyLimit : Integer.MAX_VALUE;
-        this.globalSemaphore = new Semaphore(effectiveGlobalLimit, fair);
+        this.globalSemaphore = concurrencyLimit > 0 ? new Semaphore(concurrencyLimit, fair) : null;
         log.info("FlowResourceRegistry 启动：全局消费并发限制={}（<=0 时禁用）", concurrencyLimit);
         
         int globalInFlight = global.getInFlightProduction();
@@ -263,13 +262,20 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         return flowCacheManager;
     }
     
-    public void submitConsumerToGlobal(Orchestrator orchestrator, Runnable task) {
-        submitConsumerToGlobal(orchestrator, 1, task);
+    public void submitConsumer(Orchestrator orchestrator, Runnable task) {
+        submitConsumer(orchestrator, 1, task);
     }
     
-    public void submitConsumerToGlobal(Orchestrator orchestrator, int permits, Runnable task) {
+    /**
+     * 将消费任务提交到消费执行器。许可在调用线程 acquire 后由提交的 task 在结束时在 finally 中 release。
+     * <p>
+     * 若出现「消费许可被耗尽」（指标：使用中=上限且等待消费许可持续升高），很可能是消费路径中某处未正常释放许可，
+     * 例如：任务未执行到 finally、release() 抛出异常、或执行器未调度到该任务。排查时请确认所有消费任务都通过
+     * 本方法提交且策略的 release() 在 BoundedVirtualExecutor 的 runReleaseOnly 的 finally 中被调用。
+     * </p>
+     */
+    public void submitConsumer(Orchestrator orchestrator, int permits, Runnable task) {
         globalPendingConsumerAdder.add(permits);
-        Semaphore perJobSemaphore = orchestrator.resourceContext().getJobConsumerSemaphore();
         AtomicBoolean acquiredForSubmission = new AtomicBoolean(false);
         AtomicBoolean pendingCompensated = new AtomicBoolean(false);
         BoundedVirtualExecutor.PermitStrategy strategy = new BoundedVirtualExecutor.PermitStrategy() {
@@ -292,15 +298,20 @@ public class FlowResourceRegistry implements ResourceLifecycle {
             @Override
             public void release() {
                 acquiredForSubmission.set(false);
-                extracted(permits, permits, orchestrator, perJobSemaphore);
+                globalPendingConsumerAdder.add(-permits);
+                for (int i = 0; i < permits; i++) {
+                    orchestrator.release();
+                }
             }
             
             private void rollbackAcquire(int acquiredPermits) {
+                globalPendingConsumerAdder.add(-permits);
                 if (acquiredPermits <= 0) {
-                    globalPendingConsumerAdder.add(-permits);
                     return;
                 }
-                extracted(acquiredPermits, permits, orchestrator, perJobSemaphore);
+                for (int i = 0; i < acquiredPermits; i++) {
+                    orchestrator.release();
+                }
             }
         };
         try {
@@ -315,17 +326,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         }
     }
     
-    private void extracted(int acquiredPermits, int permits, Orchestrator orchestrator, Semaphore perJobSemaphore) {
-        globalPendingConsumerAdder.add(-permits);
-        for (int i = 0; i < acquiredPermits; i++) {
-            orchestrator.releaseWithoutSemaphore();
-        }
-        if (perJobSemaphore != null) {
-            PermitPair.createHeld(globalSemaphore, perJobSemaphore, acquiredPermits).release();
-        } else {
-            globalSemaphore.release(acquiredPermits);
-        }
-    }
     
     /**
      * 释放全局存储额度（Storage 离库时调用）

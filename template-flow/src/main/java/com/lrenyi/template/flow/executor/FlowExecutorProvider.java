@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import com.lrenyi.template.flow.resource.PermitPair;
 
 /**
  * Flow 模块执行器提供者，统一创建与管理各类执行器。
@@ -56,5 +57,24 @@ public interface FlowExecutorProvider {
             io.micrometer.core.instrument.MeterRegistry meterRegistry,
             String jobId) {
         return createProducerExecutor(globalSemaphore, perJobSemaphore);
+    }
+
+    /**
+     * 按 Job 创建生产者执行器，使用上下文创建好的许可对。
+     * 默认抛出不支持；实现类若支持 PermitPair 需重写此方法（不暴露内部信号量引用）。
+     *
+     * @param permitPair    消费/生产许可对（可为 null，则退化为仅 per-job 的 createProducerExecutor）
+     * @param meterRegistry 指标注册表
+     * @param jobId         Job 标识
+     */
+    default ExecutorService createProducerExecutor(PermitPair permitPair,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry,
+            String jobId) {
+        if (permitPair == null) {
+            return createProducerExecutor((Semaphore) null, (Semaphore) null);
+        }
+        throw new UnsupportedOperationException(
+                "This provider does not override createProducerExecutor(PermitPair, ...); "
+                        + "use createProducerExecutor(Semaphore, Semaphore, ...) or override this method.");
     }
 }

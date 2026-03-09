@@ -43,26 +43,26 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         if (!sourceClosing.compareAndSet(false, true)) {
             return;
         }
-        long waitStartMillis = System.currentTimeMillis();
-        log.info("Mark source finished started, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
-        while (inFlightPush.get() > 0) {
+        sourceClosed.set(true);
+        // 先声明 source 结束并通知 tracker，使引擎可排空存储、解除背压；若先无限等待 inFlightPush，
+        // 而 push 因背压阻塞，会导致死锁（caller 等 inFlightPush，inFlightPush 等存储排空，排空依赖 sourceFinished）。
+        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
+        log.info("Mark source finished declared, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
+        // 可选：有限等待 in-flight 收敛，避免日志刷屏；不阻塞到 0 以防背压场景下再次卡住
+        long deadlineMs = System.currentTimeMillis() + 30_000L;
+        while (inFlightPush.get() > 0 && System.currentTimeMillis() < deadlineMs) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
             if (Thread.interrupted()) {
                 Thread.currentThread().interrupt();
                 log.warn("Waiting inFlightPush interrupted, jobId={}, remaining={}",
-                         launcher.getJobId(),
-                         inFlightPush.get()
-                );
+                         launcher.getJobId(), inFlightPush.get());
                 break;
             }
         }
-        sourceClosed.set(true);
-        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
-        log.info("Mark source finished completed, jobId={}, waitedMs={}, remainingInFlightPush={}",
-                 launcher.getJobId(),
-                 System.currentTimeMillis() - waitStartMillis,
-                 inFlightPush.get()
-        );
+        if (inFlightPush.get() > 0) {
+            log.info("Mark source finished done with in-flight remaining, jobId={}, remainingInFlightPush={}",
+                     launcher.getJobId(), inFlightPush.get());
+        }
     }
     
     @Override

@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.context;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
@@ -21,16 +20,12 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                            FlowResourceContext resourceContext) {
     
     public void release() {
-        Semaphore semaphore = resourceContext.getGlobalSemaphore();
+        PermitPair consumerPair = resourceContext.getConsumerPermitPair();
         int concurrencyLimit = getManager().getGlobalConfig().getLimits().getGlobal().getConsumerConcurrency();
         try {
-            if (semaphore.availablePermits() < concurrencyLimit) {
-                semaphore.release();
+            consumerPair.release(1, concurrencyLimit);
+            if (registration.getActiveCount().get() > 0) {
                 registration.decrement();
-            } else {
-                if (registration.getActiveCount().get() > 0) {
-                    registration.decrement();
-                }
             }
         } finally {
             runReleaseHooks();
@@ -62,42 +57,41 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
         return getManager().getMeterRegistry();
     }
     
-    public void releaseWithoutSemaphore() {
-        try {
-            if (registration.getActiveCount().get() > 0) {
-                registration.decrement();
-            }
-        } finally {
-            runReleaseHooks();
-        }
-    }
-    
     public void acquire() throws InterruptedException, TimeoutException {
         long acquireStartTime = System.currentTimeMillis();
         long acquireStartNanos = System.nanoTime();
         long acquireTimeoutMs = FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS;
         long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
-
-        if (getManager().isStopped(jobId)) {
+        
+        FlowManager manager = getManager();
+        if (manager == null) {
+            IllegalStateException e = new IllegalStateException(
+                    "Orchestrator for job " + jobId + " has null FlowManager (resourceContext.getFlowManager()). "
+                            + "Ensure launchers are created via FlowManager.createLauncher(); "
+                            + "check custom code that may construct Orchestrator or FlowResourceContext with null "
+                            + "flowManager.");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "acquire_manager_null");
+            throw e;
+        }
+        if (manager.isStopped(jobId)) {
             InterruptedException e = new InterruptedException("Job " + jobId + " is not running.");
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "acquire_job_stopped");
             throw e;
         }
         
-        Semaphore globalSemaphore = resourceContext.getGlobalSemaphore();
-        Semaphore perJobSemaphore = resourceContext.getJobConsumerSemaphore();
+        PermitPair consumerPair = resourceContext.getConsumerPermitPair();
         int perJobLimit = registration.getFlow().getLimits().getPerJob().getConsumerConcurrency();
         int fairShare = Math.max(1, perJobLimit);
         
-        boolean globalExhausted = globalSemaphore.availablePermits() == 0;
-        boolean perJobExhausted = perJobSemaphore != null && perJobSemaphore.availablePermits() == 0;
-        
+        boolean globalExhausted = consumerPair.getGlobalAvailablePermits() == 0;
+        boolean perJobExhausted = consumerPair.getPerJobAvailablePermits() == 0;
+
         while (registration.getActiveCount().get() >= fairShare && (globalExhausted || perJobExhausted)) {
             Lock fairLock = resourceContext.getFairLock();
             fairLock.lock();
             try {
-                globalExhausted = globalSemaphore.availablePermits() == 0;
-                perJobExhausted = perJobSemaphore != null && perJobSemaphore.availablePermits() == 0;
+                globalExhausted = consumerPair.getGlobalAvailablePermits() == 0;
+                perJobExhausted = consumerPair.getPerJobAvailablePermits() == 0;
                 if (registration.getActiveCount().get() < fairShare || (!globalExhausted && !perJobExhausted)) {
                     break;
                 }
@@ -120,42 +114,25 @@ public record Orchestrator(String jobId, ProgressTracker tracker, Registration r
                 fairLock.unlock();
             }
             
-            if (getManager().isStopped(jobId)) {
+            if (manager.isStopped(jobId)) {
                 InterruptedException e = new InterruptedException("Job stopped during acquire");
                 FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "acquire_job_stopped");
                 throw e;
             }
         }
         
-        if (perJobSemaphore != null) {
-            boolean acquired;
-            if (timeoutNanos > 0) {
-                long elapsedNanos = System.nanoTime() - acquireStartNanos;
-                long remainingNanos = timeoutNanos - elapsedNanos;
-                if (remainingNanos <= 0) {
-                    throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
-                }
-                acquired = PermitPair.tryAcquireBoth(globalSemaphore,
-                                                     perJobSemaphore,
-                                                     1,
-                                                     remainingNanos,
-                                                     TimeUnit.NANOSECONDS
-                );
-            } else {
-                acquired = PermitPair.tryAcquireBoth(globalSemaphore, perJobSemaphore, 1);
+        if (timeoutNanos > 0) {
+            long elapsedNanos = System.nanoTime() - acquireStartNanos;
+            long remainingNanos = timeoutNanos - elapsedNanos;
+            if (remainingNanos <= 0) {
+                throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
             }
-            if (!acquired) {
+            if (!consumerPair.tryAcquireBoth(1, remainingNanos, TimeUnit.NANOSECONDS)) {
                 throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
             }
         } else {
-            if (timeoutNanos > 0) {
-                long elapsedNanos = System.nanoTime() - acquireStartNanos;
-                long remainingNanos = timeoutNanos - elapsedNanos;
-                if (remainingNanos <= 0 || !globalSemaphore.tryAcquire(1, remainingNanos, TimeUnit.NANOSECONDS)) {
-                    throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
-                }
-            } else {
-                globalSemaphore.acquire();
+            if (!consumerPair.tryAcquireBoth(1)) {
+                throw buildAcquireTimeoutException(acquireTimeoutMs, acquireStartTime);
             }
         }
         registration.increment();

@@ -166,8 +166,8 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                     break;
                 }
             }
+            processed[i] = true;
             if (matched != null && launcher != null) {
-                processed[i] = true;
                 processed[matchedIdx] = true;
                 hasAnyPairSucceeded = true;
                 resourceRegistry().releaseGlobalStorage(1);
@@ -176,7 +176,6 @@ public class CaffeineFlowStorage<T> extends AbstractEgressFlowStorage<T> impleme
                     break;
                 }
             } else {
-                processed[i] = true;
                 resourceRegistry().releaseGlobalStorage(1);
                 unmatched.add(x);
             }

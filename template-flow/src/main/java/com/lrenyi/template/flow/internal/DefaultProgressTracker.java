@@ -224,7 +224,7 @@ public class DefaultProgressTracker implements ProgressTracker {
             finishLock.unlock();
         }
     }
-    
+
     private void logCompletionBlocked(CompletionState state) {
         long now = System.currentTimeMillis();
         long last = lastCompletionBlockedLogMillis.get();

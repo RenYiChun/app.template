@@ -191,10 +191,14 @@ public class FlowManager implements ActiveLauncherLookup {
             ProgressTracker tracker,
             TemplateConfigProperties.Flow flowConfig) {
         try {
+            if (activeLaunchers.containsKey(jobId)) {
+                throw new IllegalStateException(
+                        "Job " + jobId + " 已有活跃 Launcher，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
+            }
             completedTrackers.remove(jobId);
             Registration registration = new Registration(jobId, flowConfig);
             registry.put(jobId, registration);
-            
+
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             

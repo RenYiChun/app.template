@@ -75,14 +75,19 @@ class FlowResourceRegistryTest {
         
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), false);
         Registration registration = new Registration("job-1", config);
+        java.util.concurrent.Semaphore jobConsumer = new java.util.concurrent.Semaphore(4);
+        PermitPair consumerPermitPair = PermitPair.of(registry.getGlobalSemaphore(), jobConsumer);
         FlowResourceContext context = FlowResourceContext.builder()
                                                          .resourceRegistry(registry)
                                                          .flowManager(null)
-                                                         .jobConsumerSemaphore(new java.util.concurrent.Semaphore(4))
+                                                         .jobConsumerSemaphore(jobConsumer)
+                                                         .consumerPermitPair(consumerPermitPair)
+                                                         .inFlightPermitPair(null)
+                                                         .producerPermitPair(null)
                                                          .build();
         Orchestrator orchestrator = new Orchestrator("job-1", new NoopTracker(), registration, context);
         
-        assertThrows(RuntimeException.class, () -> registry.submitConsumerToGlobal(orchestrator, 2, () -> {}));
+        assertThrows(RuntimeException.class, () -> registry.submitConsumer(orchestrator, 2, () -> {}));
         assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
     }
     
@@ -113,7 +118,7 @@ class FlowResourceRegistryTest {
         stopThread.start();
         
         try {
-            registry.submitConsumerToGlobal(orchestrator, 2, () -> {
+            registry.submitConsumer(orchestrator, 2, () -> {
             });
         } catch (ExecutorInterruptedException ignored) {
         }

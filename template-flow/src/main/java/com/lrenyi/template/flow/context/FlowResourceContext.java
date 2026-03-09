@@ -10,6 +10,7 @@ import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import lombok.Builder;
 import lombok.Getter;
@@ -73,9 +74,30 @@ public class FlowResourceContext {
     private final Semaphore jobConsumerSemaphore;
 
     /**
+     * 每 Job 等待消费许可槽位：提交 finalizer 前 acquire，任务完成时 release，严格将「已离库未终结」条数限制在 limit 内。
+     * 为 null 表示未配置上限（effectivePendingConsumer<=0）。
+     */
+    private final Semaphore pendingConsumerSlotSemaphore;
+
+    /**
      * 统一出口记账：供 FlowLauncher 在 stopped 等场景调用 performSingleConsumed
      */
     private final FlowEgressHandler<?> egressHandler;
+
+    /**
+     * 消费许可对（global + per-job），创建时绑定，各处引用同一实例。
+     */
+    private final PermitPair consumerPermitPair;
+
+    /**
+     * 在途生产许可对；为 null 表示未启用在途限制。
+     */
+    private final PermitPair inFlightPermitPair;
+
+    /**
+     * 生产线程许可对（全局+每 Job）；为 null 表示仅用 per-job 信号量。
+     */
+    private final PermitPair producerPermitPair;
 
     // ========== 全局资源访问便捷方法 ==========
     
@@ -119,5 +141,12 @@ public class FlowResourceContext {
      */
     public FlowCacheManager getCacheManager() {
         return resourceRegistry.getCacheManager();
+    }
+
+    /**
+     * 获取等待消费槽位信号量；提交 finalizer 前 acquire(1)，任务完成时 release(1)，保证 pending 不超过 limit。
+     */
+    public Semaphore getPendingConsumerSlotSemaphore() {
+        return pendingConsumerSlotSemaphore;
     }
 }

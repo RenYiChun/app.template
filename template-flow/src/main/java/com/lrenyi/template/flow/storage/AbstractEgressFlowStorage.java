@@ -72,11 +72,11 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
                 return;
             }
             if (entry.getRetryRemaining() == -1) {
-                finalizer.submitBodyOnly(entry, launcher);
+                finalizer.submitDataToConsumer(entry, launcher);
             } else {
                 RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
                 if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                    finalizer.submitBodyOnly(entry, launcher);
+                    finalizer.submitDataToConsumer(entry, launcher);
                 }
             }
         } finally {
