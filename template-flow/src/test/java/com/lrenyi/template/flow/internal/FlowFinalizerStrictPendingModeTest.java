@@ -60,7 +60,7 @@ class FlowFinalizerStrictPendingModeTest {
                 FlowLauncher.create(jobId, joiner, manager, tracker, registration, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
-        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler);
+        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowEntry<Object> entry = new FlowEntry<>(new Object(), jobId);
         
         double beforeTimeout = getCounter(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT, jobId);
@@ -99,7 +99,7 @@ class FlowFinalizerStrictPendingModeTest {
                 FlowLauncher.create(jobId, joiner, manager, tracker, registration, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
-        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler);
+        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowEntry<Object> entry = new FlowEntry<>(new Object(), jobId);
         
         double beforeTimeout = getCounter(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT, jobId);

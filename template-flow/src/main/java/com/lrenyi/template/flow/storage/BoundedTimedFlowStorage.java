@@ -18,7 +18,6 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.internal.MatchedPairProcessor;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
@@ -63,9 +62,9 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 if (joiner().isMatched(candidate.getData(), entry.getData())) {
                     slot.remove(candidate);
                     savedEntryCount.decrement();
-                    // candidate 的 storageLease 由 processMatchedPair 内部（partner.closeStorageLease）释放；
+                    // candidate 的 storageLease 由 submitPairDataToConsumer 内部（partner.closeStorageLease）释放；
                     // entry 为重入条目，其 storageLease 在首次离库时已关闭，此处幂等调用为空操作。
-                    matchedPairProcessor.processMatchedPair(candidate, entry, launcher);
+                    finalizer().submitPairDataToConsumer(candidate, entry, launcher);
                     entry.closeStorageLease();
                     return PreRetryResult.HANDLED;
                 }
@@ -93,8 +92,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     private final String jobId;
     private final int maxPerKey;
     private final Clock clock;
-    private final MatchedPairProcessor<T> matchedPairProcessor;
-
     public BoundedTimedFlowStorage(TemplateConfigProperties.Flow flowConfig,
             FlowJoiner<T> joiner,
             ProgressTracker progressTracker,
@@ -108,7 +105,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         this.maxPerKey = perJob.getKeyedCache().getEffectiveMultiValueMaxPerKey();
         this.jobId = jobId;
         this.clock = Clock.systemUTC();
-        this.matchedPairProcessor = new MatchedPairProcessor<>(joiner, egressHandler, meterRegistry, resourceRegistry);
         this.evictionCoordinator = new EvictionCoordinator(expiryIndex, this, "app-template-flow-eviction-" + jobId);
         this.evictionCoordinator.start();
         
@@ -336,7 +332,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 x.closeStorageLease();
                 savedEntryCount.decrement();
                 savedEntryCount.decrement();
-                matchedPairProcessor.processMatchedPair(x, matched, launcher);
+                finalizer().submitPairDataToConsumer(x, matched, launcher);
                 if (!multiMatchEnabled) {
                     break;
                 }
@@ -443,7 +439,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 return;
             }
             FlowLauncher<Object> launcher = resourceRegistry().getLauncherLookup().getActiveLauncher(jobId);
-            matchedPairProcessor.processMatchedPair(parent, incoming, launcher);
+            finalizer().submitPairDataToConsumer(parent, incoming, launcher);
             incoming.closeStorageLease();
             savedEntryCount.decrement();
             parentEntry.set(parent);

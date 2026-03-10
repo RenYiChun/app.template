@@ -100,7 +100,7 @@ class BoundedTimedFlowStorageTest {
             SimpleMeterRegistry registryMeter,
             String jobId) {
         FlowEgressHandler<String> egressHandler = new FlowEgressHandler<>(joiner, progressTracker, registryMeter);
-        FlowFinalizer<String> finalizer = new FlowFinalizer<>(registry, registryMeter, egressHandler);
+        FlowFinalizer<String> finalizer = new FlowFinalizer<>(registry, registryMeter, egressHandler, joiner);
         return new BoundedTimedFlowStorage<>(
                 config,
                 joiner,

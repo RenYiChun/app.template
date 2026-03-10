@@ -90,6 +90,10 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     protected final FlowEgressHandler<T> egressHandler() {
         return egressHandler;
     }
+
+    protected final FlowFinalizer<T> finalizer() {
+        return finalizer;
+    }
     
     private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();

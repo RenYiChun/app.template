@@ -76,7 +76,7 @@ final class FlowLauncherFactory {
         ExecutorService producerExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
         FlowEgressHandler<T> egressHandler = new FlowEgressHandler<>(flowJoiner, tracker, meterRegistry);
-        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry, egressHandler);
+        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry, egressHandler, flowJoiner);
         FlowStorage<T> storage = resourceRegistry.getCacheManager()
                                                  .getOrCreateStorage(jobId,
                                                                      flowJoiner,
