@@ -32,7 +32,17 @@ public final class EvictionCoordinator implements AutoCloseable {
             log.debug("EvictionCoordinator started, waiting for expiry tokens");
             while (!closed.get()) {
                 SlotExpiryToken token = expiryIndex.take();
-                handleToken(token);
+                try {
+                    if (log.isTraceEnabled()) {
+                        log.trace("EvictionCoordinator processing token slotId={}, nextCheckAt={}",
+                                  token.slotId(),
+                                  token.nextCheckAt()
+                        );
+                    }
+                    storage.drainExpiredEntries(token.slotId());
+                } catch (Throwable t) {
+                    log.error("Failed to handle SlotExpiryToken for slotId={}", token.slotId(), t);
+                }
             }
         } catch (InterruptedException e) {
             if (!closed.get()) {
@@ -45,18 +55,7 @@ public final class EvictionCoordinator implements AutoCloseable {
             log.info("EvictionCoordinator stopped");
         }
     }
-
-    private void handleToken(SlotExpiryToken token) {
-        try {
-            if (log.isTraceEnabled()) {
-                log.trace("EvictionCoordinator processing token slotId={}, nextCheckAt={}", token.slotId(), token.nextCheckAt());
-            }
-            storage.onExpiryToken(token);
-        } catch (Throwable t) {
-            log.error("Failed to handle SlotExpiryToken for slotId={}", token.slotId(), t);
-        }
-    }
-
+    
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {

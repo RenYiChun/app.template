@@ -18,7 +18,7 @@ class FlowSlotTest {
     
     @BeforeEach
     void setUp() {
-        slot = new FlowSlot<>(1L, 16, TemplateConfigProperties.Flow.MultiValueOverflowPolicy.DROP_OLDEST, 0L);
+        slot = new FlowSlot<>("1", 16, TemplateConfigProperties.Flow.MultiValueOverflowPolicy.DROP_OLDEST, 0L);
     }
     
     @Test

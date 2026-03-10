@@ -9,26 +9,20 @@ import org.jspecify.annotations.NonNull;
  * 仅携带 slotId + nextCheckAt + version，禁止引用业务对象。
  */
 public final class SlotExpiryToken implements Delayed {
-    private final long slotId;
+    private final String slotId;
     private final long nextCheckAt;
-    private final int version;
     
-    SlotExpiryToken(long slotId, long nextCheckAt, int version) {
+    SlotExpiryToken(String slotId, long nextCheckAt) {
         this.slotId = slotId;
         this.nextCheckAt = nextCheckAt;
-        this.version = version;
     }
     
-    long slotId() {
+    String slotId() {
         return slotId;
     }
     
     long nextCheckAt() {
         return nextCheckAt;
-    }
-    
-    int version() {
-        return version;
     }
     
     /**

@@ -16,7 +16,7 @@ public final class StorageBackpressureSnapshotProvider implements BackpressureSn
 
     @Override
     public BackpressureSnapshot snapshot() {
-        long used = storage.supportsDeferredExpiry() ? storage.usedEntries() : storage.size();
+        long used = storage.supportsDeferredExpiry() ? storage.savedEntries() : storage.size();
         long limit = storage.supportsDeferredExpiry() ? storage.entryLimit() : storage.maxCacheSize();
         // 仅提供存储维度，其余维度由 ResourceBackpressureSnapshotProvider 负责
         return new BackpressureSnapshot(used,

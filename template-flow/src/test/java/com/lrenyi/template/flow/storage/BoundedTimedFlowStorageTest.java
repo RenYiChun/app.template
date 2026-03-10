@@ -1,17 +1,23 @@
 package com.lrenyi.template.flow.storage;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.FlowTestSupport;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -73,6 +79,18 @@ class BoundedTimedFlowStorageTest {
         flow.getLimits().getPerJob().getKeyedCache().setCacheTtlMill(ttlMs);
         return flow;
     }
+    
+    /** 配对模式测试用：多值、同 key、短 TTL，仅 A-B 可配对。 */
+    private static TemplateConfigProperties.Flow fakeFlowConfigForPairing(long ttlMs) {
+        TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
+        flow.getLimits().getGlobal().setConsumerThreads(10);
+        TemplateConfigProperties.Flow.PerJob perJob = flow.getLimits().getPerJob();
+        perJob.setStorageCapacity(100);
+        perJob.getKeyedCache().setCacheTtlMill(ttlMs);
+        perJob.getKeyedCache().setMultiValueEnabled(true);
+        perJob.getKeyedCache().setMultiValueMaxPerKey(10);
+        return flow;
+    }
 
     private static BoundedTimedFlowStorage<String> createStorage(
             TemplateConfigProperties.Flow config,
@@ -107,33 +125,6 @@ class BoundedTimedFlowStorageTest {
         assertEquals(0, storage.size());
         assertEquals(100, storage.maxCacheSize());
         assertTrue(storage.supportsDeferredExpiry());
-
-        storage.shutdown();
-    }
-
-    @Test
-    void depositThenDrainRemaining_consumesAllViaSingleConsumed() {
-        CollectingJoiner joiner = new CollectingJoiner();
-        NoopProgressTracker tracker = new NoopProgressTracker();
-        BoundedTimedFlowStorage<String> storage =
-                createStorage(flowConfig, joiner, tracker, resourceRegistry, meterRegistry, JOB_ID);
-
-        List<String> data = List.of("a", "b", "c");
-        for (String value : data) {
-            FlowEntry<String> entry = new FlowEntry<>(value, JOB_ID);
-            assertTrue(storage.doDeposit(entry), "deposit: " + value);
-        }
-        assertEquals(3, storage.size());
-
-        int drained = storage.drainRemainingToFinalizer();
-        assertEquals(3, drained);
-        assertEquals(3, joiner.getConsumed().size());
-
-        List<ConsumedRecord> consumed = joiner.getConsumed();
-        assertEquals("a", consumed.get(0).item);
-        assertEquals("b", consumed.get(1).item);
-        assertEquals("c", consumed.get(2).item);
-        consumed.forEach(r -> assertEquals(EgressReason.SINGLE_CONSUMED, r.reason));
 
         storage.shutdown();
     }
@@ -211,8 +202,283 @@ class BoundedTimedFlowStorageTest {
         assertTrue(consumed.stream().anyMatch(r -> "x".equals(r.item)));
         assertTrue(consumed.stream().anyMatch(r -> "y".equals(r.item)));
     }
+    
+    // ---------- 配对场景：3 条数据仅 2 条可配对，校验 job 结束条件各计数 ----------
+    
+    /**
+     * 场景1：第 2 条与第 1 条入缓存前就配对成功，第 3 条通过驱逐出缓存。
+     * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条 TIMEOUT。
+     */
+    @Test
+    void pairingScenario1_secondPairsWithFirst_thirdEvicted_jobCountsCorrect() throws InterruptedException {
+        long ttlMs = 150L;
+        TemplateConfigProperties.Flow config = fakeFlowConfigForPairing(ttlMs);
+        flowManager = FlowManager.getInstance(config, meterRegistry);
+        resourceRegistry = flowManager.getResourceRegistry();
+        FlowJoinerEngine engine = new FlowJoinerEngine(flowManager);
+
+        PairingCollectingJoiner joiner = new PairingCollectingJoiner();
+        FlowInlet<String> inlet = engine.startPush(JOB_ID, joiner, config);
+
+        inlet.push("A");
+        inlet.push("B"); // B 与 A 配对
+        inlet.push("C"); // C 留在缓存，等待驱逐
+        inlet.markSourceFinished();
+
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().terminated() >= 3
+                && inlet.getProgressTracker().getSnapshot().inStorage() == 0, 15_000);
+        awaitCondition(inlet::isCompleted, 5_000);
+
+        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
+        assertEquals(3, snapshot.productionAcquired(), "productionAcquired");
+        assertEquals(3, snapshot.productionReleased(), "productionReleased");
+        assertEquals(3, snapshot.terminated(), "terminated");
+        assertEquals(0, snapshot.inStorage(), "inStorage");
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.TIMEOUT.name()) >= 1,
+                  "第 3 条应由超时驱逐");
+        assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
+    }
+    
+    /**
+     * 场景2：第 3 条才与缓存中某一条配对成功，未配对的这条在生产线程内被 CLEARED_AFTER_PAIR_SUCCESS 移除。
+     * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条 CLEARED_AFTER_PAIR_SUCCESS。
+     */
+    @Test
+    void pairingScenario2_thirdPairsWithCached_oneClearedAfterPair_jobCountsCorrect() throws InterruptedException {
+        TemplateConfigProperties.Flow config = fakeFlowConfigForPairing(30_000L);
+        flowManager = FlowManager.getInstance(config, meterRegistry);
+        resourceRegistry = flowManager.getResourceRegistry();
+        FlowJoinerEngine engine = new FlowJoinerEngine(flowManager);
+
+        PairingCollectingJoiner joiner = new PairingCollectingJoiner();
+        FlowInlet<String> inlet = engine.startPush(JOB_ID + "-sc2", joiner, config);
+
+        inlet.push("A");
+        inlet.push("C");
+        inlet.push("B"); // B 与 A 配对，C 被 CLEARED_AFTER_PAIR_SUCCESS
+        inlet.markSourceFinished();
+
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().terminated() >= 3
+                && inlet.getProgressTracker().getSnapshot().inStorage() == 0, 10_000);
+        awaitCondition(inlet::isCompleted, 5_000);
+
+        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
+        assertEquals(3, snapshot.productionAcquired(), "productionAcquired");
+        assertEquals(3, snapshot.productionReleased(), "productionReleased");
+        assertEquals(3, snapshot.terminated(), "terminated");
+        assertEquals(0, snapshot.inStorage(), "inStorage");
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.CLEARED_AFTER_PAIR_SUCCESS.name()) >= 1,
+                  "未配对条应由 CLEARED_AFTER_PAIR_SUCCESS 移除");
+        assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
+    }
+
+    /**
+     * 场景3：3 条数据不入缓存时配对，而是全部进缓存后由驱逐时再配对（A-B 在 processEvictedSlot 中配对，C 以 TIMEOUT 离库）。
+     * 校验 job 结束条件各计数：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；
+     * 被动出口含 1 条 TIMEOUT，且有一次配对消费。
+     */
+    @Test
+    void pairingScenario3_allInCache_thenPairOnEviction_jobCountsCorrect() throws InterruptedException {
+        long ttlMs = 150L;
+        TemplateConfigProperties.Flow config = fakeFlowConfigForPairing(ttlMs);
+        flowManager = FlowManager.getInstance(config, meterRegistry);
+        resourceRegistry = flowManager.getResourceRegistry();
+        FlowJoinerEngine engine = new FlowJoinerEngine(flowManager);
+
+        PairOnlyOnEvictionCollectingJoiner joiner = new PairOnlyOnEvictionCollectingJoiner();
+        FlowInlet<String> inlet = engine.startPush(JOB_ID + "-sc3", joiner, config);
+
+        joiner.setAllowPairing(false);
+        inlet.push("A");
+        inlet.push("B");
+        inlet.push("C");
+        joiner.setAllowPairing(true);
+        inlet.markSourceFinished();
+
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().terminated() >= 3
+                && inlet.getProgressTracker().getSnapshot().inStorage() == 0, 15_000);
+        awaitCondition(inlet::isCompleted, 5_000);
+
+        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
+        assertEquals(3, snapshot.productionAcquired(), "productionAcquired");
+        assertEquals(3, snapshot.productionReleased(), "productionReleased");
+        assertEquals(3, snapshot.terminated(), "terminated");
+        assertEquals(0, snapshot.inStorage(), "inStorage");
+        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.TIMEOUT.name()) >= 1,
+                  "未配对条应由超时驱逐");
+        assertEquals(1, joiner.getPairConsumedCount(), "驱逐时应有 1 次配对消费");
+    }
+
+    private static void awaitCondition(java.util.function.BooleanSupplier condition, long timeoutMs)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+        assertTrue(condition.getAsBoolean(), "条件在 " + timeoutMs + "ms 内未满足");
+    }
 
     // ---------- 内部辅助 ----------
+    
+    /** 仅 "A" 与 "B" 可配对，同 key 多值。 */
+    private static final class PairingCollectingJoiner extends CollectingJoiner {
+        private final AtomicLong pairConsumedCount = new AtomicLong(0);
+        
+        @Override
+        public String joinKey(String item) {
+            return "sameKey";
+        }
+        
+        @Override
+        public boolean needMatched() {
+            return true;
+        }
+        
+        @Override
+        public boolean isMatched(String existing, String incoming) {
+            return ("A".equals(existing) && "B".equals(incoming)) || ("B".equals(existing) && "A".equals(incoming));
+        }
+        
+        @Override
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+            pairConsumedCount.incrementAndGet();
+        }
+        
+        long getPairConsumedCount() {
+            return pairConsumedCount.get();
+        }
+    }
+
+    /**
+     * 入缓存时不配对（isMatched 受 allowPairing 控制为 false），仅驱逐时允许 A-B 配对，用于场景3。
+     */
+    private static final class PairOnlyOnEvictionCollectingJoiner extends CollectingJoiner {
+        private final AtomicLong pairConsumedCount = new AtomicLong(0);
+        private volatile boolean allowPairing = false;
+
+        void setAllowPairing(boolean allowPairing) {
+            this.allowPairing = allowPairing;
+        }
+
+        @Override
+        public String joinKey(String item) {
+            return "sameKey";
+        }
+
+        @Override
+        public boolean needMatched() {
+            return true;
+        }
+
+        @Override
+        public boolean isMatched(String existing, String incoming) {
+            if (!allowPairing) {
+                return false;
+            }
+            return ("A".equals(existing) && "B".equals(incoming)) || ("B".equals(existing) && "A".equals(incoming));
+        }
+
+        @Override
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+            pairConsumedCount.incrementAndGet();
+        }
+
+        long getPairConsumedCount() {
+            return pairConsumedCount.get();
+        }
+    }
+    
+    /** 统计各回调次数，用于校验 job 结束条件中的计数。 */
+    private static final class CountingProgressTracker implements ProgressTracker {
+        private final String jobId;
+        private final AtomicLong productionAcquired = new AtomicLong(0);
+        private final AtomicLong productionReleased = new AtomicLong(0);
+        private final AtomicLong activeConsumers = new AtomicLong(0);
+        private final AtomicLong activeEgress = new AtomicLong(0);
+        private final AtomicLong passiveEgress = new AtomicLong(0);
+        private final AtomicLong terminated = new AtomicLong(0);
+        private final Map<String, Long> passiveEgressByReason = new HashMap<>();
+        private volatile Supplier<Long> inStorageSupplier = () -> 0L;
+        
+        CountingProgressTracker(String jobId) {
+            this.jobId = jobId;
+        }
+        
+        void setInStorageSupplier(Supplier<Long> inStorageSupplier) {
+            this.inStorageSupplier = inStorageSupplier != null ? inStorageSupplier : () -> 0L;
+        }
+        
+        @Override
+        public void onProductionAcquired() {
+            productionAcquired.incrementAndGet();
+        }
+        
+        @Override
+        public void onProductionReleased() {
+            productionReleased.incrementAndGet();
+        }
+        
+        @Override
+        public void onConsumerAcquired() {
+            activeConsumers.incrementAndGet();
+        }
+        
+        @Override
+        public void onConsumerReleased(String jobId) {
+            activeConsumers.decrementAndGet();
+        }
+        
+        @Override
+        public void onActiveEgress() {
+            activeEgress.incrementAndGet();
+            terminated.incrementAndGet();
+        }
+        
+        @Override
+        public void onPassiveEgress(EgressReason reason) {
+            passiveEgress.incrementAndGet();
+            terminated.incrementAndGet();
+            if (reason != null) {
+                passiveEgressByReason.merge(reason.name(), 1L, Long::sum);
+            }
+        }
+        
+        @Override
+        public FlowProgressSnapshot getSnapshot() {
+            long inStorage = inStorageSupplier.get();
+            return new FlowProgressSnapshot(jobId,
+                                            -1L,
+                                            productionAcquired.get(),
+                                            productionReleased.get(),
+                                            activeConsumers.get(),
+                                            inStorage,
+                                            activeEgress.get(),
+                                            passiveEgress.get(),
+                                            terminated.get(),
+                                            System.currentTimeMillis(),
+                                            0L,
+                                            new HashMap<>(passiveEgressByReason)
+            );
+        }
+        
+        @Override
+        public void setTotalExpected(String jobId, long total) {
+        }
+        
+        @Override
+        public void markSourceFinished(String jobId) {
+        }
+        
+        @Override
+        public boolean isCompleted() {
+            return false;
+        }
+        
+        @Override
+        public boolean isCompletionConditionMet() {
+            return false;
+        }
+    }
 
     private static final class ConsumedRecord {
         final String item;

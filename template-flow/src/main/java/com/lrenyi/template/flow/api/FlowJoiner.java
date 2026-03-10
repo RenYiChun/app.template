@@ -2,7 +2,6 @@ package com.lrenyi.template.flow.api;
 
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
-import com.lrenyi.template.flow.storage.DefaultKeyEqualsPairingStrategy;
 
 /**
  * T: 数据项类型 (Terminal/Task item)
@@ -59,16 +58,6 @@ public interface FlowJoiner<T> {
      */
     default boolean needMatched() {
         return false;
-    }
-    
-    /**
-     * 配对策略。仅 needMatched=true 时生效。
-     * 默认返回 key 等值 1:1 策略；业务可覆写以实现多 key、多候选等语义。
-     *
-     * @return 配对策略实例
-     */
-    default PairingStrategy<T> getPairingStrategy() {
-        return DefaultKeyEqualsPairingStrategy.getInstance();
     }
     
     /**

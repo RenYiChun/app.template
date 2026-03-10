@@ -2,7 +2,6 @@ package com.lrenyi.template.flow.context;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import lombok.Getter;
-import lombok.Setter;
 
 @Getter
 public class FlowEntry<T> implements AutoCloseable {
@@ -27,28 +26,10 @@ public class FlowEntry<T> implements AutoCloseable {
     private volatile int refCnt = 1;
     private volatile int status = 0;
     private volatile int retryRemaining = -1;
-    // 受控超时与调度元数据（超时按 key 在 FlowSlot 上维护，entry 仅保留入库时间与状态）
-    private long entryId;
-    private long storedAtEpochMs;
-    @Setter
-    private volatile int runtimeState;
-    private volatile int slotVersion;
-    
-    public static final int STATE_ACTIVE = 0;
-    public static final int STATE_SOFT_EXPIRED = 1;
-    public static final int STATE_EGRESSING = 2;
-    public static final int STATE_REMOVED = 3;
     
     public FlowEntry(T data, String jobId) {
         this.data = data;
         this.jobId = jobId;
-    }
-    
-    public void initRuntime(long entryId, long storedAtMs, int slotVersion) {
-        this.entryId = entryId;
-        this.storedAtEpochMs = storedAtMs;
-        this.runtimeState = STATE_ACTIVE;
-        this.slotVersion = slotVersion;
     }
     
     public void retain() {

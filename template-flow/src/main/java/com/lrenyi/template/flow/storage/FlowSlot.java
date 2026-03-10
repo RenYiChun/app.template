@@ -25,17 +25,15 @@ public final class FlowSlot<T> {
     private final int maxPerKey;
     private final TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy;
     // Slot 级调度元信息（超时按 key：以该 key 下首次写入时间为起点）
-    private final long slotId;
+    private final String slotId;
     /** 该 key 下首次写入的时间（epoch ms），用于计算 slot 级过期点 */
     private long earliestStoredAtEpochMs;
     private long earliestExpireAt;
     private long nextCheckAt;
-    private int version;
     private boolean queuedForExpiry;
-    private boolean draining;
-    /** 空槽位在「未发现过期」时已做过一次重新入队，下次再空则移除，避免空槽常驻 */
-    private boolean emptyRecheckScheduled;
-    
+    /** 是否正在配对中（配对消费执行期间为 true），驱逐时若为 true 则跳过本次驱逐 */
+    private volatile boolean pairingInProgress;
+
     /**
      * 创建槽位（超时按 key：createdAtEpochMs 为该 key 下首次写入时间，用于计算 slot 级过期）。
      *
@@ -44,7 +42,7 @@ public final class FlowSlot<T> {
      * @param overflowPolicy 溢出策略
      * @param createdAtEpochMs 该 key 首次写入时间（epoch ms）
      */
-    public FlowSlot(long slotId, int maxPerKey, TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy,
+    public FlowSlot(String slotId, int maxPerKey, TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy,
             long createdAtEpochMs) {
         this.slotId = slotId;
         this.deque = new ArrayDeque<>(Math.max(1, maxPerKey));
@@ -148,8 +146,8 @@ public final class FlowSlot<T> {
             action.accept(e);
         }
     }
-
-    public long getSlotId() {
+    
+    public String getSlotId() {
         return slotId;
     }
 
@@ -168,21 +166,13 @@ public final class FlowSlot<T> {
     public void setEarliestExpireAt(long earliestExpireAt) {
         this.earliestExpireAt = earliestExpireAt;
     }
-
+    
     public long getNextCheckAt() {
         return nextCheckAt;
     }
 
     public void setNextCheckAt(long nextCheckAt) {
         this.nextCheckAt = nextCheckAt;
-    }
-
-    public int getVersion() {
-        return version;
-    }
-
-    public void setVersion(int version) {
-        this.version = version;
     }
 
     public boolean isQueuedForExpiry() {
@@ -192,21 +182,13 @@ public final class FlowSlot<T> {
     public void setQueuedForExpiry(boolean queuedForExpiry) {
         this.queuedForExpiry = queuedForExpiry;
     }
-
-    public boolean isDraining() {
-        return draining;
+    
+    public boolean isPairingInProgress() {
+        return pairingInProgress;
     }
-
-    public void setDraining(boolean draining) {
-        this.draining = draining;
-    }
-
-    public boolean isEmptyRecheckScheduled() {
-        return emptyRecheckScheduled;
-    }
-
-    public void setEmptyRecheckScheduled(boolean emptyRecheckScheduled) {
-        this.emptyRecheckScheduled = emptyRecheckScheduled;
+    
+    public void setPairingInProgress(boolean pairingInProgress) {
+        this.pairingInProgress = pairingInProgress;
     }
 
     public Iterable<FlowEntry<T>> entries() {

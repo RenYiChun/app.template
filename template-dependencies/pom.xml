@@ -294,6 +294,9 @@
                     <version>${maven-compiler-plugin.version}</version>
                     <configuration>
                         <parameters>true</parameters>
+                        <!-- 生成完整调试信息，便于打包后断点调试时「库源与类字节码」一致 -->
+                        <debug>true</debug>
+                        <debuglevel>lines,vars,source</debuglevel>
                     </configuration>
                 </plugin>
                 <plugin>

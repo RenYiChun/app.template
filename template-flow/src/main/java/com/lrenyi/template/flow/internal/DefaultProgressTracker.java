@@ -172,7 +172,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public boolean isCompletionConditionMet() {
-        drainStorageIfReady();
         return computeCompletionState().completionConditionMet();
     }
     
@@ -181,7 +180,6 @@ public class DefaultProgressTracker implements ProgressTracker {
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
      */
     private void checkCompletion() {
-        drainStorageIfReady();
         CompletionState state = computeCompletionState();
         if (!state.completionConditionMet()) {
             logCompletionBlocked(state);
@@ -261,49 +259,32 @@ public class DefaultProgressTracker implements ProgressTracker {
         );
     }
     
+    /**
+     * 基于快照计算完成状态，保证与 getSnapshot() 暴露的数据一致、一次取数避免中间状态不一致。
+     * inFlightPush 不在快照中，仍从 launcher 读取。
+     */
     private CompletionState computeCompletionState() {
-        long acquired = productionAcquired.sum();
-        long released = productionReleased.sum();
-        long term = terminated.sum();
-        long inStorage = 0L;
+        FlowProgressSnapshot s = getSnapshot();
         int inFlightPush = 0;
         FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
         if (activeLauncher != null) {
-            inStorage = activeLauncher.getStorage().size();
             inFlightPush = activeLauncher.getInFlightPushCount();
         }
-        long active = activeConsumers.sum();
-        long inProduction = acquired - released;
-        long pendingConsumer = Math.max(0L, released - inStorage - active - term);
+        long inProduction = s.getInProductionCount();
+        long pendingConsumer = s.getPendingConsumerCount();
         boolean completionConditionMet =
-                sourceFinished && inStorage <= 0L && active <= 0L && inProduction <= 0L && pendingConsumer == 0L
-                && inFlightPush == 0;
-        return new CompletionState(acquired,
-                                   released,
-                                   term,
-                                   inStorage,
-                                   active,
+                sourceFinished && s.inStorage() <= 0L && s.activeConsumers() <= 0L && inProduction <= 0L
+                        && pendingConsumer == 0L && inFlightPush == 0;
+        return new CompletionState(s.productionAcquired(),
+                                   s.productionReleased(),
+                                   s.terminated(),
+                                   s.inStorage(),
+                                   s.activeConsumers(),
                                    inProduction,
                                    pendingConsumer,
                                    inFlightPush,
                                    completionConditionMet
         );
-    }
-    
-    private void drainStorageIfReady() {
-        if (!sourceFinished) {
-            return;
-        }
-        long inProduction = productionAcquired.sum() - productionReleased.sum();
-        if (inProduction > 0L) {
-            return;
-        }
-        FlowLauncher<Object> launcher = flowManager.getActiveLauncher(jobId);
-        if (launcher == null) {
-            return;
-        }
-        FlowStorage<?> storage = launcher.getStorage();
-        storage.drainRemainingToFinalizer();
     }
     
     private record CompletionState(long acquired,

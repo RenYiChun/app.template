@@ -32,7 +32,7 @@ public final class ResourceBackpressureSnapshotProvider implements BackpressureS
     @Override
     public BackpressureSnapshot snapshot() {
         TemplateConfigProperties.Flow.PerJob perJob = limits.getPerJob();
-        long storageUsed = storage.supportsDeferredExpiry() ? storage.usedEntries() : storage.size();
+        long storageUsed = storage.supportsDeferredExpiry() ? storage.savedEntries() : storage.size();
         long storageLimit = storage.supportsDeferredExpiry() ? storage.entryLimit() : perJob.getStorageCapacity();
 
         int producerLimit = perJob.getProducerThreads();
