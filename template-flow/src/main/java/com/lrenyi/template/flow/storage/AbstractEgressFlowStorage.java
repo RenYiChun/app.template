@@ -61,27 +61,21 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
             return;
         }
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-        try {
-            if (launcher == null) {
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
-                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                       .register(meterRegistry)
-                       .increment();
-                handlePassiveFailure(entry, reason);
-                return;
-            }
-            if (entry.getRetryRemaining() == -1) {
+        if (launcher == null) {
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
+                   .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                   .register(meterRegistry)
+                   .increment();
+            handlePassiveFailure(entry, reason);
+            return;
+        }
+        if (entry.getRetryRemaining() == -1) {
+            finalizer.submitDataToConsumer(entry, launcher);
+        } else {
+            RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
+            if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
                 finalizer.submitDataToConsumer(entry, launcher);
-            } else {
-                RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
-                if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                    finalizer.submitDataToConsumer(entry, launcher);
-                }
-            }
-        } finally {
-            if (launcher != null) {
-                launcher.getBackpressureController().signalRelease();
             }
         }
     }

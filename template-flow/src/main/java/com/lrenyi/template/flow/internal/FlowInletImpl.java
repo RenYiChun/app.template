@@ -64,6 +64,10 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         }
         // 在等待 in-flight 排空后再关闭入口，避免其他线程刚准备 push 时被拒绝
         sourceClosed.set(true);
+        // push 全部完成后若生产也已结束，触发 completion drain（非匹配模式）
+        if (launcher.getTaskOrchestrator().tracker().isProductionComplete()) {
+            launcher.getStorage().triggerCompletionDrain();
+        }
     }
     
     /** 供完成判定使用：当前尚未结束的 push 调用数（已 increment 未 decrement）。 */

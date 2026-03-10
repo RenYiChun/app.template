@@ -2,6 +2,7 @@ package com.lrenyi.template.flow.engine;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -11,6 +12,8 @@ import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.backpressure.DimensionLease;
+import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
@@ -68,6 +71,7 @@ public class FlowJoinerEngine {
         awaitSubSourcesFinished(activeSubSources);
         awaitInProductionDrained(launcher);
         launcher.getTaskOrchestrator().tracker().markSourceFinished(jobId);
+        launcher.getStorage().triggerCompletionDrain();
         log.info("子流生产阶段结束, jobId={}, submittedSubSources={}, elapsedMs={}",
                  jobId,
                  submittedSubSources.get(),
@@ -117,12 +121,29 @@ public class FlowJoinerEngine {
             Thread.currentThread().interrupt();
             return false;
         }
+        // 在引擎循环线程（调用方）申请生产并发席位，对拉取速率形成背压；
+        // 任务在虚拟线程 finally 中释放，控制同时执行子流拉取的并发数。
+        DimensionLease producerLease;
+        try {
+            producerLease = launcher.getBackpressureManager()
+                                    .acquire(ProducerConcurrencyDimension.ID, null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE,
+                                                "producer_concurrency_acquire_interrupted");
+            return false;
+        } catch (TimeoutException e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE,
+                                                "producer_concurrency_acquire_timeout");
+            return false;
+        }
         int subSourceSeq = submittedSubSources.incrementAndGet();
         activeSubSources.incrementAndGet();
         launcher.getProducerExecutor().submit(() -> {
             try {
                 runSubSourceInVirtualThread(provider, launcher, jobId, subSourceSeq);
             } finally {
+                producerLease.close();
                 activeSubSources.decrementAndGet();
             }
         });

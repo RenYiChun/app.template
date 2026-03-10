@@ -1,8 +1,9 @@
 package com.lrenyi.template.flow.internal;
 
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.backpressure.DimensionLease;
+import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
@@ -17,54 +18,46 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegistry meterRegistry,
                                FlowEgressHandler<T> egressHandler) {
-    
-    private static final long PENDING_SLOT_ACQUIRE_TIMEOUT_MS = 30_000L;
 
     /**
-     * removalReason 非空表示来自 Caffeine removalListener 的驱逐（EXPIRED/SIZE/REPLACED），
-     * 应计为被动出口并调用 onFailed，而非主动消费。
+     * 将数据提交至消费端，通过 BackpressureManager 获取 in-flight-consumer 槽位租约。
+     * 租约在消费任务完成后由 close() 释放。
      */
     public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         String jobId = entry.getJobId();
         long startTime = System.currentTimeMillis();
-        Semaphore slotSemaphore = launcher.getResourceContext().getPendingConsumerSlotSemaphore();
-        boolean slotAcquired = false;
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
         boolean strictPending = perJob.isStrictPendingConsumerSlot();
-        if (slotSemaphore != null) {
-            try {
-                slotAcquired = slotSemaphore.tryAcquire(PENDING_SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                if (!slotAcquired) {
-                    log.warn("Pending consumer slot acquire timeout, jobId={}, timeoutMs={}",
-                             jobId,
-                             PENDING_SLOT_ACQUIRE_TIMEOUT_MS
-                    );
-                    Counter.builder(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT)
-                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                           .register(meterRegistry)
-                           .increment();
-                    if (strictPending) {
-                        Counter.builder(FlowMetricNames.FINALIZER_SUBMIT_SKIPPED)
-                               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                               .register(meterRegistry)
-                               .increment();
-                        return;
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(jobId,
-                                                    null,
-                                                    e,
-                                                    FlowPhase.FINALIZATION,
-                                                    "pending_slot_acquire_interrupted"
-                );
+        
+        DimensionLease slotLease;
+        try {
+            slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null);
+        } catch (TimeoutException e) {
+            Counter.builder(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT)
+                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                   .register(meterRegistry)
+                   .increment();
+            if (strictPending) {
+                Counter.builder(FlowMetricNames.FINALIZER_SUBMIT_SKIPPED)
+                       .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                       .register(meterRegistry)
+                       .increment();
                 return;
             }
+            // Non-strict: proceed without slot
+            slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.FINALIZATION,
+                                                "pending_slot_acquire_interrupted"
+            );
+            return;
         }
         
-        final boolean releaseSlot = slotAcquired;
-        final Semaphore slotToRelease = slotSemaphore;
+        final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {
                 boolean didFinalize = false;
@@ -83,21 +76,16 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                                                         "finalizer_body_failed"
                     );
                 } finally {
-                    if (launcher.getBackpressureController() != null) {
-                        launcher.getBackpressureController().signalRelease();
-                    }
                     if (didFinalize) {
                         long latency = System.currentTimeMillis() - startTime;
                         Timer.builder(FlowMetricNames.FINALIZE_DURATION)
                              .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                              .register(meterRegistry)
-                             .record(latency, TimeUnit.MILLISECONDS);
+                             .record(latency, java.util.concurrent.TimeUnit.MILLISECONDS);
                     }
                 }
             } finally {
-                if (releaseSlot && slotToRelease != null) {
-                    slotToRelease.release();
-                }
+                leaseToClose.close();
             }
         };
         resourceRegistry.submitConsumer(launcher.getTaskOrchestrator(), runnable);

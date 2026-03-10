@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 统一出口记账：joiner 回调、EGRESS_ACTIVE/PASSIVE 计数、progressTracker 的唯一记账处。
- * 不负责 submit、claimLogic、signalRelease；不持有/关闭 entry，由调用方负责 try-with-resources。
+ * 不负责 submit、claimLogic；不持有/关闭 entry，由调用方负责 try-with-resources。
  */
 @Slf4j
 public final class FlowEgressHandler<T> {

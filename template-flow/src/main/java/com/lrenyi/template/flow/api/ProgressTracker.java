@@ -77,4 +77,12 @@ public interface ProgressTracker {
      * 当前是否满足完成条件（只读判定，不产生额外副作用）。
      */
     boolean isCompletionConditionMet();
+    
+    /**
+     * 生产是否已完成：Source 已截止且所有生产许可已释放。
+     * 用于触发非匹配模式下的 completion drain。
+     */
+    default boolean isProductionComplete() {
+        return false;
+    }
 }

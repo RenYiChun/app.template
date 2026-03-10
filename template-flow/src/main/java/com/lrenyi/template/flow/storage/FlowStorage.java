@@ -90,4 +90,13 @@ public interface FlowStorage<T> {
     default boolean requeue(FlowEntry<T> entry) {
         return deposit(entry);
     }
+    
+    /**
+     * 生产完成时的完成清理（completion drain）：
+     * 非匹配模式下，主动将剩余存储中的条目提交给消费者，而不等待 TTL 驱逐。
+     * 实现类需保证幂等（多次调用仅执行一次）。
+     */
+    default void triggerCompletionDrain() {
+        // no-op by default
+    }
 }

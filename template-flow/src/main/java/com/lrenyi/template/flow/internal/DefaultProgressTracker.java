@@ -175,6 +175,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         return computeCompletionState().completionConditionMet();
     }
     
+    @Override
+    public boolean isProductionComplete() {
+        return sourceFinished && productionReleased.sum() >= productionAcquired.sum();
+    }
+    
     /**
      * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。

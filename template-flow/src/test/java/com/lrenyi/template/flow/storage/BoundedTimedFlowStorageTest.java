@@ -221,7 +221,10 @@ class BoundedTimedFlowStorageTest {
         FlowInlet<String> inlet = engine.startPush(JOB_ID, joiner, config);
 
         inlet.push("A");
+        // 等待 A 完成存储后再推入 B，确保 B 看到 A 在槽中并配对成功
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 1, 5_000);
         inlet.push("B"); // B 与 A 配对
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 5_000);
         inlet.push("C"); // C 留在缓存，等待驱逐
         inlet.markSourceFinished();
 
@@ -254,7 +257,10 @@ class BoundedTimedFlowStorageTest {
         FlowInlet<String> inlet = engine.startPush(JOB_ID + "-sc2", joiner, config);
 
         inlet.push("A");
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 1, 5_000);
         inlet.push("C");
+        // 等待 A 与 C 都在槽中后，再推入 B，确保 B 匹配 A 并将 C 以 CLEARED_AFTER_PAIR_SUCCESS 清除
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 5_000);
         inlet.push("B"); // B 与 A 配对，C 被 CLEARED_AFTER_PAIR_SUCCESS
         inlet.markSourceFinished();
 
@@ -292,6 +298,8 @@ class BoundedTimedFlowStorageTest {
         inlet.push("A");
         inlet.push("B");
         inlet.push("C");
+        // 等待 3 条数据全部完成 deposit（进入 storage）后，再允许配对，确保驱逐时才发生 A-B 配对
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 3, 5_000);
         joiner.setAllowPairing(true);
         inlet.markSourceFinished();
 

@@ -1,14 +1,16 @@
 package com.lrenyi.template.flow.manager;
 
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.LongAdder;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.backpressure.BackpressureManager;
+import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.context.Registration;
-import com.lrenyi.template.flow.internal.BackpressureController;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
@@ -45,11 +47,11 @@ final class FlowLauncherFactory {
         int inFlightLimit = perJob.getInFlightProduction();
         Semaphore inFlightProductionSemaphore = new Semaphore(inFlightLimit, fair);
         int consumerConcurrencyLimit = perJob.getConsumerThreads();
-        // per-job=0 时仅用全局限制，不创建 per-job 信号量，否则 Semaphore(0) 会导致 acquire 永远拿不到许可、使用中恒为 0 且 removal 线程全部阻塞
+        // per-job=0 时仅用全局限制，不创建 per-job 信号量
         Semaphore jobConsumerSemaphore =
                 consumerConcurrencyLimit > 0 ? new Semaphore(consumerConcurrencyLimit, fair) : null;
         int effectivePendingConsumer = perJob.getEffectivePendingConsumer();
-        // 严格限制「已离库未终结」条数：提交 finalizer 前占槽，任务完成时释放，避免仅在生产端检查导致驱逐/匹配时超限
+        // 严格限制「已离库未终结」条数
         Semaphore pendingConsumerSlotSemaphore =
                 effectivePendingConsumer > 0 ? new Semaphore(effectivePendingConsumer, fair) : null;
         
@@ -59,13 +61,9 @@ final class FlowLauncherFactory {
         PermitPair producerPermitPair =
                 globalProducerThreads != null ? PermitPair.of(globalProducerThreads, jobProducerSemaphore) : null;
         
-        ExecutorService producerExecutor = producerPermitPair != null ? resourceRegistry.getExecutorProvider()
-                                                                                        .createProducerExecutor(
-                                                                                                producerPermitPair,
-                                                                                                meterRegistry,
-                                                                                                jobId
-                                                                                        ) :
-                resourceRegistry.getExecutorProvider().createProducerExecutor(jobProducerSemaphore);
+        // 生产线程并发控制移至 BackpressureManager（ProducerConcurrencyDimension），
+        // 执行器本身使用无界虚拟线程，不再内置 PermitStrategy。
+        ExecutorService producerExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
         FlowEgressHandler<T> egressHandler = new FlowEgressHandler<>(flowJoiner, tracker, meterRegistry);
         FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry, egressHandler);
@@ -77,28 +75,31 @@ final class FlowLauncherFactory {
                                                                      tracker,
                                                                      egressHandler
                                                  );
-
-        var snapshotProvider = new com.lrenyi.template.flow.internal.ResourceBackpressureSnapshotProvider(
-                storage,
-                limits,
-                jobProducerSemaphore,
-                inFlightProductionSemaphore,
-                jobConsumerSemaphore,
-                pendingConsumerSlotSemaphore);
-        BackpressureController backpressureController =
-                new BackpressureController(storage,
-                        meterRegistry,
-                        jobId,
-                        flow,
-                        snapshotProvider,
-                        new com.lrenyi.template.flow.internal.DefaultBackpressurePolicy());
+        
+        // Build BackpressureManager with per-job resource context
+        int globalConsumerLimit = global.getConsumerThreads();
+        DimensionContext baseCtx = DimensionContext.builder()
+                                                   .jobId(jobId)
+                                                   .dimensionId(null)
+                                                   .stopCheck(() -> false)
+                                                   .meterRegistry(meterRegistry)
+                                                   .flowConfig(flow)
+                                                   .resourceRegistry(resourceRegistry)
+                                                   .inFlightPermitPair(inFlightPermitPair)
+                                                   .producerPermitPair(producerPermitPair)
+                                                   .consumerPermitPair(consumerPermitPair)
+                                                   .pendingConsumerSlotSemaphore(pendingConsumerSlotSemaphore)
+                                                   .globalStorageSemaphore(resourceRegistry.getGlobalStorageSemaphore())
+                                                   .globalConsumerLimit(globalConsumerLimit)
+                                                   .build();
+        BackpressureManager backpressureManager = new BackpressureManager(baseCtx, meterRegistry);
 
         FlowResourceContext resourceContext = FlowResourceContext.builder()
                                                                  .resourceRegistry(resourceRegistry)
                                                                  .flowManager(flowManager)
                                                                  .jobProducerSemaphore(jobProducerSemaphore)
                                                                  .storage(storage)
-                                                                 .backpressureController(backpressureController)
+                                                                 .backpressureManager(backpressureManager)
                                                                  .producerExecutor(producerExecutor)
                                                                  .inFlightProductionSemaphore(inFlightProductionSemaphore)
                                                                  .jobConsumerSemaphore(jobConsumerSemaphore)
@@ -142,9 +143,7 @@ final class FlowLauncherFactory {
             Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_USED,
                           jobConsumerSemaphore,
                           s -> consumerConcurrencyLimit - s.availablePermits()
-                 )
-                 .tag(tagJobId, jobId)
-                 .description("每 Job 已占用消费许可数；若长期等于上限且等待消费许可很高，可能为消费许可耗尽，常见原因：消费路径中未在 finally 中释放许可")
+                 ).tag(tagJobId, jobId).description("每 Job 已占用消费许可数")
                  .register(meterRegistry);
             Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_LIMIT,
                           jobConsumerSemaphore,
@@ -187,7 +186,6 @@ final class FlowLauncherFactory {
         }
 
         Semaphore globalSemaphore = resourceRegistry.getGlobalSemaphore();
-        int globalConsumerLimit = global.getConsumerThreads();
         if (globalConsumerLimit > 0
                 && meterRegistry.find(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED).gauge() == null) {
             Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED,

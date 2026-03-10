@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -48,7 +49,30 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     public PreRetryResult preRetry(String key,
             FlowEntry<T> entry,
             FlowLauncher<Object> launcher) {
-        // Slot 级实现的 preRetry 当前不做额外匹配优化，直接让上层走 requeue 流程
+        if (!joiner().needMatched() || launcher == null) {
+            return PreRetryResult.PROCEED_TO_REQUEUE;
+        }
+        Lock stripe = stripeFor(key);
+        stripe.lock();
+        try {
+            FlowSlot<T> slot = slotByKey.get(key);
+            if (slot == null || slot.isEmpty()) {
+                return PreRetryResult.PROCEED_TO_REQUEUE;
+            }
+            for (FlowEntry<T> candidate : slot.entries()) {
+                if (joiner().isMatched(candidate.getData(), entry.getData())) {
+                    slot.remove(candidate);
+                    savedEntryCount.decrement();
+                    // candidate 的 storageLease 由 processMatchedPair 内部（partner.closeStorageLease）释放；
+                    // entry 为重入条目，其 storageLease 在首次离库时已关闭，此处幂等调用为空操作。
+                    matchedPairProcessor.processMatchedPair(candidate, entry, launcher);
+                    entry.closeStorageLease();
+                    return PreRetryResult.HANDLED;
+                }
+            }
+        } finally {
+            stripe.unlock();
+        }
         return PreRetryResult.PROCEED_TO_REQUEUE;
     }
 
@@ -62,6 +86,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     private final DelayQueueExpiryIndex expiryIndex = new DelayQueueExpiryIndex();
     
     private final LongAdder savedEntryCount = new LongAdder();
+    private final java.util.concurrent.atomic.AtomicBoolean completionDrainTriggered =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     private final EvictionCoordinator evictionCoordinator;
     private final TemplateConfigProperties.Flow.PerJob perJob;
     private final String jobId;
@@ -155,6 +181,53 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return true;
     }
     
+    /**
+     * 生产完成时主动将剩余条目提交给消费者（completion drain）。
+     * 仅对非匹配模式生效，保证幂等：多次调用仅执行一次。
+     * 在匹配模式下，孤立条目仍由 TTL 驱逐以 TIMEOUT 被动离库。
+     */
+    @Override
+    public void triggerCompletionDrain() {
+        if (joiner().needMatched()) {
+            return;
+        }
+        if (!completionDrainTriggered.compareAndSet(false, true)) {
+            return;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[{}] Completion drain triggered, remaining slots={}", jobId, slotByKey.size());
+        }
+        for (String key : new ArrayList<>(slotByKey.keySet())) {
+            drainSlotForCompletion(key);
+        }
+    }
+    
+    private void drainSlotForCompletion(String key) {
+        FlowSlot<T> slot = slotByKey.get(key);
+        if (slot == null || slot.isEmpty()) {
+            return;
+        }
+        Lock stripe = stripeFor(key);
+        stripe.lock();
+        try {
+            slot = slotByKey.get(key);
+            if (slot == null) {
+                return;
+            }
+            List<FlowEntry<T>> entries = slot.drainAll();
+            if (!entries.isEmpty()) {
+                slotByKey.remove(key);
+            }
+            for (FlowEntry<T> entry : entries) {
+                savedEntryCount.decrement();
+                entry.closeStorageLease();
+                handleEgress(key, entry, EgressReason.TIMEOUT, false);
+            }
+        } finally {
+            stripe.unlock();
+        }
+    }
+
     @Override
     public void shutdown() {
         evictionCoordinator.close();
@@ -174,8 +247,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 }
                 for (FlowEntry<T> entry : entries) {
                     savedEntryCount.decrement();
+                    entry.closeStorageLease();
                     handleEgress(key, entry, EgressReason.SHUTDOWN, true);
-                    resourceRegistry().releaseGlobalStorage(1);
                 }
             } finally {
                 stripe.unlock();
@@ -207,7 +280,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         if (!joiner().needMatched()) {
             for (FlowEntry<T> entry : expired) {
                 savedEntryCount.decrement();
-                resourceRegistry().releaseGlobalStorage(1);
+                entry.closeStorageLease();
                 handleEgress(slotId, entry, EgressReason.TIMEOUT, true);
             }
             return;
@@ -260,7 +333,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             if (matched != null && launcher != null) {
                 processed[matchedIdx] = true;
                 hasAnyPairSucceeded = true;
-                resourceRegistry().releaseGlobalStorage(1);
+                x.closeStorageLease();
                 savedEntryCount.decrement();
                 savedEntryCount.decrement();
                 matchedPairProcessor.processMatchedPair(x, matched, launcher);
@@ -284,11 +357,10 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 e.resetRetryToIneligible();
             }
         }
-        boolean skipRetry = hasAnyPairSucceeded;
         for (FlowEntry<T> e : unmatched) {
-            resourceRegistry().releaseGlobalStorage(1);
+            e.closeStorageLease();
             savedEntryCount.decrement();
-            handleEgress(key, e, EgressReason.TIMEOUT, skipRetry);
+            handleEgress(key, e, EgressReason.TIMEOUT, true);
         }
     }
     
@@ -339,13 +411,19 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 slot.remove(parentEntry.get());
                 if (!perJob.isPairingMultiMatchEnabled()) {
                     slot.entries().forEach(entry -> {
+                        entry.closeStorageLease();
                         handleEgress(key, entry, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
-                        resourceRegistry().releaseGlobalStorage(1);
                         savedEntryCount.decrement();
                     });
                 }
             } else {
-                slot.append(incoming);
+                // 处理 overflow：若 slot 已满被淘汰的旧条目需正确核减计数并走被动出口
+                Optional<FlowSlot.OverflowResult<T>> overflowResult = slot.append(incoming);
+                overflowResult.ifPresent(or -> {
+                    savedEntryCount.decrement();
+                    or.entry().closeStorageLease();
+                    handleEgress(key, or.entry(), or.reason(), true);
+                });
                 saved = true;
             }
         } finally {
@@ -366,7 +444,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             }
             FlowLauncher<Object> launcher = resourceRegistry().getLauncherLookup().getActiveLauncher(jobId);
             matchedPairProcessor.processMatchedPair(parent, incoming, launcher);
-            resourceRegistry().releaseGlobalStorage(1);
+            incoming.closeStorageLease();
             savedEntryCount.decrement();
             parentEntry.set(parent);
         });
@@ -380,12 +458,13 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             List<FlowEntry<T>> entries = slot.drainAll();
             if (!entries.isEmpty()) {
                 entries.forEach(data -> {
+                    savedEntryCount.decrement();
+                    data.closeStorageLease();
                     handleEgress(key, data, EgressReason.REPLACE, true);
-                    resourceRegistry().releaseGlobalStorage(1);
                 });
             }
-            slot.append(entry);
         }
+        slot.append(entry);
         return true;
     }
     

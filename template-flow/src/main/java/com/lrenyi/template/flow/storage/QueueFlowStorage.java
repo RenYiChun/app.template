@@ -76,7 +76,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
             try {
-                resourceRegistry().releaseGlobalStorage(1);
+                entry.closeStorageLease();
                 FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
                 String key = joiner().joinKey(entry.getData());
                 if (launcher == null) {
@@ -113,7 +113,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         if (log.isWarnEnabled()) {
             log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
         }
-        // 本分支不释放 globalStorage，由调用方 FlowLauncher 在 deposit 返回 false 时统一释放，禁止在此调用 releaseGlobalStorage(1) 以防双释放
+        // 本分支不关闭 storageLease，由调用方 FlowLauncher 在 deposit 返回 false 时通过 ctx.closeStorageLease() 统一释放，避免双释放
         String key = joiner().joinKey(ctx.getData());
         handleEgress(key, ctx, EgressReason.REJECT, true);
         return false;
@@ -147,7 +147,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
-            resourceRegistry().releaseGlobalStorage(1);
+            remaining.closeStorageLease();
             String key = joiner().joinKey(remaining.getData());
             handleEgress(key, remaining, EgressReason.SHUTDOWN, true);
         }

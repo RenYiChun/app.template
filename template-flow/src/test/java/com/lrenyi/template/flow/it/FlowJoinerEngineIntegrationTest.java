@@ -338,17 +338,28 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> sourceB = FlowSourceAdapters.fromIterator(listB.iterator(), null);
         joiner.setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
         
+        // 匹配模式下每 key 需存储 2 条（每流各 1 条），使用专用配置允许多值
+        TemplateConfigProperties.Flow mismatchConfig = new TemplateConfigProperties.Flow();
+        mismatchConfig.getLimits().getGlobal().setConsumerThreads(100);
+        TemplateConfigProperties.Flow.PerJob mismatchPerJob = mismatchConfig.getLimits().getPerJob();
+        mismatchPerJob.setProducerThreads(10);
+        mismatchPerJob.setStorageCapacity(1000);
+        mismatchPerJob.getKeyedCache().setCacheTtlMill(5000);
+        mismatchPerJob.getKeyedCache().setMultiValueEnabled(true);
+        mismatchPerJob.getKeyedCache().setMultiValueMaxPerKey(4);
+
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_MISMATCH, manager);
         tracker.setTotalExpected(JOB_MISMATCH, 4);
-        engine.run(JOB_MISMATCH, joiner, tracker, flowConfig);
+        engine.run(JOB_MISMATCH, joiner, tracker, mismatchConfig);
         awaitCompleted(tracker::isCompleted);
-        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2, 10_000);
+        // 匹配模式下无法配对的条目由 TTL 驱逐，通过 processEvictedSlot 以 TIMEOUT 被动原因离库
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4, 10_000);
         
         assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH),
                      "不匹配场景改为回槽，不应直接记 MISMATCH"
         );
-        assertTrue(joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2,
-                   "不匹配数据应在完成阶段排空为 SINGLE_CONSUMED"
+        assertTrue(joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4,
+                   "不匹配数据（匹配模式）由 TTL 驱逐，应为 TIMEOUT 被动出口"
         );
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(0, snapshot.getPassiveEgressByReason(EgressReason.MISMATCH.name()));

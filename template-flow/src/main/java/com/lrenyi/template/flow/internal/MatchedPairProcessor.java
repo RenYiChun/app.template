@@ -1,8 +1,9 @@
 package com.lrenyi.template.flow.internal;
 
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.flow.api.FlowJoiner;
+import com.lrenyi.template.flow.backpressure.DimensionLease;
+import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.Orchestrator;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
@@ -31,32 +32,16 @@ public class MatchedPairProcessor<T> {
         this.meterRegistry = meterRegistry;
         this.resourceRegistry = resourceRegistry;
     }
-    
-    private static final long PENDING_SLOT_ACQUIRE_TIMEOUT_MS = 30_000L;
 
     public void processMatchedPair(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
-        resourceRegistry.releaseGlobalStorage(1);
+        partner.closeStorageLease();
         long matchStartTime = System.currentTimeMillis();
         Orchestrator taskOrchestrator = launcher.getTaskOrchestrator();
-        Semaphore slotSemaphore = launcher.getResourceContext().getPendingConsumerSlotSemaphore();
-        int permits = 2;
-        boolean slotsAcquired = false;
-        if (slotSemaphore != null) {
-            try {
-                slotsAcquired = slotSemaphore.tryAcquire(permits, PENDING_SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                if (!slotsAcquired) {
-                    log.warn("Pending consumer slot acquire timeout (pair), jobId={}, permits=2, timeoutMs={}, submitting anyway",
-                             entry.getJobId(), PENDING_SLOT_ACQUIRE_TIMEOUT_MS);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION, "pending_slot_acquire_interrupted");
-                return;
-            }
-        }
-        final boolean releaseSlots = slotsAcquired;
-        final Semaphore slotToRelease = slotSemaphore;
-        final int releasePermits = permits;
+        
+        // Acquire 2 in-flight-consumer slots (one per entry in the pair)
+        DimensionLease slotLease1 = acquireSlot(launcher, entry.getJobId());
+        DimensionLease slotLease2 = acquireSlot(launcher, entry.getJobId());
+
         Runnable runnable = () -> {
             try {
                 try (partner; entry) {
@@ -65,24 +50,44 @@ public class MatchedPairProcessor<T> {
                     Timer.builder(FlowMetricNames.MATCH_DURATION)
                          .tag(FlowMetricNames.TAG_JOB_ID, entry.getJobId())
                          .register(meterRegistry)
-                         .record(matchLatency, TimeUnit.MILLISECONDS);
+                         .record(matchLatency, java.util.concurrent.TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
-                    FlowExceptionHelper.handleException(entry.getJobId(), null, e, FlowPhase.CONSUMPTION, "match_process_failed");
+                    FlowExceptionHelper.handleException(entry.getJobId(),
+                                                        null,
+                                                        e,
+                                                        FlowPhase.CONSUMPTION,
+                                                        "match_process_failed"
+                    );
                     Counter.builder(FlowMetricNames.ERRORS)
                            .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
                            .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
                            .register(meterRegistry)
                            .increment();
-                } finally {
-                    launcher.getBackpressureController().signalRelease();
                 }
             } finally {
-                if (releaseSlots && slotToRelease != null) {
-                    slotToRelease.release(releasePermits);
-                }
+                slotLease1.close();
+                slotLease2.close();
             }
         };
-        resourceRegistry.submitConsumer(taskOrchestrator, permits, runnable);
+        resourceRegistry.submitConsumer(taskOrchestrator, 2, runnable);
+    }
+    
+    private DimensionLease acquireSlot(FlowLauncher<Object> launcher, String jobId) {
+        try {
+            return launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null);
+        } catch (TimeoutException e) {
+            log.warn("In-flight-consumer slot acquire timeout (pair), jobId={}, submitting anyway", jobId);
+            return DimensionLease.noop(InFlightConsumerDimension.ID);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.CONSUMPTION,
+                                                "pending_slot_acquire_interrupted"
+            );
+            return DimensionLease.noop(InFlightConsumerDimension.ID);
+        }
     }
     
     private void executeMatchedPairLogicBody(FlowEntry<T> partner, FlowEntry<T> entry) {
