@@ -39,6 +39,9 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
                 launcher.getTracker().onFinalizerSubmitSkipped();
+                try (entry) {
+                    egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
+                }
                 return;
             }
             // Non-strict: proceed without slot
@@ -157,6 +160,10 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
                 launcher.getTracker().onFinalizerSubmitSkipped();
+                try (partner; entry) {
+                    egressHandler.performSingleConsumed(partner, EgressReason.REJECT);
+                    egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
+                }
                 return;
             }
             slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);

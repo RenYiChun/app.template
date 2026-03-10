@@ -28,10 +28,6 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         }
         inFlightPush.incrementAndGet();
         try {
-            if (sourceClosed.get()) {
-                log.warn("Push rejected during closing, jobId={}", launcher.getJobId());
-                throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
-            }
             launcher.launch(item);
         } finally {
             inFlightPush.decrementAndGet();

@@ -136,7 +136,6 @@ public class FlowManager implements ActiveLauncherLookup {
 
     private void stopJob(boolean force, FlowLauncher<?> launcher) {
         try {
-            launcher.getTracker().onJobStopped();
             launcher.stop(force);
         } catch (Exception e) {
             FlowExceptionHelper.handleException(launcher.getJobId(),
@@ -190,7 +189,6 @@ public class FlowManager implements ActiveLauncherLookup {
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, flowConfig);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             resourceRegistry.registerJob(jobId);
-            tracker.onJobStarted();
             return launcher;
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
@@ -236,6 +234,9 @@ public class FlowManager implements ActiveLauncherLookup {
         return (FlowLauncher<T>) activeLaunchers.get(jobId);
     }
 
+    /**
+     * 当前活跃 Job 数。返回至少 1 以避免 fair share 等计算中的除零，无 Job 时仍返回 1。
+     */
     public int getActiveJobCount() {
         return Math.max(1, activeLaunchers.size());
     }

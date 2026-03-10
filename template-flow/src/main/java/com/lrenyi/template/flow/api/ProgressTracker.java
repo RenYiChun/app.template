@@ -37,7 +37,7 @@ public interface ProgressTracker {
     
     /**
      * 信号：主动出口触发 (Active Egress)
-     * 含义：数据通过业务接口（如 onSuccess/onConsume）主动离库
+     * 含义：数据通过业务接口（onPairConsumed/onSingleConsumed）主动离库
      * 框架通过此信号自动计算"有效流转率"
      */
     void onActiveEgress();
@@ -84,29 +84,5 @@ public interface ProgressTracker {
      */
     default boolean isProductionComplete() {
         return false;
-    }
-    
-    /**
-     * 信号：Job 已启动。Launcher 注册成功后由 FlowManager 调用，用于打点 JOB_STARTED。
-     */
-    default void onJobStarted() {
-    }
-    
-    /**
-     * 信号：Job 被手动停止。由 FlowManager 在 stopJob 时调用，用于打点 JOB_STOPPED。
-     */
-    default void onJobStopped() {
-    }
-    
-    /**
-     * 信号：Finalizer 获取 pending slot 超时。用于打点 FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT。
-     */
-    default void onFinalizerPendingSlotTimeout() {
-    }
-    
-    /**
-     * 信号：Finalizer 因严格 pending 模式跳过提交。用于打点 FINALIZER_SUBMIT_SKIPPED。
-     */
-    default void onFinalizerSubmitSkipped() {
     }
 }

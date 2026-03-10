@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -389,9 +388,9 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         slot.setPairingInProgress(true);
         boolean saved = false;
         try {
-            AtomicReference<FlowEntry<T>> parentEntry = getParentReference(slot, incoming, joiner);
-            if (parentEntry.get() != null) {
-                slot.remove(parentEntry.get());
+            FlowEntry<T> parentEntry = findFirstMatchingParent(slot, incoming, joiner);
+            if (parentEntry != null) {
+                slot.remove(parentEntry);
                 if (!perJob.isPairingMultiMatchEnabled()) {
                     slot.entries().forEach(entry -> {
                         entry.closeStorageLease();
@@ -415,23 +414,31 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return saved;
     }
     
-    private AtomicReference<FlowEntry<T>> getParentReference(FlowSlot<T> slot,
+    /**
+     * 从 slot 中查找首个与 incoming 匹配的 parent，找到后立即提交配对并返回。
+     * 使用 for 循环确保首次匹配后即退出，避免 forEach 无法 break 导致的多匹配重复提交。
+     */
+    private FlowEntry<T> findFirstMatchingParent(FlowSlot<T> slot,
             FlowEntry<T> incoming,
             FlowJoiner<T> joiner) {
-        Iterable<FlowEntry<T>> entries = slot.entries();
-        AtomicReference<FlowEntry<T>> parentEntry = new AtomicReference<>();
-        entries.forEach(parent -> {
-            boolean matched = joiner.isMatched(parent.getData(), incoming.getData());
-            if (!matched) {
-                return;
+        ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
+        if (launcherLookup == null) {
+            return null;
+        }
+        FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(jobId);
+        if (launcher == null) {
+            return null;
+        }
+        for (FlowEntry<T> parent : slot.entries()) {
+            if (!joiner.isMatched(parent.getData(), incoming.getData())) {
+                continue;
             }
-            FlowLauncher<Object> launcher = resourceRegistry().getLauncherLookup().getActiveLauncher(jobId);
             finalizer().submitPairDataToConsumer(parent, incoming, launcher);
             incoming.closeStorageLease();
             savedEntryCount.decrement();
-            parentEntry.set(parent);
-        });
-        return parentEntry;
+            return parent;
+        }
+        return null;
     }
     
     private boolean handleOverwriteModeLocked(String key, FlowSlot<T> slot, FlowEntry<T> entry) {

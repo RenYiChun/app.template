@@ -88,22 +88,6 @@ public class DefaultProgressTracker implements ProgressTracker {
         checkCompletion();
     }
     
-    @Override
-    public void onJobStarted() {
-    }
-    
-    @Override
-    public void onJobStopped() {
-    }
-    
-    @Override
-    public void onFinalizerPendingSlotTimeout() {
-    }
-    
-    @Override
-    public void onFinalizerSubmitSkipped() {
-    }
-    
     private void incrementCounter(String name) {
         Counter.builder(name)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
