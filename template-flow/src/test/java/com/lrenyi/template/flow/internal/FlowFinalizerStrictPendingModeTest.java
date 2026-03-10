@@ -9,6 +9,7 @@ import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
+import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.context.FlowResourceContext;
@@ -126,7 +127,7 @@ class FlowFinalizerStrictPendingModeTest {
                                                    .stopCheck(() -> false)
                                                    .meterRegistry(meterRegistry)
                                                    .flowConfig(flow)
-                                                   .pendingConsumerSlotSemaphore(pendingSlot)
+                                                   .inFlightConsumerPermitPair(PermitPair.of(null, pendingSlot))
                                                    .build();
         return new BackpressureManager(baseCtx, meterRegistry);
     }

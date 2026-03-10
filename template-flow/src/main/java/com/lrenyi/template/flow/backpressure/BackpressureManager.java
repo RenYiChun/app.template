@@ -9,6 +9,12 @@ import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
+import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
+import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
+import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
+import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
+import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -88,6 +94,15 @@ public class BackpressureManager {
         }
         
         DimensionContext ctx = buildContext(dimensionId, stopCheck != null ? stopCheck : NEVER_STOP);
+        FlowResourceRegistry registry = baseCtx.getResourceRegistry();
+        if (registry != null) {
+            int globalLimit = getGlobalLimitForDimension(dimensionId);
+            if (globalLimit > 0) {
+                long timeoutMs = getFairShareTimeoutMs(dimensionId);
+                registry.awaitFairShare(dimensionId, globalLimit, () -> getHoldingCount(dimensionId),
+                        timeoutMs, stopCheck != null ? stopCheck : NEVER_STOP);
+            }
+        }
         try {
             dim.acquire(ctx);
         } catch (InterruptedException | TimeoutException e) {
@@ -113,13 +128,24 @@ public class BackpressureManager {
         return activeLeasesGauge.get();
     }
     
+    /** 本 Job 在指定维度的当前持有数（用于动态 fair share 检查）。 */
+    int getHoldingCount(String dimensionId) {
+        return (int) activeLeases.values().stream()
+                .filter(l -> dimensionId.equals(l.dimensionId()))
+                .count();
+    }
+    
     /** Called by {@link DefaultDimensionLease#close()} */
-    void onLeaseClose(String leaseId, boolean idempotent) {
+    void onLeaseClose(String leaseId, String dimensionId, boolean idempotent) {
         if (idempotent) {
             idempotentHit.increment();
         } else {
             if (activeLeases.remove(leaseId) != null) {
                 activeLeasesGauge.decrementAndGet();
+                FlowResourceRegistry registry = baseCtx.getResourceRegistry();
+                if (registry != null) {
+                    registry.signalFairShare(dimensionId);
+                }
             }
         }
     }
@@ -137,6 +163,33 @@ public class BackpressureManager {
         }
     }
     
+    private int getGlobalLimitForDimension(String dimensionId) {
+        var global = baseCtx.getFlowConfig() != null ? baseCtx.getFlowConfig().getLimits().getGlobal() : null;
+        if (global == null) {
+            return 0;
+        }
+        return switch (dimensionId) {
+            case InFlightProductionDimension.ID -> global.getInFlightProduction();
+            case StorageDimension.ID -> global.getStorageCapacity();
+            case ProducerConcurrencyDimension.ID -> global.getProducerThreads();
+            case InFlightConsumerDimension.ID -> global.getInFlightConsumer();
+            case ConsumerConcurrencyDimension.ID -> global.getConsumerThreads();
+            default -> 0;
+        };
+    }
+    
+    private long getFairShareTimeoutMs(String dimensionId) {
+        var flow = baseCtx.getFlowConfig();
+        if (flow == null) {
+            return 30_000L;
+        }
+        return switch (dimensionId) {
+            case ConsumerConcurrencyDimension.ID, InFlightConsumerDimension.ID ->
+                    flow.getConsumerAcquireTimeoutMill();
+            default -> flow.getProducerBackpressureTimeoutMill();
+        };
+    }
+    
     private DimensionContext buildContext(String dimensionId, BooleanSupplier stopCheck) {
         return DimensionContext.builder()
                                .jobId(baseCtx.getJobId())
@@ -148,8 +201,8 @@ public class BackpressureManager {
                                .inFlightPermitPair(baseCtx.getInFlightPermitPair())
                                .producerPermitPair(baseCtx.getProducerPermitPair())
                                .consumerPermitPair(baseCtx.getConsumerPermitPair())
-                               .pendingConsumerSlotSemaphore(baseCtx.getPendingConsumerSlotSemaphore())
-                               .globalStorageSemaphore(baseCtx.getGlobalStorageSemaphore())
+                               .inFlightConsumerPermitPair(baseCtx.getInFlightConsumerPermitPair())
+                               .storagePermitPair(baseCtx.getStoragePermitPair())
                                .globalConsumerLimit(baseCtx.getGlobalConsumerLimit())
                                .build();
     }

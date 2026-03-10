@@ -160,6 +160,7 @@ public class FlowManager implements ActiveLauncherLookup {
     }
     
     public void unregister(String jobId) {
+        resourceRegistry.deregisterJob(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
         if (launcher != null) {
             completedTrackers.put(jobId, launcher.getTaskOrchestrator().tracker());
@@ -201,6 +202,7 @@ public class FlowManager implements ActiveLauncherLookup {
 
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
+            resourceRegistry.registerJob(jobId);
             
             Counter.builder(FlowMetricNames.JOB_STARTED)
                    .tag(FlowMetricNames.TAG_JOB_ID, jobId)

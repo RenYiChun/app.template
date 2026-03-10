@@ -55,11 +55,21 @@ final class FlowLauncherFactory {
         Semaphore pendingConsumerSlotSemaphore =
                 effectivePendingConsumer > 0 ? new Semaphore(effectivePendingConsumer, fair) : null;
         
+        int storageCapacity = perJob.getStorageCapacity();
+        Semaphore perJobStorageSemaphore = new Semaphore(storageCapacity, fair);
+        
         PermitPair consumerPermitPair = PermitPair.of(resourceRegistry.getGlobalSemaphore(), jobConsumerSemaphore);
         PermitPair inFlightPermitPair =
                 PermitPair.of(resourceRegistry.getGlobalInFlightSemaphore(), inFlightProductionSemaphore);
         PermitPair producerPermitPair =
                 globalProducerThreads != null ? PermitPair.of(globalProducerThreads, jobProducerSemaphore) : null;
+        PermitPair storagePermitPair =
+                PermitPair.of(resourceRegistry.getGlobalStorageSemaphore(), perJobStorageSemaphore);
+        PermitPair inFlightConsumerPermitPair =
+                (resourceRegistry.getGlobalInFlightConsumerSemaphore() != null || pendingConsumerSlotSemaphore != null)
+                        ? PermitPair.of(resourceRegistry.getGlobalInFlightConsumerSemaphore(),
+                                pendingConsumerSlotSemaphore)
+                        : null;
         
         // 生产线程并发控制移至 BackpressureManager（ProducerConcurrencyDimension），
         // 执行器本身使用无界虚拟线程，不再内置 PermitStrategy。
@@ -88,8 +98,8 @@ final class FlowLauncherFactory {
                                                    .inFlightPermitPair(inFlightPermitPair)
                                                    .producerPermitPair(producerPermitPair)
                                                    .consumerPermitPair(consumerPermitPair)
-                                                   .pendingConsumerSlotSemaphore(pendingConsumerSlotSemaphore)
-                                                   .globalStorageSemaphore(resourceRegistry.getGlobalStorageSemaphore())
+                                                   .inFlightConsumerPermitPair(inFlightConsumerPermitPair)
+                                                   .storagePermitPair(storagePermitPair)
                                                    .globalConsumerLimit(globalConsumerLimit)
                                                    .build();
         BackpressureManager backpressureManager = new BackpressureManager(baseCtx, meterRegistry);

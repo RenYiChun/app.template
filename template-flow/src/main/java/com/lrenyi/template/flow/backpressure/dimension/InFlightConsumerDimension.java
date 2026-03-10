@@ -1,11 +1,11 @@
 package com.lrenyi.template.flow.backpressure.dimension;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.backpressure.ResourceBackpressureDimension;
+import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 在途消费背压维度（原 pending-consumer）：
  * 限制"已离库未终结"的条数，防止消费端积压过多、OOM。
- * 对应配置：{@code flow.limits.per-job.in-flight-consumer}。
+ * 对应配置：{@code flow.limits.global.in-flight-consumer}、{@code flow.limits.per-job.in-flight-consumer}。
  */
 @Slf4j
 public class InFlightConsumerDimension implements ResourceBackpressureDimension {
@@ -36,8 +36,8 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
     
     @Override
     public void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException {
-        Semaphore slot = ctx.getPendingConsumerSlotSemaphore();
-        if (slot == null) {
+        PermitPair pair = ctx.getInFlightConsumerPermitPair();
+        if (pair == null) {
             return;
         }
         
@@ -53,7 +53,7 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
         Timer.Sample sample = Timer.start(registry);
         boolean acquired;
         try {
-            acquired = slot.tryAcquire(1, SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            acquired = pair.tryAcquireBoth(1, SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
                              .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
@@ -81,11 +81,11 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
     
     @Override
     public void onBusinessRelease(DimensionContext ctx) {
-        Semaphore slot = ctx.getPendingConsumerSlotSemaphore();
-        if (slot == null) {
+        PermitPair pair = ctx.getInFlightConsumerPermitPair();
+        if (pair == null) {
             return;
         }
-        slot.release(1);
+        pair.release(1);
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
                .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)

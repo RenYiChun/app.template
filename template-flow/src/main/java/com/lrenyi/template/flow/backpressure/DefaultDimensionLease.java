@@ -57,9 +57,9 @@ final class DefaultDimensionLease implements DimensionLease {
             } catch (Exception e) {
                 log.error("Dimension onBusinessRelease failed, leaseId={}, dimensionId={}", leaseId, dimensionId, e);
             }
-            manager.onLeaseClose(leaseId, false);
+            manager.onLeaseClose(leaseId, dimensionId, false);
         } else {
-            manager.onLeaseClose(leaseId, true);
+            manager.onLeaseClose(leaseId, dimensionId, true);
         }
     }
     

@@ -1,6 +1,5 @@
 package com.lrenyi.template.flow.backpressure;
 
-import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -46,11 +45,11 @@ public final class DimensionContext {
     /** 消费线程许可对（consumer-concurrency 维度使用） */
     private final PermitPair consumerPermitPair;
     
-    /** 待消费槽位信号量（in-flight-consumer 维度使用） */
-    private final Semaphore pendingConsumerSlotSemaphore;
+    /** 在途消费许可对（in-flight-consumer 维度使用） */
+    private final PermitPair inFlightConsumerPermitPair;
     
-    /** 全局存储信号量（storage 维度使用） */
-    private final Semaphore globalStorageSemaphore;
+    /** 存储许可对（storage 维度使用） */
+    private final PermitPair storagePermitPair;
     
     /** 全局消费线程上限（consumer-concurrency 维度释放时使用） */
     private final int globalConsumerLimit;

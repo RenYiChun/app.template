@@ -1,10 +1,16 @@
 package com.lrenyi.template.flow.resource;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -51,6 +57,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Semaphore globalInFlightSemaphore;
     private final Semaphore globalStorageSemaphore;
     private final Semaphore globalProducerThreadsSemaphore;
+    private final Semaphore globalInFlightConsumerSemaphore;
     private final LongAdder globalPendingConsumerAdder;
     private final FlowExecutorProvider executorProvider;
     private final BoundedVirtualExecutor flowConsumerExecutor;
@@ -58,6 +65,9 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final ExecutorService cacheRemovalExecutor;
     private final Lock fairLock;
     private final Condition permitReleased;
+    private final AtomicInteger activeJobCount = new AtomicInteger(0);
+    private final Lock fairShareLock = new ReentrantLock(true);
+    private final Map<String, Condition> fairShareConditions = new ConcurrentHashMap<>();
     private final FlowCacheManager flowCacheManager;
     private final MeterRegistry meterRegistry;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
@@ -90,6 +100,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int globalProducerThreads = global.getProducerThreads();
         this.globalProducerThreadsSemaphore =
                 globalProducerThreads > 0 ? new Semaphore(globalProducerThreads, fair) : null;
+        
+        int globalInFlightConsumer = global.getInFlightConsumer();
+        this.globalInFlightConsumerSemaphore =
+                globalInFlightConsumer > 0 ? new Semaphore(globalInFlightConsumer, fair) : null;
         
         this.globalPendingConsumerAdder = new LongAdder();
         
@@ -333,6 +347,95 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     public void releaseGlobalStorage(int n) {
         if (globalStorageSemaphore != null && n > 0) {
             globalStorageSemaphore.release(n);
+        }
+    }
+    
+    // ─── 动态 Fair Share 协调 ─────────────────────────────────────────────────
+    
+    /** Job 创建时调用，用于动态 fair share 的 activeJobCount */
+    public void registerJob(String jobId) {
+        activeJobCount.incrementAndGet();
+        log.trace("FairShare: job registered, jobId={}, activeJobCount={}", jobId, activeJobCount.get());
+    }
+    
+    /** Job 注销时调用，唤醒等待配额的其他 Job */
+    public void deregisterJob(String jobId) {
+        int remaining = activeJobCount.decrementAndGet();
+        if (remaining < 0) {
+            activeJobCount.set(0);
+            log.warn("FairShare: activeJobCount underflow, jobId={}", jobId);
+        }
+        log.trace("FairShare: job deregistered, jobId={}, activeJobCount={}", jobId, activeJobCount.get());
+        signalAllDimensions();
+    }
+    
+    /** 当前活跃 Job 数（用于动态 fair share 配额计算） */
+    public int getActiveJobCount() {
+        return Math.max(1, activeJobCount.get());
+    }
+    
+    /**
+     * 在持有配额前等待，直到 holding &lt; ceil(globalLimit / activeJobCount) 或超时/中断。
+     *
+     * @param dimensionId   维度 ID
+     * @param globalLimit   该维度的全局上限（&lt;=0 时直接返回）
+     * @param holdingSupplier 当前 Job 在该维度的持有数
+     * @param timeoutMs    超时毫秒
+     * @param stopCheck    停止检查（返回 true 时提前退出）
+     */
+    public void awaitFairShare(String dimensionId,
+            int globalLimit,
+            IntSupplier holdingSupplier,
+            long timeoutMs,
+            BooleanSupplier stopCheck) throws InterruptedException, TimeoutException {
+        if (globalLimit <= 0) {
+            return;
+        }
+        Condition cond = fairShareConditions.computeIfAbsent(dimensionId, k -> fairShareLock.newCondition());
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        fairShareLock.lock();
+        try {
+            while (true) {
+                int active = getActiveJobCount();
+                int quota = (globalLimit + active - 1) / active;
+                if (holdingSupplier.getAsInt() < quota) {
+                    return;
+                }
+                if (stopCheck != null && stopCheck.getAsBoolean()) {
+                    return;
+                }
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    throw new TimeoutException("fair share await timeout, dimensionId=" + dimensionId);
+                }
+                cond.await(remaining, TimeUnit.NANOSECONDS);
+            }
+        } finally {
+            fairShareLock.unlock();
+        }
+    }
+    
+    /** 某维度释放 lease 后调用，唤醒等待该维度配额的 Job */
+    public void signalFairShare(String dimensionId) {
+        Condition cond = fairShareConditions.get(dimensionId);
+        if (cond != null) {
+            fairShareLock.lock();
+            try {
+                cond.signalAll();
+            } finally {
+                fairShareLock.unlock();
+            }
+        }
+    }
+    
+    private void signalAllDimensions() {
+        fairShareLock.lock();
+        try {
+            for (Condition cond : fairShareConditions.values()) {
+                cond.signalAll();
+            }
+        } finally {
+            fairShareLock.unlock();
         }
     }
 }
