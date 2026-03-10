@@ -35,7 +35,10 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
     }
     
     @Override
-    public void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException {
+    public void acquire(DimensionContext ctx, int permits) throws InterruptedException, TimeoutException {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getInFlightPermitPair();
         if (pair == null) {
             return;
@@ -65,7 +68,7 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
             if (blockForever) {
                 // Repeatedly try with short intervals to honour stopCheck
                 while (!ctx.getStopCheck().getAsBoolean()) {
-                    if (pair.tryAcquireBoth(1, CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
+                    if (pair.tryAcquireBoth(permits, CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
                         acquired = true;
                         break;
                     }
@@ -80,7 +83,7 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
                     }
                     long remainingMs = TimeUnit.NANOSECONDS.toMillis(timeoutNanos - elapsedNanos);
                     long waitMs = Math.min(remainingMs, CHECK_INTERVAL_MS);
-                    if (pair.tryAcquireBoth(1, waitMs, TimeUnit.MILLISECONDS)) {
+                    if (pair.tryAcquireBoth(permits, waitMs, TimeUnit.MILLISECONDS)) {
                         acquired = true;
                         break;
                     }
@@ -124,16 +127,19 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
     }
     
     @Override
-    public void onBusinessRelease(DimensionContext ctx) {
+    public void onBusinessRelease(DimensionContext ctx, int permits) {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getInFlightPermitPair();
         if (pair == null) {
             return;
         }
-        pair.release(1);
+        pair.release(permits);
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
                .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
-               .increment();
+               .increment(permits);
     }
 }

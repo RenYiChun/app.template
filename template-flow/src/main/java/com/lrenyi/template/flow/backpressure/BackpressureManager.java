@@ -74,6 +74,14 @@ public class BackpressureManager {
     }
     
     /**
+     * 申请指定维度的资源，返回幂等 AutoCloseable 租约。等价于 {@link #acquire(String, BooleanSupplier, int) acquire(dimensionId, stopCheck, 1)}。
+     */
+    public DimensionLease acquire(String dimensionId,
+            BooleanSupplier stopCheck) throws InterruptedException, TimeoutException {
+        return acquire(dimensionId, stopCheck, 1);
+    }
+    
+    /**
      * 申请指定维度的资源，返回幂等 AutoCloseable 租约。
      *
      * <p>路由规则：按 dimensionId 选取唯一 SPI 实现（同 ID 多实现时取最小 order）。
@@ -81,19 +89,24 @@ public class BackpressureManager {
      *
      * @param dimensionId 维度 ID
      * @param stopCheck   停止检查（null 表示永不停止）
+     * @param permits    申请数量（通常为 1，消费配对等场景可为 2 或更多）
      * @return 资源租约；业务处理结束后调用 close() 释放
      * @throws InterruptedException 等待期间被中断
      * @throws TimeoutException     超过配置超时时间
      */
     public DimensionLease acquire(String dimensionId,
-            BooleanSupplier stopCheck) throws InterruptedException, TimeoutException {
+            BooleanSupplier stopCheck,
+            int permits) throws InterruptedException, TimeoutException {
+        if (permits <= 0) {
+            return DimensionLease.noop(dimensionId);
+        }
         ResourceBackpressureDimension dim = dimensionMap.get(dimensionId);
         if (dim == null) {
             log.debug("No dimension registered for id={}, returning noop lease, jobId={}", dimensionId, jobId);
             return DimensionLease.noop(dimensionId);
         }
         
-        DimensionContext ctx = buildContext(dimensionId, stopCheck != null ? stopCheck : NEVER_STOP);
+        DimensionContext ctx = buildContext(dimensionId, stopCheck != null ? stopCheck : NEVER_STOP, permits);
         FlowResourceRegistry registry = baseCtx.getResourceRegistry();
         if (registry != null) {
             int globalLimit = getGlobalLimitForDimension(dimensionId);
@@ -104,7 +117,7 @@ public class BackpressureManager {
             }
         }
         try {
-            dim.acquire(ctx);
+            dim.acquire(ctx, permits);
         } catch (InterruptedException | TimeoutException e) {
             acquireFailed.increment();
             throw e;
@@ -116,7 +129,7 @@ public class BackpressureManager {
         }
         
         String leaseId = jobId + ":" + dimensionId + ":" + leaseIdSeq.incrementAndGet();
-        DefaultDimensionLease lease = new DefaultDimensionLease(leaseId, dimensionId, dim, ctx, this);
+        DefaultDimensionLease lease = new DefaultDimensionLease(leaseId, dimensionId, permits, dim, ctx, this);
         activeLeases.put(leaseId, lease);
         activeLeasesGauge.incrementAndGet();
         acquireSuccess.increment();
@@ -128,11 +141,12 @@ public class BackpressureManager {
         return activeLeasesGauge.get();
     }
     
-    /** 本 Job 在指定维度的当前持有数（用于动态 fair share 检查）。 */
+    /** 本 Job 在指定维度的当前持有 permit 总数（用于动态 fair share 检查）。 */
     int getHoldingCount(String dimensionId) {
-        return (int) activeLeases.values().stream()
+        return activeLeases.values().stream()
                 .filter(l -> dimensionId.equals(l.dimensionId()))
-                .count();
+                .mapToInt(DimensionLease::permits)
+                .sum();
     }
     
     /** Called by {@link DefaultDimensionLease#close()} */
@@ -190,10 +204,11 @@ public class BackpressureManager {
         };
     }
     
-    private DimensionContext buildContext(String dimensionId, BooleanSupplier stopCheck) {
+    private DimensionContext buildContext(String dimensionId, BooleanSupplier stopCheck, int permits) {
         return DimensionContext.builder()
                                .jobId(baseCtx.getJobId())
                                .dimensionId(dimensionId)
+                               .permits(permits)
                                .stopCheck(stopCheck)
                                .meterRegistry(baseCtx.getMeterRegistry())
                                .flowConfig(baseCtx.getFlowConfig())

@@ -22,6 +22,9 @@ public final class DimensionContext {
     /** 当前路由的维度 ID */
     private final String dimensionId;
     
+    /** 本次申请/释放的 permit 数量（通常为 1） */
+    private final int permits;
+    
     /** 停止检查：返回 true 时维度应提前退出等待 */
     private final BooleanSupplier stopCheck;
     

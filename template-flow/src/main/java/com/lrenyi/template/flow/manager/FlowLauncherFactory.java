@@ -92,6 +92,7 @@ final class FlowLauncherFactory {
                                                    .jobId(jobId)
                                                    .dimensionId(null)
                                                    .stopCheck(() -> false)
+                                                   .permits(1)
                                                    .meterRegistry(meterRegistry)
                                                    .flowConfig(flow)
                                                    .resourceRegistry(resourceRegistry)

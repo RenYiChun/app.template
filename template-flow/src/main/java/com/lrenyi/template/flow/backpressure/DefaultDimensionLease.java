@@ -18,6 +18,7 @@ final class DefaultDimensionLease implements DimensionLease {
     
     private final String leaseId;
     private final String dimensionId;
+    private final int permits;
     private final ResourceBackpressureDimension dimension;
     private final DimensionContext ctx;
     private final BackpressureManager manager;
@@ -26,15 +27,18 @@ final class DefaultDimensionLease implements DimensionLease {
     
     DefaultDimensionLease(String leaseId,
             String dimensionId,
+            int permits,
             ResourceBackpressureDimension dimension,
             DimensionContext ctx,
             BackpressureManager manager) {
         this.leaseId = leaseId;
         this.dimensionId = dimensionId;
+        this.permits = permits;
         this.dimension = dimension;
         this.ctx = ctx;
         this.manager = manager;
-        this.cleanable = CLEANER.register(this, new LeakGuard(leaseId, dimensionId, released, dimension, ctx, manager));
+        this.cleanable = CLEANER.register(this,
+                new LeakGuard(leaseId, dimensionId, permits, released, dimension, ctx, manager));
     }
     
     @Override
@@ -48,12 +52,17 @@ final class DefaultDimensionLease implements DimensionLease {
     }
     
     @Override
+    public int permits() {
+        return permits;
+    }
+    
+    @Override
     public void close() {
         if (released.compareAndSet(false, true)) {
             // Deregister Cleaner first: prevents leak alert for a properly closed lease
             cleanable.clean();
             try {
-                dimension.onBusinessRelease(ctx);
+                dimension.onBusinessRelease(ctx, permits);
             } catch (Exception e) {
                 log.error("Dimension onBusinessRelease failed, leaseId={}, dimensionId={}", leaseId, dimensionId, e);
             }
@@ -70,6 +79,7 @@ final class DefaultDimensionLease implements DimensionLease {
     public static final class LeakGuard implements Runnable {
         private final String leaseId;
         private final String dimensionId;
+        private final int permits;
         private final AtomicBoolean released;
         private final ResourceBackpressureDimension dimension;
         private final DimensionContext ctx;
@@ -77,12 +87,14 @@ final class DefaultDimensionLease implements DimensionLease {
         
         LeakGuard(String leaseId,
                 String dimensionId,
+                int permits,
                 AtomicBoolean released,
                 ResourceBackpressureDimension dimension,
                 DimensionContext ctx,
                 BackpressureManager manager) {
             this.leaseId = leaseId;
             this.dimensionId = dimensionId;
+            this.permits = permits;
             this.released = released;
             this.dimension = dimension;
             this.ctx = ctx;
@@ -98,7 +110,7 @@ final class DefaultDimensionLease implements DimensionLease {
             // Lease was GC'd without close() → resource leak
             manager.onLeakDetected(leaseId, dimensionId);
             try {
-                dimension.onBusinessRelease(ctx);
+                dimension.onBusinessRelease(ctx, permits);
             } catch (Exception e) {
                 log.error("Leak recovery release failed, leaseId={}, dimensionId={}", leaseId, dimensionId, e);
             }

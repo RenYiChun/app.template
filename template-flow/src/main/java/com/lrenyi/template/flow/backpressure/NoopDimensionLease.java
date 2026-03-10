@@ -9,6 +9,11 @@ record NoopDimensionLease(String dimensionId) implements DimensionLease {
     }
     
     @Override
+    public int permits() {
+        return 0;
+    }
+    
+    @Override
     public void close() {
         // no-op
     }

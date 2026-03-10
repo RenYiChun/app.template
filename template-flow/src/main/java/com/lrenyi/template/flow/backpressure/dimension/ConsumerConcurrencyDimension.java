@@ -35,7 +35,10 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
     }
     
     @Override
-    public void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException {
+    public void acquire(DimensionContext ctx, int permits) throws InterruptedException, TimeoutException {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getConsumerPermitPair();
         if (pair == null) {
             return;
@@ -59,9 +62,9 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
         boolean acquired;
         try {
             if (blockForever) {
-                acquired = pair.tryAcquireBoth(1);
+                acquired = pair.tryAcquireBoth(permits);
             } else {
-                acquired = pair.tryAcquireBoth(1, timeoutMs, TimeUnit.MILLISECONDS);
+                acquired = pair.tryAcquireBoth(permits, timeoutMs, TimeUnit.MILLISECONDS);
             }
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
@@ -82,16 +85,19 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
     }
     
     @Override
-    public void onBusinessRelease(DimensionContext ctx) {
+    public void onBusinessRelease(DimensionContext ctx, int permits) {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getConsumerPermitPair();
         if (pair == null) {
             return;
         }
-        pair.release(1, ctx.getGlobalConsumerLimit());
+        pair.release(permits, ctx.getGlobalConsumerLimit());
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
                .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
-               .increment();
+               .increment(permits);
     }
 }

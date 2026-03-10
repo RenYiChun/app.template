@@ -24,16 +24,18 @@ public interface ResourceBackpressureDimension {
      * 申请资源：内部完成占位、背压等待和指标记录。
      * 申请失败（含超时、中断）时必须已回滚已占资源。
      *
-     * @param ctx 封装 Job 资源句柄与本次调用上下文
+     * @param ctx    封装 Job 资源句柄与本次调用上下文
+     * @param permits 申请数量（通常为 1，消费配对等场景可为 2 或更多）
      * @throws InterruptedException 等待期间线程被中断
      * @throws TimeoutException     超过配置超时时间
      */
-    void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException;
+    void acquire(DimensionContext ctx, int permits) throws InterruptedException, TimeoutException;
     
     /**
      * 释放资源：由框架在 lease 关闭时回调，完成资源释放和指标记录。
      *
-     * @param ctx 与 acquire 时相同的上下文
+     * @param ctx    与 acquire 时相同的上下文
+     * @param permits 释放数量（与 acquire 时一致）
      */
-    void onBusinessRelease(DimensionContext ctx);
+    void onBusinessRelease(DimensionContext ctx, int permits);
 }

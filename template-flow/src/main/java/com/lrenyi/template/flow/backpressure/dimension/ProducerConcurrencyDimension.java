@@ -34,7 +34,10 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
     }
     
     @Override
-    public void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException {
+    public void acquire(DimensionContext ctx, int permits) throws InterruptedException, TimeoutException {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getProducerPermitPair();
         if (pair == null) {
             return;
@@ -52,7 +55,7 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         Timer.Sample sample = Timer.start(registry);
         boolean acquired;
         try {
-            acquired = pair.tryAcquireBoth(1);
+            acquired = pair.tryAcquireBoth(permits);
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
                              .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
@@ -71,16 +74,19 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
     }
     
     @Override
-    public void onBusinessRelease(DimensionContext ctx) {
+    public void onBusinessRelease(DimensionContext ctx, int permits) {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getProducerPermitPair();
         if (pair == null) {
             return;
         }
-        pair.release(1);
+        pair.release(permits);
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
                .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
-               .increment();
+               .increment(permits);
     }
 }

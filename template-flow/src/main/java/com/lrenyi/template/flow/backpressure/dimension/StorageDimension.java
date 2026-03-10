@@ -33,7 +33,10 @@ public class StorageDimension implements ResourceBackpressureDimension {
     }
     
     @Override
-    public void acquire(DimensionContext ctx) throws InterruptedException, TimeoutException {
+    public void acquire(DimensionContext ctx, int permits) throws InterruptedException, TimeoutException {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getStoragePermitPair();
         if (pair == null) {
             return;
@@ -50,7 +53,7 @@ public class StorageDimension implements ResourceBackpressureDimension {
         
         Timer.Sample sample = Timer.start(registry);
         try {
-            if (!pair.tryAcquireBoth(1)) {
+            if (!pair.tryAcquireBoth(permits)) {
                 throw new TimeoutException("storage acquire failed for jobId=" + jobId);
             }
         } finally {
@@ -62,15 +65,18 @@ public class StorageDimension implements ResourceBackpressureDimension {
     }
     
     @Override
-    public void onBusinessRelease(DimensionContext ctx) {
+    public void onBusinessRelease(DimensionContext ctx, int permits) {
+        if (permits <= 0) {
+            return;
+        }
         PermitPair pair = ctx.getStoragePermitPair();
         if (pair != null) {
-            pair.release(1);
+            pair.release(permits);
             Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
                    .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
                    .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                    .register(ctx.getMeterRegistry())
-                   .increment();
+                   .increment(permits);
         }
     }
 }
