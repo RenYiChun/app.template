@@ -17,7 +17,6 @@ import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.context.Orchestrator;
-import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -63,13 +62,13 @@ public class FlowLauncher<T> {
             FlowManager flowManager,
             FlowJoiner<T> flowJoiner,
             ProgressTracker tracker,
-            Registration registration,
+            TemplateConfigProperties.Flow flow,
             FlowResourceContext resourceContext) {
         this.jobId = jobId;
         this.flowManager = flowManager;
         this.flowJoiner = flowJoiner;
         this.resourceContext = resourceContext;
-        this.flow = registration.getFlow();
+        this.flow = flow;
         this.jobProducerSemaphore = resourceContext.getJobProducerSemaphore();
         this.storage = (FlowStorage<T>) resourceContext.getStorage();
         this.backpressureManager = resourceContext.getBackpressureManager();
@@ -79,17 +78,17 @@ public class FlowLauncher<T> {
                                                                  flowManager,
                                                                  flowManager.getMeterRegistry()
         );
-        this.taskOrchestrator = new Orchestrator(jobId, tracker, registration, resourceContext);
+        this.taskOrchestrator = new Orchestrator(jobId, tracker, resourceContext);
     }
     
     public static <T> FlowLauncher<T> create(String jobId,
             FlowJoiner<T> flowJoiner,
             FlowManager flowManager,
             ProgressTracker tracker,
-            Registration registration,
+            TemplateConfigProperties.Flow flow,
             FlowResourceContext resourceContext) {
         
-        return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
+        return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, flow, resourceContext);
     }
     
     /** 当前 in-flight push 数（未注册 supplier 时返回 0）。 */

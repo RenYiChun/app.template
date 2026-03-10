@@ -5,6 +5,7 @@ import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.backpressure.DimensionLease;
+import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
@@ -25,7 +26,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
      * 将数据提交至消费端，通过 BackpressureManager 获取 in-flight-consumer 槽位租约。
      * 租约在消费任务完成后由 close() 释放。
      */
-    public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+    public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<?> launcher) {
         String jobId = entry.getJobId();
         long startTime = System.currentTimeMillis();
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
@@ -90,14 +91,69 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        resourceRegistry.submitConsumer(launcher.getTaskOrchestrator(), runnable);
+        submitConsumer(launcher, 1, runnable);
+    }
+
+    /**
+     * 将消费任务提交到消费执行器。通过 BackpressureManager 获取消费并发许可（ConsumerConcurrencyDimension），
+     * 控制消费线程数与在途消费数据量。许可在调用线程 acquire，任务结束时在 finally 中 release。
+     */
+    private void submitConsumer(FlowLauncher<?> launcher, int permits, Runnable task) {
+        resourceRegistry.getGlobalPendingConsumerAdder().add(permits);
+        DimensionLease consumerLease = null;
+        try {
+            consumerLease = launcher.getBackpressureManager()
+                    .acquire(ConsumerConcurrencyDimension.ID, () -> launcher.isStopped(), permits);
+            for (int i = 0; i < permits; i++) {
+                launcher.getTaskOrchestrator().tracker().onConsumerAcquired();
+            }
+            String jobId = launcher.getJobId();
+            DimensionLease leaseToRelease = consumerLease;
+            Runnable wrappedTask = () -> {
+                try {
+                    task.run();
+                } finally {
+                    resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
+                    for (int i = 0; i < permits; i++) {
+                        launcher.getTaskOrchestrator().tracker().onConsumerReleased(jobId);
+                    }
+                    Counter.builder(FlowMetricNames.TERMINATED)
+                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                           .register(meterRegistry)
+                           .increment(permits);
+                    if (leaseToRelease != null) {
+                        leaseToRelease.close();
+                    }
+                    resourceRegistry.getFairLock().lock();
+                    try {
+                        resourceRegistry.getPermitReleased().signalAll();
+                    } finally {
+                        resourceRegistry.getFairLock().unlock();
+                    }
+                }
+            };
+            resourceRegistry.getFlowConsumerExecutor().execute(wrappedTask);
+        } catch (InterruptedException | TimeoutException | RuntimeException e) {
+            resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
+            if (consumerLease != null) {
+                consumerLease.close();
+            }
+            if (e instanceof RuntimeException re) {
+                throw re;
+            }
+            if (e instanceof InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new com.lrenyi.template.flow.executor.ExecutorInterruptedException(ie);
+            }
+            throw new com.lrenyi.template.flow.executor.ExecutorAcquireTimeoutException((TimeoutException) e);
+        }
     }
     
     /**
      * 将配对数据提交至消费端。partner 与 entry 具有相同 joinKey，由 joiner.isMatched 判定是否配对成功。
      * 占用 2 个 in-flight-consumer 槽位，消费并发许可为 2。
      */
-    public void submitPairDataToConsumer(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<Object> launcher) {
+    public void submitPairDataToConsumer(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<?> launcher) {
         partner.closeStorageLease();
         String jobId = entry.getJobId();
         long matchStartTime = System.currentTimeMillis();
@@ -161,6 +217,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        resourceRegistry.submitConsumer(launcher.getTaskOrchestrator(), 2, runnable);
+        submitConsumer(launcher, 2, runnable);
     }
 }

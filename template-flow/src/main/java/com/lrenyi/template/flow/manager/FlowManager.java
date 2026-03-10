@@ -9,7 +9,6 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.Orchestrator;
-import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.health.FlowHealth;
@@ -45,7 +44,6 @@ public class FlowManager implements ActiveLauncherLookup {
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
     
-    private final Map<String, Registration> registry = new ConcurrentHashMap<>();
     private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
     private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
     
@@ -170,7 +168,6 @@ public class FlowManager implements ActiveLauncherLookup {
             }
             log.info("Job [{}] 已从管理器中注销", jobId);
         }
-        registry.remove(jobId);
     }
     
     public static void reset() {
@@ -197,10 +194,8 @@ public class FlowManager implements ActiveLauncherLookup {
                         "Job " + jobId + " 已有活跃 Launcher，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
             }
             completedTrackers.remove(jobId);
-            Registration registration = new Registration(jobId, flowConfig);
-            registry.put(jobId, registration);
 
-            FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
+            FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, flowConfig);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             resourceRegistry.registerJob(jobId);
             
@@ -255,7 +250,7 @@ public class FlowManager implements ActiveLauncherLookup {
     }
     
     public int getActiveJobCount() {
-        return Math.max(1, registry.size());
+        return Math.max(1, activeLaunchers.size());
     }
     
     public Map<String, Object> getHealthStatus() {

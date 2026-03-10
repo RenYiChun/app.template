@@ -13,7 +13,6 @@ import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.context.FlowResourceContext;
-import com.lrenyi.template.flow.context.Registration;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
@@ -54,10 +53,9 @@ class FlowFinalizerStrictPendingModeTest {
                                                          .pendingConsumerSlotSemaphore(pending)
                                                          .backpressureManager(backpressureManager)
                                                          .build();
-        Registration registration = new Registration(jobId, flow);
         NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
-                FlowLauncher.create(jobId, joiner, manager, tracker, registration, context);
+                FlowLauncher.create(jobId, joiner, manager, tracker, flow, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
         FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
@@ -93,10 +91,9 @@ class FlowFinalizerStrictPendingModeTest {
                                                          .pendingConsumerSlotSemaphore(pending)
                                                          .backpressureManager(backpressureManager)
                                                          .build();
-        Registration registration = new Registration(jobId, flow);
         NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
-                FlowLauncher.create(jobId, joiner, manager, tracker, registration, context);
+                FlowLauncher.create(jobId, joiner, manager, tracker, flow, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
         FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);

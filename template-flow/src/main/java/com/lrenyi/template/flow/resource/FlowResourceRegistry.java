@@ -9,17 +9,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
-import java.util.function.IntSupplier;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.flow.context.Orchestrator;
-import com.lrenyi.template.flow.executor.BoundedVirtualExecutor;
 import com.lrenyi.template.flow.executor.DefaultFlowExecutorProvider;
 import com.lrenyi.template.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
@@ -60,7 +57,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Semaphore globalInFlightConsumerSemaphore;
     private final LongAdder globalPendingConsumerAdder;
     private final FlowExecutorProvider executorProvider;
-    private final BoundedVirtualExecutor flowConsumerExecutor;
+    private final ExecutorService flowConsumerExecutor;
+    private final ExecutorService flowProducerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     private final ExecutorService cacheRemovalExecutor;
     private final Lock fairLock;
@@ -107,8 +105,9 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         
         this.globalPendingConsumerAdder = new LongAdder();
         
-        this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore, concurrencyLimit);
-        this.flowConsumerExecutor = (BoundedVirtualExecutor) executorProvider.getFlowConsumerExecutor();
+        this.executorProvider = new DefaultFlowExecutorProvider(concurrencyLimit);
+        this.flowConsumerExecutor = executorProvider.getFlowConsumerExecutor();
+        this.flowProducerExecutor = executorProvider.getFlowProducerExecutor();
         this.storageEgressExecutor = executorProvider.getStorageEgressExecutor();
         this.cacheRemovalExecutor = executorProvider.getCacheRemovalExecutor();
         
@@ -274,70 +273,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     public FlowCacheManager getCacheManager() {
         return flowCacheManager;
-    }
-    
-    public void submitConsumer(Orchestrator orchestrator, Runnable task) {
-        submitConsumer(orchestrator, 1, task);
-    }
-    
-    /**
-     * 将消费任务提交到消费执行器。许可在调用线程 acquire 后由提交的 task 在结束时在 finally 中 release。
-     * <p>
-     * 若出现「消费许可被耗尽」（指标：使用中=上限且等待消费许可持续升高），很可能是消费路径中某处未正常释放许可，
-     * 例如：任务未执行到 finally、release() 抛出异常、或执行器未调度到该任务。排查时请确认所有消费任务都通过
-     * 本方法提交且策略的 release() 在 BoundedVirtualExecutor 的 runReleaseOnly 的 finally 中被调用。
-     * </p>
-     */
-    public void submitConsumer(Orchestrator orchestrator, int permits, Runnable task) {
-        globalPendingConsumerAdder.add(permits);
-        AtomicBoolean acquiredForSubmission = new AtomicBoolean(false);
-        AtomicBoolean pendingCompensated = new AtomicBoolean(false);
-        BoundedVirtualExecutor.PermitStrategy strategy = new BoundedVirtualExecutor.PermitStrategy() {
-            @Override
-            public void acquire() throws InterruptedException, TimeoutException {
-                int acquiredPermits = 0;
-                try {
-                    for (int i = 0; i < permits; i++) {
-                        orchestrator.acquire();
-                        acquiredPermits++;
-                    }
-                    acquiredForSubmission.set(true);
-                } catch (InterruptedException | TimeoutException | RuntimeException e) {
-                    rollbackAcquire(acquiredPermits);
-                    pendingCompensated.set(true);
-                    throw e;
-                }
-            }
-            
-            @Override
-            public void release() {
-                acquiredForSubmission.set(false);
-                globalPendingConsumerAdder.add(-permits);
-                for (int i = 0; i < permits; i++) {
-                    orchestrator.release();
-                }
-            }
-            
-            private void rollbackAcquire(int acquiredPermits) {
-                globalPendingConsumerAdder.add(-permits);
-                if (acquiredPermits <= 0) {
-                    return;
-                }
-                for (int i = 0; i < acquiredPermits; i++) {
-                    orchestrator.release();
-                }
-            }
-        };
-        try {
-            flowConsumerExecutor.submitWithStrategy(strategy, task);
-        } catch (RuntimeException e) {
-            if (acquiredForSubmission.get()) {
-                strategy.release();
-            } else if (!pendingCompensated.get()) {
-                globalPendingConsumerAdder.add(-permits);
-            }
-            throw e;
-        }
     }
     
     

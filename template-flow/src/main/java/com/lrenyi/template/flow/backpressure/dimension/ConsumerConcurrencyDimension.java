@@ -17,7 +17,8 @@ import lombok.extern.slf4j.Slf4j;
  * 对应配置：{@code flow.limits.per-job.consumer-threads} 与全局
  * {@code flow.limits.global.consumer-threads}。
  * <p>
- * 该维度为 SPI 扩展点；框架核心消费并发由 {@code Orchestrator.acquire()} 管理（内含公平调度逻辑）。
+ * 该维度为 SPI 扩展点；框架核心消费并发由 {@link com.lrenyi.template.flow.internal.FlowFinalizer} 通过
+ * {@link com.lrenyi.template.flow.backpressure.BackpressureManager} 管理（内含公平调度逻辑）。
  */
 @Slf4j
 public class ConsumerConcurrencyDimension implements ResourceBackpressureDimension {
