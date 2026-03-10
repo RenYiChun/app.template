@@ -36,9 +36,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         try {
             slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null);
         } catch (TimeoutException e) {
-            launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
-                launcher.getTracker().onFinalizerSubmitSkipped();
                 try (entry) {
                     egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
                 }
@@ -100,7 +98,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         DimensionLease consumerLease = null;
         try {
             consumerLease = launcher.getBackpressureManager()
-                    .acquire(ConsumerConcurrencyDimension.ID, () -> launcher.isStopped(), permits);
+                    .acquire(ConsumerConcurrencyDimension.ID, launcher::isStopped, permits);
             for (int i = 0; i < permits; i++) {
                 launcher.getTracker().onConsumerAcquired();
             }
@@ -157,9 +155,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         try {
             slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null, 2);
         } catch (TimeoutException e) {
-            launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
-                launcher.getTracker().onFinalizerSubmitSkipped();
                 try (partner; entry) {
                     egressHandler.performSingleConsumed(partner, EgressReason.REJECT);
                     egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
