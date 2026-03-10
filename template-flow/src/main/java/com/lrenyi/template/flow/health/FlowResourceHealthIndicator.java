@@ -36,7 +36,7 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         }
         
         // 检查信号量使用率
-        Double semaphoreUsage = (Double) details.get("consumerConcurrencyUsage");
+        Double semaphoreUsage = (Double) details.get("consumerThreadsUsage");
         if (semaphoreUsage != null) {
             if (semaphoreUsage >= SEMAPHORE_USAGE_CRITICAL_THRESHOLD) {
                 return HealthStatus.UNHEALTHY;
@@ -75,15 +75,15 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         details.put("resourceRegistryShutdown", resourceRegistry.isShutdown());
         
         // 信号量使用情况（global<=0 时禁用，effectiveLimit 为 Integer.MAX_VALUE）
-        int globalLimit = resourceRegistry.getFlowConfig().getLimits().getGlobal().getConsumerConcurrency();
+        int globalLimit = resourceRegistry.getFlowConfig().getLimits().getGlobal().getConsumerThreads();
         int effectiveLimit = globalLimit > 0 ? globalLimit : Integer.MAX_VALUE;
         int available = resourceRegistry.getGlobalSemaphore().availablePermits();
         int used = effectiveLimit - available;
         double usage = effectiveLimit < Integer.MAX_VALUE ? (double) used / effectiveLimit : 0.0;
-        details.put("consumerConcurrencyLimit", effectiveLimit);
-        details.put("consumerConcurrencyAvailable", available);
-        details.put("consumerConcurrencyUsed", used);
-        details.put("consumerConcurrencyUsage", usage);
+        details.put("consumerThreadsLimit", effectiveLimit);
+        details.put("consumerThreadsAvailable", available);
+        details.put("consumerThreadsUsed", used);
+        details.put("consumerThreadsUsage", usage);
         
         // 活跃 Job 数量
         int activeJobs = flowManager.getActiveJobCount();

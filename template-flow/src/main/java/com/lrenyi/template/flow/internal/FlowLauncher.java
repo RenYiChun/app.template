@@ -5,6 +5,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -17,7 +18,6 @@ import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
-import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -48,6 +48,8 @@ public class FlowLauncher<T> {
     private final FlowResourceContext resourceContext;
     private final MatchRetryCoordinator<T> matchRetryCoordinator;
     private volatile boolean stopped = false;
+    /** 推送模式下 in-flight push 计数，由 FlowInletImpl 注册，用于完成判定（未注册时视为 0）。 */
+    private volatile IntSupplier inFlightPushCountSupplier;
     
     @SuppressWarnings("unchecked")
     private FlowLauncher(String jobId,
@@ -82,9 +84,21 @@ public class FlowLauncher<T> {
         
         return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, registration, resourceContext);
     }
+
+    /**
+     * 推送模式下由引擎注册，用于完成判定时要求 inFlightPush==0 再 unregister，避免 Executor 已关闭。
+     */
+    public void setInFlightPushCountSupplier(IntSupplier supplier) {
+        this.inFlightPushCountSupplier = supplier;
+    }
+
+    /** 当前 in-flight push 数（未注册 supplier 时返回 0）。 */
+    public int getInFlightPushCount() {
+        IntSupplier s = inFlightPushCountSupplier;
+        return s != null ? s.getAsInt() : 0;
+    }
     
     public void launch(T data) {
-        ProgressTracker tracker = taskOrchestrator.tracker();
         if (stopped) {
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
@@ -93,60 +107,46 @@ public class FlowLauncher<T> {
                    .increment();
             return;
         }
-        
-        Semaphore perJobInFlight = resourceContext.getInFlightProductionSemaphore();
-        Semaphore globalInFlight = resourceContext.getResourceRegistry().getGlobalInFlightSemaphore();
-        PermitPair inFlightPair = null;
-        if (perJobInFlight != null) {
-            try {
-                io.micrometer.core.instrument.Timer.Sample inFlightSample = Timer.start(registry());
-                boolean acquired = PermitPair.tryAcquireBoth(globalInFlight,
-                                                             perJobInFlight,
-                                                             1,
-                                                             FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS,
-                                                             TimeUnit.MILLISECONDS
+
+        PermitPair inFlightPermitPair = resourceContext.getInFlightPermitPair();
+        try {
+            boolean acquired = backpressureController.acquireInFlight(inFlightPermitPair, () -> stopped);
+            if (!acquired) {
+                int perJobInFlightPermits = inFlightPermitPair.getPerJobAvailablePermits();
+                int globalInFlightPermits = inFlightPermitPair.getGlobalAvailablePermits();
+                long timeoutMs = flow.getProducerBackpressureTimeoutMill();
+                log.warn("In-flight Product permit acquire timeout, jobId={}, timeoutMs={}, "
+                                 + "perJobInFlightPermits={}, globalInFlightPermits={}",
+                         jobId,
+                         timeoutMs,
+                         perJobInFlightPermits,
+                         globalInFlightPermits == -1 ? null : globalInFlightPermits
                 );
-                inFlightSample.stop(Timer.builder(FlowMetricNames.LIMITS_ACQUIRE_WAIT_DURATION)
-                                         .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                                         .tag(FlowMetricNames.TAG_DIMENSION, FlowMetricNames.DIMENSION_IN_FLIGHT)
-                                         .register(registry()));
-                if (!acquired) {
-                    int perJobInFlightPermits = perJobInFlight.availablePermits();
-                    Integer globalInFlightPermits =
-                            globalInFlight != null ? globalInFlight.availablePermits() : null;
-                    log.warn("In-flight permit acquire timeout, jobId={}, timeoutMs={}, perJobInFlightPermits={}, "
-                                     + "globalInFlightPermits={}",
-                             jobId,
-                             FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS,
-                             perJobInFlightPermits,
-                             globalInFlightPermits
-                    );
-                    TimeoutException e = new TimeoutException(
-                            "In-flight permit acquire timeout for job " + jobId
-                                    + ", acquireTimeoutMs=" + FlowConstants.DEFAULT_ACQUIRE_TIMEOUT_MS
-                    );
-                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout");
-                    return;
-                }
-                inFlightPair = PermitPair.createHeld(globalInFlight, perJobInFlight, 1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION,
-                        "inFlight_acquire_interrupted");
+                TimeoutException e = new TimeoutException(
+                        "In-flight permit acquire timeout for job " + jobId + ", acquireTimeoutMs=" + timeoutMs);
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout");
                 return;
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted");
+            return;
+        } catch (TimeoutException e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout");
+            return;
         }
         
+        ProgressTracker tracker = taskOrchestrator.tracker();
         tracker.onProductionAcquired();
         Counter.builder(FlowMetricNames.PRODUCTION_ACQUIRED)
                .tag(FlowMetricNames.TAG_JOB_ID, jobId)
                .register(registry())
                .increment();
-        
+
         if (stopped) {
             tracker.onProductionReleased();
-            if (inFlightPair != null) {
-                inFlightPair.release();
+            if (inFlightPermitPair != null) {
+                inFlightPermitPair.release(1);
             }
             Counter.builder(FlowMetricNames.ERRORS)
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
@@ -155,53 +155,32 @@ public class FlowLauncher<T> {
                    .increment();
             return;
         }
-        
-        try {
-            awaitBackpressure();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            tracker.onProductionReleased();
-            if (inFlightPair != null) {
-                inFlightPair.release();
-            }
-            log.warn("Backpressure interrupted, jobId={}, storageSize={}, storageLimit={}",
-                     jobId,
-                     storage.size(),
-                     storage.maxCacheSize()
-            );
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_interrupted");
-            return;
-        } catch (TimeoutException e) {
-            tracker.onProductionReleased();
-            if (inFlightPair != null) {
-                inFlightPair.release();
-            }
-            int perJobConsumerPermits = resourceContext.getJobConsumerSemaphore().availablePermits();
-            int perJobProducerPermits = jobProducerSemaphore.availablePermits();
-            Integer globalConsumerPermits = resourceContext.getGlobalSemaphore().availablePermits();
-            Integer globalInFlightPermits = resourceContext.getResourceRegistry().getGlobalInFlightSemaphore() != null
-                    ? resourceContext.getResourceRegistry().getGlobalInFlightSemaphore().availablePermits()
-                    : null;
-            Integer globalStoragePermits = resourceContext.getResourceRegistry().getGlobalStorageSemaphore() != null
-                    ? resourceContext.getResourceRegistry().getGlobalStorageSemaphore().availablePermits()
-                    : null;
-            log.warn("Backpressure timeout, jobId={}, storageSize={}, storageLimit={}, jobConsumerPermits={}, "
-                             + "jobProducerPermits={}, globalConsumerPermits={}, globalInFlightPermits={}, "
-                             + "globalStoragePermits={}",
-                     jobId,
-                     storage.size(),
-                     storage.maxCacheSize(),
-                     perJobConsumerPermits,
-                     perJobProducerPermits,
-                     globalConsumerPermits,
-                     globalInFlightPermits,
-                     globalStoragePermits
-            );
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_timeout");
-            return;
-        }
-        
-        submitDepositTask(data, tracker, inFlightPair);
+
+        submitDepositTask(data, tracker, inFlightPermitPair);
+    }
+    
+    private void logBackpressureTimeout(TimeoutException e) {
+        int perJobConsumerPermits = resourceContext.getJobConsumerSemaphore() != null ?
+                resourceContext.getJobConsumerSemaphore().availablePermits() : -1;
+        int perJobProducerPermits = jobProducerSemaphore.availablePermits();
+        Integer globalConsumerPermits = resourceContext.getGlobalSemaphore().availablePermits();
+        Integer globalInFlightPermits = resourceContext.getResourceRegistry().getGlobalInFlightSemaphore() != null ?
+                resourceContext.getResourceRegistry().getGlobalInFlightSemaphore().availablePermits() : null;
+        Integer globalStoragePermits = resourceContext.getResourceRegistry().getGlobalStorageSemaphore() != null ?
+                resourceContext.getResourceRegistry().getGlobalStorageSemaphore().availablePermits() : null;
+        log.warn("Backpressure timeout, jobId={}, storageSize={}, storageLimit={}, jobConsumerPermits={}, "
+                         + "jobProducerPermits={}, globalConsumerPermits={}, globalInFlightPermits={}, "
+                         + "globalStoragePermits={}",
+                 jobId,
+                 storage.size(),
+                 storage.maxCacheSize(),
+                 perJobConsumerPermits,
+                 perJobProducerPermits,
+                 globalConsumerPermits,
+                 globalInFlightPermits,
+                 globalStoragePermits
+        );
+        FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "backpressure_timeout");
     }
     
     private MeterRegistry registry() {
@@ -231,7 +210,24 @@ public class FlowLauncher<T> {
                     handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
                     return;
                 }
-                
+
+                // 在生产者线程中执行背压等待
+                try {
+                    awaitBackpressure();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Backpressure interrupted, jobId={}, storageSize={}, storageLimit={}",
+                             jobId,
+                             storage.size(),
+                             storage.maxCacheSize());
+                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION,
+                            "backpressure_interrupted");
+                    return;
+                } catch (TimeoutException e) {
+                    logBackpressureTimeout(e);
+                    return;
+                }
+
                 long depositStartTime = System.currentTimeMillis();
                 Semaphore globalStorage = resourceContext.getResourceRegistry().getGlobalStorageSemaphore();
                 if (globalStorage != null) {
@@ -270,14 +266,14 @@ public class FlowLauncher<T> {
             } finally {
                 tracker.onProductionReleased();
                 if (inFlightPair != null) {
-                    inFlightPair.release();
+                    inFlightPair.release(1);
                 }
             }
         });
     }
     
     public long getCacheCapacity() {
-        return flow.getLimits().getPerJob().getStorage();
+        return flow.getLimits().getPerJob().getStorageCapacity();
     }
     
     public ExecutorService getProducerExecutor() {

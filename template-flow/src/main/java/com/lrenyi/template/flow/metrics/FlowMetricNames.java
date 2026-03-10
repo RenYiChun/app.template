@@ -50,7 +50,7 @@ public final class FlowMetricNames {
      */
     public static final String MATCH_DURATION = PREFIX + ".match.duration";
     /**
-     * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onSingleConsumed 完成。
+     * 终结处理端到端耗时（含排队等待），从 submitDataToConsumer 入口到 onSingleConsumed 完成。
      * 高：消费执行器积压或 onSingleConsumed 回调慢。
      */
     public static final String FINALIZE_DURATION = PREFIX + ".finalize.duration";
@@ -109,12 +109,21 @@ public final class FlowMetricNames {
     public static final String LIMITS_STORAGE_GLOBAL_LIMIT = LIMITS_PREFIX + ".storage.global.limit";
     /** 多值模式：丢弃/覆盖计数，reason 标签 overflow_drop_oldest / overflow_drop_newest */
     public static final String STORAGE_MULTI_VALUE_DISCARD_TOTAL = PREFIX + ".storage.multi-value.discard.total";
+    /** 存储：超时离库累计数 */
+    public static final String STORAGE_EXPIRY_FORCE_TOTAL = PREFIX + ".storage.expiry.force.total";
+    /** 存储：从过期点到离库的延迟分布 */
+    public static final String STORAGE_EXPIRY_DELAY_DURATION = PREFIX + ".storage.expiry.delay.duration";
     /** 配对重入：尝试次数 */
     public static final String MATCH_RETRY_ATTEMPTED = PREFIX + ".match.retry.attempted";
     /** 配对重入：成功回灌次数 */
     public static final String MATCH_RETRY_SUCCEEDED = PREFIX + ".match.retry.succeeded";
     /** 配对重入：耗尽次数 */
     public static final String MATCH_RETRY_EXHAUSTED = PREFIX + ".match.retry.exhausted";
+    /** Finalizer：pending slot 获取超时次数 */
+    public static final String FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT =
+            PREFIX + ".finalizer.pending-slot.acquire-timeout";
+    /** Finalizer：因严格 pending 模式导致的提交跳过次数 */
+    public static final String FINALIZER_SUBMIT_SKIPPED = PREFIX + ".finalizer.submit.skipped";
     /** 任务标识。注意高基数风险，仅在任务数可控时使用 */
     public static final String TAG_JOB_ID = "jobId";
     
@@ -125,7 +134,7 @@ public final class FlowMetricNames {
     public static final String TAG_PHASE = "phase";
     /** 被动出口原因。TIMEOUT / EVICTION / REPLACE / MISMATCH / REJECT / SHUTDOWN */
     public static final String TAG_REASON = "reason";
-    /** 存储引擎类型。caffeine / queue */
+    /** 存储引擎类型。bounded / queue */
     public static final String TAG_STORAGE_TYPE = "storageType";
     /** 许可维度。producer-threads / in-flight / storage / consumer-concurrency */
     public static final String TAG_DIMENSION = "dimension";

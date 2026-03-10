@@ -88,40 +88,42 @@ public class TemplateConfigProperties implements InitializingBean {
      * Flow limits 校验失败时抛出 IllegalArgumentException，应用启动中止。
      */
     private void validateConfig() {
-        TemplateConfigProperties.Flow.Limits limits = flow.getLimits();
-        TemplateConfigProperties.Flow.Global global = limits.getGlobal();
+        Flow.Limits limits = flow.getLimits();
+        Flow.Global global = limits.getGlobal();
         Flow.PerJob perJob = getPerJob(limits, global);
         if (perJob.getQueuePollIntervalMill() <= 0) {
             throw new IllegalArgumentException("flow.limits.per-job.queue-poll-interval-mill 必须 > 0，当前值: "
                                                        + perJob.getQueuePollIntervalMill());
         }
-        if (perJob.isMustMatchRetryEnabled() && perJob.getMustMatchRetryMaxTimes() < 1) {
+        Flow.KeyedCache keyedCache = perJob.getKeyedCache();
+        if (keyedCache.isMustMatchRetryEnabled() && keyedCache.getMustMatchRetryMaxTimes() < 1) {
             throw new IllegalArgumentException("flow.limits.per-job.must-match-retry-max-times 必须 >= 1，当前值: "
-                                                       + perJob.getMustMatchRetryMaxTimes());
+                                                       + keyedCache.getMustMatchRetryMaxTimes());
         }
-        if (perJob.getMustMatchRetryBackoffMill() < 0) {
+        if (keyedCache.getMustMatchRetryBackoffMill() < 0) {
             throw new IllegalArgumentException("flow.limits.per-job.must-match-retry-backoff-mill 必须 >= 0，当前值: "
-                                                       + perJob.getMustMatchRetryBackoffMill());
+                                                       + keyedCache.getMustMatchRetryBackoffMill());
         }
-        if (perJob.isMultiValueEnabled() && perJob.getMultiValueMaxPerKey() <= 0) {
+        if (keyedCache.isMultiValueEnabled() && keyedCache.getMultiValueMaxPerKey() <= 0) {
             throw new IllegalArgumentException("flow.limits.per-job.multi-value-max-per-key 必须 > 0，当前值: "
-                                                       + perJob.getMultiValueMaxPerKey());
+                                                       + keyedCache.getMultiValueMaxPerKey());
         }
-        if (perJob.isMultiValueEnabled()) {
-            long maxEntries = (long) perJob.getStorage() * perJob.getEffectiveMultiValueMaxPerKey();
+        if (keyedCache.isMultiValueEnabled()) {
+            long maxEntries = (long) perJob.getStorageCapacity() * keyedCache.getEffectiveMultiValueMaxPerKey();
             log.info("[配置摘要] flow.multiValueEnabled=true, multiValueMaxPerKey={}, 预估最大 entry 数={}",
-                     perJob.getEffectiveMultiValueMaxPerKey(), maxEntries);
+                     keyedCache.getEffectiveMultiValueMaxPerKey(),
+                     maxEntries
+            );
         }
         if (security.isEnabled() && !security.isLocalJwtPublicKey()
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
                 && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
             log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
         }
-        log.info("[配置摘要] enabled={}, security.effective={}, flow.consumerConcurrency={}, "
+        log.info("[配置摘要] enabled={}, security.effective={}, flow.consumerThreads={}, "
                          + "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
                  enabled,
-                 isSecurityEffectivelyEnabled(),
-                 global.getConsumerConcurrency(),
+                 isSecurityEffectivelyEnabled(), global.getConsumerThreads(),
                  isFeignEffectivelyEnabled(),
                  isOauth2EffectivelyEnabled(),
                  isAuditEffectivelyEnabled(),
@@ -129,18 +131,46 @@ public class TemplateConfigProperties implements InitializingBean {
         );
     }
     
-    private static Flow.@NonNull PerJob getPerJob(Flow.Limits limits, Flow.Global global) {
+    private Flow.@NonNull PerJob getPerJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = getJob(limits, global);
+        Flow.KeyedCache keyedCache = perJob.getKeyedCache();
         int effectivePending = perJob.getEffectivePendingConsumer();
         if (effectivePending <= 0) {
             throw new IllegalArgumentException(
-                    "flow.limits.per-job.pending-consumer 或 flow.limits.per-job.consumer-concurrency 必须 > 0，"
-                            + "当前 pending-consumer=" + perJob.getPendingConsumer()
-                            + ", consumer-concurrency=" + perJob.getConsumerConcurrency());
+                    "flow.limits.per-job.in-flight-consumer 或 flow.limits.per-job.consumer-threads 必须 > 0，"
+                            + "当前 in-flight-consumer=" + perJob.getInFlightConsumer() + ", consumer-threads="
+                            + perJob.getConsumerThreads());
         }
-        if (perJob.getCacheTtlMill() <= 0) {
+        if (keyedCache.getCacheTtlMill() <= 0) {
             throw new IllegalArgumentException(
-                    "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + perJob.getCacheTtlMill());
+                    "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + keyedCache.getCacheTtlMill());
+        }
+        if (keyedCache.getExpiryDeferInitialMill() <= 0) {
+            throw new IllegalArgumentException("flow.limits.per-job.expiry-defer-initial-mill 必须 > 0，当前值: "
+                                                       + keyedCache.getExpiryDeferInitialMill());
+        }
+        if (keyedCache.getExpiryDeferMaxMill() < keyedCache.getExpiryDeferInitialMill()) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.expiry-defer-max-mill 必须 >= expiry-defer-initial-mill，当前值: "
+                            + keyedCache.getExpiryDeferMaxMill());
+        }
+        if (keyedCache.getEvictionBatchSize() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.eviction-batch-size 必须 > 0，当前值: " + keyedCache.getEvictionBatchSize());
+        }
+        if (flow.getProducerBackpressureBlockingMode()
+                == Flow.BackpressureBlockingMode.BLOCK_WITH_TIMEOUT
+                && flow.getProducerBackpressureTimeoutMill() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.producer-backpressure-timeout-mill 必须 > 0，当前值: "
+                            + flow.getProducerBackpressureTimeoutMill());
+        }
+        if (flow.getConsumerAcquireBlockingMode()
+                == Flow.BackpressureBlockingMode.BLOCK_WITH_TIMEOUT
+                && flow.getConsumerAcquireTimeoutMill() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.consumer-acquire-timeout-mill 必须 > 0，当前值: "
+                            + flow.getConsumerAcquireTimeoutMill());
         }
         return perJob;
     }
@@ -148,11 +178,11 @@ public class TemplateConfigProperties implements InitializingBean {
     private static Flow.@NonNull PerJob getJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = limits.getPerJob();
         
-        if (global.getConsumerConcurrency() <= 0 && perJob.getConsumerConcurrency() <= 0) {
+        if (global.getConsumerThreads() <= 0 && perJob.getConsumerThreads() <= 0) {
             throw new IllegalArgumentException(
-                    "flow.limits.global.consumer-concurrency 或 flow.limits.per-job.consumer-concurrency 至少一个必须 > 0，"
-                            + "当前 global=" + global.getConsumerConcurrency()
-                            + ", per-job=" + perJob.getConsumerConcurrency());
+                    "flow.limits.global.consumer-threads 或 flow.limits.per-job.consumer-threads 至少一个必须 > 0，"
+                            + "当前 global=" + global.getConsumerThreads() + ", per-job="
+                            + perJob.getConsumerThreads());
         }
         if (perJob.getProducerThreads() <= 0) {
             throw new IllegalArgumentException(
@@ -162,8 +192,9 @@ public class TemplateConfigProperties implements InitializingBean {
             throw new IllegalArgumentException(
                     "flow.limits.per-job.in-flight-production 必须 > 0，当前值: " + perJob.getInFlightProduction());
         }
-        if (perJob.getStorage() <= 0) {
-            throw new IllegalArgumentException("flow.limits.per-job.storage 必须 > 0，当前值: " + perJob.getStorage());
+        if (perJob.getStorageCapacity() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.storage-capacity 必须 > 0，当前值: " + perJob.getStorageCapacity());
         }
         return perJob;
     }
@@ -204,6 +235,35 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class Flow {
+        /**
+         * 背压阻塞模式：控制生产/消费在背压场景下是无限等待还是带超时等待。
+         */
+        public enum BackpressureBlockingMode {
+            /** 一直阻塞直到条件满足，仅能被 Job 停止打断。 */
+            BLOCK_FOREVER,
+            /** 背压等待超过配置的超时时间后抛出超时异常。 */
+            BLOCK_WITH_TIMEOUT
+        }
+
+        /**
+         * 生产端发生背压时的阻塞模式。
+         */
+        private BackpressureBlockingMode producerBackpressureBlockingMode = BackpressureBlockingMode.BLOCK_WITH_TIMEOUT;
+
+        /**
+         * 生产端背压时允许的最长等待时间（毫秒），仅在 BLOCK_WITH_TIMEOUT 模式下生效。
+         */
+        private long producerBackpressureTimeoutMill = 30_000L;
+
+        /**
+         * 消费端获取消费许可时的阻塞模式。
+         */
+        private BackpressureBlockingMode consumerAcquireBlockingMode = BackpressureBlockingMode.BLOCK_WITH_TIMEOUT;
+
+        /**
+         * 消费端获取消费许可时允许的最长等待时间（毫秒），仅在 BLOCK_WITH_TIMEOUT 模式下生效。
+         */
+        private long consumerAcquireTimeoutMill = 30_000L;
         /** 限流配置（全局与按 Job 分离） */
         @NestedConfigurationProperty
         private Limits limits = new Limits();
@@ -235,18 +295,22 @@ public class TemplateConfigProperties implements InitializingBean {
         @Setter
         @Getter
         public static class Global {
-            /** 全局信号量公平调度（FIFO），true 防饥饿、false 更高吞吐 */
+            /** 是否对全局信号量采用公平调度（FIFO），true 防饥饿、false 更高吞吐 */
             private boolean fairScheduling = true;
-            /** 全主机生产线程上限，<=0 不启用 */
+            /** 全主机生产线程数上限（producer-threads.global.limit），<=0 表示不限制 */
             private int producerThreads = 0;
-            /** 全主机生产在途数据量上限，<=0 不启用 */
+            /** 全主机生产在途数据条数上限（in-flight.global.limit），<=0 表示不限制 */
             private int inFlightProduction = 0;
-            /** 全主机存储容量上限，<=0 不启用 */
-            private int storage = 0;
-            /** 全主机消费并发数，<=0 不启用 */
-            private int consumerConcurrency = 0;
-            /** 全主机已离库未终结条数上限，<=0 不启用 */
-            private int pendingConsumer = 0;
+            /** 全主机存储条数上限（storage-capacity.global.limit），<=0 表示不限制 */
+            private int storageCapacity = 0;
+            /** 全主机关联消费线程数上限（consumer-threads.global.limit），<=0 表示不限制 */
+            private int consumerThreads = 0;
+            /** 全主机已离库未终结条数上限（in-flight-consumer.global.limit），<=0 表示不限制 */
+            private int inFlightConsumer = 0;
+            /** 驱逐协调线程数，默认单线程 */
+            private int evictionCoordinatorThreads = 1;
+            /** 非 DelayQueue 实现时的驱逐扫描间隔（毫秒） */
+            private long evictionScanIntervalMill = 50L;
         }
         
         @Setter
@@ -256,16 +320,63 @@ public class TemplateConfigProperties implements InitializingBean {
             private int producerThreads = 40;
             /** 每 Job 生产在途数据量（必须 >0） */
             private int inFlightProduction = 4000;
-            /** 每 Job 缓存容量（必须 >0） */
-            private int storage = 40000;
-            /** 每 Job 消费并发数（必须 >0） */
-            private int consumerConcurrency = 1000;
-            /** 每 Job 已离库未终结条数上限（>0 显式值，0 表示使用 per-job.consumer-concurrency） */
-            private int pendingConsumer = 0;
-            /** 每 Job 缓存 TTL（Caffeine 过期，毫秒，必须 >0） */
-            private long cacheTtlMill = 10000;
+            /** 每 Job 关联消费线程数（必须 >0） */
+            private int consumerThreads = 1000;
+            /** 每 Job 已离库未终结条数上限（>0 显式值，0 表示使用 per-job.consumer-threads） */
+            private int inFlightConsumer = 0;
+            /** 每 Job 存储条数上限（必须 >0，适用于所有存储类型） */
+            private int storageCapacity = 40000;
             /** 每 Job Queue 轮询间隔（毫秒，必须 >0） */
             private long queuePollIntervalMill = 10000;
+            /** pending slot 获取超时时是否仍“提交 anyway” */
+            private boolean strictPendingConsumerSlot = true;
+            
+            /** 带 key 的缓存：多值、超时与驱逐等统一在此配置（app.template.flow.limits.per-job.keyed-cache.*） */
+            @NestedConfigurationProperty
+            private KeyedCache keyedCache = new KeyedCache();
+            
+            /** 有效背压阈值：inFlightConsumer>0 时取该值，否则取 per-job.consumer-threads */
+            public int getEffectivePendingConsumer() {
+                return inFlightConsumer > 0 ? inFlightConsumer : consumerThreads;
+            }
+            
+            public KeyedCache getKeyedCache() {
+                return keyedCache != null ? keyedCache : new KeyedCache();
+            }
+
+            /** 配对模式：是否启用多对匹配（委托至 keyed-cache 配置） */
+            public boolean isPairingMultiMatchEnabled() {
+                return getKeyedCache().getPairingMultiMatchEnabled();
+            }
+        }
+        
+        /**
+         * 带 key 的缓存配置：同 key 多 value、超时与驱逐等归为一类。
+         * 配置前缀：app.template.flow.limits.per-job.keyed-cache.*
+         */
+        @Setter
+        @Getter
+        public static class KeyedCache {
+            /** 同 key 多 value：是否开启（默认 false） */
+            private boolean multiValueEnabled = false;
+            /** 同 key 多 value：单 key 最大 value 数（开启后建议 16） */
+            private int multiValueMaxPerKey = 1;
+            /** 同 key 多 value：超限策略 DROP_OLDEST / DROP_NEWEST */
+            private Flow.MultiValueOverflowPolicy multiValueOverflowPolicy = Flow.MultiValueOverflowPolicy.DROP_OLDEST;
+            
+            /** 缓存 TTL（毫秒，必须 >0） */
+            private long cacheTtlMill = 10000L;
+            /** 首次延期时长（毫秒） */
+            private long expiryDeferInitialMill = 100L;
+            /** 单次最大延期时长（毫秒） */
+            private long expiryDeferMaxMill = 1000L;
+            /** 延期退避倍数 */
+            private double expiryDeferBackoffMultiplier = 2.0D;
+            /** 单次协调扫描处理的最多 entry 数 */
+            private int evictionBatchSize = 128;
+            /** 存储容量是否按 entry 计数 */
+            private boolean storageCountByEntry = true;
+
             /** 仅配对模式：是否启用强制配对重入 */
             private boolean mustMatchRetryEnabled = false;
             /** 仅配对模式：可重入最大次数（启用时必须 >=1） */
@@ -276,24 +387,24 @@ public class TemplateConfigProperties implements InitializingBean {
             private boolean mustMatchRetryOnEviction = true;
             /** 仅配对模式：TIMEOUT 原因是否允许重入 */
             private boolean mustMatchRetryOnTimeout = true;
-            
-            /** 同 key 多 value：是否开启（默认 false，保持单值语义） */
-            private boolean multiValueEnabled = false;
-            /** 同 key 多 value：单 key 最大 value 数（开启后建议 16） */
-            private int multiValueMaxPerKey = 1;
-            /** 同 key 多 value：超限策略 DROP_OLDEST / DROP_NEWEST */
-            private Flow.MultiValueOverflowPolicy multiValueOverflowPolicy = Flow.MultiValueOverflowPolicy.DROP_OLDEST;
             /** 配对模式：是否启用多对匹配；false 时配对成功后清空槽位内剩余条目并立即驱逐 */
+            @Getter(lombok.AccessLevel.NONE)
             private boolean pairingMultiMatchEnabled = false;
-            
-            /** 有效背压阈值：pendingConsumer>0 时取该值，否则取 per-job.consumer-concurrency */
-            public int getEffectivePendingConsumer() {
-                return pendingConsumer > 0 ? pendingConsumer : consumerConcurrency;
+
+            /** 配对模式：是否启用多对匹配 */
+            public boolean getPairingMultiMatchEnabled() {
+                return pairingMultiMatchEnabled;
             }
-            
+
             /** 有效单 key 最大 value 数：multiValueEnabled=false 时恒为 1 */
             public int getEffectiveMultiValueMaxPerKey() {
                 return multiValueEnabled ? Math.max(1, multiValueMaxPerKey) : 1;
+            }
+
+            /** 有效超时时长（毫秒），<=0 时回退到 cacheTtlMill */
+            public long getEffectiveTimeoutMill() {
+                long v = cacheTtlMill > 0 ? cacheTtlMill : 10_000L;
+                return v;
             }
         }
         

@@ -24,7 +24,7 @@ class FlowManagerTest {
         FlowResourceRegistry.reset();
         FlowHealth.clearIndicators();
         config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerConcurrency(100);
+        config.getLimits().getGlobal().setConsumerThreads(100);
     }
     
     @AfterEach
@@ -51,7 +51,7 @@ class FlowManagerTest {
     void getInstanceDifferentConfigRecreatesInstance() {
         FlowManager m1 = FlowManager.getInstance(config);
         TemplateConfigProperties.Flow config2 = new TemplateConfigProperties.Flow();
-        config2.getLimits().getGlobal().setConsumerConcurrency(200);
+        config2.getLimits().getGlobal().setConsumerThreads(200);
         FlowManager m2 = FlowManager.getInstance(config2);
         assertNotNull(m2);
         assertNotSame(m1, m2);

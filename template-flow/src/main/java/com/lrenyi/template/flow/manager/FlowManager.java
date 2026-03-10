@@ -93,7 +93,7 @@ public class FlowManager implements ActiveLauncherLookup {
                 if (current == null || configChanged(globalConfig)) {
                     if (current != null) {
                         log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
-                                 lastConcurrencyLimit, globalConfig.getLimits().getGlobal().getConsumerConcurrency()
+                                 lastConcurrencyLimit, globalConfig.getLimits().getGlobal().getConsumerThreads()
                         );
                         try {
                             current.shutdownAll();
@@ -103,7 +103,7 @@ public class FlowManager implements ActiveLauncherLookup {
                     }
                     FlowManager newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerConcurrency();
+                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerThreads();
                 }
             }
         }
@@ -114,7 +114,7 @@ public class FlowManager implements ActiveLauncherLookup {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerConcurrency() != lastConcurrencyLimit;
+        return config.getLimits().getGlobal().getConsumerThreads() != lastConcurrencyLimit;
     }
     
     public void shutdownAll() {
@@ -191,10 +191,14 @@ public class FlowManager implements ActiveLauncherLookup {
             ProgressTracker tracker,
             TemplateConfigProperties.Flow flowConfig) {
         try {
+            if (activeLaunchers.containsKey(jobId)) {
+                throw new IllegalStateException(
+                        "Job " + jobId + " 已有活跃 Launcher，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
+            }
             completedTrackers.remove(jobId);
             Registration registration = new Registration(jobId, flowConfig);
             registry.put(jobId, registration);
-            
+
             FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, registration);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             

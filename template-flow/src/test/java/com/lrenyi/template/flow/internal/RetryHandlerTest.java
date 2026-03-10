@@ -85,9 +85,10 @@ class RetryHandlerTest {
     
     private MatchRetryCoordinator<String> createCoordinator(String jobId, int maxRetryTimes) {
         TemplateConfigProperties.Flow.PerJob perJob = new TemplateConfigProperties.Flow.PerJob();
-        perJob.setMustMatchRetryEnabled(true);
-        perJob.setMustMatchRetryMaxTimes(maxRetryTimes);
-        perJob.setMustMatchRetryOnTimeout(true);
+        TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
+        cache.setMustMatchRetryEnabled(true);
+        cache.setMustMatchRetryMaxTimes(maxRetryTimes);
+        cache.setMustMatchRetryOnTimeout(true);
         return new MatchRetryCoordinator<>(jobId, perJob, new TestJoiner(), null, new SimpleMeterRegistry());
     }
     

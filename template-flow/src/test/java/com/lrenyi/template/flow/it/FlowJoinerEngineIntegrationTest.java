@@ -62,14 +62,16 @@ class FlowJoinerEngineIntegrationTest {
     @BeforeEach
     void setUp() {
         globalConfig = new TemplateConfigProperties.Flow();
-        globalConfig.getLimits().getGlobal().setConsumerConcurrency(100);
+        globalConfig.getLimits().getGlobal().setConsumerThreads(100);
         flowConfig = new TemplateConfigProperties.Flow();
-        flowConfig.getLimits().getPerJob().setProducerThreads(10);
-        flowConfig.getLimits().getPerJob().setCacheTtlMill(5000);
-        flowConfig.getLimits().getPerJob().setQueuePollIntervalMill(5000);
-        flowConfig.getLimits().getPerJob().setStorage(1000);
-        flowConfig.getLimits().getPerJob().setMultiValueEnabled(false);
-        flowConfig.getLimits().getPerJob().setMultiValueMaxPerKey(1);
+        TemplateConfigProperties.Flow.PerJob perJob = flowConfig.getLimits().getPerJob();
+        perJob.setProducerThreads(10);
+        perJob.setQueuePollIntervalMill(5000);
+        perJob.setStorageCapacity(1000);
+        TemplateConfigProperties.Flow.KeyedCache keyedCache = perJob.getKeyedCache();
+        keyedCache.setCacheTtlMill(5000);
+        keyedCache.setMultiValueEnabled(false);
+        keyedCache.setMultiValueMaxPerKey(1);
         manager = FlowManager.getInstance(globalConfig);
         engine = new FlowJoinerEngine(manager);
     }
@@ -225,7 +227,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowLauncher<?> launcher = manager.getActiveLauncher(JOB_LAUNCHER_TEST);
         assertNotNull(launcher);
         assertEquals(JOB_LAUNCHER_TEST, launcher.getJobId());
-        assertEquals(flowConfig.getLimits().getPerJob().getStorage(), launcher.getCacheCapacity());
+        assertEquals(flowConfig.getLimits().getPerJob().getStorageCapacity(), launcher.getCacheCapacity());
         assertFalse(launcher.isStopped());
         inlet.markSourceFinished();
         manager.stopAll(true);
@@ -359,9 +361,10 @@ class FlowJoinerEngineIntegrationTest {
         String key = "retry-key";
         RetryablePairingJoiner joiner = new RetryablePairingJoiner();
         TemplateConfigProperties.Flow retryFlow = new TemplateConfigProperties.Flow();
-        retryFlow.getLimits().getPerJob().setProducerThreads(10);
-        retryFlow.getLimits().getPerJob().setStorage(1000);
-        retryFlow.getLimits().getPerJob().setCacheTtlMill(5000);
+        TemplateConfigProperties.Flow.PerJob retryPerJob = retryFlow.getLimits().getPerJob();
+        retryPerJob.setProducerThreads(10);
+        retryPerJob.setStorageCapacity(1000);
+        retryPerJob.getKeyedCache().setCacheTtlMill(5000);
         
         var inlet = engine.startPush(jobId, joiner, retryFlow);
         inlet.push(new PairItem(key, "v2", "B"));
@@ -512,7 +515,7 @@ class FlowJoinerEngineIntegrationTest {
     
     @Test
     void itQueueDrainAfterStop() throws Exception {
-        flowConfig.getLimits().getPerJob().setStorage(2);
+        flowConfig.getLimits().getPerJob().setStorageCapacity(2);
         QueueJoiner joiner = new QueueJoiner();
         var inlet = engine.startPush("job-queue-drain", joiner, flowConfig);
         inlet.push(new PairItem("d1", "v1", null));
@@ -617,7 +620,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowHealth.clearIndicators();
         
         TemplateConfigProperties.Flow cfg2 = new TemplateConfigProperties.Flow();
-        cfg2.getLimits().getGlobal().setConsumerConcurrency(100);
+        cfg2.getLimits().getGlobal().setConsumerThreads(100);
         FlowManager manager2 = FlowManager.getInstance(cfg2);
         FlowJoinerEngine engine2 = new FlowJoinerEngine(manager2);
         OverwriteJoiner joiner2 = new OverwriteJoiner();

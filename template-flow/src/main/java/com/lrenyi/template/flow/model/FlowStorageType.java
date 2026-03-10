@@ -2,9 +2,9 @@ package com.lrenyi.template.flow.model;
 
 public enum FlowStorageType {
     /**
-     * 本地高性能缓存 (基于 Caffeine)
+     * 本地受控超时存储（BoundedTimedFlowStorage）
      */
-    CAFFEINE,
+    LOCAL_BOUNDED,
     
     QUEUE;
     
@@ -14,6 +14,6 @@ public enum FlowStorageType {
                 return type;
             }
         }
-        return CAFFEINE; // 默认值
+        return LOCAL_BOUNDED; // 默认值
     }
 }

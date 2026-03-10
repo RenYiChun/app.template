@@ -43,28 +43,34 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         if (!sourceClosing.compareAndSet(false, true)) {
             return;
         }
-        long waitStartMillis = System.currentTimeMillis();
-        log.info("Mark source finished started, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
-        while (inFlightPush.get() > 0) {
+        // 先声明 source 结束并通知 tracker，使引擎可排空存储、解除背压；若先无限等待 inFlightPush，
+        // 而 push 因背压阻塞，会导致死锁（caller 等 inFlightPush，inFlightPush 等存储排空，排空依赖 sourceFinished）。
+        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
+        log.info("Mark source finished declared, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
+        // 有限等待 in-flight 排空后再关闭入口，避免「已提交未执行」的 push 被误拒（结束标志更准确）
+        long deadlineMs = System.currentTimeMillis() + 30_000L;
+        while (inFlightPush.get() > 0 && System.currentTimeMillis() < deadlineMs) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
             if (Thread.interrupted()) {
                 Thread.currentThread().interrupt();
                 log.warn("Waiting inFlightPush interrupted, jobId={}, remaining={}",
-                         launcher.getJobId(),
-                         inFlightPush.get()
-                );
+                         launcher.getJobId(), inFlightPush.get());
                 break;
             }
         }
+        if (inFlightPush.get() > 0) {
+            log.info("Mark source finished done with in-flight remaining, jobId={}, remainingInFlightPush={}",
+                     launcher.getJobId(), inFlightPush.get());
+        }
+        // 在等待 in-flight 排空后再关闭入口，避免其他线程刚准备 push 时被拒绝
         sourceClosed.set(true);
-        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
-        log.info("Mark source finished completed, jobId={}, waitedMs={}, remainingInFlightPush={}",
-                 launcher.getJobId(),
-                 System.currentTimeMillis() - waitStartMillis,
-                 inFlightPush.get()
-        );
     }
     
+    /** 供完成判定使用：当前尚未结束的 push 调用数（已 increment 未 decrement）。 */
+    public int getInFlightPushCount() {
+        return inFlightPush.get();
+    }
+
     @Override
     public ProgressTracker getProgressTracker() {
         return launcher.getTaskOrchestrator().tracker();

@@ -72,11 +72,11 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
                 return;
             }
             if (entry.getRetryRemaining() == -1) {
-                finalizer.submitBodyOnly(entry, launcher);
+                finalizer.submitDataToConsumer(entry, launcher);
             } else {
                 RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
                 if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                    finalizer.submitBodyOnly(entry, launcher);
+                    finalizer.submitDataToConsumer(entry, launcher);
                 }
             }
         } finally {
@@ -99,7 +99,7 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     
     private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
-        long backoffMill = launcher.getFlow().getLimits().getPerJob().getMustMatchRetryBackoffMill();
+        long backoffMill = launcher.getFlow().getLimits().getPerJob().getKeyedCache().getMustMatchRetryBackoffMill();
         MatchRetryCoordinator<T> coordinator =
                 new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager(), meterRegistry);
         return new RetryHandler<>(coordinator, this, backoffMill);

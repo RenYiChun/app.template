@@ -30,16 +30,17 @@ public class MatchRetryCoordinator<T> {
     
     public void initRetryRemainingIfNecessary(FlowEntry<T> entry) {
         int retryRemaining = -1;
-        if (perJob.isMustMatchRetryEnabled()
+        TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
+        if (cache.isMustMatchRetryEnabled()
                 && joiner.needMatched()
                 && joiner.isRetryable(entry.getData(), jobId)) {
-            retryRemaining = perJob.getMustMatchRetryMaxTimes();
+            retryRemaining = cache.getMustMatchRetryMaxTimes();
         }
         entry.initRetryRemaining(retryRemaining);
     }
     
     public boolean tryConsumeRetry(EgressReason reason, FlowEntry<T> entry) {
-        if (!perJob.isMustMatchRetryEnabled() || !joiner.needMatched()) {
+        if (!perJob.getKeyedCache().isMustMatchRetryEnabled() || !joiner.needMatched()) {
             return false;
         }
         if (flowManager != null && flowManager.isStopped(jobId)) {
@@ -63,10 +64,10 @@ public class MatchRetryCoordinator<T> {
     
     private boolean supportReason(EgressReason reason) {
         if (reason == EgressReason.TIMEOUT) {
-            return perJob.isMustMatchRetryOnTimeout();
+            return perJob.getKeyedCache().isMustMatchRetryOnTimeout();
         }
         if (reason == EgressReason.EVICTION) {
-            return perJob.isMustMatchRetryOnEviction();
+            return perJob.getKeyedCache().isMustMatchRetryOnEviction();
         }
         return false;
     }

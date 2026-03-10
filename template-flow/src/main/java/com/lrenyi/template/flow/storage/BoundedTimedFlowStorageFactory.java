@@ -10,18 +10,18 @@ import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
- * Caffeine 存储工厂实现
+ * 受控超时存储工厂实现（BoundedTimedFlowStorage）。
  */
-public class CaffeineFlowStorageFactory implements FlowStorageFactory {
+public class BoundedTimedFlowStorageFactory implements FlowStorageFactory {
     
     @Override
     public FlowStorageType getSupportedType() {
-        return FlowStorageType.CAFFEINE;
+        return FlowStorageType.LOCAL_BOUNDED;
     }
     
     @Override
     public boolean supports(FlowStorageType type) {
-        return type == FlowStorageType.CAFFEINE;
+        return type == FlowStorageType.LOCAL_BOUNDED;
     }
     
     @Override
@@ -33,12 +33,20 @@ public class CaffeineFlowStorageFactory implements FlowStorageFactory {
             FlowEgressHandler<T> egressHandler,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new CaffeineFlowStorage<>(config, joiner, finalizer, progressTracker, meterRegistry, egressHandler, jobId
+        return new BoundedTimedFlowStorage<>(config,
+                                             joiner,
+                                             progressTracker,
+                                             finalizer,
+                                             egressHandler,
+                                             resourceRegistry,
+                                             meterRegistry,
+                                             jobId
         );
     }
     
     @Override
     public int getPriority() {
-        return 10;
+        return 5;
     }
 }
+
