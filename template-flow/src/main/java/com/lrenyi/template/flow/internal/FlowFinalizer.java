@@ -31,20 +31,14 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         long startTime = System.currentTimeMillis();
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
         boolean strictPending = perJob.isStrictPendingConsumerSlot();
-        
+
         DimensionLease slotLease;
         try {
             slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null);
         } catch (TimeoutException e) {
-            Counter.builder(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT)
-                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                   .register(meterRegistry)
-                   .increment();
+            launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
-                Counter.builder(FlowMetricNames.FINALIZER_SUBMIT_SKIPPED)
-                       .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                       .register(meterRegistry)
-                       .increment();
+                launcher.getTracker().onFinalizerSubmitSkipped();
                 return;
             }
             // Non-strict: proceed without slot
@@ -59,7 +53,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             );
             return;
         }
-        
+
         final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {
@@ -105,7 +99,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             consumerLease = launcher.getBackpressureManager()
                     .acquire(ConsumerConcurrencyDimension.ID, () -> launcher.isStopped(), permits);
             for (int i = 0; i < permits; i++) {
-                launcher.getTaskOrchestrator().tracker().onConsumerAcquired();
+                launcher.getTracker().onConsumerAcquired();
             }
             String jobId = launcher.getJobId();
             DimensionLease leaseToRelease = consumerLease;
@@ -115,12 +109,8 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 } finally {
                     resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
                     for (int i = 0; i < permits; i++) {
-                        launcher.getTaskOrchestrator().tracker().onConsumerReleased(jobId);
+                        launcher.getTracker().onConsumerReleased(jobId);
                     }
-                    Counter.builder(FlowMetricNames.TERMINATED)
-                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                           .register(meterRegistry)
-                           .increment(permits);
                     if (leaseToRelease != null) {
                         leaseToRelease.close();
                     }
@@ -148,7 +138,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             throw new com.lrenyi.template.flow.executor.ExecutorAcquireTimeoutException((TimeoutException) e);
         }
     }
-    
+
     /**
      * 将配对数据提交至消费端。partner 与 entry 具有相同 joinKey，由 joiner.isMatched 判定是否配对成功。
      * 占用 2 个 in-flight-consumer 槽位，消费并发许可为 2。
@@ -159,20 +149,14 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         long matchStartTime = System.currentTimeMillis();
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
         boolean strictPending = perJob.isStrictPendingConsumerSlot();
-        
+
         DimensionLease slotLease;
         try {
             slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null, 2);
         } catch (TimeoutException e) {
-            Counter.builder(FlowMetricNames.FINALIZER_PENDING_SLOT_ACQUIRE_TIMEOUT)
-                   .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                   .register(meterRegistry)
-                   .increment();
+            launcher.getTracker().onFinalizerPendingSlotTimeout();
             if (strictPending) {
-                Counter.builder(FlowMetricNames.FINALIZER_SUBMIT_SKIPPED)
-                       .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                       .register(meterRegistry)
-                       .increment();
+                launcher.getTracker().onFinalizerSubmitSkipped();
                 return;
             }
             slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);
@@ -186,7 +170,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             );
             return;
         }
-        
+
         final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {

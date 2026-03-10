@@ -45,7 +45,7 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         }
         // 先声明 source 结束并通知 tracker，使引擎可排空存储、解除背压；若先无限等待 inFlightPush，
         // 而 push 因背压阻塞，会导致死锁（caller 等 inFlightPush，inFlightPush 等存储排空，排空依赖 sourceFinished）。
-        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
+        launcher.getTracker().markSourceFinished(launcher.getJobId());
         log.info("Mark source finished declared, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
         // 有限等待 in-flight 排空后再关闭入口，避免「已提交未执行」的 push 被误拒（结束标志更准确）
         long deadlineMs = System.currentTimeMillis() + 30_000L;
@@ -65,7 +65,7 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         // 在等待 in-flight 排空后再关闭入口，避免其他线程刚准备 push 时被拒绝
         sourceClosed.set(true);
         // push 全部完成后若生产也已结束，触发 completion drain（非匹配模式）
-        if (launcher.getTaskOrchestrator().tracker().isProductionComplete()) {
+        if (launcher.getTracker().isProductionComplete()) {
             launcher.getStorage().triggerCompletionDrain();
         }
     }
@@ -77,7 +77,7 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
 
     @Override
     public ProgressTracker getProgressTracker() {
-        return launcher.getTaskOrchestrator().tracker();
+        return launcher.getTracker();
     }
     
     @Override

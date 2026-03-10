@@ -17,7 +17,6 @@ import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,15 +41,6 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
-        
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, queue, BlockingQueue::size)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue")
-             .description("每 Job 缓存当前条数")
-             .register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, () -> maxCacheSize).tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue").description("每 Job 缓存容量上限")
-             .register(meterRegistry);
         
         ScheduledExecutorService egressExecutor = resourceRegistry().getStorageEgressExecutor();
         if (egressExecutor != null && drainIntervalMs > 0) {

@@ -5,7 +5,6 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.context.FlowEntry;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -56,19 +55,6 @@ class MatchRetryCoordinatorTest {
         assertFalse(coordinator.tryConsumeRetry(EgressReason.TIMEOUT, entry));
         assertTrue(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
         assertFalse(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
-        
-        double attempted = registry.get(FlowMetricNames.MATCH_RETRY_ATTEMPTED)
-                                   .tag(FlowMetricNames.TAG_JOB_ID, "job-b")
-                                   .tag(FlowMetricNames.TAG_REASON, EgressReason.EVICTION.name())
-                                   .counter()
-                                   .count();
-        double exhausted = registry.get(FlowMetricNames.MATCH_RETRY_EXHAUSTED)
-                                   .tag(FlowMetricNames.TAG_JOB_ID, "job-b")
-                                   .tag(FlowMetricNames.TAG_REASON, EgressReason.EVICTION.name())
-                                   .counter()
-                                   .count();
-        assertEquals(1.0, attempted);
-        assertEquals(1.0, exhausted);
     }
     
     private static class TestJoiner implements FlowJoiner<String> {

@@ -74,6 +74,7 @@ class FlowResourceRegistryTest {
         config.getLimits().getGlobal().setConsumerThreads(1);
         config.getLimits().getGlobal().setInFlightConsumer(4);
         config.getLimits().getPerJob().setConsumerThreads(1);
+        config.getLimits().getPerJob().setInFlightConsumer(4);
         config.setConsumerAcquireBlockingMode(BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
         config.setConsumerAcquireTimeoutMill(500);
 
@@ -99,7 +100,8 @@ class FlowResourceRegistryTest {
         Thread.sleep(300);
 
         assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher));
-        assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
+        assertEquals(1L, registry.getGlobalPendingConsumerAdder().sum(),
+                "Second's increment was rolled back; first task still holds 1 until it completes");
     }
     
     private static final class BlockingTracker implements ProgressTracker {

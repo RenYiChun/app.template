@@ -1,7 +1,5 @@
 package com.lrenyi.template.flow.internal;
 
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -33,12 +31,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     // --- 物理水位计数器 (使用 LongAdder 保证高并发写性能) ---
     // [活跃消费许可数]：当前正在系统中"生存"的数据总量（已入库但未终结）
     private final LongAdder activeConsumers = new LongAdder();
-    // [主动出口计数]：通过 onSuccess/onConsume 等业务路径正常终结的数量
-    private final LongAdder activeEgress = new LongAdder();
-    // [被动出口计数]：通过过期(TTL)、淘汰(Evicted)等非业务路径终结的数量
-    private final LongAdder passiveEgress = new LongAdder();
-    // [按原因统计的被动出口]：仅被动原因（见 EgressReason.isPassive()），用于 Snapshot/指标按原因统计
-    private final Map<EgressReason, LongAdder> passiveEgressByReason = new EnumMap<>(EgressReason.class);
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
@@ -53,11 +45,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     public DefaultProgressTracker(String jobId, FlowManager flowManager) {
         this.jobId = jobId;
         this.flowManager = flowManager;
-        for (EgressReason r : EgressReason.values()) {
-            if (r.isPassive()) {
-                passiveEgressByReason.put(r, new LongAdder());
-            }
-        }
     }
     
     @Override
@@ -84,16 +71,12 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public void onActiveEgress() {
-        activeEgress.increment();
         terminated.increment();
         checkCompletion();
     }
     
     @Override
     public void onPassiveEgress(EgressReason reason) {
-        passiveEgress.increment();
-        EgressReason key = (reason != null && reason.isPassive()) ? reason : EgressReason.UNKNOWN;
-        passiveEgressByReason.computeIfAbsent(key, k -> new LongAdder()).increment();
         terminated.increment();
         checkCompletion();
     }
@@ -101,7 +84,31 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onConsumerReleased(String jobId) {
         activeConsumers.decrement();
+        incrementCounter(FlowMetricNames.TERMINATED);
         checkCompletion();
+    }
+    
+    @Override
+    public void onJobStarted() {
+    }
+    
+    @Override
+    public void onJobStopped() {
+    }
+    
+    @Override
+    public void onFinalizerPendingSlotTimeout() {
+    }
+    
+    @Override
+    public void onFinalizerSubmitSkipped() {
+    }
+    
+    private void incrementCounter(String name) {
+        Counter.builder(name)
+               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+               .register(flowManager.getMeterRegistry())
+               .increment();
     }
     
     @Override
@@ -112,25 +119,15 @@ public class DefaultProgressTracker implements ProgressTracker {
             FlowStorage<Object> storage = activeLauncher.getStorage();
             inStorage = storage.size();
         }
-        Map<String, Long> reasonMap = new java.util.HashMap<>();
-        passiveEgressByReason.forEach((r, adder) -> {
-            long v = adder.sum();
-            if (v > 0) {
-                reasonMap.put(r.name(), v);
-            }
-        });
         return new FlowProgressSnapshot(jobId,
                                         totalExpected,
                                         productionAcquired.sum(),
                                         productionReleased.sum(),
                                         activeConsumers.sum(),
                                         inStorage,
-                                        activeEgress.sum(),
-                                        passiveEgress.sum(),
                                         terminated.sum(),
                                         startTimeMillis,
-                                        endTimeMillis.get(),
-                                        reasonMap
+                                        endTimeMillis.get()
         );
     }
     
@@ -217,10 +214,6 @@ public class DefaultProgressTracker implements ProgressTracker {
                          stopped
                 );
                 if (!stopped) {
-                    Counter.builder(FlowMetricNames.JOB_COMPLETED)
-                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                           .register(flowManager.getMeterRegistry())
-                           .increment();
                     flowManager.unregister(jobId);
                 }
                 completionFuture.complete(null);

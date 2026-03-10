@@ -18,12 +18,10 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -107,17 +105,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         this.clock = Clock.systemUTC();
         this.evictionCoordinator = new EvictionCoordinator(expiryIndex, this, "app-template-flow-eviction-" + jobId);
         this.evictionCoordinator.start();
-        
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, this, BoundedTimedFlowStorage::size)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "bounded")
-             .description("每 Job 存储当前 entry 数")
-             .register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, this::entryLimit)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "bounded")
-             .description("每 Job 存储 entry 上限")
-             .register(meterRegistry);
     }
 
     private static Lock stripeFor(String key) {

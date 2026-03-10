@@ -1,7 +1,6 @@
 package com.lrenyi.template.flow.storage;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -237,8 +236,6 @@ class BoundedTimedFlowStorageTest {
         assertEquals(3, snapshot.productionReleased(), "productionReleased");
         assertEquals(3, snapshot.terminated(), "terminated");
         assertEquals(0, snapshot.inStorage(), "inStorage");
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.TIMEOUT.name()) >= 1,
-                  "第 3 条应由超时驱逐");
         assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
     }
     
@@ -273,8 +270,6 @@ class BoundedTimedFlowStorageTest {
         assertEquals(3, snapshot.productionReleased(), "productionReleased");
         assertEquals(3, snapshot.terminated(), "terminated");
         assertEquals(0, snapshot.inStorage(), "inStorage");
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.CLEARED_AFTER_PAIR_SUCCESS.name()) >= 1,
-                  "未配对条应由 CLEARED_AFTER_PAIR_SUCCESS 移除");
         assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
     }
 
@@ -312,8 +307,6 @@ class BoundedTimedFlowStorageTest {
         assertEquals(3, snapshot.productionReleased(), "productionReleased");
         assertEquals(3, snapshot.terminated(), "terminated");
         assertEquals(0, snapshot.inStorage(), "inStorage");
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.TIMEOUT.name()) >= 1,
-                  "未配对条应由超时驱逐");
         assertEquals(1, joiner.getPairConsumedCount(), "驱逐时应有 1 次配对消费");
     }
 
@@ -402,55 +395,47 @@ class BoundedTimedFlowStorageTest {
         private final AtomicLong productionAcquired = new AtomicLong(0);
         private final AtomicLong productionReleased = new AtomicLong(0);
         private final AtomicLong activeConsumers = new AtomicLong(0);
-        private final AtomicLong activeEgress = new AtomicLong(0);
-        private final AtomicLong passiveEgress = new AtomicLong(0);
         private final AtomicLong terminated = new AtomicLong(0);
-        private final Map<String, Long> passiveEgressByReason = new HashMap<>();
         private volatile Supplier<Long> inStorageSupplier = () -> 0L;
-        
+
         CountingProgressTracker(String jobId) {
             this.jobId = jobId;
         }
-        
+
         void setInStorageSupplier(Supplier<Long> inStorageSupplier) {
             this.inStorageSupplier = inStorageSupplier != null ? inStorageSupplier : () -> 0L;
         }
-        
+
         @Override
         public void onProductionAcquired() {
             productionAcquired.incrementAndGet();
         }
-        
+
         @Override
         public void onProductionReleased() {
             productionReleased.incrementAndGet();
         }
-        
+
         @Override
         public void onConsumerAcquired() {
             activeConsumers.incrementAndGet();
         }
-        
+
         @Override
         public void onConsumerReleased(String jobId) {
             activeConsumers.decrementAndGet();
         }
-        
+
         @Override
         public void onActiveEgress() {
-            activeEgress.incrementAndGet();
             terminated.incrementAndGet();
         }
-        
+
         @Override
         public void onPassiveEgress(EgressReason reason) {
-            passiveEgress.incrementAndGet();
             terminated.incrementAndGet();
-            if (reason != null) {
-                passiveEgressByReason.merge(reason.name(), 1L, Long::sum);
-            }
         }
-        
+
         @Override
         public FlowProgressSnapshot getSnapshot() {
             long inStorage = inStorageSupplier.get();
@@ -460,12 +445,9 @@ class BoundedTimedFlowStorageTest {
                                             productionReleased.get(),
                                             activeConsumers.get(),
                                             inStorage,
-                                            activeEgress.get(),
-                                            passiveEgress.get(),
                                             terminated.get(),
                                             System.currentTimeMillis(),
-                                            0L,
-                                            new HashMap<>(passiveEgressByReason)
+                                            0L
             );
         }
         
