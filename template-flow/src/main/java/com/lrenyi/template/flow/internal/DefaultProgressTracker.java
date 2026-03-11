@@ -10,6 +10,7 @@ import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -124,6 +125,11 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     @Override
+    public String getMetricJobId() {
+        return metricJobId;
+    }
+
+    @Override
     public void setTotalExpected(String jobId, long total) {
         this.totalExpected = total;
     }
@@ -135,9 +141,9 @@ public class DefaultProgressTracker implements ProgressTracker {
         }
         this.sourceFinished = true;
         CompletionState state = computeCompletionState();
-        log.info("Source marked finished, jobId={}, productionAcquired={}, productionReleased={}, terminated={}, "
+        log.info("Source marked finished, {}, productionAcquired={}, productionReleased={}, terminated={}, "
                          + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
-                 this.jobId,
+                 FlowLogHelper.formatJobContext(jobId, metricJobId),
                  state.acquired(),
                  state.released(),
                  state.terminated(),
@@ -190,10 +196,10 @@ public class DefaultProgressTracker implements ProgressTracker {
                 FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
                 boolean stopped =
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
-                log.info("Job completion confirmed, jobId={}, sourceFinished={}, productionAcquired={}, "
+                log.info("Job completion confirmed, {}, sourceFinished={}, productionAcquired={}, "
                                  + "productionReleased={}, terminated={}, inStorage={}, activeConsumers={}, "
                                  + "inProduction={}, pendingConsumer={}, inFlightPush={}, stopped={}",
-                         jobId,
+                         FlowLogHelper.formatJobContext(jobId, metricJobId),
                          sourceFinished,
                          lockedState.acquired(),
                          lockedState.released(),
@@ -227,11 +233,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         boolean waitingProductionReleased = state.inProduction() > 0L;
         boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
         boolean waitingInFlightPush = state.inFlightPush() > 0;
-        log.info("Job completion pending, jobId={}, waitingSourceFinished={}, waitingStorageDrained={}, "
+        log.info("Job completion pending, {}, waitingSourceFinished={}, waitingStorageDrained={}, "
                          + "waitingConsumerReleased={}, waitingProductionReleased={}, waitingPendingConsumer={}, "
                          + "waitingInFlightPush={}, productionAcquired={}, productionReleased={}, terminated={}, "
                          + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
-                 jobId,
+                 FlowLogHelper.formatJobContext(jobId, metricJobId),
                  waitingSourceFinished,
                  waitingStorageDrained,
                  waitingConsumerReleased,

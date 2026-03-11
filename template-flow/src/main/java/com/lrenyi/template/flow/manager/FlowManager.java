@@ -16,6 +16,7 @@ import com.lrenyi.template.flow.health.HealthStatus;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.config.MeterFilter;
@@ -144,7 +145,8 @@ public class FlowManager implements ActiveLauncherLookup {
                                                 null,
                                                 e,
                                                 FlowPhase.FINALIZATION,
-                                                "stop_job_failed"
+                                                "stop_job_failed",
+                                                launcher.getMetricJobId()
             );
             log.error("停止 Job [{}] 时发生异常", launcher.getJobId(), e);
         }
@@ -160,7 +162,7 @@ public class FlowManager implements ActiveLauncherLookup {
             if (producerExecutor != null && !producerExecutor.isShutdown()) {
                 producerExecutor.shutdown();
             }
-            log.info("Job [{}] 已从管理器中注销", jobId);
+            log.info("Job [{}] 已从管理器中注销", FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()));
         }
     }
 

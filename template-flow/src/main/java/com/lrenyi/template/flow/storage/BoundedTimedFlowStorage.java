@@ -21,6 +21,7 @@ import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -246,7 +247,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         if (slot.isPairingInProgress()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] skip eviction for slot {}, pairing in progress", jobId, slotId);
+                log.trace("[{}] skip eviction for slot {}, pairing in progress",
+                    FlowLogHelper.formatJobContext(jobId, null), slotId);
             }
             return;
         }
@@ -254,7 +256,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         // 驱逐先触发、配对后触发：在真正执行驱逐前再次检查，若已进入配对则中止本次驱逐并重新排队
         if (slot.isPairingInProgress()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] abort eviction for slot {}, pairing started before drain", jobId, slotId);
+                log.trace("[{}] abort eviction for slot {}, pairing started before drain",
+                    FlowLogHelper.formatJobContext(jobId, null), slotId);
             }
             requeueSlotExpiry(slot);
             return;
@@ -364,7 +367,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     private void enqueueSlotExpiryIfNeeded(FlowSlot<T> slot) {
         if (slot.isQueuedForExpiry()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] slot already queued for expiry, slotId={}", jobId, slot.getSlotId());
+                log.trace("[{}] slot already queued for expiry, slotId={}",
+                    FlowLogHelper.formatJobContext(jobId, null), slot.getSlotId());
             }
             return;
         }
@@ -374,7 +378,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         expiryIndex.schedule(new SlotExpiryToken(slot.getSlotId(), toSystemTimeForToken(nextCheckAt)));
         if (log.isDebugEnabled()) {
             log.debug("[{}] scheduled expiry token, slotId={}, nextCheckAt={}, delayMs={}",
-                      jobId,
+                      FlowLogHelper.formatJobContext(jobId, null),
                       slot.getSlotId(),
                       nextCheckAt,
                       nextCheckAt - clock.millis()

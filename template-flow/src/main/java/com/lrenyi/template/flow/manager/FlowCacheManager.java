@@ -12,6 +12,7 @@ import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.storage.FlowStorageFactory;
 import com.lrenyi.template.flow.storage.FlowStorageFactoryLoader;
 import lombok.extern.slf4j.Slf4j;
@@ -64,11 +65,22 @@ public class FlowCacheManager {
      * 按 jobId + 存储类型使对应缓存失效并 shutdown，与 getOrCreateStorage 的 key 约定一致（用于 Job 强制停止）
      */
     public void invalidateByJobId(String jobId, FlowStorageType type, String className) {
+        invalidateByJobId(jobId, null, type, className);
+    }
+
+    /**
+     * 按 jobId + 存储类型使对应缓存失效并 shutdown，displayName 用于日志展示。
+     */
+    public void invalidateByJobId(String jobId,
+        String displayName,
+        FlowStorageType type,
+        String className) {
         String uniqueKey = jobId + ":" + type.name() + ":" + className;
         FlowStorage<?> storage = storageRegistry.remove(uniqueKey);
         if (storage != null) {
             storage.shutdown();
-            log.debug("FlowStorage invalidated for jobId={}, type={}", jobId, type);
+            log.debug("FlowStorage invalidated for {}, type={}", FlowLogHelper.formatJobContext(jobId, displayName),
+                    type);
         }
     }
 

@@ -91,7 +91,22 @@ public class FlowExceptionHelper {
             Throwable exception,
             FlowPhase phase,
             String errorType) {
+        handleException(jobId, entryId, exception, phase, errorType, null);
+    }
+
+    /**
+     * 处理异常并记录 ERRORS 指标，支持 displayName 用于日志展示。
+     */
+    public static void handleException(String jobId,
+            String entryId,
+            Throwable exception,
+            FlowPhase phase,
+            String errorType,
+            String displayName) {
         FlowExceptionContext context = new FlowExceptionContext(jobId, entryId, exception, phase, errorType);
+        if (displayName != null && !displayName.isEmpty()) {
+            context.addContext("displayName", displayName);
+        }
         MeterRegistry registry = meterRegistryRef.get();
         if (registry != null && errorType != null) {
             Counter.builder(FlowMetricNames.ERRORS)

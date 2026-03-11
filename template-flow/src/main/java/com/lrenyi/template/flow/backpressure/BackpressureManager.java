@@ -15,6 +15,7 @@ import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimensi
 import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -169,10 +170,10 @@ public class BackpressureManager {
     /** Called by {@link DefaultDimensionLease.LeakGuard} when lease is GC'd without close() */
     void onLeakDetected(String leaseId, String dimensionId) {
         leakDetected.increment();
-        log.warn("BackpressureManager: lease leak detected, leaseId={}, dimensionId={}, jobId={}",
+        log.warn("BackpressureManager: lease leak detected, leaseId={}, dimensionId={}, {}",
                  leaseId,
                  dimensionId,
-                 jobId
+                 FlowLogHelper.formatJobContext(jobId, metricJobId)
         );
         if (activeLeases.remove(leaseId) != null) {
             activeLeasesGauge.decrementAndGet();

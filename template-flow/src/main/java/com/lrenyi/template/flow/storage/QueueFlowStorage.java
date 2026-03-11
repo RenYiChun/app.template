@@ -16,6 +16,7 @@ import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -80,7 +81,10 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                        .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                        .register(meterRegistry())
                        .increment();
-                log.error("Queue drain failed for job {}", entry.getJobId(), t);
+                FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
+                log.error("Queue drain failed for job {}",
+                        FlowLogHelper.formatJobContext(entry.getJobId(),
+                                launcherForLog != null ? launcherForLog.getMetricJobId() : null), t);
                 try {
                     String key = joiner().joinKey(entry.getData());
                     handleEgress(key, entry, EgressReason.SHUTDOWN, true);
@@ -96,12 +100,13 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         boolean success = queue.offer(ctx);
         if (success) {
             if (log.isDebugEnabled()) {
-                log.debug("Data deposited into queue: jobId={}, queueSize={}", ctx.getJobId(), queue.size());
+                log.debug("Data deposited into queue: {}, queueSize={}",
+                        FlowLogHelper.formatJobContext(ctx.getJobId(), null), queue.size());
             }
             return true;
         }
         if (log.isWarnEnabled()) {
-            log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
+            log.warn("Queue full, task rejected: {}", FlowLogHelper.formatJobContext(ctx.getJobId(), null));
         }
         // 本分支不关闭 storageLease，由调用方 FlowLauncher 在 deposit 返回 false 时通过 ctx.closeStorageLease() 统一释放，避免双释放
         String key = joiner().joinKey(ctx.getData());

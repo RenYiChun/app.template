@@ -76,6 +76,13 @@ public interface ProgressTracker {
     }
 
     /**
+     * 获取用于监控/日志的展示名。默认返回 null；DefaultProgressTracker 返回 setMetricJobId 设置的值。
+     */
+    default String getMetricJobId() {
+        return null;
+    }
+
+    /**
      * 是否已完成。
      */
     boolean isCompleted();

@@ -21,6 +21,7 @@ import com.lrenyi.template.flow.executor.DefaultFlowExecutorProvider;
 import com.lrenyi.template.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.model.FlowConstants;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -290,7 +291,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     /** Job 创建时调用，用于动态 fair share 的 activeJobCount */
     public void registerJob(String jobId) {
         activeJobCount.incrementAndGet();
-        log.trace("FairShare: job registered, jobId={}, activeJobCount={}", jobId, activeJobCount.get());
+        log.trace("FairShare: job registered, {}, activeJobCount={}", FlowLogHelper.formatJobContext(jobId, null),
+                activeJobCount.get());
     }
     
     /** Job 注销时调用，唤醒等待配额的其他 Job */
@@ -298,9 +300,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int remaining = activeJobCount.decrementAndGet();
         if (remaining < 0) {
             activeJobCount.set(0);
-            log.warn("FairShare: activeJobCount underflow, jobId={}", jobId);
+            log.warn("FairShare: activeJobCount underflow, {}", FlowLogHelper.formatJobContext(jobId, null));
         }
-        log.trace("FairShare: job deregistered, jobId={}, activeJobCount={}", jobId, activeJobCount.get());
+        log.trace("FairShare: job deregistered, {}, activeJobCount={}", FlowLogHelper.formatJobContext(jobId, null),
+                activeJobCount.get());
         signalAllDimensions();
     }
     

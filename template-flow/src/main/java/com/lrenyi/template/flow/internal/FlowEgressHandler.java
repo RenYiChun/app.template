@@ -6,6 +6,7 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.model.EgressReason;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,21 +32,25 @@ public final class FlowEgressHandler<T> {
     public void performPairConsumed(FlowEntry<T> partner, FlowEntry<T> entry) {
         String jobId = entry.getJobId();
         if (log.isDebugEnabled()) {
-            log.debug("Pair consumed start, jobId={}", jobId);
+            log.debug("Pair consumed start, {}", FlowLogHelper.formatJobContext(jobId,
+                    progressTracker.getMetricJobId()));
         }
         try {
             joiner.onPairConsumed(partner.getData(), entry.getData(), jobId);
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "onPairConsumed_failed");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "onPairConsumed_failed",
+                    progressTracker.getMetricJobId());
         }
         try {
             progressTracker.onActiveEgress();
             progressTracker.onActiveEgress();
         } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "progress_tracker_pair_failed");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "progress_tracker_pair_failed",
+                    progressTracker.getMetricJobId());
         }
         if (log.isDebugEnabled()) {
-            log.debug("Pair consumed finished, jobId={}", jobId);
+            log.debug("Pair consumed finished, {}", FlowLogHelper.formatJobContext(jobId,
+                    progressTracker.getMetricJobId()));
         }
     }
     
@@ -57,7 +62,8 @@ public final class FlowEgressHandler<T> {
     public void performSingleConsumed(FlowEntry<T> entry, EgressReason reason) {
         String jobId = entry.getJobId();
         if (log.isDebugEnabled()) {
-            log.debug("Single consumed start, jobId={}, reason={}", jobId, reason);
+            log.debug("Single consumed start, {}, reason={}", FlowLogHelper.formatJobContext(jobId,
+                    progressTracker.getMetricJobId()), reason);
         }
         try {
             joiner.onSingleConsumed(entry.getData(), jobId, reason);
@@ -76,7 +82,8 @@ public final class FlowEgressHandler<T> {
                                                 null,
                                                 e,
                                                 FlowPhase.CONSUMPTION,
-                                                "progress_tracker_single_failed"
+                                                "progress_tracker_single_failed",
+                                                progressTracker.getMetricJobId()
             );
         }
         if (passive) {
@@ -84,11 +91,13 @@ public final class FlowEgressHandler<T> {
                     || reason == EgressReason.EVICTION
                     || reason == EgressReason.REJECT
                     || reason == EgressReason.MISMATCH) {
-                log.warn("Passive egress occurred, jobId={}, reason={}", jobId, reason);
+                log.warn("Passive egress occurred, {}, reason={}",
+                        FlowLogHelper.formatJobContext(jobId, progressTracker.getMetricJobId()), reason);
             }
         }
         if (log.isDebugEnabled()) {
-            log.debug("Single consumed finished, jobId={}, reason={}, passive={}", jobId, reason, passive);
+            log.debug("Single consumed finished, {}, reason={}, passive={}",
+                    FlowLogHelper.formatJobContext(jobId, progressTracker.getMetricJobId()), reason, passive);
         }
     }
 }

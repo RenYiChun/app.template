@@ -5,6 +5,7 @@ import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.backpressure.ResourceBackpressureDimension;
 import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.Counter;
@@ -108,9 +109,9 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
                 long waitedMs = System.currentTimeMillis() - startMs;
                 int perJobAvail = pair.getPerJobAvailablePermits();
                 int globalAvail = pair.getGlobalAvailablePermits();
-                log.warn("In-flight-production acquire timeout, jobId={}, waitedMs={}, "
+                log.warn("In-flight-production acquire timeout, {}, waitedMs={}, "
                                  + "perJobAvailablePermits={}, globalAvailablePermits={}",
-                         ctx.getJobId(),
+                         FlowLogHelper.formatJobContext(ctx.getJobId(), ctx.getMetricJobIdForTags()),
                          waitedMs,
                          perJobAvail,
                          globalAvail == -1 ? "unlimited" : globalAvail

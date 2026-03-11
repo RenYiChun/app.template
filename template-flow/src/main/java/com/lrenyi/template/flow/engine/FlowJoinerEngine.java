@@ -23,6 +23,7 @@ import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.FlowConstants;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +61,7 @@ public class FlowJoinerEngine {
         FlowJoiner<T> joiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow jc) {
-        log.info("驱动流聚合任务开始: {}", jobId);
+        log.info("驱动流聚合任务开始: {}", FlowLogHelper.formatJobContext(jobId, displayName));
         try {
             FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
 
@@ -88,8 +89,8 @@ public class FlowJoinerEngine {
         awaitInProductionDrained(launcher);
         launcher.getTracker().markSourceFinished(jobId);
         launcher.getStorage().triggerCompletionDrain();
-        log.info("子流生产阶段结束, jobId={}, submittedSubSources={}, elapsedMs={}",
-                 jobId,
+        log.info("子流生产阶段结束, {}, submittedSubSources={}, elapsedMs={}",
+                 FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()),
                  submittedSubSources.get(),
                  System.currentTimeMillis() - startMillis
         );
@@ -181,15 +182,19 @@ public class FlowJoinerEngine {
         long startMillis = System.currentTimeMillis();
         try (sub) {
             long pulledCount = drainSubSource(sub, launcher);
-            log.info("子流处理完成, jobId={}, subSourceSeq={}, pulledCount={}, elapsedMs={}",
-                     jobId,
+            log.info("子流处理完成, {}, subSourceSeq={}, pulledCount={}, elapsedMs={}",
+                     FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()),
                      subSourceSeq,
                      pulledCount,
                      System.currentTimeMillis() - startMillis
             );
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "subsource_failed");
-            log.error("子流消费异常, jobId={}, subSourceSeq={}", jobId, subSourceSeq, e);
+            log.error("子流消费异常, {}, subSourceSeq={}",
+                      FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()),
+                      subSourceSeq,
+                      e
+            );
         }
     }
 
@@ -204,7 +209,10 @@ public class FlowJoinerEngine {
                        .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())
                        .increment();
-                log.warn("子流处理提前停止, jobId={}, pulledCount={}", launcher.getJobId(), pulledCount);
+                log.warn("子流处理提前停止, {}, pulledCount={}",
+                         FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()),
+                         pulledCount
+                );
                 return pulledCount;
             }
             launcher.launch(item.get());
@@ -263,7 +271,7 @@ public class FlowJoinerEngine {
         FlowSource<T> singleSource,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow jc) {
-        log.info("驱动流聚合任务开始（单流）: {}", jobId);
+        log.info("驱动流聚合任务开始（单流）: {}", FlowLogHelper.formatJobContext(jobId, displayName));
 
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
 
@@ -294,7 +302,7 @@ public class FlowJoinerEngine {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, flowConfig);
-        log.info("推送模式任务启动, jobId={}, totalExpected={}", jobId, total);
+        log.info("推送模式任务启动, {}, totalExpected={}", FlowLogHelper.formatJobContext(jobId, displayName), total);
         FlowInletImpl<T> inlet = new FlowInletImpl<>(launcher);
         launcher.setInFlightPushCountSupplier(inlet::getInFlightPushCount);
         return inlet;

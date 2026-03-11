@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.backpressure.ResourceBackpressureDimension;
 import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.Counter;
@@ -70,7 +71,8 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
                    .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                    .register(registry)
                    .increment();
-            log.warn("In-flight-consumer slot acquire timeout, jobId={}, timeoutMs={}", ctx.getJobId(),
+            log.warn("In-flight-consumer slot acquire timeout, {}, timeoutMs={}",
+                    FlowLogHelper.formatJobContext(ctx.getJobId(), ctx.getMetricJobIdForTags()),
                     SLOT_ACQUIRE_TIMEOUT_MS);
             throw new TimeoutException("in-flight-consumer slot acquire timeout for jobId=" + ctx.getJobId()
                                                + ", timeoutMs="

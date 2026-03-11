@@ -20,6 +20,7 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -119,10 +120,12 @@ public class FlowLauncher<T> {
             inFlightLease = backpressureManager.acquire(InFlightProductionDimension.ID, () -> stopped);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted",
+                    metricJobId);
             return;
         } catch (TimeoutException e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout");
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout",
+                    metricJobId);
             return;
         }
         tracker.onProductionAcquired();
@@ -165,7 +168,8 @@ public class FlowLauncher<T> {
                                                 null,
                                                 e,
                                                 FlowPhase.STORAGE,
-                                                "producer_concurrency_acquire_timeout"
+                                                "producer_concurrency_acquire_timeout",
+                                                metricJobId
             );
             return;
         }
@@ -173,7 +177,8 @@ public class FlowLauncher<T> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
                 if (stopped) {
-                    log.info("Deposit task skipped because job already stopped, jobId={}", jobId);
+                    log.info("Deposit task skipped because job already stopped, {}",
+                            FlowLogHelper.formatJobContext(jobId, metricJobId));
                     @SuppressWarnings("unchecked") var handler =
                         (FlowEgressHandler<T>) resourceContext.getEgressHandler();
                     handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
@@ -190,11 +195,13 @@ public class FlowLauncher<T> {
                                                         null,
                                                         e,
                                                         FlowPhase.STORAGE,
-                                                        "storage_acquire_interrupted"
+                                                        "storage_acquire_interrupted",
+                                                        metricJobId
                     );
                     return;
                 } catch (TimeoutException e) {
-                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "storage_acquire_timeout");
+                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "storage_acquire_timeout",
+                            metricJobId);
                     return;
                 }
                 ctx.setStorageLease(storageLease);
@@ -215,8 +222,8 @@ public class FlowLauncher<T> {
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
             } catch (Throwable e) {
-                log.error("Deposit task failed, jobId={}", jobId, e);
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed");
+                log.error("Deposit task failed, {}", FlowLogHelper.formatJobContext(jobId, metricJobId), e);
+                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed", metricJobId);
             } finally {
                 tracker.onProductionReleased();
                 inFlightLease.close();
@@ -244,14 +251,15 @@ public class FlowLauncher<T> {
         if (stopped) {
             return;
         }
-        log.info("停止 Job [{}], force={}", jobId, force);
+        log.info("停止 Job [{}], force={}", FlowLogHelper.formatJobContext(jobId, metricJobId), force);
         this.stopped = true;
         tracker.markSourceFinished(jobId);
         try {
             FlowStorageType type = flowJoiner.getStorageType();
-            resourceContext.getCacheManager().invalidateByJobId(jobId, type, flowJoiner.getDataType().getSimpleName());
+            resourceContext.getCacheManager()
+               .invalidateByJobId(jobId, metricJobId, type, flowJoiner.getDataType().getSimpleName());
         } catch (Exception e) {
-            log.error("Job [{}] 停止时清理 Storage 失败", jobId, e);
+            log.error("Job [{}] 停止时清理 Storage 失败", FlowLogHelper.formatJobContext(jobId, metricJobId), e);
         }
         flowManager.unregister(jobId);
     }
