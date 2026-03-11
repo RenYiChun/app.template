@@ -38,15 +38,31 @@ public class FlowJoinerEngine {
     private final FlowManager flowManager;
 
     public <T> void run(String jobId, FlowJoiner<T> joiner, long total, TemplateConfigProperties.Flow flowConfig) {
+        run(jobId, null, joiner, total, flowConfig);
+    }
+
+    public <T> void run(String jobId,
+        String displayName,
+        FlowJoiner<T> joiner,
+        long total,
+        TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        run(jobId, joiner, tracker, flowConfig);
+        run(jobId, displayName, joiner, tracker, flowConfig);
     }
 
     public <T> void run(String jobId, FlowJoiner<T> joiner, ProgressTracker tracker, TemplateConfigProperties.Flow jc) {
+        run(jobId, null, joiner, tracker, jc);
+    }
+
+    public <T> void run(String jobId,
+        String displayName,
+        FlowJoiner<T> joiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", jobId);
         try {
-            FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
+            FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
 
             try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
                 runUntilNoMoreSubSources(provider, jobId, launcher);
@@ -219,9 +235,18 @@ public class FlowJoinerEngine {
         FlowSource<T> singleSource,
         long total,
         TemplateConfigProperties.Flow flowConfig) {
+        run(jobId, null, joiner, singleSource, total, flowConfig);
+    }
+
+    public <T> void run(String jobId,
+        String displayName,
+        FlowJoiner<T> joiner,
+        FlowSource<T> singleSource,
+        long total,
+        TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        run(jobId, joiner, singleSource, tracker, flowConfig);
+        run(jobId, displayName, joiner, singleSource, tracker, flowConfig);
     }
 
     public <T> void run(String jobId,
@@ -229,9 +254,18 @@ public class FlowJoinerEngine {
         FlowSource<T> singleSource,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow jc) {
+        run(jobId, null, joiner, singleSource, tracker, jc);
+    }
+
+    public <T> void run(String jobId,
+        String displayName,
+        FlowJoiner<T> joiner,
+        FlowSource<T> singleSource,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始（单流）: {}", jobId);
 
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, jc);
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
 
         try (FlowSourceProvider<T> provider = FlowSourceAdapters.singleSourceProvider(singleSource)) {
             runUntilNoMoreSubSources(provider, jobId, launcher);
@@ -242,16 +276,24 @@ public class FlowJoinerEngine {
      * 推送模式：注册任务并返回 FlowInlet
      */
     public <T> FlowInlet<T> startPush(String jobId, FlowJoiner<T> joiner, TemplateConfigProperties.Flow flowConfig) {
-        return startPush(jobId, joiner, -1, flowConfig);
+        return startPush(jobId, null, joiner, -1, flowConfig);
     }
 
     public <T> FlowInlet<T> startPush(String jobId,
         FlowJoiner<T> joiner,
         long total,
         TemplateConfigProperties.Flow flowConfig) {
+        return startPush(jobId, null, joiner, total, flowConfig);
+    }
+
+    public <T> FlowInlet<T> startPush(String jobId,
+        String displayName,
+        FlowJoiner<T> joiner,
+        long total,
+        TemplateConfigProperties.Flow flowConfig) {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, joiner, tracker, flowConfig);
+        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, flowConfig);
         log.info("推送模式任务启动, jobId={}, totalExpected={}", jobId, total);
         FlowInletImpl<T> inlet = new FlowInletImpl<>(launcher);
         launcher.setInFlightPushCountSupplier(inlet::getInFlightPushCount);

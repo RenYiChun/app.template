@@ -47,27 +47,32 @@
 
 ### 2. API 变更
 
-#### 2.1 FlowManager
+#### 2.1 FlowJoinerEngine（外部入口）
 
 ```java
-// 新增：创建 Launcher 时显式传入显示名
-<T> FlowLauncher<T> createLauncher(String jobId,
-                                    String displayName,  // 新增，可 null
-                                    FlowJoiner<T> flowJoiner,
-                                    ProgressTracker tracker,
-                                    TemplateConfigProperties.Flow flowConfig);
+// run：多流 / 单流
+void run(String jobId, String displayName, FlowJoiner<T> joiner, long total, Flow flowConfig);
+void run(String jobId, String displayName, FlowJoiner<T> joiner, ProgressTracker tracker, Flow flowConfig);
+void run(String jobId, String displayName, FlowJoiner<T> joiner, FlowSource<T> singleSource, ...);
 
-// 保留：原 createLauncher(jobId, ...) 重载，displayName 传 null
+// startPush：推送模式
+FlowInlet<T> startPush(String jobId, String displayName, FlowJoiner<T> joiner, long total, Flow flowConfig);
 ```
+
+原有无 `displayName` 的重载保留，内部委托时传 `null`。
 
 #### 2.2 使用示例
 
+外部通过 `FlowJoinerEngine` 启动任务，支持在 `run` / `startPush` 中传入 `displayName`：
+
 ```java
 // 显式注册：启动时传入展示名
-flowManager.createLauncher("order-match-20250110-abc", "订单匹配", joiner, tracker, flow);
+engine.run("order-match-20250110-abc", "订单匹配", joiner, total, flow);
+engine.run("order-match-abc", "订单匹配", joiner, tracker, flow);
+engine.startPush("push-job-abc", "推送对账", joiner, total, flow);
 
-// 不配置：使用 jobId 原样
-flowManager.createLauncher("uuid-xxx", joiner, tracker, flow);
+// 不配置：使用 jobId 原样（原有调用方式不变）
+engine.run("uuid-xxx", joiner, total, flow);
 ```
 
 ### 3. 内部实现要点
