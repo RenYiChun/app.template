@@ -77,7 +77,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     if (didFinalize) {
                         long latency = System.currentTimeMillis() - startTime;
                         Timer.builder(FlowMetricNames.FINALIZE_DURATION)
-                             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                             .tag(FlowMetricNames.TAG_JOB_ID, launcher.getMetricJobId())
                              .register(meterRegistry)
                              .record(latency, java.util.concurrent.TimeUnit.MILLISECONDS);
                     }
@@ -189,7 +189,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     }
                     long matchLatency = System.currentTimeMillis() - matchStartTime;
                     Timer.builder(FlowMetricNames.MATCH_DURATION)
-                         .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                         .tag(FlowMetricNames.TAG_JOB_ID, launcher.getMetricJobId())
                          .register(meterRegistry)
                          .record(matchLatency, TimeUnit.MILLISECONDS);
                 } catch (Exception e) {

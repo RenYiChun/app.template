@@ -46,10 +46,10 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
         }
         
         MeterRegistry registry = ctx.getMeterRegistry();
-        String jobId = ctx.getJobId();
+        String metricJobId = ctx.getMetricJobIdForTags();
         
         Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(registry)
                .increment();
@@ -69,19 +69,19 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
             }
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
-                             .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                              .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                              .register(registry));
         }
         
         if (!acquired) {
             Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT)
-                   .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                    .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                    .register(registry)
                    .increment();
             throw new TimeoutException(
-                    "consumer-concurrency acquire timeout for jobId=" + jobId + ", timeoutMs=" + timeoutMs);
+                    "consumer-concurrency acquire timeout for jobId=" + ctx.getJobId() + ", timeoutMs=" + timeoutMs);
         }
     }
     
@@ -96,7 +96,7 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
         }
         pair.release(permits, ctx.getGlobalConsumerLimit());
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
+               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getMetricJobIdForTags())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
                .increment(permits);

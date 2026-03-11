@@ -42,6 +42,8 @@ public class FlowManager implements ActiveLauncherLookup {
 
     private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
     private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
+    /** 显式注册的 jobId -> 显示名，用于监控指标 */
+    private final Map<String, String> jobIdToDisplayName = new ConcurrentHashMap<>();
 
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -150,6 +152,7 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public void unregister(String jobId) {
         resourceRegistry.deregisterJob(jobId);
+        jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
         if (launcher != null) {
             completedTrackers.put(jobId, launcher.getTracker());
@@ -179,6 +182,20 @@ public class FlowManager implements ActiveLauncherLookup {
         FlowJoiner<T> flowJoiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
+        return createLauncher(jobId, null, flowJoiner, tracker, flowConfig);
+    }
+
+    /**
+     * 创建 Launcher，支持显式指定监控展示名。
+     *
+     * @param jobId       业务 jobId
+     * @param displayName 监控展示名，null 时使用 jobId 原样
+     */
+    public <T> FlowLauncher<T> createLauncher(String jobId,
+        String displayName,
+        FlowJoiner<T> flowJoiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow flowConfig) {
         try {
             if (activeLaunchers.containsKey(jobId)) {
                 throw new IllegalStateException(
@@ -186,7 +203,14 @@ public class FlowManager implements ActiveLauncherLookup {
             }
             completedTrackers.remove(jobId);
 
-            FlowLauncher<T> launcher = FlowLauncherFactory.create(this, jobId, flowJoiner, tracker, flowConfig);
+            if (displayName != null && !displayName.isEmpty()) {
+                jobIdToDisplayName.put(jobId, displayName);
+            }
+            String metricJobId = resolveMetricJobId(jobId);
+            tracker.setMetricJobId(metricJobId);
+
+            FlowLauncher<T> launcher =
+                FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             resourceRegistry.registerJob(jobId);
             return launcher;
@@ -194,6 +218,12 @@ public class FlowManager implements ActiveLauncherLookup {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
             throw e;
         }
+    }
+
+    /** 解析用于指标标签的 jobId：显式注册 > 原样 */
+    private String resolveMetricJobId(String jobId) {
+        String explicit = jobIdToDisplayName.get(jobId);
+        return explicit != null ? explicit : jobId;
     }
 
     public boolean isStopped(String jobId) {

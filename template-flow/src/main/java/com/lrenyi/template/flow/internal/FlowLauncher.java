@@ -40,6 +40,7 @@ public class FlowLauncher<T> {
     private static final String PHASE_PRODUCTION = "PRODUCTION";
     private final AtomicInteger counter = new AtomicInteger(0);
     private final String jobId;
+    private final String metricJobId;
     private final FlowStorage<T> storage;
     private final FlowManager flowManager;
     private final FlowJoiner<T> flowJoiner;
@@ -58,12 +59,14 @@ public class FlowLauncher<T> {
 
     @SuppressWarnings("unchecked")
     private FlowLauncher(String jobId,
+        String metricJobId,
         FlowManager flowManager,
         FlowJoiner<T> flowJoiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flow,
         FlowResourceContext resourceContext) {
         this.jobId = jobId;
+        this.metricJobId = metricJobId != null ? metricJobId : jobId;
         this.flowManager = flowManager;
         this.flowJoiner = flowJoiner;
         this.resourceContext = resourceContext;
@@ -81,13 +84,18 @@ public class FlowLauncher<T> {
     }
 
     public static <T> FlowLauncher<T> create(String jobId,
+        String metricJobId,
         FlowJoiner<T> flowJoiner,
         FlowManager flowManager,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flow,
         FlowResourceContext resourceContext) {
+        return new FlowLauncher<>(jobId, metricJobId, flowManager, flowJoiner, tracker, flow, resourceContext);
+    }
 
-        return new FlowLauncher<>(jobId, flowManager, flowJoiner, tracker, flow, resourceContext);
+    /** 用于监控指标标签的 jobId（可读展示名） */
+    public String getMetricJobId() {
+        return metricJobId;
     }
 
     /** 当前 in-flight push 数（未注册 supplier 时返回 0）。 */
@@ -203,7 +211,7 @@ public class FlowLauncher<T> {
                 long depositLatency = System.currentTimeMillis() - depositStartTime;
 
                 Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
-                     .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+                     .tag(FlowMetricNames.TAG_JOB_ID, metricJobId)
                      .register(registry())
                      .record(depositLatency, TimeUnit.MILLISECONDS);
             } catch (Throwable e) {

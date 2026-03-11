@@ -39,6 +39,7 @@ public class BackpressureManager {
     private static final BooleanSupplier NEVER_STOP = () -> false;
     
     private final String jobId;
+    private final String metricJobId;
     private final DimensionContext baseCtx;
     private final Map<String, ResourceBackpressureDimension> dimensionMap;
     private final ConcurrentHashMap<String, DimensionLease> activeLeases = new ConcurrentHashMap<>();
@@ -53,23 +54,24 @@ public class BackpressureManager {
     
     public BackpressureManager(DimensionContext baseCtx, MeterRegistry meterRegistry) {
         this.jobId = baseCtx.getJobId();
+        this.metricJobId = baseCtx.getMetricJobIdForTags();
         this.baseCtx = baseCtx;
         this.dimensionMap = loadDimensions();
         
         this.acquireSuccess = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS)
-                                     .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                                     .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                                      .register(meterRegistry);
         this.acquireFailed = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED)
-                                    .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                                    .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                                     .register(meterRegistry);
         this.idempotentHit = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT)
-                                    .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                                    .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                                     .register(meterRegistry);
         this.leakDetected = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED)
-                                   .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                                    .register(meterRegistry);
         Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE, activeLeasesGauge, AtomicInteger::get)
-             .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
              .register(meterRegistry);
     }
     
@@ -207,6 +209,7 @@ public class BackpressureManager {
     private DimensionContext buildContext(String dimensionId, BooleanSupplier stopCheck, int permits) {
         return DimensionContext.builder()
                                .jobId(baseCtx.getJobId())
+                               .metricJobId(baseCtx.getMetricJobId())
                                .dimensionId(dimensionId)
                                .permits(permits)
                                .stopCheck(stopCheck)

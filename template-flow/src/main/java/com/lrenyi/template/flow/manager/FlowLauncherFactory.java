@@ -26,6 +26,7 @@ final class FlowLauncherFactory {
 
     static <T> FlowLauncher<T> create(FlowManager flowManager,
             String jobId,
+            String metricJobId,
             FlowJoiner<T> flowJoiner,
             ProgressTracker tracker,
             TemplateConfigProperties.Flow flow) {
@@ -51,6 +52,7 @@ final class FlowLauncherFactory {
                                          );
         
         BackpressureManager backpressureManager = createBackpressureManager(jobId,
+                                                                            metricJobId,
                                                                             flow,
                                                                             registry,
                                                                             meterRegistry,
@@ -74,7 +76,7 @@ final class FlowLauncherFactory {
                                                                  .producerPermitPair(permitPairs.producer)
                                                                  .build();
         
-        return FlowLauncher.create(jobId, flowJoiner, flowManager, tracker, flow, resourceContext);
+        return FlowLauncher.create(jobId, metricJobId, flowJoiner, flowManager, tracker, flow, resourceContext);
     }
     
     private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {
@@ -105,6 +107,7 @@ final class FlowLauncherFactory {
     }
     
     private static BackpressureManager createBackpressureManager(String jobId,
+            String metricJobId,
             TemplateConfigProperties.Flow flow,
             FlowResourceRegistry registry,
             MeterRegistry meterRegistry,
@@ -112,6 +115,7 @@ final class FlowLauncherFactory {
             int globalConsumerLimit) {
         DimensionContext baseCtx = DimensionContext.builder()
                                                    .jobId(jobId)
+                                                   .metricJobId(metricJobId)
                                                    .dimensionId(null)
                                                    .stopCheck(() -> false)
                                                    .permits(1)

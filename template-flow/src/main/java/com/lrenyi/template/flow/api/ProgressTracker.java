@@ -69,6 +69,13 @@ public interface ProgressTracker {
     void markSourceFinished(String jobId);
     
     /**
+     * 设置用于监控指标标签的 jobId（可读展示名）。
+     * 默认 no-op；{@link com.lrenyi.template.flow.internal.DefaultProgressTracker} 会使用此值记录 TERMINATED 等指标。
+     */
+    default void setMetricJobId(String metricJobId) {
+    }
+
+    /**
      * 是否已完成。
      */
     boolean isCompleted();

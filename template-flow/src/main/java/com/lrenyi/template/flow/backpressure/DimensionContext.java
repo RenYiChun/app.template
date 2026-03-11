@@ -16,8 +16,16 @@ import lombok.Getter;
 @Getter
 public final class DimensionContext {
     
-    /** Job 标识 */
+    /** Job 标识（业务用，日志、存储等） */
     private final String jobId;
+    
+    /** 指标展示用 jobId（监控友好名），null 时使用 jobId */
+    private final String metricJobId;
+    
+    /** 用于指标标签的 jobId，优先使用 metricJobId */
+    public String getMetricJobIdForTags() {
+        return (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+    }
     
     /** 当前路由的维度 ID */
     private final String dimensionId;

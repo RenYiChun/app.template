@@ -45,10 +45,10 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
         }
         
         MeterRegistry registry = ctx.getMeterRegistry();
-        String jobId = ctx.getJobId();
+        String metricJobId = ctx.getMetricJobIdForTags();
         
         Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(registry)
                .increment();
@@ -59,24 +59,26 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
             acquired = pair.tryAcquireBoth(permits, SLOT_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
-                             .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                              .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                              .register(registry));
         }
         
         if (!acquired) {
             Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT)
-                   .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                    .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                    .register(registry)
                    .increment();
-            log.warn("In-flight-consumer slot acquire timeout, jobId={}, timeoutMs={}", jobId, SLOT_ACQUIRE_TIMEOUT_MS);
-            throw new TimeoutException("in-flight-consumer slot acquire timeout for jobId=" + jobId + ", timeoutMs="
+            log.warn("In-flight-consumer slot acquire timeout, jobId={}, timeoutMs={}", ctx.getJobId(),
+                    SLOT_ACQUIRE_TIMEOUT_MS);
+            throw new TimeoutException("in-flight-consumer slot acquire timeout for jobId=" + ctx.getJobId()
+                                               + ", timeoutMs="
                                                + SLOT_ACQUIRE_TIMEOUT_MS);
         }
         
         Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(registry)
                .increment();
@@ -93,7 +95,7 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
         }
         pair.release(permits);
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
+               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getMetricJobIdForTags())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
                .increment(permits);

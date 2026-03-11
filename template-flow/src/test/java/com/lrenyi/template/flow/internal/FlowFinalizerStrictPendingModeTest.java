@@ -53,7 +53,7 @@ class FlowFinalizerStrictPendingModeTest {
                                                          .build();
         NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
-                FlowLauncher.create(jobId, joiner, manager, tracker, flow, context);
+                FlowLauncher.create(jobId, jobId, joiner, manager, tracker, flow, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
         FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
@@ -83,7 +83,7 @@ class FlowFinalizerStrictPendingModeTest {
                                                          .build();
         NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
-                FlowLauncher.create(jobId, joiner, manager, tracker, flow, context);
+                FlowLauncher.create(jobId, jobId, joiner, manager, tracker, flow, context);
         
         FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
         FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);

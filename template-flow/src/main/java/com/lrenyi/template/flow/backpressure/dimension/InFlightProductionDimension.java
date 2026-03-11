@@ -45,10 +45,10 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
         }
         
         MeterRegistry registry = ctx.getMeterRegistry();
-        String jobId = ctx.getJobId();
+        String metricJobId = ctx.getMetricJobIdForTags();
         
         Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(registry)
                .increment();
@@ -93,7 +93,7 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
             
             if (blocked) {
                 Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED)
-                       .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                       .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                        .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                        .register(registry)
                        .increment();
@@ -101,7 +101,7 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
             
             if (!acquired && !ctx.getStopCheck().getAsBoolean()) {
                 Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT)
-                       .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                       .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                        .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                        .register(registry)
                        .increment();
@@ -110,17 +110,17 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
                 int globalAvail = pair.getGlobalAvailablePermits();
                 log.warn("In-flight-production acquire timeout, jobId={}, waitedMs={}, "
                                  + "perJobAvailablePermits={}, globalAvailablePermits={}",
-                         jobId,
+                         ctx.getJobId(),
                          waitedMs,
                          perJobAvail,
                          globalAvail == -1 ? "unlimited" : globalAvail
                 );
                 throw new TimeoutException(
-                        "in-flight-production acquire timeout for jobId=" + jobId + ", waitedMs=" + waitedMs);
+                        "in-flight-production acquire timeout for jobId=" + ctx.getJobId() + ", waitedMs=" + waitedMs);
             }
         } finally {
             sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
-                             .tag(BackpressureMetricNames.TAG_JOB_ID, jobId)
+                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
                              .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                              .register(registry));
         }
@@ -137,7 +137,7 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
         }
         pair.release(permits);
         Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getJobId())
+               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getMetricJobIdForTags())
                .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
                .register(ctx.getMeterRegistry())
                .increment(permits);

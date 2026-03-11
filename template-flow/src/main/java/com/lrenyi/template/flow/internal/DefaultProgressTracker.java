@@ -37,6 +37,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     // 使用 Lock 替代 synchronized，避免虚拟线程 Pinning 现象
     private final ReentrantLock finishLock = new ReentrantLock();
     private final AtomicLong lastCompletionBlockedLogMillis = new AtomicLong(0L);
+    /** 用于指标标签的 jobId（可读展示名），null 时使用 jobId */
+    private volatile String metricJobId;
     // 业务预期的总条数，由 Source 探测或业务方指定
     private volatile long totalExpected = -1L;
     // 生产端状态：标记 Source 是否已经彻底读完
@@ -89,8 +91,9 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     private void incrementCounter(String name) {
+        String tagJobId = (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
         Counter.builder(name)
-               .tag(FlowMetricNames.TAG_JOB_ID, jobId)
+               .tag(FlowMetricNames.TAG_JOB_ID, tagJobId)
                .register(flowManager.getMeterRegistry())
                .increment();
     }
@@ -115,6 +118,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         );
     }
     
+    @Override
+    public void setMetricJobId(String metricJobId) {
+        this.metricJobId = metricJobId;
+    }
+
     @Override
     public void setTotalExpected(String jobId, long total) {
         this.totalExpected = total;
