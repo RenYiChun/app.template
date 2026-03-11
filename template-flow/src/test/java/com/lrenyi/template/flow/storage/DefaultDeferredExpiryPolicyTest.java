@@ -40,8 +40,10 @@ class DefaultDeferredExpiryPolicyTest {
         assertEquals(now + 100, first);
         assertEquals(now + 200, second);
         assertEquals(now + 400, third);
-        // 800 之后按 max 1000 封顶
-        assertEquals(now + 1_000, fourth);
+        assertEquals(now + 800, fourth);
+        // 800*2=1600 超过 max 1000，第五步才封顶
+        long fifth = policy.nextCheckAt(now, 0, 0, fourth);
+        assertEquals(now + 1_000, fifth);
     }
     
     @Test

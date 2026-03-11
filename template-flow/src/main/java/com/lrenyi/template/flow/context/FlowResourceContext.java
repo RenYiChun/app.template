@@ -5,7 +5,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
-import com.lrenyi.template.flow.internal.BackpressureController;
+import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -54,9 +54,9 @@ public class FlowResourceContext {
     private final FlowStorage<?> storage;
     
     /**
-     * Job级资源：背压控制器
+     * Job级资源：背压管理器
      */
-    private final BackpressureController backpressureController;
+    private final BackpressureManager backpressureManager;
     
     /**
      * Job级资源：生产者执行器（信号量受控）

@@ -1,6 +1,8 @@
 package com.lrenyi.template.flow.exception;
 
+import java.util.Map;
 import com.lrenyi.template.flow.api.FlowExceptionHandler;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -19,8 +21,9 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
         Throwable exception = context.getException();
         
         // 构建详细的错误信息
+        String displayName = (String) context.getContext().get("displayName");
         StringBuilder message = new StringBuilder();
-        message.append("Flow异常 [jobId=").append(jobId);
+        message.append("Flow异常 [").append(FlowLogHelper.formatJobContext(jobId, displayName));
         if (entryId != null) {
             message.append(", entryId=").append(entryId);
         }
@@ -29,9 +32,11 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
             message.append(", errorType=").append(errorType);
         }
         
-        // 添加上下文信息
-        if (!context.getContext().isEmpty()) {
-            message.append(", context=").append(context.getContext());
+        // 添加上下文信息（排除 displayName，已用于 formatJobContext）
+        Map<String, Object> ctx = new java.util.HashMap<>(context.getContext());
+        ctx.remove("displayName");
+        if (!ctx.isEmpty()) {
+            message.append(", context=").append(ctx);
         }
         message.append("]");
         

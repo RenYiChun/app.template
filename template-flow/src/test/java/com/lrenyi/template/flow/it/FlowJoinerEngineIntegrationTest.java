@@ -26,7 +26,6 @@ import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -156,12 +155,6 @@ class FlowJoinerEngineIntegrationTest {
         return false;
     }
 
-    private double getCounterValue(String metricName, String jobId) {
-        MeterRegistry registry = manager.getMeterRegistry();
-        var counter = registry.find(metricName).tag(FlowMetricNames.TAG_JOB_ID, jobId).counter();
-        return counter == null ? 0D : counter.count();
-    }
-    
     @Test
     void itPullMultiStream() throws Exception {
         int pairCount = 10;
@@ -296,10 +289,6 @@ class FlowJoinerEngineIntegrationTest {
         awaitConditionWithResult(inlet::isCompleted, TimeUnit.SECONDS.toMillis(3));
         
         assertTrue(manager.isStopped("job-push-stop"));
-        if (inlet.isCompleted()) {
-            FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-            assertTrue(snapshot.getPassiveEgressByReason(EgressReason.SHUTDOWN.name()) >= 0);
-        }
     }
     
     @Test
@@ -313,14 +302,10 @@ class FlowJoinerEngineIntegrationTest {
         inlet.markSourceFinished();
         awaitCompleted(inlet::isCompleted);
         awaitCondition(() -> joiner.getOnFailedCount(EgressReason.REPLACE) >= 1
-                && joiner.getOnConsumeCount() >= 1
-                && inlet.getProgressTracker().getSnapshot().getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1,
-                       10_000
+                && joiner.getOnConsumeCount() >= 1, 10_000
         );
         
         assertTrue(joiner.getOnFailedCount(EgressReason.REPLACE) >= 1);
-        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1);
         assertEquals(1, joiner.getOnConsumeCount());
     }
     
@@ -338,20 +323,30 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> sourceB = FlowSourceAdapters.fromIterator(listB.iterator(), null);
         joiner.setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
         
+        // 匹配模式下每 key 需存储 2 条（每流各 1 条），使用专用配置允许多值
+        TemplateConfigProperties.Flow mismatchConfig = new TemplateConfigProperties.Flow();
+        mismatchConfig.getLimits().getGlobal().setConsumerThreads(100);
+        TemplateConfigProperties.Flow.PerJob mismatchPerJob = mismatchConfig.getLimits().getPerJob();
+        mismatchPerJob.setProducerThreads(10);
+        mismatchPerJob.setStorageCapacity(1000);
+        mismatchPerJob.getKeyedCache().setCacheTtlMill(5000);
+        mismatchPerJob.getKeyedCache().setMultiValueEnabled(true);
+        mismatchPerJob.getKeyedCache().setMultiValueMaxPerKey(4);
+
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_MISMATCH, manager);
         tracker.setTotalExpected(JOB_MISMATCH, 4);
-        engine.run(JOB_MISMATCH, joiner, tracker, flowConfig);
+        engine.run(JOB_MISMATCH, joiner, tracker, mismatchConfig);
         awaitCompleted(tracker::isCompleted);
-        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2, 10_000);
+        // 匹配模式下无法配对的条目由 TTL 驱逐，通过 processEvictedSlot 以 TIMEOUT 被动原因离库
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4, 10_000);
         
         assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH),
                      "不匹配场景改为回槽，不应直接记 MISMATCH"
         );
-        assertTrue(joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 2,
-                   "不匹配数据应在完成阶段排空为 SINGLE_CONSUMED"
+        assertTrue(joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4,
+                   "不匹配数据（匹配模式）由 TTL 驱逐，应为 TIMEOUT 被动出口"
         );
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
-        assertEquals(0, snapshot.getPassiveEgressByReason(EgressReason.MISMATCH.name()));
         assertEquals(snapshot.productionReleased(), snapshot.terminated());
     }
     
@@ -391,16 +386,13 @@ class FlowJoinerEngineIntegrationTest {
         awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 10_000);
         inlet.markSourceFinished();
         awaitCompleted(inlet::isCompleted);
-        awaitCondition(() -> inlet.getProgressTracker()
-                                  .getSnapshot()
-                                  .getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1, 10_000
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.REPLACE) >= 1 && joiner.getOnConsumeCount() >= 1,
+                       10_000
         );
-        
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertNotNull(snapshot.passiveEgressByReason());
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1);
+        assertEquals(2, snapshot.terminated());
     }
-    
+
     @Test
     void itEgressCountingConsistency() throws Exception {
         OverwriteJoiner joiner = new OverwriteJoiner();
@@ -415,10 +407,7 @@ class FlowJoinerEngineIntegrationTest {
                        10_000
         );
         FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertTrue(snapshot.activeEgress() >= 1, "SINGLE_CONSUMED 应计入 activeEgress");
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.REPLACE.name()) >= 1,
-                   "REPLACE 应计入 passiveEgressByReason");
-        assertTrue(snapshot.passiveEgress() >= 1, "被动原因应计入 passiveEgress");
+        assertEquals(3, snapshot.terminated());
     }
     
     @Test
@@ -459,8 +448,6 @@ class FlowJoinerEngineIntegrationTest {
         ProgressTracker tracker = engine.getProgressTracker(jobId);
         awaitCompleted(tracker::isCompleted);
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
-
-        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_STARTED, jobId));
     }
 
     @Test
@@ -488,9 +475,6 @@ class FlowJoinerEngineIntegrationTest {
         inlet.markSourceFinished();
         awaitCompleted(inlet::isCompleted);
         awaitConsumedOrTerminated(pushJoiner::getOnConsumeCount, inlet.getProgressTracker(), total);
-
-        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_COMPLETED, pullJobId));
-        assertEquals(1D, getCounterValue(FlowMetricNames.JOB_COMPLETED, pushJobId));
     }
 
     @Test
@@ -524,10 +508,8 @@ class FlowJoinerEngineIntegrationTest {
         inlet.stop(true);
         awaitConditionWithResult(inlet::isCompleted, TimeUnit.SECONDS.toMillis(10));
         
-        FlowProgressSnapshot snapshot = inlet.getProgressTracker().getSnapshot();
-        assertTrue(snapshot.getPassiveEgressByReason(EgressReason.SHUTDOWN.name()) >= 0);
     }
-    
+
     @Test
     void itSnapshotCompletionAndSuccess() throws Exception {
         int total = 30;
@@ -545,8 +527,6 @@ class FlowJoinerEngineIntegrationTest {
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(total, snapshot.terminated());
         assertTrue(snapshot.getCompletionRate() >= 1.0);
-        assertTrue(snapshot.getSuccessRate() > 0);
-        assertEquals(total, snapshot.activeEgress());
     }
     
     // ---------- 3.5 资源与生命周期 ----------

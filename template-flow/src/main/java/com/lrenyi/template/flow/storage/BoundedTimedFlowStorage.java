@@ -4,8 +4,8 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -17,13 +17,11 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.internal.MatchedPairProcessor;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
-import io.micrometer.core.instrument.Gauge;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,7 +46,30 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     public PreRetryResult preRetry(String key,
             FlowEntry<T> entry,
             FlowLauncher<Object> launcher) {
-        // Slot 级实现的 preRetry 当前不做额外匹配优化，直接让上层走 requeue 流程
+        if (!joiner().needMatched() || launcher == null) {
+            return PreRetryResult.PROCEED_TO_REQUEUE;
+        }
+        Lock stripe = stripeFor(key);
+        stripe.lock();
+        try {
+            FlowSlot<T> slot = slotByKey.get(key);
+            if (slot == null || slot.isEmpty()) {
+                return PreRetryResult.PROCEED_TO_REQUEUE;
+            }
+            for (FlowEntry<T> candidate : slot.entries()) {
+                if (joiner().isMatched(candidate.getData(), entry.getData())) {
+                    slot.remove(candidate);
+                    savedEntryCount.decrement();
+                    // candidate 的 storageLease 由 submitPairDataToConsumer 内部（partner.closeStorageLease）释放；
+                    // entry 为重入条目，其 storageLease 在首次离库时已关闭，此处幂等调用为空操作。
+                    finalizer().submitPairDataToConsumer(candidate, entry, launcher);
+                    entry.closeStorageLease();
+                    return PreRetryResult.HANDLED;
+                }
+            }
+        } finally {
+            stripe.unlock();
+        }
         return PreRetryResult.PROCEED_TO_REQUEUE;
     }
 
@@ -62,13 +83,13 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     private final DelayQueueExpiryIndex expiryIndex = new DelayQueueExpiryIndex();
     
     private final LongAdder savedEntryCount = new LongAdder();
+    private final java.util.concurrent.atomic.AtomicBoolean completionDrainTriggered =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     private final EvictionCoordinator evictionCoordinator;
     private final TemplateConfigProperties.Flow.PerJob perJob;
     private final String jobId;
     private final int maxPerKey;
     private final Clock clock;
-    private final MatchedPairProcessor<T> matchedPairProcessor;
-
     public BoundedTimedFlowStorage(TemplateConfigProperties.Flow flowConfig,
             FlowJoiner<T> joiner,
             ProgressTracker progressTracker,
@@ -82,20 +103,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         this.maxPerKey = perJob.getKeyedCache().getEffectiveMultiValueMaxPerKey();
         this.jobId = jobId;
         this.clock = Clock.systemUTC();
-        this.matchedPairProcessor = new MatchedPairProcessor<>(joiner, egressHandler, meterRegistry, resourceRegistry);
         this.evictionCoordinator = new EvictionCoordinator(expiryIndex, this, "app-template-flow-eviction-" + jobId);
         this.evictionCoordinator.start();
-        
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, this, BoundedTimedFlowStorage::size)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "bounded")
-             .description("每 Job 存储当前 entry 数")
-             .register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, this::entryLimit)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "bounded")
-             .description("每 Job 存储 entry 上限")
-             .register(meterRegistry);
     }
 
     private static Lock stripeFor(String key) {
@@ -155,6 +164,53 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return true;
     }
     
+    /**
+     * 生产完成时主动将剩余条目提交给消费者（completion drain）。
+     * 仅对非匹配模式生效，保证幂等：多次调用仅执行一次。
+     * 在匹配模式下，孤立条目仍由 TTL 驱逐以 TIMEOUT 被动离库。
+     */
+    @Override
+    public void triggerCompletionDrain() {
+        if (joiner().needMatched()) {
+            return;
+        }
+        if (!completionDrainTriggered.compareAndSet(false, true)) {
+            return;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[{}] Completion drain triggered, remaining slots={}", jobId, slotByKey.size());
+        }
+        for (String key : new ArrayList<>(slotByKey.keySet())) {
+            drainSlotForCompletion(key);
+        }
+    }
+    
+    private void drainSlotForCompletion(String key) {
+        FlowSlot<T> slot = slotByKey.get(key);
+        if (slot == null || slot.isEmpty()) {
+            return;
+        }
+        Lock stripe = stripeFor(key);
+        stripe.lock();
+        try {
+            slot = slotByKey.get(key);
+            if (slot == null) {
+                return;
+            }
+            List<FlowEntry<T>> entries = slot.drainAll();
+            if (!entries.isEmpty()) {
+                slotByKey.remove(key);
+            }
+            for (FlowEntry<T> entry : entries) {
+                savedEntryCount.decrement();
+                entry.closeStorageLease();
+                handleEgress(key, entry, EgressReason.TIMEOUT, false);
+            }
+        } finally {
+            stripe.unlock();
+        }
+    }
+
     @Override
     public void shutdown() {
         evictionCoordinator.close();
@@ -174,8 +230,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 }
                 for (FlowEntry<T> entry : entries) {
                     savedEntryCount.decrement();
+                    entry.closeStorageLease();
                     handleEgress(key, entry, EgressReason.SHUTDOWN, true);
-                    resourceRegistry().releaseGlobalStorage(1);
                 }
             } finally {
                 stripe.unlock();
@@ -191,7 +247,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         if (slot.isPairingInProgress()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] skip eviction for slot {}, pairing in progress", jobId, slotId);
+                log.trace("[{}] skip eviction for slot {}, pairing in progress",
+                    FlowLogHelper.formatJobContext(jobId, null), slotId);
             }
             return;
         }
@@ -199,7 +256,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         // 驱逐先触发、配对后触发：在真正执行驱逐前再次检查，若已进入配对则中止本次驱逐并重新排队
         if (slot.isPairingInProgress()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] abort eviction for slot {}, pairing started before drain", jobId, slotId);
+                log.trace("[{}] abort eviction for slot {}, pairing started before drain",
+                    FlowLogHelper.formatJobContext(jobId, null), slotId);
             }
             requeueSlotExpiry(slot);
             return;
@@ -207,7 +265,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         if (!joiner().needMatched()) {
             for (FlowEntry<T> entry : expired) {
                 savedEntryCount.decrement();
-                resourceRegistry().releaseGlobalStorage(1);
+                entry.closeStorageLease();
                 handleEgress(slotId, entry, EgressReason.TIMEOUT, true);
             }
             return;
@@ -260,10 +318,10 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             if (matched != null && launcher != null) {
                 processed[matchedIdx] = true;
                 hasAnyPairSucceeded = true;
-                resourceRegistry().releaseGlobalStorage(1);
+                x.closeStorageLease();
                 savedEntryCount.decrement();
                 savedEntryCount.decrement();
-                matchedPairProcessor.processMatchedPair(x, matched, launcher);
+                finalizer().submitPairDataToConsumer(x, matched, launcher);
                 if (!multiMatchEnabled) {
                     break;
                 }
@@ -284,11 +342,10 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 e.resetRetryToIneligible();
             }
         }
-        boolean skipRetry = hasAnyPairSucceeded;
         for (FlowEntry<T> e : unmatched) {
-            resourceRegistry().releaseGlobalStorage(1);
+            e.closeStorageLease();
             savedEntryCount.decrement();
-            handleEgress(key, e, EgressReason.TIMEOUT, skipRetry);
+            handleEgress(key, e, EgressReason.TIMEOUT, true);
         }
     }
     
@@ -310,7 +367,8 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     private void enqueueSlotExpiryIfNeeded(FlowSlot<T> slot) {
         if (slot.isQueuedForExpiry()) {
             if (log.isTraceEnabled()) {
-                log.trace("[{}] slot already queued for expiry, slotId={}", jobId, slot.getSlotId());
+                log.trace("[{}] slot already queued for expiry, slotId={}",
+                    FlowLogHelper.formatJobContext(jobId, null), slot.getSlotId());
             }
             return;
         }
@@ -320,7 +378,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         expiryIndex.schedule(new SlotExpiryToken(slot.getSlotId(), toSystemTimeForToken(nextCheckAt)));
         if (log.isDebugEnabled()) {
             log.debug("[{}] scheduled expiry token, slotId={}, nextCheckAt={}, delayMs={}",
-                      jobId,
+                      FlowLogHelper.formatJobContext(jobId, null),
                       slot.getSlotId(),
                       nextCheckAt,
                       nextCheckAt - clock.millis()
@@ -334,18 +392,24 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         slot.setPairingInProgress(true);
         boolean saved = false;
         try {
-            AtomicReference<FlowEntry<T>> parentEntry = getParentReference(slot, incoming, joiner);
-            if (parentEntry.get() != null) {
-                slot.remove(parentEntry.get());
+            FlowEntry<T> parentEntry = findFirstMatchingParent(slot, incoming, joiner);
+            if (parentEntry != null) {
+                slot.remove(parentEntry);
                 if (!perJob.isPairingMultiMatchEnabled()) {
                     slot.entries().forEach(entry -> {
+                        entry.closeStorageLease();
                         handleEgress(key, entry, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
-                        resourceRegistry().releaseGlobalStorage(1);
                         savedEntryCount.decrement();
                     });
                 }
             } else {
-                slot.append(incoming);
+                // 处理 overflow：若 slot 已满被淘汰的旧条目需正确核减计数并走被动出口
+                Optional<FlowSlot.OverflowResult<T>> overflowResult = slot.append(incoming);
+                overflowResult.ifPresent(or -> {
+                    savedEntryCount.decrement();
+                    or.entry().closeStorageLease();
+                    handleEgress(key, or.entry(), or.reason(), true);
+                });
                 saved = true;
             }
         } finally {
@@ -354,23 +418,31 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return saved;
     }
     
-    private AtomicReference<FlowEntry<T>> getParentReference(FlowSlot<T> slot,
+    /**
+     * 从 slot 中查找首个与 incoming 匹配的 parent，找到后立即提交配对并返回。
+     * 使用 for 循环确保首次匹配后即退出，避免 forEach 无法 break 导致的多匹配重复提交。
+     */
+    private FlowEntry<T> findFirstMatchingParent(FlowSlot<T> slot,
             FlowEntry<T> incoming,
             FlowJoiner<T> joiner) {
-        Iterable<FlowEntry<T>> entries = slot.entries();
-        AtomicReference<FlowEntry<T>> parentEntry = new AtomicReference<>();
-        entries.forEach(parent -> {
-            boolean matched = joiner.isMatched(parent.getData(), incoming.getData());
-            if (!matched) {
-                return;
+        ActiveLauncherLookup launcherLookup = resourceRegistry().getLauncherLookup();
+        if (launcherLookup == null) {
+            return null;
+        }
+        FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(jobId);
+        if (launcher == null) {
+            return null;
+        }
+        for (FlowEntry<T> parent : slot.entries()) {
+            if (!joiner.isMatched(parent.getData(), incoming.getData())) {
+                continue;
             }
-            FlowLauncher<Object> launcher = resourceRegistry().getLauncherLookup().getActiveLauncher(jobId);
-            matchedPairProcessor.processMatchedPair(parent, incoming, launcher);
-            resourceRegistry().releaseGlobalStorage(1);
+            finalizer().submitPairDataToConsumer(parent, incoming, launcher);
+            incoming.closeStorageLease();
             savedEntryCount.decrement();
-            parentEntry.set(parent);
-        });
-        return parentEntry;
+            return parent;
+        }
+        return null;
     }
     
     private boolean handleOverwriteModeLocked(String key, FlowSlot<T> slot, FlowEntry<T> entry) {
@@ -380,12 +452,13 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             List<FlowEntry<T>> entries = slot.drainAll();
             if (!entries.isEmpty()) {
                 entries.forEach(data -> {
+                    savedEntryCount.decrement();
+                    data.closeStorageLease();
                     handleEgress(key, data, EgressReason.REPLACE, true);
-                    resourceRegistry().releaseGlobalStorage(1);
                 });
             }
-            slot.append(entry);
         }
+        slot.append(entry);
         return true;
     }
     

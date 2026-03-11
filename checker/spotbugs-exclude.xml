@@ -47,12 +47,6 @@
         <Bug pattern="PATH_TRAVERSAL_IN"/>
     </Match>
 
-    <!-- CT_CONSTRUCTOR_THROW：参数校验抛异常，Java 9+ finalizer 已弃用，Finalizer 攻击风险可接受 -->
-    <Match>
-        <Class name="com.lrenyi.template.flow.executor.BoundedVirtualExecutor"/>
-        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
-    </Match>
-
     <!-- SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING：REST API 使用 Bearer token，非 Cookie 鉴权，CSRF 不适用 -->
     <Match>
         <Class name="com.lrenyi.template.dataforge.controller.GenericEntityController"/>

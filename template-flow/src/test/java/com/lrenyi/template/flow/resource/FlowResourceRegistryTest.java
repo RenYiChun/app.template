@@ -1,16 +1,16 @@
 package com.lrenyi.template.flow.resource;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
+import com.lrenyi.template.flow.PairItem;
 import com.lrenyi.template.flow.QueueJoiner;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.core.TemplateConfigProperties.Flow.BackpressureBlockingMode;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.flow.context.FlowResourceContext;
-import com.lrenyi.template.flow.context.Orchestrator;
-import com.lrenyi.template.flow.context.Registration;
-import com.lrenyi.template.flow.executor.ExecutorInterruptedException;
-import com.lrenyi.template.flow.internal.DefaultProgressTracker;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
+import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -69,70 +69,104 @@ class FlowResourceRegistryTest {
     }
     
     @Test
-    void submitConsumerToGlobalAcquireFailureShouldRollbackPendingCounter() {
+    void submitConsumerToGlobalAcquireFailureShouldRollbackPendingCounter() throws InterruptedException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerThreads(4);
-        
-        FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), false);
-        Registration registration = new Registration("job-1", config);
-        java.util.concurrent.Semaphore jobConsumer = new java.util.concurrent.Semaphore(4);
-        PermitPair consumerPermitPair = PermitPair.of(registry.getGlobalSemaphore(), jobConsumer);
-        FlowResourceContext context = FlowResourceContext.builder()
-                                                         .resourceRegistry(registry)
-                                                         .flowManager(null)
-                                                         .jobConsumerSemaphore(jobConsumer)
-                                                         .consumerPermitPair(consumerPermitPair)
-                                                         .inFlightPermitPair(null)
-                                                         .producerPermitPair(null)
-                                                         .build();
-        Orchestrator orchestrator = new Orchestrator("job-1", new NoopTracker(), registration, context);
-        
-        assertThrows(RuntimeException.class, () -> registry.submitConsumer(orchestrator, 2, () -> {}));
-        assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
-    }
-    
-    @Test
-    void submitConsumerToGlobalSecondAcquireInterruptedShouldRollbackPartialAcquire() {
-        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
-        config.getLimits().getGlobal().setConsumerThreads(2);
-        config.getLimits().getPerJob().setConsumerThreads(2);
-        
+        config.getLimits().getGlobal().setConsumerThreads(1);
+        config.getLimits().getGlobal().setInFlightConsumer(4);
+        config.getLimits().getPerJob().setConsumerThreads(1);
+        config.getLimits().getPerJob().setInFlightConsumer(4);
+        config.setConsumerAcquireBlockingMode(BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
+        config.setConsumerAcquireTimeoutMill(500);
+
         FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
-        String jobId = "job-partial-acquire";
-        DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
-        QueueJoiner joiner = new QueueJoiner();
-        var launcher = flowManager.createLauncher(jobId, joiner, tracker, config);
-        Orchestrator orchestrator = launcher.getTaskOrchestrator();
         FlowResourceRegistry registry = flowManager.getResourceRegistry();
-        
-        Thread stopThread = new Thread(() -> {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-            while (System.nanoTime() < deadline) {
-                if (orchestrator.registration().getActiveCount().get() == 1) {
-                    flowManager.unregister(jobId);
-                    return;
-                }
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-            }
-        });
-        stopThread.start();
-        
-        try {
-            registry.submitConsumer(orchestrator, 2, () -> {
-            });
-        } catch (ExecutorInterruptedException ignored) {
-        }
-        Thread.interrupted();
-        try {
-            stopThread.join(TimeUnit.SECONDS.toMillis(1));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
-        assertEquals(0, orchestrator.registration().getActiveCount().get());
-        assertEquals(2, registry.getGlobalSemaphore().availablePermits());
+        String jobId = "job-acquire-fail";
+        QueueJoiner joiner = new QueueJoiner();
+        CountDownLatch acquiredLatch = new CountDownLatch(1);
+        BlockingTracker blockingTracker = new BlockingTracker(acquiredLatch);
+        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(joiner, blockingTracker,
+                flowManager.getMeterRegistry());
+        FlowFinalizer<PairItem> finalizer = new FlowFinalizer<>(registry,
+                flowManager.getMeterRegistry(),
+                blockingHandler,
+                joiner);
+
+        var launcher = flowManager.createLauncher(jobId, joiner, blockingTracker, config);
+        FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
+        FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
+
+        finalizer.submitDataToConsumer(entry1, launcher);
+        assertTrue(acquiredLatch.await(2, TimeUnit.SECONDS), "First task should acquire and block");
+        Thread.sleep(300);
+
+        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher));
+        assertEquals(1L, registry.getGlobalPendingConsumerAdder().sum(),
+                "Second's increment was rolled back; first task still holds 1 until it completes");
     }
     
+    private static final class BlockingTracker implements ProgressTracker {
+        private final CountDownLatch acquiredLatch;
+        private final CountDownLatch blockLatch = new CountDownLatch(1);
+
+        BlockingTracker(CountDownLatch acquiredLatch) {
+            this.acquiredLatch = acquiredLatch;
+        }
+
+        @Override
+        public void onConsumerAcquired() {
+        }
+
+        @Override
+        public void onConsumerReleased(String jobId) {
+        }
+
+        @Override
+        public void onActiveEgress() {
+            acquiredLatch.countDown();
+            try {
+                blockLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public void onProductionAcquired() {
+        }
+
+        @Override
+        public void onProductionReleased() {
+        }
+
+        @Override
+        public void onPassiveEgress(EgressReason reason) {
+        }
+
+        @Override
+        public FlowProgressSnapshot getSnapshot() {
+            return FlowProgressSnapshot.builder().build();
+        }
+
+        @Override
+        public void setTotalExpected(String jobId, long total) {
+        }
+
+        @Override
+        public void markSourceFinished(String jobId) {
+        }
+
+        @Override
+        public boolean isCompleted() {
+            return false;
+        }
+
+        @Override
+        public boolean isCompletionConditionMet() {
+            return false;
+        }
+    }
+
     private static final class NoopTracker implements ProgressTracker {
         @Override
         public void onProductionAcquired() {

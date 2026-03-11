@@ -62,7 +62,7 @@ class FlowManagerTest {
         FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true);
         assertNotNull(manager);
         assertNotNull(manager.getResourceRegistry());
-        assertNotNull(manager.getRegistry());
+        assertNotNull(manager.getActiveLaunchers());
     }
     
     @Test

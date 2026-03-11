@@ -37,7 +37,7 @@ public interface ProgressTracker {
     
     /**
      * 信号：主动出口触发 (Active Egress)
-     * 含义：数据通过业务接口（如 onSuccess/onConsume）主动离库
+     * 含义：数据通过业务接口（onPairConsumed/onSingleConsumed）主动离库
      * 框架通过此信号自动计算"有效流转率"
      */
     void onActiveEgress();
@@ -69,6 +69,20 @@ public interface ProgressTracker {
     void markSourceFinished(String jobId);
     
     /**
+     * 设置用于监控指标标签的 jobId（可读展示名）。
+     * 默认 no-op；{@link com.lrenyi.template.flow.internal.DefaultProgressTracker} 会使用此值记录 TERMINATED 等指标。
+     */
+    default void setMetricJobId(String metricJobId) {
+    }
+
+    /**
+     * 获取用于监控/日志的展示名。默认返回 null；DefaultProgressTracker 返回 setMetricJobId 设置的值。
+     */
+    default String getMetricJobId() {
+        return null;
+    }
+
+    /**
      * 是否已完成。
      */
     boolean isCompleted();
@@ -77,4 +91,12 @@ public interface ProgressTracker {
      * 当前是否满足完成条件（只读判定，不产生额外副作用）。
      */
     boolean isCompletionConditionMet();
+    
+    /**
+     * 生产是否已完成：Source 已截止且所有生产许可已释放。
+     * 用于触发非匹配模式下的 completion drain。
+     */
+    default boolean isProductionComplete() {
+        return false;
+    }
 }

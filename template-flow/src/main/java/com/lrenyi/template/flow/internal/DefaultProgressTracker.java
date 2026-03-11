@@ -1,7 +1,5 @@
 package com.lrenyi.template.flow.internal;
 
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -12,6 +10,7 @@ import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,18 +32,14 @@ public class DefaultProgressTracker implements ProgressTracker {
     // --- 物理水位计数器 (使用 LongAdder 保证高并发写性能) ---
     // [活跃消费许可数]：当前正在系统中"生存"的数据总量（已入库但未终结）
     private final LongAdder activeConsumers = new LongAdder();
-    // [主动出口计数]：通过 onSuccess/onConsume 等业务路径正常终结的数量
-    private final LongAdder activeEgress = new LongAdder();
-    // [被动出口计数]：通过过期(TTL)、淘汰(Evicted)等非业务路径终结的数量
-    private final LongAdder passiveEgress = new LongAdder();
-    // [按原因统计的被动出口]：仅被动原因（见 EgressReason.isPassive()），用于 Snapshot/指标按原因统计
-    private final Map<EgressReason, LongAdder> passiveEgressByReason = new EnumMap<>(EgressReason.class);
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
     // 使用 Lock 替代 synchronized，避免虚拟线程 Pinning 现象
     private final ReentrantLock finishLock = new ReentrantLock();
     private final AtomicLong lastCompletionBlockedLogMillis = new AtomicLong(0L);
+    /** 用于指标标签的 jobId（可读展示名），null 时使用 jobId */
+    private volatile String metricJobId;
     // 业务预期的总条数，由 Source 探测或业务方指定
     private volatile long totalExpected = -1L;
     // 生产端状态：标记 Source 是否已经彻底读完
@@ -53,11 +48,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     public DefaultProgressTracker(String jobId, FlowManager flowManager) {
         this.jobId = jobId;
         this.flowManager = flowManager;
-        for (EgressReason r : EgressReason.values()) {
-            if (r.isPassive()) {
-                passiveEgressByReason.put(r, new LongAdder());
-            }
-        }
     }
     
     @Override
@@ -84,16 +74,12 @@ public class DefaultProgressTracker implements ProgressTracker {
     
     @Override
     public void onActiveEgress() {
-        activeEgress.increment();
         terminated.increment();
         checkCompletion();
     }
     
     @Override
     public void onPassiveEgress(EgressReason reason) {
-        passiveEgress.increment();
-        EgressReason key = (reason != null && reason.isPassive()) ? reason : EgressReason.UNKNOWN;
-        passiveEgressByReason.computeIfAbsent(key, k -> new LongAdder()).increment();
         terminated.increment();
         checkCompletion();
     }
@@ -101,7 +87,16 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onConsumerReleased(String jobId) {
         activeConsumers.decrement();
+        incrementCounter(FlowMetricNames.TERMINATED);
         checkCompletion();
+    }
+    
+    private void incrementCounter(String name) {
+        String tagJobId = (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+        Counter.builder(name)
+               .tag(FlowMetricNames.TAG_JOB_ID, tagJobId)
+               .register(flowManager.getMeterRegistry())
+               .increment();
     }
     
     @Override
@@ -112,28 +107,28 @@ public class DefaultProgressTracker implements ProgressTracker {
             FlowStorage<Object> storage = activeLauncher.getStorage();
             inStorage = storage.size();
         }
-        Map<String, Long> reasonMap = new java.util.HashMap<>();
-        passiveEgressByReason.forEach((r, adder) -> {
-            long v = adder.sum();
-            if (v > 0) {
-                reasonMap.put(r.name(), v);
-            }
-        });
         return new FlowProgressSnapshot(jobId,
                                         totalExpected,
                                         productionAcquired.sum(),
                                         productionReleased.sum(),
                                         activeConsumers.sum(),
                                         inStorage,
-                                        activeEgress.sum(),
-                                        passiveEgress.sum(),
                                         terminated.sum(),
                                         startTimeMillis,
-                                        endTimeMillis.get(),
-                                        reasonMap
+                                        endTimeMillis.get()
         );
     }
     
+    @Override
+    public void setMetricJobId(String metricJobId) {
+        this.metricJobId = metricJobId;
+    }
+
+    @Override
+    public String getMetricJobId() {
+        return metricJobId;
+    }
+
     @Override
     public void setTotalExpected(String jobId, long total) {
         this.totalExpected = total;
@@ -146,9 +141,9 @@ public class DefaultProgressTracker implements ProgressTracker {
         }
         this.sourceFinished = true;
         CompletionState state = computeCompletionState();
-        log.info("Source marked finished, jobId={}, productionAcquired={}, productionReleased={}, terminated={}, "
+        log.info("Source marked finished, {}, productionAcquired={}, productionReleased={}, terminated={}, "
                          + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
-                 this.jobId,
+                 FlowLogHelper.formatJobContext(jobId, metricJobId),
                  state.acquired(),
                  state.released(),
                  state.terminated(),
@@ -175,6 +170,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         return computeCompletionState().completionConditionMet();
     }
     
+    @Override
+    public boolean isProductionComplete() {
+        return sourceFinished && productionReleased.sum() >= productionAcquired.sum();
+    }
+    
     /**
      * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
@@ -196,10 +196,10 @@ public class DefaultProgressTracker implements ProgressTracker {
                 FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
                 boolean stopped =
                         flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
-                log.info("Job completion confirmed, jobId={}, sourceFinished={}, productionAcquired={}, "
+                log.info("Job completion confirmed, {}, sourceFinished={}, productionAcquired={}, "
                                  + "productionReleased={}, terminated={}, inStorage={}, activeConsumers={}, "
                                  + "inProduction={}, pendingConsumer={}, inFlightPush={}, stopped={}",
-                         jobId,
+                         FlowLogHelper.formatJobContext(jobId, metricJobId),
                          sourceFinished,
                          lockedState.acquired(),
                          lockedState.released(),
@@ -212,10 +212,6 @@ public class DefaultProgressTracker implements ProgressTracker {
                          stopped
                 );
                 if (!stopped) {
-                    Counter.builder(FlowMetricNames.JOB_COMPLETED)
-                           .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-                           .register(flowManager.getMeterRegistry())
-                           .increment();
                     flowManager.unregister(jobId);
                 }
                 completionFuture.complete(null);
@@ -237,11 +233,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         boolean waitingProductionReleased = state.inProduction() > 0L;
         boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
         boolean waitingInFlightPush = state.inFlightPush() > 0;
-        log.info("Job completion pending, jobId={}, waitingSourceFinished={}, waitingStorageDrained={}, "
+        log.info("Job completion pending, {}, waitingSourceFinished={}, waitingStorageDrained={}, "
                          + "waitingConsumerReleased={}, waitingProductionReleased={}, waitingPendingConsumer={}, "
                          + "waitingInFlightPush={}, productionAcquired={}, productionReleased={}, terminated={}, "
                          + "inStorage={}, activeConsumers={}, inProduction={}, pendingConsumer={}, inFlightPush={}",
-                 jobId,
+                 FlowLogHelper.formatJobContext(jobId, metricJobId),
                  waitingSourceFinished,
                  waitingStorageDrained,
                  waitingConsumerReleased,

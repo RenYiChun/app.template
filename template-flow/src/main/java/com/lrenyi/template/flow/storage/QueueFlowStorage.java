@@ -16,8 +16,8 @@ import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,15 +43,6 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
         
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_USED, queue, BlockingQueue::size)
-             .tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue")
-             .description("每 Job 缓存当前条数")
-             .register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_STORAGE_LIMIT, () -> maxCacheSize).tag(FlowMetricNames.TAG_JOB_ID, jobId)
-             .tag(FlowMetricNames.TAG_STORAGE_TYPE, "queue").description("每 Job 缓存容量上限")
-             .register(meterRegistry);
-        
         ScheduledExecutorService egressExecutor = resourceRegistry().getStorageEgressExecutor();
         if (egressExecutor != null && drainIntervalMs > 0) {
             this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
@@ -76,7 +67,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         FlowEntry<T> entry;
         while (!stopped.get() && (entry = queue.poll()) != null) {
             try {
-                resourceRegistry().releaseGlobalStorage(1);
+                entry.closeStorageLease();
                 FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
                 String key = joiner().joinKey(entry.getData());
                 if (launcher == null) {
@@ -90,7 +81,10 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                        .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                        .register(meterRegistry())
                        .increment();
-                log.error("Queue drain failed for job {}", entry.getJobId(), t);
+                FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
+                log.error("Queue drain failed for job {}",
+                        FlowLogHelper.formatJobContext(entry.getJobId(),
+                                launcherForLog != null ? launcherForLog.getMetricJobId() : null), t);
                 try {
                     String key = joiner().joinKey(entry.getData());
                     handleEgress(key, entry, EgressReason.SHUTDOWN, true);
@@ -106,14 +100,15 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         boolean success = queue.offer(ctx);
         if (success) {
             if (log.isDebugEnabled()) {
-                log.debug("Data deposited into queue: jobId={}, queueSize={}", ctx.getJobId(), queue.size());
+                log.debug("Data deposited into queue: {}, queueSize={}",
+                        FlowLogHelper.formatJobContext(ctx.getJobId(), null), queue.size());
             }
             return true;
         }
         if (log.isWarnEnabled()) {
-            log.warn("Queue full, task rejected: jobId={}", ctx.getJobId());
+            log.warn("Queue full, task rejected: {}", FlowLogHelper.formatJobContext(ctx.getJobId(), null));
         }
-        // 本分支不释放 globalStorage，由调用方 FlowLauncher 在 deposit 返回 false 时统一释放，禁止在此调用 releaseGlobalStorage(1) 以防双释放
+        // 本分支不关闭 storageLease，由调用方 FlowLauncher 在 deposit 返回 false 时通过 ctx.closeStorageLease() 统一释放，避免双释放
         String key = joiner().joinKey(ctx.getData());
         handleEgress(key, ctx, EgressReason.REJECT, true);
         return false;
@@ -147,7 +142,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
-            resourceRegistry().releaseGlobalStorage(1);
+            remaining.closeStorageLease();
             String key = joiner().joinKey(remaining.getData());
             handleEgress(key, remaining, EgressReason.SHUTDOWN, true);
         }
