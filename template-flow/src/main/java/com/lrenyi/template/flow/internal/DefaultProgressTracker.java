@@ -8,7 +8,6 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
@@ -73,21 +72,19 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
     
     @Override
-    public void onActiveEgress() {
-        terminated.increment();
-        checkCompletion();
-    }
-    
-    @Override
-    public void onPassiveEgress(EgressReason reason) {
-        terminated.increment();
-        checkCompletion();
-    }
-    
-    @Override
     public void onConsumerReleased(String jobId) {
         activeConsumers.decrement();
+        terminated.increment();
         incrementCounter(FlowMetricNames.TERMINATED);
+        checkCompletion();
+    }
+    
+    @Override
+    public void onTerminated(int count) {
+        for (int i = 0; i < count; i++) {
+            terminated.increment();
+            incrementCounter(FlowMetricNames.TERMINATED);
+        }
         checkCompletion();
     }
     

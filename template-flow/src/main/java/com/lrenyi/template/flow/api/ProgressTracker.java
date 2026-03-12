@@ -1,7 +1,6 @@
 package com.lrenyi.template.flow.api;
 
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.flow.model.EgressReason;
 
 /**
  * 进度追踪器：基于物理位移的流控观测模型
@@ -36,21 +35,11 @@ public interface ProgressTracker {
     void onConsumerReleased(String jobId);
     
     /**
-     * 信号：主动出口触发 (Active Egress)
-     * 含义：数据通过业务接口（onPairConsumed/onSingleConsumed）主动离库
-     * 框架通过此信号自动计算"有效流转率"
-     */
-    void onActiveEgress();
-    
-    /**
-     * 信号：被动出口触发 (Passive Egress)，带失败原因
-     * 含义：数据通过框架策略（如 TTL 过期、驱逐、替换、不匹配等）离库
-     * 框架通过此信号计算损耗率并按原因统计
+     * 信号：数据已终结（未经过 consumer executor 的路径，如 REJECT）。
      *
-     * @param reason 失败原因，用于 Snapshot/指标按原因统计
+     * @param count 终结条数
      */
-    void onPassiveEgress(EgressReason reason);
-    
+    void onTerminated(int count);
     
     /**
      * 获取当前物理水位快照

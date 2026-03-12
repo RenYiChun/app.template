@@ -71,19 +71,29 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
             return;
         }
         if (entry.getRetryRemaining() == -1) {
-            finalizer.submitDataToConsumer(entry, launcher);
+            finalizer.submitDataToConsumer(entry, launcher, reason);
         } else {
             RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
             if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                finalizer.submitDataToConsumer(entry, launcher);
+                finalizer.submitDataToConsumer(entry, launcher, reason);
             }
         }
     }
     
     @Override
     public void handlePassiveFailure(FlowEntry<T> entry, EgressReason reason) {
-        try (entry) {
-            egressHandler.performSingleConsumed(entry, reason);
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        FlowLauncher<Object> launcher = null;
+        if (launcherLookup != null && entry != null) {
+            launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+        }
+        if (launcher != null) {
+            finalizer.submitDataToConsumer(entry, launcher, reason);
+        } else {
+            try (entry) {
+                egressHandler.performSingleConsumed(entry, reason);
+            }
+            progressTracker.onTerminated(1);
         }
     }
     
@@ -99,7 +109,7 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
         long backoffMill = launcher.getFlow().getLimits().getPerJob().getKeyedCache().getMustMatchRetryBackoffMill();
         MatchRetryCoordinator<T> coordinator =
-                new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager(), meterRegistry);
+                new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager());
         return new RetryHandler<>(coordinator, this, backoffMill);
     }
     

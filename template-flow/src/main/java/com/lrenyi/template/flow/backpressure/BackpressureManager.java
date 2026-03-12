@@ -252,4 +252,24 @@ public class BackpressureManager {
         }
         return Collections.unmodifiableMap(result);
     }
+
+    /**
+     * 注销所有背压指标。
+     * <p>
+     * 在 Job 停止时调用,从 MeterRegistry 中移除所有背压相关的指标。
+     *
+     * @param meterRegistry 指标注册表
+     */
+    public void unregisterMetrics(MeterRegistry meterRegistry) {
+        meterRegistry.remove(acquireSuccess);
+        meterRegistry.remove(acquireFailed);
+        meterRegistry.remove(idempotentHit);
+        meterRegistry.remove(leakDetected);
+        // 移除 MANAGER_LEASE_ACTIVE Gauge
+        meterRegistry.find(BackpressureMetricNames.MANAGER_LEASE_ACTIVE)
+                     .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                     .gauges()
+                     .forEach(meterRegistry::remove);
+        log.debug("BackpressureManager: 已注销 Job [{}] 的所有背压指标", jobId);
+    }
 }

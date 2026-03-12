@@ -36,14 +36,12 @@ public class RetryHandler<T> {
         }
         PreRetryResult result = adapter.preRetry(key, entry, launcher);
         if (result == PreRetryResult.HANDLED) {
-            retryCoordinator.onRetrySucceeded(reason);
             log.debug("Retry handled in preRetry, {}, reason={}, key={}",
                     FlowLogHelper.formatJobContext(entry.getJobId(), launcher != null ? launcher.getMetricJobId() : null),
                     reason, key);
             return true;
         }
         if (adapter.tryRequeue(entry)) {
-            retryCoordinator.onRetrySucceeded(reason);
             log.debug("Retry requeue succeeded, {}, reason={}, key={}",
                     FlowLogHelper.formatJobContext(entry.getJobId(), launcher != null ? launcher.getMetricJobId() : null),
                     reason, key);

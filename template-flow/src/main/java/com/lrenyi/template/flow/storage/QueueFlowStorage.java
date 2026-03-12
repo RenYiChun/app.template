@@ -74,7 +74,7 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                     handleEgress(key, entry, EgressReason.SHUTDOWN, true);
                     continue;
                 }
-                handleEgress(key, entry, EgressReason.TIMEOUT, false);
+                handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
             } catch (Throwable t) {
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")

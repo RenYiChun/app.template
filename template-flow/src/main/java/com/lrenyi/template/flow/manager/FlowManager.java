@@ -169,6 +169,21 @@ public class FlowManager implements ActiveLauncherLookup {
         }
     }
 
+    /**
+     * 停止 Job 并注销所有相关指标。
+     * <p>
+     * 此方法在 Job 被显式停止时调用,会注销所有 per-job 指标(包括背压指标)。
+     *
+     * @param jobId Job ID
+     * @param launcher FlowLauncher 实例
+     */
+    void stopJobAndUnregisterMetrics(String jobId, FlowLauncher<?> launcher) {
+        // 先注销背压指标
+        launcher.getBackpressureManager().unregisterMetrics(meterRegistry);
+        // 然后停止 Job
+        launcher.stop(true);
+    }
+
     public static void reset() {
         synchronized (FlowManager.class) {
             FlowManager current = instanceRef.get();

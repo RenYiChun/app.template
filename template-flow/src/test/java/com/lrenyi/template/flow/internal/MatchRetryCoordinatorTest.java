@@ -22,12 +22,7 @@ class MatchRetryCoordinatorTest {
         cache.setMustMatchRetryEnabled(true);
         cache.setMustMatchRetryMaxTimes(3);
         TestJoiner joiner = new TestJoiner(true, true);
-        MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-a",
-                                                                                 perJob,
-                                                                                 joiner,
-                                                                                 null,
-                                                                                 new SimpleMeterRegistry()
-        );
+        MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-a", perJob, joiner, null);
         
         FlowEntry<String> entry = new FlowEntry<>("a", "job-a");
         coordinator.initRetryRemainingIfNecessary(entry);
@@ -40,14 +35,11 @@ class MatchRetryCoordinatorTest {
         TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
         cache.setMustMatchRetryEnabled(true);
         cache.setMustMatchRetryMaxTimes(1);
-        cache.setMustMatchRetryOnEviction(true);
-        cache.setMustMatchRetryOnTimeout(false);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-b",
                                                                                  perJob,
-                                                                                 new TestJoiner(true, true),
-                                                                                 null,
-                                                                                 registry
+                                                                                new TestJoiner(true, true),
+                                                                                null
         );
         
         FlowEntry<String> entry = new FlowEntry<>("b", "job-b");

@@ -9,6 +9,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Meter;
@@ -18,7 +19,8 @@ import io.micrometer.core.instrument.Tags;
 /**
  * 注册 Flow 资源限制/使用量 Gauge 指标，供 Grafana 等监控展示。
  * <p>
- * 全局指标按 Job 聚合（sum），适用于 global 视图；per-job 指标带 jobId 标签，适用于 per-job 视图。
+ * 全局指标：来自 limits.global.* 配置及全局信号量，无 jobId 标签。
+ * Per-job 指标：来自 limits.per-job.* 配置及每 Job 信号量，带 jobId 标签。
  */
 public final class FlowResourceMetrics {
     
@@ -28,53 +30,90 @@ public final class FlowResourceMetrics {
     }
     
     /**
-     * 在 FlowManager 初始化时调用，注册资源 limit/used Gauges。
+     * 在 FlowManager 初始化时调用，注册全局资源 limit/used Gauges（来自 limits.global）。
      */
     public static void register(FlowManager flowManager, MeterRegistry meterRegistry) {
+        FlowResourceRegistry registry = flowManager.getResourceRegistry();
+        TemplateConfigProperties.Flow.Global global = flowManager.getGlobalConfig().getLimits().getGlobal();
+        
+        // 全局：生产在途（limits.global.inFlightProduction）
         Gauge.builder(FlowMetricNames.RESOURCES_IN_FLIGHT_PRODUCTION_LIMIT,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getInFlightProductionLimit)
-        ).description("生产在途数量限制上限（配置值）").register(meterRegistry);
+                      registry,
+                      r -> global.getInFlightProduction()
+        ).description("生产在途数量限制上限（全局配置）").register(meterRegistry);
         Gauge.builder(FlowMetricNames.RESOURCES_IN_FLIGHT_PRODUCTION_USED,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getInFlightProductionUsed)
-        ).description("生产在途数量当前使用").register(meterRegistry);
+                      registry,
+                      r -> globalUsed(r.getGlobalInFlightSemaphore(),
+                                      global.getInFlightProduction(),
+                                      flowManager,
+                                      FlowResourceMetrics::getInFlightProductionUsed
+                      )
+        ).description("生产在途数量当前使用（全局）").register(meterRegistry);
         
-        Gauge.builder(FlowMetricNames.RESOURCES_PRODUCER_THREADS_LIMIT,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getProducerThreadsLimit)
-        ).description("生产线程数限制上限（配置值）").register(meterRegistry);
+        // 全局：生产线程数（limits.global.producerThreads）
+        Gauge.builder(FlowMetricNames.RESOURCES_PRODUCER_THREADS_LIMIT, registry, r -> global.getProducerThreads())
+             .description("生产线程数限制上限（全局配置）")
+             .register(meterRegistry);
         Gauge.builder(FlowMetricNames.RESOURCES_PRODUCER_THREADS_USED,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getProducerThreadsUsed)
-        ).description("生产线程数当前使用").register(meterRegistry);
+                      registry,
+                      r -> globalUsed(r.getGlobalProducerThreadsSemaphore(),
+                                      global.getProducerThreads(),
+                                      flowManager,
+                                      FlowResourceMetrics::getProducerThreadsUsed
+                      )
+        ).description("生产线程数当前使用（全局）").register(meterRegistry);
         
-        Gauge.builder(FlowMetricNames.RESOURCES_STORAGE_LIMIT,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getStorageLimit)
-        ).description("存储容量限制上限（配置值）").register(meterRegistry);
+        // 全局：存储容量（limits.global.storageCapacity）
+        Gauge.builder(FlowMetricNames.RESOURCES_STORAGE_LIMIT, registry, r -> global.getStorageCapacity())
+             .description("存储容量限制上限（全局配置）")
+             .register(meterRegistry);
         Gauge.builder(FlowMetricNames.RESOURCES_STORAGE_USED,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getStorageUsed)
-        ).description("存储容量当前使用").register(meterRegistry);
+                      registry,
+                      r -> globalUsed(r.getGlobalStorageSemaphore(),
+                                      global.getStorageCapacity(),
+                                      flowManager,
+                                      FlowResourceMetrics::getStorageUsed
+                      )
+        ).description("存储容量当前使用（全局）").register(meterRegistry);
         
-        Gauge.builder(FlowMetricNames.RESOURCES_IN_FLIGHT_CONSUMER_LIMIT,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getInFlightConsumerLimit)
-        ).description("在途消费数量限制上限（配置值）").register(meterRegistry);
+        // 全局：在途消费（limits.global.inFlightConsumer）
+        Gauge.builder(FlowMetricNames.RESOURCES_IN_FLIGHT_CONSUMER_LIMIT, registry, r -> global.getInFlightConsumer())
+             .description("在途消费数量限制上限（全局配置）")
+             .register(meterRegistry);
         Gauge.builder(FlowMetricNames.RESOURCES_IN_FLIGHT_CONSUMER_USED,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getInFlightConsumerUsed)
-        ).description("在途消费数量当前使用").register(meterRegistry);
+                      registry,
+                      r -> globalUsed(r.getGlobalInFlightConsumerSemaphore(),
+                                      global.getInFlightConsumer(),
+                                      flowManager,
+                                      FlowResourceMetrics::getInFlightConsumerUsed
+                      )
+        ).description("在途消费数量当前使用（全局）").register(meterRegistry);
         
-        Gauge.builder(FlowMetricNames.RESOURCES_CONSUMER_THREADS_LIMIT,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getConsumerThreadsLimit)
-        ).description("消费线程数限制上限（配置值）").register(meterRegistry);
+        // 全局：消费线程数（limits.global.consumerThreads）
+        Gauge.builder(FlowMetricNames.RESOURCES_CONSUMER_THREADS_LIMIT, registry, r -> global.getConsumerThreads())
+             .description("消费线程数限制上限（全局配置）")
+             .register(meterRegistry);
         Gauge.builder(FlowMetricNames.RESOURCES_CONSUMER_THREADS_USED,
-                      flowManager,
-                      fm -> sumOverLaunchers(fm, FlowResourceMetrics::getConsumerThreadsUsed)
-        ).description("消费线程数当前使用").register(meterRegistry);
+                      registry,
+                      r -> globalUsed(r.getGlobalSemaphore(),
+                                      global.getConsumerThreads(),
+                                      flowManager,
+                                      FlowResourceMetrics::getConsumerThreadsUsed
+                      )
+        ).description("消费线程数当前使用（全局）").register(meterRegistry);
+    }
+    
+    /**
+     * 全局 used：当 limit>0 且 semaphore 存在时，返回 limit - availablePermits；否则返回各 Job 使用量之和。
+     */
+    private static double globalUsed(Semaphore semaphore,
+            int limit,
+            FlowManager flowManager,
+            ToDoubleFunction<FlowLauncher<?>> perJobExtractor) {
+        if (limit > 0 && semaphore != null) {
+            return Math.max(0, limit - semaphore.availablePermits());
+        }
+        return sumOverLaunchers(flowManager, perJobExtractor);
     }
     
     /**
