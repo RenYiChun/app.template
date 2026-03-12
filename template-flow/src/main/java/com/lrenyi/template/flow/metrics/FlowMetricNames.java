@@ -43,6 +43,28 @@ public final class FlowMetricNames {
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
     public static final String TAG_PHASE = "phase";
+    
+    // ==================== 资源限制/使用量 Gauges ====================
+    /** 生产在途数量限制上限（Gauge） */
+    public static final String RESOURCES_IN_FLIGHT_PRODUCTION_LIMIT = PREFIX + ".resources.in_flight_production.limit";
+    /** 生产在途数量当前使用（Gauge） */
+    public static final String RESOURCES_IN_FLIGHT_PRODUCTION_USED = PREFIX + ".resources.in_flight_production.used";
+    /** 生产线程数限制上限（Gauge） */
+    public static final String RESOURCES_PRODUCER_THREADS_LIMIT = PREFIX + ".resources.producer_threads.limit";
+    /** 生产线程数当前使用（Gauge） */
+    public static final String RESOURCES_PRODUCER_THREADS_USED = PREFIX + ".resources.producer_threads.used";
+    /** 存储容量限制上限（Gauge） */
+    public static final String RESOURCES_STORAGE_LIMIT = PREFIX + ".resources.storage.limit";
+    /** 存储容量当前使用（Gauge） */
+    public static final String RESOURCES_STORAGE_USED = PREFIX + ".resources.storage.used";
+    /** 在途消费数量限制上限（Gauge） */
+    public static final String RESOURCES_IN_FLIGHT_CONSUMER_LIMIT = PREFIX + ".resources.in_flight_consumer.limit";
+    /** 在途消费数量当前使用（Gauge） */
+    public static final String RESOURCES_IN_FLIGHT_CONSUMER_USED = PREFIX + ".resources.in_flight_consumer.used";
+    /** 消费线程数限制上限（Gauge） */
+    public static final String RESOURCES_CONSUMER_THREADS_LIMIT = PREFIX + ".resources.consumer_threads.limit";
+    /** 消费线程数当前使用（Gauge） */
+    public static final String RESOURCES_CONSUMER_THREADS_USED = PREFIX + ".resources.consumer_threads.used";
 
     private FlowMetricNames() {}
 }
