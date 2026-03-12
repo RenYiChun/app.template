@@ -12,8 +12,8 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
-import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -22,12 +22,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegistry meterRegistry,
                                FlowEgressHandler<T> egressHandler, FlowJoiner<T> joiner) {
-
+    
     /**
      * 将数据提交至消费端，通过 BackpressureManager 获取 in-flight-consumer 槽位租约。
      * 租约在消费任务完成后由 close() 释放。
+     *
+     * @param entry   待消费条目
+     * @param launcher 所属 Job 的 Launcher
+     * @param reason  离库原因，null 时使用 {@link EgressReason#SINGLE_CONSUMED}（主动消费）
      */
-    public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<?> launcher) {
+    public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<?> launcher, EgressReason reason) {
         String jobId = entry.getJobId();
         long startTime = System.currentTimeMillis();
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
@@ -41,9 +45,9 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 try (entry) {
                     egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
                 }
+                launcher.getTracker().onTerminated(1);
                 return;
             }
-            // Non-strict: proceed without slot
             slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -55,14 +59,15 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             );
             return;
         }
-
+        
+        final EgressReason finalReason = reason != null ? reason : EgressReason.SINGLE_CONSUMED;
         final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {
                 boolean didFinalize = false;
                 try (entry) {
                     if (entry.claimLogic()) {
-                        egressHandler.performSingleConsumed(entry, EgressReason.SINGLE_CONSUMED);
+                        egressHandler.performSingleConsumed(entry, finalReason);
                         didFinalize = true;
                     } else {
                         log.info("Entry {} claimed by other path, skipping finalizer",
@@ -163,6 +168,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     egressHandler.performSingleConsumed(partner, EgressReason.REJECT);
                     egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
                 }
+                launcher.getTracker().onTerminated(2);
                 return;
             }
             slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);

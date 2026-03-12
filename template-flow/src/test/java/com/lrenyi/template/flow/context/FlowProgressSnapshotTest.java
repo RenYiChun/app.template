@@ -39,19 +39,6 @@ class FlowProgressSnapshotTest {
     }
 
     @Test
-    void getSuccessRateReturnsOne() {
-        FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 10, 0, 0, 0, 0, 0, 0, 0);
-        assertEquals(1.0, s.getSuccessRate());
-    }
-
-    @Test
-    void getPassiveEgressByReasonReturnsZero() {
-        FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 0, 0);
-        assertEquals(0L, s.getPassiveEgressByReason("TIMEOUT"));
-        assertEquals(0L, s.getPassiveEgressByReason(null));
-    }
-
-    @Test
     void getTpsDurationZeroReturnsZero() {
         FlowProgressSnapshot s = new FlowProgressSnapshot("j1", 0, 0, 0, 0, 0, 0, 100, 100);
         assertEquals(0.0, s.getTps());

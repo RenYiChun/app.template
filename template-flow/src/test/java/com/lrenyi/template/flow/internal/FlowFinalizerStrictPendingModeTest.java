@@ -9,14 +9,13 @@ import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
-import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.manager.FlowManager;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +58,7 @@ class FlowFinalizerStrictPendingModeTest {
         FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowEntry<Object> entry = new FlowEntry<>(new Object(), jobId);
         
-        finalizer.submitDataToConsumer(entry, launcher);
+        finalizer.submitDataToConsumer(entry, launcher, null);
     }
     
     @Test
@@ -92,7 +91,7 @@ class FlowFinalizerStrictPendingModeTest {
         // In non-strict mode, submission is attempted even after timeout; the job isn't registered so acquire
         // throws ExecutorInterruptedException — that's acceptable for this test.
         try {
-            finalizer.submitDataToConsumer(entry, launcher);
+            finalizer.submitDataToConsumer(entry, launcher, null);
         } catch (RuntimeException ignored) {
             // Expected: job not registered with FlowManager, so orchestrator.acquire() throws
         }
@@ -177,10 +176,7 @@ class FlowFinalizerStrictPendingModeTest {
         public void onConsumerReleased(String jobId) { }
         
         @Override
-        public void onActiveEgress() { }
-        
-        @Override
-        public void onPassiveEgress(EgressReason reason) { }
+        public void onTerminated(int count) { }
         
         @Override
         public FlowProgressSnapshot getSnapshot() {

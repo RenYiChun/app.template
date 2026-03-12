@@ -41,13 +41,6 @@ public final class FlowEgressHandler<T> {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "onPairConsumed_failed",
                     progressTracker.getMetricJobId());
         }
-        try {
-            progressTracker.onActiveEgress();
-            progressTracker.onActiveEgress();
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "progress_tracker_pair_failed",
-                    progressTracker.getMetricJobId());
-        }
         if (log.isDebugEnabled()) {
             log.debug("Pair consumed finished, {}", FlowLogHelper.formatJobContext(jobId,
                     progressTracker.getMetricJobId()));
@@ -55,9 +48,7 @@ public final class FlowEgressHandler<T> {
     }
     
     /**
-     * 单条消费：onSingleConsumed、EGRESS_ACTIVE/PASSIVE（按 reason）、progressTracker。
-     * 仅当 reason 为被动原因时调用 onPassiveEgress(reason)，SINGLE_CONSUMED 走 onActiveEgress。
-     * 调用方负责 entry 生命周期。
+     * 单条消费：onSingleConsumed。调用方负责 entry 生命周期。
      */
     public void performSingleConsumed(FlowEntry<T> entry, EgressReason reason) {
         String jobId = entry.getJobId();
@@ -70,34 +61,9 @@ public final class FlowEgressHandler<T> {
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "onSingleConsumed_failed");
         }
-        boolean passive = reason != null && reason.isPassive();
-        try {
-            if (passive) {
-                progressTracker.onPassiveEgress(reason);
-            } else {
-                progressTracker.onActiveEgress();
-            }
-        } catch (Exception e) {
-            FlowExceptionHelper.handleException(jobId,
-                                                null,
-                                                e,
-                                                FlowPhase.CONSUMPTION,
-                                                "progress_tracker_single_failed",
-                                                progressTracker.getMetricJobId()
-            );
-        }
-        if (passive) {
-            if (reason == EgressReason.TIMEOUT
-                    || reason == EgressReason.EVICTION
-                    || reason == EgressReason.REJECT
-                    || reason == EgressReason.MISMATCH) {
-                log.warn("Passive egress occurred, {}, reason={}",
-                        FlowLogHelper.formatJobContext(jobId, progressTracker.getMetricJobId()), reason);
-            }
-        }
         if (log.isDebugEnabled()) {
-            log.debug("Single consumed finished, {}, reason={}, passive={}",
-                    FlowLogHelper.formatJobContext(jobId, progressTracker.getMetricJobId()), reason, passive);
+            log.debug("Single consumed finished, {}, reason={}",
+                    FlowLogHelper.formatJobContext(jobId, progressTracker.getMetricJobId()), reason);
         }
     }
 }

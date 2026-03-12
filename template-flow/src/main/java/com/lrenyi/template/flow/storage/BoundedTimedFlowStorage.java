@@ -20,7 +20,6 @@ import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
-import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -95,7 +94,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             ProgressTracker progressTracker,
             FlowFinalizer<T> finalizer,
             FlowEgressHandler<T> egressHandler,
-            FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry,
             String jobId) {
         super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
@@ -103,7 +101,14 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         this.maxPerKey = perJob.getKeyedCache().getEffectiveMultiValueMaxPerKey();
         this.jobId = jobId;
         this.clock = Clock.systemUTC();
-        this.evictionCoordinator = new EvictionCoordinator(expiryIndex, this, "app-template-flow-eviction-" + jobId);
+        int evictionThreads = perJob.getEffectiveEvictionCoordinatorThreads(flowConfig.getLimits().getGlobal());
+        long evictionScanIntervalMill = perJob.getEffectiveEvictionScanIntervalMill(flowConfig.getLimits().getGlobal());
+        this.evictionCoordinator = new EvictionCoordinator(expiryIndex,
+                                                           this,
+                                                           "app-template-flow-eviction-" + jobId,
+                                                           evictionThreads,
+                                                           evictionScanIntervalMill
+        );
         this.evictionCoordinator.start();
     }
 
@@ -204,7 +209,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             for (FlowEntry<T> entry : entries) {
                 savedEntryCount.decrement();
                 entry.closeStorageLease();
-                handleEgress(key, entry, EgressReason.TIMEOUT, false);
+                handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
             }
         } finally {
             stripe.unlock();
@@ -266,7 +271,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             for (FlowEntry<T> entry : expired) {
                 savedEntryCount.decrement();
                 entry.closeStorageLease();
-                handleEgress(slotId, entry, EgressReason.TIMEOUT, true);
+                handleEgress(slotId, entry, EgressReason.SINGLE_CONSUMED, true);
             }
             return;
         }
@@ -283,7 +288,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             return;
         }
         if (log.isDebugEnabled()) {
-            log.debug("驱逐槽位 {} 全量配对，reason={}, 共 {} 条 entry", key, EgressReason.TIMEOUT, n);
+            log.debug("驱逐槽位 {} 全量配对, 共 {} 条 entry", key, n);
         }
         boolean[] processed = new boolean[n];
         List<FlowEntry<T>> unmatched = new ArrayList<>(n);
@@ -345,7 +350,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         for (FlowEntry<T> e : unmatched) {
             e.closeStorageLease();
             savedEntryCount.decrement();
-            handleEgress(key, e, EgressReason.TIMEOUT, true);
+            handleEgress(key, e, EgressReason.SINGLE_CONSUMED, true);
         }
     }
     

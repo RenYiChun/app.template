@@ -15,8 +15,7 @@ public class MatchRetryCoordinator<T> {
     public MatchRetryCoordinator(String jobId,
             TemplateConfigProperties.Flow.PerJob perJob,
             FlowJoiner<T> joiner,
-            FlowManager flowManager,
-            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+            FlowManager flowManager) {
         this.jobId = jobId;
         this.perJob = perJob;
         this.joiner = joiner;
@@ -35,32 +34,13 @@ public class MatchRetryCoordinator<T> {
     }
     
     public boolean tryConsumeRetry(EgressReason reason, FlowEntry<T> entry) {
-        if (!perJob.getKeyedCache().isMustMatchRetryEnabled() || !joiner.needMatched()) {
+        if (!perJob.getKeyedCache().isMustMatchRetryEnabled() || !joiner.needMatched()
+                || reason == EgressReason.SHUTDOWN) {
             return false;
         }
         if (flowManager != null && flowManager.isStopped(jobId)) {
             return false;
         }
-        if (!supportReason(reason)) {
-            return false;
-        }
-        boolean consumed = entry.tryConsumeOneRetry();
-        if (!consumed) {
-            return false;
-        }
-        return true;
-    }
-    
-    public void onRetrySucceeded(EgressReason reason) {
-    }
-    
-    private boolean supportReason(EgressReason reason) {
-        if (reason == EgressReason.TIMEOUT) {
-            return perJob.getKeyedCache().isMustMatchRetryOnTimeout();
-        }
-        if (reason == EgressReason.EVICTION) {
-            return perJob.getKeyedCache().isMustMatchRetryOnEviction();
-        }
-        return false;
+        return entry.tryConsumeOneRetry();
     }
 }

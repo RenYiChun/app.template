@@ -79,8 +79,7 @@ public class FlowLauncher<T> {
         this.matchRetryCoordinator = new MatchRetryCoordinator<>(jobId,
                                                                  flow.getLimits().getPerJob(),
                                                                  flowJoiner,
-                                                                 flowManager,
-                                                                 flowManager.getMeterRegistry()
+                                                                 flowManager
         );
     }
 
@@ -182,6 +181,7 @@ public class FlowLauncher<T> {
                     @SuppressWarnings("unchecked") var handler =
                         (FlowEgressHandler<T>) resourceContext.getEgressHandler();
                     handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
+                    tracker.onTerminated(1);
                     return;
                 }
 

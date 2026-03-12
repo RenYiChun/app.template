@@ -2,7 +2,6 @@ package com.lrenyi.template.flow.storage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,9 +104,7 @@ class BoundedTimedFlowStorageTest {
                 joiner,
                 progressTracker,
                 finalizer,
-                egressHandler,
-                registry,
-                registryMeter,
+                egressHandler, registryMeter,
                 jobId
         );
     }
@@ -424,16 +421,14 @@ class BoundedTimedFlowStorageTest {
         @Override
         public void onConsumerReleased(String jobId) {
             activeConsumers.decrementAndGet();
-        }
-
-        @Override
-        public void onActiveEgress() {
             terminated.incrementAndGet();
         }
 
         @Override
-        public void onPassiveEgress(EgressReason reason) {
-            terminated.incrementAndGet();
+        public void onTerminated(int count) {
+            for (int i = 0; i < count; i++) {
+                terminated.incrementAndGet();
+            }
         }
 
         @Override
@@ -552,11 +547,7 @@ class BoundedTimedFlowStorageTest {
         }
 
         @Override
-        public void onActiveEgress() {
-        }
-
-        @Override
-        public void onPassiveEgress(EgressReason reason) {
+        public void onTerminated(int count) {
         }
 
         @Override

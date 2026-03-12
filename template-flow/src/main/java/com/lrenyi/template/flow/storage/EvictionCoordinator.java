@@ -1,37 +1,55 @@
 package com.lrenyi.template.flow.storage;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 单线程驱逐协调器，从 DelayQueue 中取出 SlotExpiryToken 并交给存储处理。
+ * 驱逐协调器，从 DelayQueue 中取出 SlotExpiryToken 并交给存储处理。
+ * 支持多线程：多个 worker 共享同一 ExpiryIndex，各自 take/poll 获取 token 并执行 drain。
+ * 当 scanIntervalMill > 0 时使用 poll(timeout)，定期唤醒以检查关闭状态；否则使用 take() 阻塞等待。
  */
 @Slf4j
 public final class EvictionCoordinator implements AutoCloseable {
     private final ExpiryIndex<SlotExpiryToken> expiryIndex;
     private final BoundedTimedFlowStorage<?> storage;
+    private final long scanIntervalMill;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private Thread worker;
+    private final Thread[] workers;
 
     public EvictionCoordinator(ExpiryIndex<SlotExpiryToken> expiryIndex,
-                               BoundedTimedFlowStorage<?> storage,
-                               String threadName) {
+            BoundedTimedFlowStorage<?> storage,
+            String threadNamePrefix,
+            int threadCount,
+            long scanIntervalMill) {
         this.expiryIndex = Objects.requireNonNull(expiryIndex, "expiryIndex");
         this.storage = Objects.requireNonNull(storage, "storage");
-        this.worker = new Thread(this::runLoop, threadName);
-        this.worker.setDaemon(true);
+        this.scanIntervalMill = Math.max(0, scanIntervalMill);
+        int count = Math.max(1, threadCount);
+        this.workers = new Thread[count];
+        for (int i = 0; i < count; i++) {
+            String name = count > 1 ? threadNamePrefix + "-" + i : threadNamePrefix;
+            workers[i] = Thread.ofVirtual().name(name).unstarted(this::runLoop);
+        }
     }
 
     public void start() {
-        worker.start();
+        for (Thread w : workers) {
+            w.start();
+        }
     }
 
     private void runLoop() {
         try {
-            log.debug("EvictionCoordinator started, waiting for expiry tokens");
+            log.debug("EvictionCoordinator started, waiting for expiry tokens (scanIntervalMill={})", scanIntervalMill);
             while (!closed.get()) {
-                SlotExpiryToken token = expiryIndex.take();
+                SlotExpiryToken token = scanIntervalMill > 0
+                        ? expiryIndex.poll(scanIntervalMill, TimeUnit.MILLISECONDS)
+                        : expiryIndex.take();
+                if (token == null) {
+                    continue;
+                }
                 try {
                     if (log.isTraceEnabled()) {
                         log.trace("EvictionCoordinator processing token slotId={}, nextCheckAt={}",
@@ -61,8 +79,10 @@ public final class EvictionCoordinator implements AutoCloseable {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
-        if (worker != null) {
-            worker.interrupt();
+        for (Thread w : workers) {
+            if (w != null) {
+                w.interrupt();
+            }
         }
     }
 }

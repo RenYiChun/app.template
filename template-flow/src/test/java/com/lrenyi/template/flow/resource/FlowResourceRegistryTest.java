@@ -2,17 +2,16 @@ package com.lrenyi.template.flow.resource;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import com.lrenyi.template.flow.PairItem;
-import com.lrenyi.template.flow.QueueJoiner;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.core.TemplateConfigProperties.Flow.BackpressureBlockingMode;
+import com.lrenyi.template.flow.PairItem;
+import com.lrenyi.template.flow.QueueJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.manager.FlowManager;
-import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -94,12 +93,12 @@ class FlowResourceRegistryTest {
         var launcher = flowManager.createLauncher(jobId, joiner, blockingTracker, config);
         FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
         FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
-
-        finalizer.submitDataToConsumer(entry1, launcher);
+        
+        finalizer.submitDataToConsumer(entry1, launcher, null);
         assertTrue(acquiredLatch.await(2, TimeUnit.SECONDS), "First task should acquire and block");
         Thread.sleep(300);
-
-        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher));
+        
+        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher, null));
         assertEquals(1L, registry.getGlobalPendingConsumerAdder().sum(),
                 "Second's increment was rolled back; first task still holds 1 until it completes");
     }
@@ -118,10 +117,6 @@ class FlowResourceRegistryTest {
 
         @Override
         public void onConsumerReleased(String jobId) {
-        }
-
-        @Override
-        public void onActiveEgress() {
             acquiredLatch.countDown();
             try {
                 blockLatch.await();
@@ -132,15 +127,15 @@ class FlowResourceRegistryTest {
         }
 
         @Override
+        public void onTerminated(int count) {
+        }
+
+        @Override
         public void onProductionAcquired() {
         }
 
         @Override
         public void onProductionReleased() {
-        }
-
-        @Override
-        public void onPassiveEgress(EgressReason reason) {
         }
 
         @Override
@@ -181,16 +176,11 @@ class FlowResourceRegistryTest {
         }
         
         @Override
-        public void onActiveEgress() {
-        }
-        
-        @Override
-        public void onPassiveEgress(EgressReason reason) {
-        
-        }
-        
-        @Override
         public void onConsumerReleased(String jobId) {
+        }
+        
+        @Override
+        public void onTerminated(int count) {
         }
         
         @Override

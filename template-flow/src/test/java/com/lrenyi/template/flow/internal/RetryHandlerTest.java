@@ -8,7 +8,6 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.storage.RetryStorageAdapter;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,8 +87,7 @@ class RetryHandlerTest {
         TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
         cache.setMustMatchRetryEnabled(true);
         cache.setMustMatchRetryMaxTimes(maxRetryTimes);
-        cache.setMustMatchRetryOnTimeout(true);
-        return new MatchRetryCoordinator<>(jobId, perJob, new TestJoiner(), null, new SimpleMeterRegistry());
+        return new MatchRetryCoordinator<>(jobId, perJob, new TestJoiner(), null);
     }
     
     private static final class TestAdapter implements RetryStorageAdapter<String> {

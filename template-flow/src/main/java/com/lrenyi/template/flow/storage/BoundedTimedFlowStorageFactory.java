@@ -37,9 +37,7 @@ public class BoundedTimedFlowStorageFactory implements FlowStorageFactory {
                                              joiner,
                                              progressTracker,
                                              finalizer,
-                                             egressHandler,
-                                             resourceRegistry,
-                                             meterRegistry,
+                                             egressHandler, meterRegistry,
                                              jobId
         );
     }
