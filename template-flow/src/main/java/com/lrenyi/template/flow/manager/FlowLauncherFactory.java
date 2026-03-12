@@ -75,6 +75,7 @@ final class FlowLauncherFactory {
                                                                  .jobConsumerSemaphore(semaphores.jobConsumer)
                                                                  .pendingConsumerSlotSemaphore(semaphores.pendingConsumerSlot)
                                                                  .egressHandler(egressHandler)
+                                                                 .finalizer(finalizer)
                                                                  .consumerPermitPair(permitPairs.consumer)
                                                                  .inFlightPermitPair(permitPairs.inFlight)
                                                                  .producerPermitPair(permitPairs.producer)

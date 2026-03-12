@@ -42,6 +42,10 @@ public enum EgressReason {
      */
     REJECT,
     /**
+     * 背压获取许可超时，绕过存储直接消费（数据不丢）
+     */
+    BACKPRESSURE_TIMEOUT,
+    /**
      * 系统关闭时残留未处理数据
      */
     SHUTDOWN,
