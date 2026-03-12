@@ -14,6 +14,7 @@ import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.flow.health.HealthStatus;
 import com.lrenyi.template.flow.internal.FlowLauncher;
+import com.lrenyi.template.flow.metrics.FlowResourceMetrics;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -133,6 +134,7 @@ public class FlowManager implements ActiveLauncherLookup {
     private FlowManager init() {
         FlowResourceHealthIndicator healthIndicator = new FlowResourceHealthIndicator(resourceRegistry, this);
         FlowHealth.registerIndicator(healthIndicator);
+        FlowResourceMetrics.register(this, meterRegistry);
 
         return this;
     }
@@ -153,6 +155,7 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public void unregister(String jobId) {
+        FlowResourceMetrics.unregisterPerJob(jobId, meterRegistry);
         resourceRegistry.deregisterJob(jobId);
         jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
@@ -215,6 +218,7 @@ public class FlowManager implements ActiveLauncherLookup {
                 FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
             activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
             resourceRegistry.registerJob(jobId);
+            FlowResourceMetrics.registerPerJob(launcher, meterRegistry);
             return launcher;
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
