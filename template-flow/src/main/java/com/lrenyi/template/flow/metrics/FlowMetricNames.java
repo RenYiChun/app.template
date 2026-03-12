@@ -43,7 +43,7 @@ public final class FlowMetricNames {
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
     public static final String TAG_PHASE = "phase";
-    
+
     // ==================== 资源限制/使用量 Gauges ====================
     /** 生产在途数量限制上限（Gauge） */
     public static final String RESOURCES_IN_FLIGHT_PRODUCTION_LIMIT = PREFIX + ".resources.in_flight_production.limit";
@@ -65,6 +65,36 @@ public final class FlowMetricNames {
     public static final String RESOURCES_CONSUMER_THREADS_LIMIT = PREFIX + ".resources.consumer_threads.limit";
     /** 消费线程数当前使用（Gauge） */
     public static final String RESOURCES_CONSUMER_THREADS_USED = PREFIX + ".resources.consumer_threads.used";
+
+    // ==================== Per-job 资源指标（与全局区分，避免同名冲突） ====================
+    /** Per-job 生产在途数量限制上限 */
+    public static final String RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT =
+        PREFIX + ".resources.per_job.in_flight_production.limit";
+    /** Per-job 生产在途数量当前使用 */
+    public static final String RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_USED =
+        PREFIX + ".resources.per_job.in_flight_production.used";
+    /** Per-job 生产线程数限制上限 */
+    public static final String RESOURCES_PER_JOB_PRODUCER_THREADS_LIMIT =
+        PREFIX + ".resources.per_job.producer_threads.limit";
+    /** Per-job 生产线程数当前使用 */
+    public static final String RESOURCES_PER_JOB_PRODUCER_THREADS_USED =
+        PREFIX + ".resources.per_job.producer_threads.used";
+    /** Per-job 存储容量限制上限 */
+    public static final String RESOURCES_PER_JOB_STORAGE_LIMIT = PREFIX + ".resources.per_job.storage.limit";
+    /** Per-job 存储容量当前使用 */
+    public static final String RESOURCES_PER_JOB_STORAGE_USED = PREFIX + ".resources.per_job.storage.used";
+    /** Per-job 在途消费数量限制上限 */
+    public static final String RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_LIMIT =
+        PREFIX + ".resources.per_job.in_flight_consumer.limit";
+    /** Per-job 在途消费数量当前使用 */
+    public static final String RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_USED =
+        PREFIX + ".resources.per_job.in_flight_consumer.used";
+    /** Per-job 消费线程数限制上限 */
+    public static final String RESOURCES_PER_JOB_CONSUMER_THREADS_LIMIT =
+        PREFIX + ".resources.per_job.consumer_threads.limit";
+    /** Per-job 消费线程数当前使用 */
+    public static final String RESOURCES_PER_JOB_CONSUMER_THREADS_USED =
+        PREFIX + ".resources.per_job.consumer_threads.used";
 
     private FlowMetricNames() {}
 }

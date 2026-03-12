@@ -290,8 +290,8 @@
       "title": "生产在途 上限/使用",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_resources_in_flight_production_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        { "expr": "app_template_flow_resources_per_job_in_flight_production_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
+        { "expr": "app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
       ]
     },
     {
@@ -306,8 +306,8 @@
       "title": "生产线程数 上限/使用",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_resources_producer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_producer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        { "expr": "app_template_flow_resources_per_job_producer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
+        { "expr": "app_template_flow_resources_per_job_producer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
       ]
     },
     {
@@ -322,8 +322,8 @@
       "title": "存储容量 上限/使用",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        { "expr": "app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
+        { "expr": "app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
       ]
     },
     {
@@ -338,8 +338,8 @@
       "title": "在途消费 上限/使用",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_resources_in_flight_consumer_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        { "expr": "app_template_flow_resources_per_job_in_flight_consumer_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
+        { "expr": "app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
       ]
     },
     {
@@ -354,8 +354,8 @@
       "title": "消费线程数 上限/使用",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_resources_consumer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_consumer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        { "expr": "app_template_flow_resources_per_job_consumer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
+        { "expr": "app_template_flow_resources_per_job_consumer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
       ]
     },
     {

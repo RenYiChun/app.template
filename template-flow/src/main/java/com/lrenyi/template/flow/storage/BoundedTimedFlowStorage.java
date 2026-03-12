@@ -15,6 +15,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.model.EgressReason;
@@ -80,7 +81,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
 
     private final Map<String, FlowSlot<T>> slotByKey = new ConcurrentHashMap<>();
     private final DelayQueueExpiryIndex expiryIndex = new DelayQueueExpiryIndex();
-    
+
     private final LongAdder savedEntryCount = new LongAdder();
     private final java.util.concurrent.atomic.AtomicBoolean completionDrainTriggered =
             new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -105,7 +106,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         long evictionScanIntervalMill = perJob.getEffectiveEvictionScanIntervalMill(flowConfig.getLimits().getGlobal());
         this.evictionCoordinator = new EvictionCoordinator(expiryIndex,
                                                            this,
-                                                           "app-template-flow-eviction-" + jobId,
+                                                           FlowConstants.THREAD_NAME_PREFIX_EVICTION,
                                                            evictionThreads,
                                                            evictionScanIntervalMill
         );
@@ -158,7 +159,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     public long maxCacheSize() {
         return perJob.getStorageCapacity();
     }
-    
+
     @Override
     public long entryLimit() {
         return perJob.getStorageCapacity();
@@ -168,7 +169,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     public boolean supportsDeferredExpiry() {
         return true;
     }
-    
+
     /**
      * 生产完成时主动将剩余条目提交给消费者（completion drain）。
      * 仅对非匹配模式生效，保证幂等：多次调用仅执行一次。
@@ -189,7 +190,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             drainSlotForCompletion(key);
         }
     }
-    
+
     private void drainSlotForCompletion(String key) {
         FlowSlot<T> slot = slotByKey.get(key);
         if (slot == null || slot.isEmpty()) {
@@ -244,7 +245,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         expiryIndex.clear();
     }
-    
+
     public void drainExpiredEntries(String slotId) {
         FlowSlot<T> slot = slotByKey.get(slotId);
         if (slot == null || slot.isEmpty()) {
@@ -287,9 +288,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         if (n == 0) {
             return;
         }
-        if (log.isDebugEnabled()) {
-            log.debug("驱逐槽位 {} 全量配对, 共 {} 条 entry", key, n);
-        }
         boolean[] processed = new boolean[n];
         List<FlowEntry<T>> unmatched = new ArrayList<>(n);
         boolean hasAnyPairSucceeded = false;
@@ -300,7 +298,10 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             launcher = launcherLookup.getActiveLauncher(first.getJobId());
         }
         boolean multiMatchEnabled = perJob.isPairingMultiMatchEnabled();
-
+        if (log.isDebugEnabled()) {
+            String jobId = first == null ? "null" : first.getJobId();
+            log.debug("begin to match when data out buffer, key: {}, entry size: {}, job id: {}", key, n, jobId);
+        }
         for (int i = 0; i < n; i++) {
             if (processed[i]) {
                 continue;
@@ -353,14 +354,14 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             handleEgress(key, e, EgressReason.SINGLE_CONSUMED, true);
         }
     }
-    
+
     /** 按 key 计算过期点：以 slot 首次写入时间为起点 + TTL。 */
     private void updateSlotExpiryMetadata(FlowSlot<T> slot) {
         long at = slot.getEarliestStoredAtEpochMs();
         long timeoutMs = perJob.getKeyedCache().getEffectiveTimeoutMill();
         slot.setEarliestExpireAt(at + timeoutMs);
     }
-    
+
     /**
      * 将 slot 重新加入过期队列（用于驱逐因「配对已开始」而中止时，稍后再次尝试驱逐）。
      */
@@ -368,7 +369,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         slot.setQueuedForExpiry(false);
         enqueueSlotExpiryIfNeeded(slot);
     }
-    
+
     private void enqueueSlotExpiryIfNeeded(FlowSlot<T> slot) {
         if (slot.isQueuedForExpiry()) {
             if (log.isTraceEnabled()) {
@@ -390,7 +391,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             );
         }
     }
-    
+
     private boolean handleMatchingMode(String key, FlowSlot<T> slot, FlowEntry<T> incoming) {
         // 双流配对模式：优先尝试从当前槽位中找 partner，找不到再写入
         FlowJoiner<T> joiner = joiner();
@@ -422,7 +423,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         return saved;
     }
-    
+
     /**
      * 从 slot 中查找首个与 incoming 匹配的 parent，找到后立即提交配对并返回。
      * 使用 for 循环确保首次匹配后即退出，避免 forEach 无法 break 导致的多匹配重复提交。
@@ -449,7 +450,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         return null;
     }
-    
+
     private boolean handleOverwriteModeLocked(String key, FlowSlot<T> slot, FlowEntry<T> entry) {
         // 单值模式：最新写入覆盖旧值，旧值以 REPLACE 原因离库
         boolean multiValue = perJob.getKeyedCache().isMultiValueEnabled();
@@ -466,7 +467,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         slot.append(entry);
         return true;
     }
-    
+
     /** 按 key 判断超时：若 slot 的过期点已到，该 key 下所有 entry 视为已过期。 */
     private List<FlowEntry<T>> collectExpired(FlowSlot<T> slot) {
         List<FlowEntry<T>> result = new ArrayList<>();
@@ -475,7 +476,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         return result;
     }
-    
+
     /**
      * 将「下次检查时间」转为系统时间再交给 SlotExpiryToken，使 DelayQueue 的 getDelay()（用 System.currentTimeMillis()）与等待一致，
      * 避免 clock 与系统时间不一致时 take() 只唤醒一次或 diff 一直大于 0。

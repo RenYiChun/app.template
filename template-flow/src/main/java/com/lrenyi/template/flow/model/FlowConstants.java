@@ -58,19 +58,16 @@ public final class FlowConstants {
      * 默认重试延迟倍数（指数退避）
      */
     public static final double DEFAULT_RETRY_MULTIPLIER = 2.0;
-    /**
-     * 存储出口执行器线程名称
-     */
-    public static final String THREAD_NAME_STORAGE_EGRESS = "flow-storage-egress";
-    
     // ========== 线程名称前缀 ==========
-    /**
-     * 生产者线程名称前缀
-     */
-    public static final String THREAD_NAME_PREFIX_PRODUCER = "prod-";
-    /**
-     * 资源注册表关闭钩子线程名称
-     */
+    /** 生产线程：deposit 任务、子流拉取。格式：flow-producer-0 */
+    public static final String THREAD_NAME_PREFIX_PRODUCER = "flow-producer-";
+    /** 消费线程：onSingleConsumed/onPairConsumed 回调。格式：flow-consumer-0 */
+    public static final String THREAD_NAME_PREFIX_CONSUMER = "flow-consumer-";
+    /** 驱逐线程：EvictionCoordinator 处理 TTL 过期。格式：flow-eviction-0 */
+    public static final String THREAD_NAME_PREFIX_EVICTION = "flow-eviction";
+    /** 存储出口线程：QueueFlowStorage 定时 drain。格式：flow-storage-egress-0 */
+    public static final String THREAD_NAME_PREFIX_STORAGE_EGRESS = "flow-storage-egress-";
+    /** 资源注册表关闭钩子线程名称 */
     public static final String THREAD_NAME_SHUTDOWN_HOOK = "flow-resource-registry-shutdown";
     /**
      * 进度显示线程名称
