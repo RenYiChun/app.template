@@ -222,7 +222,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                          stopped
                 );
                 if (!stopped) {
-                    flowManager.unregister(jobId);
+                    flowManager.scheduleUnregister(jobId);
                 }
                 completionFuture.complete(null);
             }

@@ -174,6 +174,11 @@ public final class FlowResourceMetrics {
                                  launcher,
                                  FlowResourceMetrics::getCompletionInFlightPush
         ).tags(tags).description("推送模式下 in-flight push 数量，用于完成判定").register(meterRegistry));
+        meters.add(Gauge.builder(FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
+                                 launcher,
+                                 FlowResourceMetrics::getCompletionActiveConsumers
+        ).tags(tags).description("活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定，与 in_flight_consumer_used 不同")
+         .register(meterRegistry));
         PER_JOB_METERS.put(launcher.getJobId(), meters);
     }
 
@@ -266,5 +271,9 @@ public final class FlowResourceMetrics {
 
     private static double getCompletionInFlightPush(FlowLauncher<?> l) {
         return l.getInFlightPushCount();
+    }
+
+    private static double getCompletionActiveConsumers(FlowLauncher<?> l) {
+        return l.getTracker().getSnapshot().activeConsumers();
     }
 }
