@@ -88,4 +88,11 @@ public interface ProgressTracker {
     default boolean isProductionComplete() {
         return false;
     }
+
+    /**
+     * Source 是否已读完。用于完成判定监控。
+     */
+    default boolean isSourceFinished() {
+        return false;
+    }
 }

@@ -166,6 +166,14 @@ public final class FlowResourceMetrics {
                                  launcher,
                                  FlowResourceMetrics::getConsumerThreadsUsed
         ).tags(tags).description("消费线程数当前使用（per-job）").register(meterRegistry));
+        meters.add(Gauge.builder(FlowMetricNames.COMPLETION_SOURCE_FINISHED,
+                                 launcher,
+                                 FlowResourceMetrics::getCompletionSourceFinished
+        ).tags(tags).description("Source 是否已读完（0/1），用于完成判定").register(meterRegistry));
+        meters.add(Gauge.builder(FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH,
+                                 launcher,
+                                 FlowResourceMetrics::getCompletionInFlightPush
+        ).tags(tags).description("推送模式下 in-flight push 数量，用于完成判定").register(meterRegistry));
         PER_JOB_METERS.put(launcher.getJobId(), meters);
     }
 
@@ -250,5 +258,13 @@ public final class FlowResourceMetrics {
         }
         int limit = l.getFlow().getLimits().getPerJob().getConsumerThreads();
         return Math.max(0, limit - s.availablePermits());
+    }
+
+    private static double getCompletionSourceFinished(FlowLauncher<?> l) {
+        return l.getTracker().isSourceFinished() ? 1.0 : 0.0;
+    }
+
+    private static double getCompletionInFlightPush(FlowLauncher<?> l) {
+        return l.getInFlightPushCount();
     }
 }

@@ -61,6 +61,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public void onProductionReleased() {
         productionReleased.increment();
+        incrementCounter(FlowMetricNames.PRODUCTION_RELEASED);
     }
 
     /**
@@ -171,6 +172,11 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public boolean isProductionComplete() {
         return sourceFinished && productionReleased.sum() >= productionAcquired.sum();
+    }
+
+    @Override
+    public boolean isSourceFinished() {
+        return sourceFinished;
     }
 
     /**
