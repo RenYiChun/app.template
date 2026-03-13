@@ -187,7 +187,7 @@ class FlowFinalizerStrictPendingModeTest {
         public void setTotalExpected(String jobId, long total) { }
 
         @Override
-        public void markSourceFinished(String jobId) { }
+        public void markSourceFinished(String jobId, boolean showStatus) {}
 
         @Override
         public boolean isCompleted(boolean showStatus) {

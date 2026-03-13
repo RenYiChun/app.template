@@ -14,6 +14,8 @@ public final class FlowMetricNames {
     public static final String PRODUCTION_ACQUIRED = PREFIX + ".production_acquired";
     /** 物理终结累计数。数据彻底离场、信号量释放时 +1。{@code rate(terminated[1m])} 即 TPS */
     public static final String TERMINATED = PREFIX + ".terminated";
+    /** 生产许可释放累计数。与 production_acquired 配对，用于完成判定。 */
+    public static final String PRODUCTION_RELEASED = PREFIX + ".production_released";
     /**
      * 统一错误计数器，按 errorType + phase 维度聚合。
      * <p>errorType 值域：job_failed / deposit_failed / onSingleConsumed_failed / onPairConsumed_failed /
@@ -97,6 +99,12 @@ public final class FlowMetricNames {
     /** Per-job 消费线程数当前使用 */
     public static final String RESOURCES_PER_JOB_CONSUMER_THREADS_USED =
         PREFIX + ".resources.per_job.consumer_threads.used";
+
+    // ==================== Job 完成判定 Gauges（per-job） ====================
+    /** Source 是否已读完（0/1），用于完成判定。 */
+    public static final String COMPLETION_SOURCE_FINISHED = PREFIX + ".completion.source_finished";
+    /** 推送模式下 in-flight push 数量，用于完成判定。 */
+    public static final String COMPLETION_IN_FLIGHT_PUSH = PREFIX + ".completion.in_flight_push";
 
     private FlowMetricNames() {}
 }
