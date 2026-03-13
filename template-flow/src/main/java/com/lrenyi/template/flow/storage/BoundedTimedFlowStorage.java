@@ -15,10 +15,10 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
-import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.model.EgressReason;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -247,26 +247,40 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
     }
 
     public void drainExpiredEntries(String slotId) {
-        FlowSlot<T> slot = slotByKey.get(slotId);
-        if (slot == null || slot.isEmpty()) {
-            return;
-        }
-        if (slot.isPairingInProgress()) {
-            if (log.isTraceEnabled()) {
-                log.trace("[{}] skip eviction for slot {}, pairing in progress",
-                    FlowLogHelper.formatJobContext(jobId, null), slotId);
+        Lock stripe = stripeFor(slotId);
+        stripe.lock();
+        FlowSlot<T> slot;
+        List<FlowEntry<T>> expired;
+        try {
+            slot = slotByKey.get(slotId);
+            if (slot == null || slot.isEmpty()) {
+                return;
             }
-            return;
-        }
-        List<FlowEntry<T>> expired = collectExpired(slot);
-        // 驱逐先触发、配对后触发：在真正执行驱逐前再次检查，若已进入配对则中止本次驱逐并重新排队
-        if (slot.isPairingInProgress()) {
-            if (log.isTraceEnabled()) {
-                log.trace("[{}] abort eviction for slot {}, pairing started before drain",
-                    FlowLogHelper.formatJobContext(jobId, null), slotId);
+            if (slot.isPairingInProgress()) {
+                if (log.isTraceEnabled()) {
+                    log.trace("[{}] skip eviction for slot {}, pairing in progress",
+                              FlowLogHelper.formatJobContext(jobId, null),
+                              slotId
+                    );
+                }
+                return;
             }
-            requeueSlotExpiry(slot);
-            return;
+            // 驱逐前再次检查：若已进入配对则中止并重新排队
+            if (slot.isPairingInProgress()) {
+                if (log.isTraceEnabled()) {
+                    log.trace("[{}] abort eviction for slot {}, pairing started before drain",
+                              FlowLogHelper.formatJobContext(jobId, null),
+                              slotId
+                    );
+                }
+                requeueSlotExpiry(slot);
+                return;
+            }
+            // 必须 drain 而非 collect：从 slot 中移除 entry 引用，否则 slot 持续持有导致内存泄漏
+            expired = slot.drainAll();
+            slotByKey.remove(slotId);
+        } finally {
+            stripe.unlock();
         }
         if (!joiner().needMatched()) {
             for (FlowEntry<T> entry : expired) {
@@ -466,15 +480,6 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         }
         slot.append(entry);
         return true;
-    }
-
-    /** 按 key 判断超时：若 slot 的过期点已到，该 key 下所有 entry 视为已过期。 */
-    private List<FlowEntry<T>> collectExpired(FlowSlot<T> slot) {
-        List<FlowEntry<T>> result = new ArrayList<>();
-        for (FlowEntry<T> entry : slot.entries()) {
-            result.add(entry);
-        }
-        return result;
     }
 
     /**

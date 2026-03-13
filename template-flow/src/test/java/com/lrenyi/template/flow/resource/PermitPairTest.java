@@ -5,19 +5,18 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class PermitPairTest {
 
     @Test
-    void tryAcquireBoth_singlePermit_success() throws InterruptedException {
+    void tryAcquireBothWithResult_singlePermit_success() throws InterruptedException {
         Semaphore global = new Semaphore(2, true);
         Semaphore perJob = new Semaphore(2, true);
         PermitPair pair = PermitPair.of(global, perJob);
 
-        boolean acquired = pair.tryAcquireBoth(1, 50, TimeUnit.MILLISECONDS);
-        assertTrue(acquired);
+        PermitPair.AcquireResult result = pair.tryAcquireBothWithResult(1, 50, TimeUnit.MILLISECONDS);
+        assertSame(PermitPair.AcquireResult.SUCCESS, result);
         assertEquals(1, global.availablePermits());
         assertEquals(1, perJob.availablePermits());
 
@@ -27,24 +26,24 @@ class PermitPairTest {
     }
 
     @Test
-    void tryAcquireBoth_perJobFails_rollsBackGlobal() throws InterruptedException {
+    void tryAcquireBothWithResult_perJobFails_rollsBackGlobal() throws InterruptedException {
         Semaphore global = new Semaphore(2, true);
         Semaphore perJob = new Semaphore(0, true);
         PermitPair pair = PermitPair.of(global, perJob);
 
-        boolean acquired = pair.tryAcquireBoth(1, 50, TimeUnit.MILLISECONDS);
-        assertFalse(acquired);
+        PermitPair.AcquireResult result = pair.tryAcquireBothWithResult(1, 50, TimeUnit.MILLISECONDS);
+        assertSame(PermitPair.AcquireResult.FAILED_ON_PER_JOB, result);
         assertEquals(2, global.availablePermits());
         assertEquals(0, perJob.availablePermits());
     }
 
     @Test
-    void tryAcquireBoth_globalNull_usesOnlyPerJob() throws InterruptedException {
+    void tryAcquireBothWithResult_globalNull_usesOnlyPerJob() throws InterruptedException {
         Semaphore perJob = new Semaphore(1, true);
         PermitPair pair = PermitPair.of(null, perJob);
 
-        boolean acquired = pair.tryAcquireBoth(1);
-        assertTrue(acquired);
+        PermitPair.AcquireResult result = pair.tryAcquireBothWithResult(1);
+        assertSame(PermitPair.AcquireResult.SUCCESS, result);
         assertEquals(0, perJob.availablePermits());
 
         pair.release(1);
@@ -52,12 +51,12 @@ class PermitPairTest {
     }
 
     @Test
-    void tryAcquireBoth_releaseOrder_perJobFirstThenGlobal() throws InterruptedException {
+    void tryAcquireBothWithResult_releaseOrder_perJobFirstThenGlobal() throws InterruptedException {
         Semaphore global = new Semaphore(1, true);
         Semaphore perJob = new Semaphore(1, true);
         PermitPair pair = PermitPair.of(global, perJob);
 
-        assertTrue(pair.tryAcquireBoth(1));
+        assertSame(PermitPair.AcquireResult.SUCCESS, pair.tryAcquireBothWithResult(1));
         pair.release(1);
 
         assertEquals(1, global.availablePermits());
@@ -65,24 +64,24 @@ class PermitPairTest {
     }
 
     @Test
-    void tryAcquireBoth_withTimeout_success() throws InterruptedException {
+    void tryAcquireBothWithResult_withTimeout_success() throws InterruptedException {
         Semaphore global = new Semaphore(1, true);
         Semaphore perJob = new Semaphore(1, true);
         PermitPair pair = PermitPair.of(global, perJob);
 
-        boolean acquired = pair.tryAcquireBoth(1, 100, TimeUnit.MILLISECONDS);
-        assertTrue(acquired);
+        assertSame(PermitPair.AcquireResult.SUCCESS,
+                pair.tryAcquireBothWithResult(1, 100, TimeUnit.MILLISECONDS));
         pair.release(1);
     }
 
     @Test
-    void tryAcquireBoth_withTimeout_perJobFull_returnsFalse() throws InterruptedException {
+    void tryAcquireBothWithResult_withTimeout_perJobFull_returnsFailedOnPerJob() throws InterruptedException {
         Semaphore global = new Semaphore(1, true);
         Semaphore perJob = new Semaphore(0, true);
         PermitPair pair = PermitPair.of(global, perJob);
 
-        boolean acquired = pair.tryAcquireBoth(1, 50, TimeUnit.MILLISECONDS);
-        assertFalse(acquired);
+        PermitPair.AcquireResult result = pair.tryAcquireBothWithResult(1, 50, TimeUnit.MILLISECONDS);
+        assertSame(PermitPair.AcquireResult.FAILED_ON_PER_JOB, result);
         assertEquals(1, global.availablePermits());
     }
 }

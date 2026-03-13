@@ -127,7 +127,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，反映 Flow 引擎的实际产出速率。获取在途生产许可：InFlightProductionDimension 每秒成功获取的许可数（attempts - timeout）。",
+          "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，反映 Flow 引擎的实际产出速率。获取背压许可：Manager 层 global 维度的 acquire 成功次数/秒。",
           "fieldConfig": {
             "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
@@ -139,7 +139,7 @@
           "type": "timeseries",
           "targets": [
             { "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "终结", "refId": "A" },
-            { "expr": "sum(rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"in-flight-production\"}[1m])) - sum(rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"in-flight-production\"}[1m]))", "legendFormat": "获取在途生产许可", "refId": "B" }
+            { "expr": "sum(rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "获取背压许可(global)", "refId": "B" }
           ]
         },
         {
@@ -172,7 +172,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "背压许可获取：每秒成功获取背压许可的次数与失败次数。失败增多表示资源紧张或配置过严。",
+          "description": "背压许可获取：每秒成功/失败次数，按 global、per-job、other 划分。失败增多表示资源紧张或配置过严。",
           "fieldConfig": {
             "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
@@ -183,8 +183,11 @@
           "title": "许可获取（成功/失败次数每秒）",
           "type": "timeseries",
           "targets": [
-            { "expr": "sum(rate(backpressure_manager_acquire_success_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "成功", "refId": "A" },
-            { "expr": "sum(rate(backpressure_manager_acquire_failed_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败", "refId": "B" }
+            { "expr": "sum(rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "成功(global)", "refId": "A" },
+            { "expr": "sum(rate(backpressure_manager_acquire_success_per_job_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "成功(per-job)", "refId": "A2" },
+            { "expr": "sum(rate(backpressure_manager_acquire_failed_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败(global)", "refId": "B" },
+            { "expr": "sum(rate(backpressure_manager_acquire_failed_per_job_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败(per-job)", "refId": "B2" },
+            { "expr": "sum(rate(backpressure_manager_acquire_failed_other_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败(other)", "refId": "B3" }
           ]
         },
         {
@@ -205,7 +208,7 @@
             { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Deposit P99", "refId": "A" },
             { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Match P99", "refId": "B" },
             { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Finalize P99", "refId": "C" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "超时 {{dimensionId}}", "refId": "D" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "超时 {{dimensionId}}", "refId": "D" },
             { "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])))", "legendFormat": "Dataforge {{method}} P99", "refId": "E" }
           ]
         },
@@ -224,10 +227,11 @@
           "title": "in-flight 维度（生产在途/消费在途：尝试、阻塞、超时、耗时）",
           "type": "timeseries",
           "targets": [
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "尝试次数 {{dimensionId}}", "refId": "A" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞次数 {{dimensionId}}", "refId": "B" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "超时次数 {{dimensionId}}", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "尝试次数(per-job) {{dimensionId}}", "refId": "A" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(global) {{dimensionId}}", "refId": "B" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(per-job) {{dimensionId}}", "refId": "B2" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "超时次数 {{dimensionId}}", "refId": "C" },
+            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
           ]
         },
         {
@@ -245,10 +249,11 @@
           "title": "producer/consumer 维度（生产/消费线程：尝试、阻塞、超时、耗时）",
           "type": "timeseries",
           "targets": [
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "尝试次数 {{dimensionId}}", "refId": "A" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞次数 {{dimensionId}}", "refId": "B" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "超时次数 {{dimensionId}}", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "尝试次数(per-job) {{dimensionId}}", "refId": "A" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(global) {{dimensionId}}", "refId": "B" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(per-job) {{dimensionId}}", "refId": "B2" },
+            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "超时次数 {{dimensionId}}", "refId": "C" },
+            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
           ]
         },
         {
@@ -266,15 +271,16 @@
           "title": "storage 维度（存储许可：尝试、阻塞、超时、耗时）",
           "type": "timeseries",
           "targets": [
-            { "expr": "sum(rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试次数", "refId": "A" },
-            { "expr": "sum(rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞次数", "refId": "B" },
-            { "expr": "sum(rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时次数", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m])) by (le))", "legendFormat": "获取耗时P99", "refId": "D" }
+            { "expr": "sum(rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试次数(per-job)", "refId": "A" },
+            { "expr": "sum(rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(global)", "refId": "B" },
+            { "expr": "sum(rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(per-job)", "refId": "B2" },
+            { "expr": "sum(rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时次数", "refId": "C" },
+            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m])) by (le))", "legendFormat": "获取耗时P99", "refId": "D" }
           ]
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "背压活跃租约数：当前已持有但未释放的背压许可总数。用于排查许可泄漏或长时间占用。",
+          "description": "背压活跃租约数：当前持有 global/per-job 许可的租约数。用于排查许可泄漏或长时间占用。",
           "fieldConfig": {
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
@@ -284,7 +290,10 @@
           "options": { "tooltip": { "mode": "multi" } },
           "title": "活跃租约数（已持有未释放的许可数）",
           "type": "timeseries",
-          "targets": [{ "expr": "sum(backpressure_manager_lease_active{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "全局", "refId": "A" }]
+          "targets": [
+            { "expr": "sum(backpressure_manager_lease_active_global{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "活跃(global)", "refId": "A" },
+            { "expr": "sum(backpressure_manager_lease_active_per_job{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "活跃(per-job)", "refId": "B" }
+          ]
         }
       ]
     },
@@ -297,7 +306,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压 生产在途数：已 acquire 未 release 的 launch 数量。上限为配置值，使用为当前占用。使用接近上限表示生产端可能被限流。",
+      "description": "生产在途数：已 acquire 未 release 的数据量。上限为配置值，使用为当前占用。使用接近上限表示生产端可能被限流。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -305,7 +314,7 @@
       "gridPos": { "x": 0, "y": 3, "w": 5, "h": 6 },
       "id": 370,
       "options": { "tooltip": { "mode": "multi" } },
-      "title": "生产在途数（已 acquire 未 release 的 launch 数，上限/使用）",
+      "title": "生产在途数（上限/使用）",
       "type": "timeseries",
       "targets": [
         { "expr": "app_template_flow_resources_per_job_in_flight_production_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
@@ -314,7 +323,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压 生产线程数：deposit 任务的并发线程数。上限为配置值，使用为当前活跃数。使用接近上限表示生产端已满负荷。",
+      "description": "生产线程数：deposit 任务的并发线程数。上限为配置值，使用为当前活跃数。使用接近上限表示生产端已满负荷。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -322,7 +331,7 @@
       "gridPos": { "x": 5, "y": 3, "w": 5, "h": 6 },
       "id": 371,
       "options": { "tooltip": { "mode": "multi" } },
-      "title": "生产线程数（deposit 任务并发，上限/使用）",
+      "title": "生产线程数（上限/使用）",
       "type": "timeseries",
       "targets": [
         { "expr": "app_template_flow_resources_per_job_producer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
@@ -331,7 +340,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压 存储容量：Flow 缓存中的条目数。上限为配置值，使用为当前缓存条数。使用接近上限表示存储可能成为瓶颈。",
+      "description": "存储容量：Flow 缓存中的条目数。上限为配置值，使用为当前缓存条数。使用接近上限表示存储可能成为瓶颈。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -339,7 +348,7 @@
       "gridPos": { "x": 10, "y": 3, "w": 5, "h": 6 },
       "id": 372,
       "options": { "tooltip": { "mode": "multi" } },
-      "title": "存储容量（缓存条目数，上限/使用）",
+      "title": "存储容量（上限/使用）",
       "type": "timeseries",
       "targets": [
         { "expr": "app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
@@ -348,7 +357,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压 在途消费数：已离库但未消费的条目数（onSingleConsumed/onPairConsumed 回调执行中）。使用接近上限表示消费端可能被限流。",
+      "description": "在途消费数：已离库但未消费的条目数（还未调用onSingleConsumed/onPairConsumed）。使用接近上限表示消费端可能被限流。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -365,7 +374,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压 消费线程数：onSingleConsumed/onPairConsumed 回调的并发线程数。使用接近上限表示消费端已满负荷。",
+      "description": "消费线程数：onSingleConsumed/onPairConsumed 回调的并发线程数。使用接近上限表示消费端已满负荷。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -373,7 +382,7 @@
       "gridPos": { "x": 20, "y": 3, "w": 4, "h": 6 },
       "id": 374,
       "options": { "tooltip": { "mode": "multi" } },
-      "title": "消费线程数（onSingleConsumed/onPairConsumed 并发，上限/使用）",
+      "title": "消费线程数（上限/使用）",
       "type": "timeseries",
       "targets": [
         { "expr": "app_template_flow_resources_per_job_consumer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
@@ -382,7 +391,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，按 jobId 分组，反映各 Job 的实际产出速率。获取在途生产许可：InFlightProductionDimension 每秒成功获取的许可数（attempts - timeout）。",
+      "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，按 jobId 分组，反映各 Job 的实际产出速率。获取背压许可：Manager 层 per-job 维度的 acquire 成功次数/秒。",
       "fieldConfig": {
         "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -390,16 +399,16 @@
       "gridPos": { "x": 0, "y": 9, "w": 8, "h": 6 },
       "id": 321,
       "options": { "tooltip": { "mode": "multi" } },
-      "title": "Flow 吞吐量（已终结条数/秒）",
+      "title": "Flow 吞吐量（数据量/秒）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "终结 {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"in-flight-production\"}[1m])) - sum by (jobId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"in-flight-production\"}[1m]))", "legendFormat": "获取在途生产许可 {{jobId}}", "refId": "B" }
+        { "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "终结TPS {{jobId}}", "refId": "A" },
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "生产TPS(per-job) {{jobId}}", "refId": "B" }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压许可获取：每秒成功获取背压许可的次数与失败次数，按 jobId 分组。失败增多表示资源紧张或配置过严。",
+      "description": "许可获取TPS：每秒成功/失败次数，按 jobId 及 global/per-job/other 划分。失败增多表示资源紧张或配置过严。",
       "fieldConfig": {
         "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -410,13 +419,16 @@
       "title": "许可获取（成功/失败次数每秒）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "成功 {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败 {{jobId}}", "refId": "B" }
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "成功(global) {{jobId}}", "refId": "A" },
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "成功(per-job) {{jobId}}", "refId": "A2" },
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(global) {{jobId}}", "refId": "B" },
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(per-job) {{jobId}}", "refId": "B2" },
+        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_other_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(other) {{jobId}}", "refId": "B3" }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压活跃租约数：当前已持有但未释放的背压许可总数，按 jobId 分组。用于排查许可泄漏或长时间占用。",
+      "description": "活跃租约数：当前持有 global/per-job 许可的租约数，按 jobId 分组。用于排查许可泄漏或长时间占用。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -426,7 +438,10 @@
       "options": { "tooltip": { "mode": "multi" } },
       "title": "活跃租约数（已持有未释放的许可数）",
       "type": "timeseries",
-      "targets": [{ "expr": "backpressure_manager_lease_active{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "{{jobId}}", "refId": "A" }]
+      "targets": [
+        { "expr": "backpressure_manager_lease_active_global{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "{{jobId}} (global)", "refId": "A" },
+        { "expr": "backpressure_manager_lease_active_per_job{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "{{jobId}} (per-job)", "refId": "B" }
+      ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -443,10 +458,11 @@
       "title": "in-flight 维度（生产在途/消费在途：尝试、阻塞、超时、耗时）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "尝试次数 {{jobId}} {{dimensionId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞次数 {{jobId}} {{dimensionId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}} {{dimensionId}}", "refId": "A" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}} {{dimensionId}}", "refId": "B" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}} {{dimensionId}}", "refId": "B2" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
+        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
       ]
     },
     {
@@ -464,10 +480,11 @@
       "title": "producer/consumer 维度（生产/消费线程：尝试、阻塞、超时、耗时）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "尝试次数 {{jobId}} {{dimensionId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞次数 {{jobId}} {{dimensionId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}} {{dimensionId}}", "refId": "A" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}} {{dimensionId}}", "refId": "B" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}} {{dimensionId}}", "refId": "B2" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
+        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
       ]
     },
     {
@@ -485,10 +502,11 @@
       "title": "storage 维度（存储许可：尝试、阻塞、超时、耗时）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试次数 {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞次数 {{jobId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时次数 {{jobId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m])) by (le, jobId))", "legendFormat": "获取耗时P99 {{jobId}}", "refId": "D" }
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}}", "refId": "A" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}}", "refId": "B" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}}", "refId": "B2" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时次数 {{jobId}}", "refId": "C" },
+        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m])) by (le, jobId))", "legendFormat": "获取耗时P99 {{jobId}}", "refId": "D" }
       ]
     },
     {
@@ -509,7 +527,7 @@
         { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Deposit P99 {{jobId}}", "refId": "A" },
         { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Match P99 {{jobId}}", "refId": "B" },
         { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Finalize P99 {{jobId}}", "refId": "C" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "超时 {{jobId}} {{dimensionId}}", "refId": "D" },
+        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "超时 {{jobId}} {{dimensionId}}", "refId": "D" },
         { "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])))", "legendFormat": "Dataforge {{method}} P99", "refId": "E" }
       ]
     },
