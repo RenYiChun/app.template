@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <h3>FlowMetricNames 覆盖</h3>
  * <ul>
+ *   <li>PRODUCTION_ACQUIRED: 与 snapshot.productionAcquired() 一致</li>
  *   <li>TERMINATED: 与 snapshot.terminated() 一致</li>
  *   <li>DEPOSIT_DURATION: 每次 launch 入 Storage 记录</li>
  *   <li>MATCH_DURATION: 配对消费时记录</li>
@@ -158,6 +159,26 @@ class FlowAndBackpressureMetricsIntegrationTest {
 
     @Nested
     class FlowMetricNamesTests {
+
+        @Test
+        void productionAcquiredCounterIncrementsPerLaunchedItem() throws Exception {
+            int total = 10;
+            String jobId = "job-production-acquired-metrics";
+            List<PairItem> list = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                list.add(new PairItem("k" + i, "v" + i, null));
+            }
+            var joiner = new com.lrenyi.template.flow.OverwriteJoiner();
+            FlowSource<PairItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
+            engine.run(jobId, joiner, source, total, flowConfig);
+            ProgressTracker tracker = engine.getProgressTracker(jobId);
+            awaitCompleted(tracker::isCompleted, 15_000);
+
+            long snapshotAcquired = tracker.getSnapshot().productionAcquired();
+            assertEquals(snapshotAcquired, getFlowCounter(FlowMetricNames.PRODUCTION_ACQUIRED, jobId),
+                    "PRODUCTION_ACQUIRED 应与 snapshot.productionAcquired() 一致");
+            assertEquals(total, snapshotAcquired, "应有 " + total + " 条数据成功获取生产许可");
+        }
 
         @Test
         void terminatedCounterIncrementsPerConsumedItem() throws Exception {

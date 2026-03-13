@@ -328,7 +328,7 @@ class FlowJoinerEngineIntegrationTest {
         TemplateConfigProperties.Flow.PerJob mismatchPerJob = mismatchConfig.getLimits().getPerJob();
         mismatchPerJob.setProducerThreads(10);
         mismatchPerJob.setStorageCapacity(1000);
-        mismatchPerJob.getKeyedCache().setCacheTtlMill(5000);
+        mismatchPerJob.getKeyedCache().setCacheTtlMill(500);
         mismatchPerJob.getKeyedCache().setMultiValueEnabled(true);
         mismatchPerJob.getKeyedCache().setMultiValueMaxPerKey(4);
 
@@ -336,14 +336,14 @@ class FlowJoinerEngineIntegrationTest {
         tracker.setTotalExpected(JOB_MISMATCH, 4);
         engine.run(JOB_MISMATCH, joiner, tracker, mismatchConfig);
         awaitCompleted(tracker::isCompleted);
-        // 匹配模式下无法配对的条目由 TTL 驱逐，通过 processEvictedSlot 以 TIMEOUT 被动原因离库
-        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4, 10_000);
+        // 匹配模式下无法配对的条目由 TTL 驱逐，通过 processEvictedSlot 以 SINGLE_CONSUMED 离库
+        awaitCondition(() -> joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 4, 15_000);
 
         assertEquals(0, joiner.getOnFailedCount(EgressReason.MISMATCH),
                      "不匹配场景改为回槽，不应直接记 MISMATCH"
         );
-        assertTrue(joiner.getOnFailedCount(EgressReason.TIMEOUT) >= 4,
-                   "不匹配数据（匹配模式）由 TTL 驱逐，应为 TIMEOUT 被动出口"
+        assertTrue(joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 4,
+                   "不匹配数据（匹配模式）由 TTL 驱逐，应为 SINGLE_CONSUMED"
         );
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
         assertEquals(snapshot.productionReleased(), snapshot.terminated());

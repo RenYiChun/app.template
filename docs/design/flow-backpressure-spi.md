@@ -313,7 +313,7 @@ AtomicInteger activeLeasesGauge  // 供 Gauge 指标读取
 | `backpressure.dimension.release.count.global` | Counter | `jobId`, `dimensionId` | release 次数（global 层） |
 | `backpressure.dimension.release.count.per_job` | Counter | `jobId`, `dimensionId` | release 次数（per-job 层） |
 
-**注册条件**：仅当该维度的 `flow.limits.global.*` 配置 > 0 时注册上述指标；global 未启用时该维度不产生任何背压指标。
+**注册条件**：仅当该维度的 `flow.limits.global.*` 或 `flow.limits.per-job.*` 配置 > 0 时注册上述指标；global 与 per-job 均未启用时该维度不产生任何背压指标。
 
 ### 6.2 管理器级指标（每 Job 一组）
 

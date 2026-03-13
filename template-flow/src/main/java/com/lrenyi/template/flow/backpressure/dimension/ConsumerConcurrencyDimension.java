@@ -47,7 +47,8 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
         }
         TemplateConfigProperties.Flow flowConfig = ctx.getFlowConfig();
         boolean metricsEnabled = flowConfig != null
-                && flowConfig.getLimits().getGlobal().getConsumerThreads() > 0;
+                && (flowConfig.getLimits().getGlobal().getConsumerThreads() > 0
+                || flowConfig.getLimits().getPerJob().getConsumerThreads() > 0);
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
         if (metricsEnabled) {
@@ -101,8 +102,10 @@ public class ConsumerConcurrencyDimension implements ResourceBackpressureDimensi
             return;
         }
         pair.release(permits, ctx.getGlobalConsumerLimit());
-        if (ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getConsumerThreads() > 0) {
+        var fc = ctx.getFlowConfig();
+        if (fc != null
+                && (fc.getLimits().getGlobal().getConsumerThreads() > 0
+                || fc.getLimits().getPerJob().getConsumerThreads() > 0)) {
             recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
         }
     }

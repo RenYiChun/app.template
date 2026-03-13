@@ -174,7 +174,8 @@ class BoundedTimedFlowStorageTest {
         List<ConsumedRecord> consumed = joiner.getConsumed();
         assertEquals(1, consumed.size(), "应收到 1 条超时驱逐消费（TTL=" + ttlMs + "ms，等待最多 " + waitMs + "ms）");
         assertEquals("expireMe", consumed.getFirst().item);
-        assertEquals(EgressReason.TIMEOUT, consumed.getFirst().reason);
+        assertEquals(EgressReason.SINGLE_CONSUMED, consumed.getFirst().reason,
+                "collect 模式（needMatched=false）下 TTL 驱逐使用 SINGLE_CONSUMED");
 
         storage.shutdown();
     }

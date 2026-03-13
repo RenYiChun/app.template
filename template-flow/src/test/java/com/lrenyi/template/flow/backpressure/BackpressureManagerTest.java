@@ -205,11 +205,13 @@ class BackpressureManagerTest {
     }
 
     @Test
-    void noDimensionMetricsWhenGlobalDisabled() throws Exception {
-        String jobId = "job-no-global";
+    void noDimensionMetricsWhenBothGlobalAndPerJobDisabled() throws Exception {
+        String jobId = "job-no-limits";
         Semaphore available = new Semaphore(1);
         TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
         flow.getLimits().getGlobal().setInFlightConsumer(0);
+        flow.getLimits().getPerJob().setInFlightConsumer(0);
+        flow.getLimits().getPerJob().setConsumerThreads(0);
         DimensionContext ctx = DimensionContext.builder()
                                               .jobId(jobId)
                                               .stopCheck(() -> false)
@@ -221,13 +223,13 @@ class BackpressureManagerTest {
 
         try (DimensionLease lease = manager.acquire(InFlightConsumerDimension.ID, () -> false)) {
             assertEquals(0D, getCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_GLOBAL, jobId,
-                    InFlightConsumerDimension.ID), "global 未启用时不应注册 DIM_ACQUIRE_ATTEMPTS_GLOBAL");
+                    InFlightConsumerDimension.ID), "global 与 per-job 均未启用时不应注册 DIM_ACQUIRE_ATTEMPTS_GLOBAL");
             assertEquals(0D, getCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
-                    InFlightConsumerDimension.ID), "global 未启用时不应注册 DIM_ACQUIRE_ATTEMPTS_PER_JOB");
+                    InFlightConsumerDimension.ID), "global 与 per-job 均未启用时不应注册 DIM_ACQUIRE_ATTEMPTS_PER_JOB");
             assertEquals(0D, getCounter(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL, jobId,
-                    InFlightConsumerDimension.ID), "global 未启用时不应注册 blocked_global");
+                    InFlightConsumerDimension.ID), "global 与 per-job 均未启用时不应注册 blocked_global");
             assertEquals(0D, getCounter(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB, jobId,
-                    InFlightConsumerDimension.ID), "global 未启用时不应注册 blocked_per_job");
+                    InFlightConsumerDimension.ID), "global 与 per-job 均未启用时不应注册 blocked_per_job");
         }
     }
 

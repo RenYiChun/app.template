@@ -44,8 +44,10 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         if (pair == null) {
             return;
         }
-        boolean metricsEnabled = ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getProducerThreads() > 0;
+        var fc = ctx.getFlowConfig();
+        boolean metricsEnabled = fc != null
+                && (fc.getLimits().getGlobal().getProducerThreads() > 0
+                || fc.getLimits().getPerJob().getProducerThreads() > 0);
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
         if (metricsEnabled) {
@@ -91,8 +93,10 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
             return;
         }
         pair.release(permits);
-        if (ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getProducerThreads() > 0) {
+        var fc = ctx.getFlowConfig();
+        if (fc != null
+                && (fc.getLimits().getGlobal().getProducerThreads() > 0
+                || fc.getLimits().getPerJob().getProducerThreads() > 0)) {
             recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
         }
     }

@@ -47,7 +47,8 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
         }
         TemplateConfigProperties.Flow flowConfig = ctx.getFlowConfig();
         boolean metricsEnabled = flowConfig != null
-                && flowConfig.getLimits().getGlobal().getInFlightProduction() > 0;
+                && (flowConfig.getLimits().getGlobal().getInFlightProduction() > 0
+                || flowConfig.getLimits().getPerJob().getInFlightProduction() > 0);
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
         if (metricsEnabled) {
@@ -202,8 +203,10 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
             return;
         }
         pair.release(permits);
-        if (ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getInFlightProduction() > 0) {
+        var fc = ctx.getFlowConfig();
+        if (fc != null
+                && (fc.getLimits().getGlobal().getInFlightProduction() > 0
+                || fc.getLimits().getPerJob().getInFlightProduction() > 0)) {
             recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
         }
     }

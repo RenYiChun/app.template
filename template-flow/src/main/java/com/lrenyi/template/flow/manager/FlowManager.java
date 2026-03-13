@@ -219,7 +219,7 @@ public class FlowManager implements ActiveLauncherLookup {
         try {
             if (activeLaunchers.containsKey(jobId)) {
                 throw new IllegalStateException(
-                    "Job " + jobId + " 已有活跃 Launcher，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
+                    "Job " + jobId + " 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
             }
             completedTrackers.remove(jobId);
 

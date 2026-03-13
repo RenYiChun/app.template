@@ -302,7 +302,10 @@ public class FlowJoinerEngine {
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, flowManager);
         tracker.setTotalExpected(jobId, total);
         FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, flowConfig);
-        log.info("推送模式任务启动, {}, totalExpected={}", FlowLogHelper.formatJobContext(jobId, displayName), total);
+        log.info("flow source data push model, {}, totalExpected={}",
+                 FlowLogHelper.formatJobContext(jobId, displayName),
+                 total
+        );
         FlowInletImpl<T> inlet = new FlowInletImpl<>(launcher);
         launcher.setInFlightPushCountSupplier(inlet::getInFlightPushCount);
         return inlet;

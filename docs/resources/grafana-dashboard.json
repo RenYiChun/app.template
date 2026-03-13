@@ -127,7 +127,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，反映 Flow 引擎的实际产出速率。获取背压许可：Manager 层 global 维度的 acquire 成功次数/秒。",
+          "description": "Flow 吞吐量：进入速率=成功获取生产许可条数/秒；终结=消费完成条数/秒。稳态下两者应基本相等。",
           "fieldConfig": {
             "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
@@ -138,8 +138,8 @@
           "title": "Flow 吞吐量（条数/秒）",
           "type": "timeseries",
           "targets": [
-            { "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "终结", "refId": "A" },
-            { "expr": "sum(rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "获取背压许可(global)", "refId": "B" }
+            { "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "进入", "refId": "A" },
+            { "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "终结", "refId": "B" }
           ]
         },
         {
@@ -391,7 +391,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Flow 吞吐量：每秒成功终结（terminated）的条目数，按 jobId 分组，反映各 Job 的实际产出速率。获取背压许可：Manager 层 per-job 维度的 acquire 成功次数/秒。",
+      "description": "Flow 吞吐量：进入速率=成功获取生产许可条数/秒（app_template_flow_production_acquired）；终结TPS=消费完成条数/秒。稳态下两者应基本相等。",
       "fieldConfig": {
         "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -402,8 +402,8 @@
       "title": "Flow 吞吐量（数据量/秒）",
       "type": "timeseries",
       "targets": [
-        { "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "终结TPS {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "生产TPS(per-job) {{jobId}}", "refId": "B" }
+        { "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "进入速率 {{jobId}}", "refId": "A" },
+        { "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "终结TPS {{jobId}}", "refId": "B" }
       ]
     },
     {

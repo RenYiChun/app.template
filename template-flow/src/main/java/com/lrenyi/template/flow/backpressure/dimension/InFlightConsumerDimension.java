@@ -45,8 +45,11 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
         if (pair == null) {
             return;
         }
-        boolean metricsEnabled = ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getInFlightConsumer() > 0;
+        var fc = ctx.getFlowConfig();
+        var perJob = fc != null ? fc.getLimits().getPerJob() : null;
+        boolean metricsEnabled = fc != null
+                && (fc.getLimits().getGlobal().getInFlightConsumer() > 0
+                || (perJob != null && (perJob.getInFlightConsumer() > 0 || perJob.getConsumerThreads() > 0)));
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
         if (metricsEnabled) {
@@ -97,8 +100,11 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
             return;
         }
         pair.release(permits);
-        if (ctx.getFlowConfig() != null
-                && ctx.getFlowConfig().getLimits().getGlobal().getInFlightConsumer() > 0) {
+        var fc = ctx.getFlowConfig();
+        var perJob = fc != null ? fc.getLimits().getPerJob() : null;
+        if (fc != null
+                && (fc.getLimits().getGlobal().getInFlightConsumer() > 0
+                || (perJob != null && (perJob.getInFlightConsumer() > 0 || perJob.getConsumerThreads() > 0)))) {
             recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
         }
     }

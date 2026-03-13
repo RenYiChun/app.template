@@ -10,6 +10,8 @@ public final class FlowMetricNames {
     public static final String PREFIX = "app.template.flow";
 
     // ==================== Counters ====================
+    /** 生产许可获取累计数。成功获取 in-flight-production 许可时 +1，即进入管道的条数。{@code rate(production_acquired[1m])} 即进入速率（条/秒） */
+    public static final String PRODUCTION_ACQUIRED = PREFIX + ".production_acquired";
     /** 物理终结累计数。数据彻底离场、信号量释放时 +1。{@code rate(terminated[1m])} 即 TPS */
     public static final String TERMINATED = PREFIX + ".terminated";
     /**
