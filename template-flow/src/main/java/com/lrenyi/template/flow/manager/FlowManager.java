@@ -186,6 +186,26 @@ public class FlowManager implements ActiveLauncherLookup {
         removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.used", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
         
+        // 5. 移除各阶段耗时指标
+        removeJobMetrics(meterRegistry, "app.template.flow.deposit.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.finalize.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.match.duration", metricJobId);
+        
+        // 6. 移除背压获取时长指标
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire.duration", metricJobId);
+        
+        // 7. 移除背压体系指标（per-job 层）
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.attempts.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.blocked.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.timeout.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.duration.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.release.count.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.success.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.failed.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.lease.active.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.release.idempotent_hit.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.release.leak_detected.per_job", metricJobId);
+        
         resourceRegistry.deregisterJob(jobId);
         jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
