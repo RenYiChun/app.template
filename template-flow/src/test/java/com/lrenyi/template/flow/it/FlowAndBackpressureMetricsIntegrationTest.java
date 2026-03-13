@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <h3>FlowMetricNames 覆盖</h3>
  * <ul>
+ *   <li>PRODUCTION_ACQUIRED: 与 snapshot.productionAcquired() 一致</li>
  *   <li>TERMINATED: 与 snapshot.terminated() 一致</li>
  *   <li>DEPOSIT_DURATION: 每次 launch 入 Storage 记录</li>
  *   <li>MATCH_DURATION: 配对消费时记录</li>
@@ -46,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <h3>BackpressureMetricNames 覆盖</h3>
  * <ul>
  *   <li>MANAGER_ACQUIRE_SUCCESS / MANAGER_LEASE_ACTIVE: 正常流程</li>
- *   <li>DIM_ACQUIRE_ATTEMPTS / DIM_ACQUIRE_DURATION / DIM_RELEASE_COUNT: 各维度 (storage, producer-concurrency, in-flight-production, in-flight-consumer, consumer-concurrency)</li>
- *   <li>DIM_ACQUIRE_BLOCKED / DIM_ACQUIRE_TIMEOUT / MANAGER_ACQUIRE_FAILED: 需背压/超时场景，由单元测试覆盖</li>
+ *   <li>DIM_ACQUIRE_ATTEMPTS_* / DIM_ACQUIRE_DURATION_* / DIM_RELEASE_COUNT_* (均按 global/per-job 划分): 各维度</li>
+ *   <li>DIM_ACQUIRE_BLOCKED_GLOBAL / DIM_ACQUIRE_BLOCKED_PER_JOB / DIM_ACQUIRE_TIMEOUT_* / MANAGER_ACQUIRE_FAILED_*: 需背压/超时场景，由单元测试覆盖</li>
  *   <li>MANAGER_RELEASE_IDEMPOTENT_HIT / MANAGER_RELEASE_LEAK_DETECTED: 需重复 close / GC 场景，由单元测试覆盖</li>
  * </ul>
  */
@@ -67,12 +68,18 @@ class FlowAndBackpressureMetricsIntegrationTest {
         TemplateConfigProperties.Flow globalConfig = new TemplateConfigProperties.Flow();
         globalConfig.getLimits().getGlobal().setConsumerThreads(333);
         globalConfig.getLimits().getGlobal().setProducerThreads(5);
+        globalConfig.getLimits().getGlobal().setInFlightProduction(10);
         globalConfig.getLimits().getGlobal().setInFlightConsumer(20);
         globalConfig.getLimits().getGlobal().setStorageCapacity(1000);
         manager = FlowManager.getInstance(globalConfig, meterRegistry);
         engine = new FlowJoinerEngine(manager);
 
         flowConfig = new TemplateConfigProperties.Flow();
+        flowConfig.getLimits().getGlobal().setConsumerThreads(333);
+        flowConfig.getLimits().getGlobal().setProducerThreads(5);
+        flowConfig.getLimits().getGlobal().setInFlightProduction(10);
+        flowConfig.getLimits().getGlobal().setInFlightConsumer(20);
+        flowConfig.getLimits().getGlobal().setStorageCapacity(1000);
         flowConfig.getLimits().getPerJob().setProducerThreads(5);
         flowConfig.getLimits().getPerJob().setStorageCapacity(100);
         flowConfig.getLimits().getPerJob().setConsumerThreads(5);
@@ -152,6 +159,26 @@ class FlowAndBackpressureMetricsIntegrationTest {
 
     @Nested
     class FlowMetricNamesTests {
+
+        @Test
+        void productionAcquiredCounterIncrementsPerLaunchedItem() throws Exception {
+            int total = 10;
+            String jobId = "job-production-acquired-metrics";
+            List<PairItem> list = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                list.add(new PairItem("k" + i, "v" + i, null));
+            }
+            var joiner = new com.lrenyi.template.flow.OverwriteJoiner();
+            FlowSource<PairItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
+            engine.run(jobId, joiner, source, total, flowConfig);
+            ProgressTracker tracker = engine.getProgressTracker(jobId);
+            awaitCompleted(tracker::isCompleted, 15_000);
+
+            long snapshotAcquired = tracker.getSnapshot().productionAcquired();
+            assertEquals(snapshotAcquired, getFlowCounter(FlowMetricNames.PRODUCTION_ACQUIRED, jobId),
+                    "PRODUCTION_ACQUIRED 应与 snapshot.productionAcquired() 一致");
+            assertEquals(total, snapshotAcquired, "应有 " + total + " 条数据成功获取生产许可");
+        }
 
         @Test
         void terminatedCounterIncrementsPerConsumedItem() throws Exception {
@@ -311,12 +338,12 @@ class FlowAndBackpressureMetricsIntegrationTest {
             inlet.markSourceFinished();
             awaitCompleted(inlet::isCompleted, 10_000);
 
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS, jobId,
-                    StorageDimension.ID) >= 1, "storage DIM_ACQUIRE_ATTEMPTS 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION, jobId,
-                    StorageDimension.ID) >= 1, "storage DIM_ACQUIRE_DURATION 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT, jobId,
-                    StorageDimension.ID) >= 1, "storage DIM_RELEASE_COUNT 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
+                    StorageDimension.ID) >= 1, "storage DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
+            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
+                    StorageDimension.ID) >= 1, "storage DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
+                    StorageDimension.ID) >= 1, "storage DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
 
         @Test
@@ -332,12 +359,12 @@ class FlowAndBackpressureMetricsIntegrationTest {
             ProgressTracker tracker = engine.getProgressTracker(jobId);
             awaitCompleted(tracker::isCompleted, 15_000);
 
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS, jobId,
-                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_ATTEMPTS 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION, jobId,
-                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_DURATION 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT, jobId,
-                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_RELEASE_COUNT 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
+                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
+            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
+                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
+                    ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
 
         @Test
@@ -350,12 +377,12 @@ class FlowAndBackpressureMetricsIntegrationTest {
             inlet.markSourceFinished();
             awaitCompleted(inlet::isCompleted, 10_000);
 
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_ATTEMPTS 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_DURATION 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_RELEASE_COUNT 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
+                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
+            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
+                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
+                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
 
         @Test
@@ -367,12 +394,12 @@ class FlowAndBackpressureMetricsIntegrationTest {
             inlet.markSourceFinished();
             awaitCompleted(inlet::isCompleted, 10_000);
 
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS, jobId,
-                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_ACQUIRE_ATTEMPTS 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION, jobId,
-                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_ACQUIRE_DURATION 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT, jobId,
-                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_RELEASE_COUNT 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
+                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
+            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
+                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
+                    InFlightConsumerDimension.ID) >= 1, "in-flight-consumer DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
 
         @Test
@@ -384,12 +411,12 @@ class FlowAndBackpressureMetricsIntegrationTest {
             inlet.markSourceFinished();
             awaitCompleted(inlet::isCompleted, 10_000);
 
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS, jobId,
-                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_ATTEMPTS 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION, jobId,
-                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_DURATION 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT, jobId,
-                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_RELEASE_COUNT 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
+                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
+            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
+                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
+                    ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
     }
 }

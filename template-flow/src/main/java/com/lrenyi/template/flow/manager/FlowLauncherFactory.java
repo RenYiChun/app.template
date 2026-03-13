@@ -2,6 +2,8 @@ package com.lrenyi.template.flow.manager;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -50,7 +52,7 @@ final class FlowLauncherFactory {
                                                              tracker,
                                                              egressHandler
                                          );
-        
+
         BackpressureManager backpressureManager = createBackpressureManager(jobId,
                                                                             metricJobId,
                                                                             flow,
@@ -59,26 +61,29 @@ final class FlowLauncherFactory {
                                                                             permitPairs,
                                                                             global.getConsumerThreads()
         );
-        
+
+        ThreadFactory producerThreadFactory =
+                Thread.ofVirtual().name(FlowConstants.THREAD_NAME_PREFIX_PRODUCER, 0).factory();
         FlowResourceContext resourceContext = FlowResourceContext.builder()
                                                                  .resourceRegistry(registry)
                                                                  .flowManager(flowManager)
                                                                  .jobProducerSemaphore(semaphores.jobProducer)
                                                                  .storage(storage)
                                                                  .backpressureManager(backpressureManager)
-                                                                 .producerExecutor(Executors.newVirtualThreadPerTaskExecutor())
+                                                                 .producerExecutor(Executors.newThreadPerTaskExecutor(producerThreadFactory))
                                                                  .inFlightProductionSemaphore(semaphores.inFlightProduction)
                                                                  .jobConsumerSemaphore(semaphores.jobConsumer)
                                                                  .pendingConsumerSlotSemaphore(semaphores.pendingConsumerSlot)
                                                                  .egressHandler(egressHandler)
+                                                                 .finalizer(finalizer)
                                                                  .consumerPermitPair(permitPairs.consumer)
                                                                  .inFlightPermitPair(permitPairs.inFlight)
                                                                  .producerPermitPair(permitPairs.producer)
                                                                  .build();
-        
+
         return FlowLauncher.create(jobId, metricJobId, flowJoiner, flowManager, tracker, flow, resourceContext);
     }
-    
+
     private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {
         int consumerLimit = perJob.getConsumerThreads();
         int effectivePending = perJob.getEffectivePendingConsumer();
@@ -89,23 +94,18 @@ final class FlowLauncherFactory {
                                     new Semaphore(perJob.getStorageCapacity(), fair)
         );
     }
-    
+
     private static PermitPairs createPermitPairs(FlowResourceRegistry registry, PerJobSemaphores semaphores) {
         return new PermitPairs(PermitPair.of(registry.getGlobalSemaphore(), semaphores.jobConsumer),
                                PermitPair.of(registry.getGlobalInFlightSemaphore(), semaphores.inFlightProduction),
-                               registry.getGlobalProducerThreadsSemaphore() != null ?
-                                       PermitPair.of(registry.getGlobalProducerThreadsSemaphore(),
-                                                     semaphores.jobProducer
-                                       ) : null,
+                               PermitPair.of(registry.getGlobalProducerThreadsSemaphore(), semaphores.jobProducer),
                                PermitPair.of(registry.getGlobalStorageSemaphore(), semaphores.perJobStorage),
-                               (registry.getGlobalInFlightConsumerSemaphore() != null
-                                       || semaphores.pendingConsumerSlot != null) ?
-                                       PermitPair.of(registry.getGlobalInFlightConsumerSemaphore(),
-                                                     semaphores.pendingConsumerSlot
-                                       ) : null
+                               PermitPair.of(registry.getGlobalInFlightConsumerSemaphore(),
+                                             semaphores.pendingConsumerSlot
+                               )
         );
     }
-    
+
     private static BackpressureManager createBackpressureManager(String jobId,
             String metricJobId,
             TemplateConfigProperties.Flow flow,
@@ -131,16 +131,15 @@ final class FlowLauncherFactory {
                                                    .build();
         return new BackpressureManager(baseCtx, meterRegistry);
     }
-    
-    
-    
+
+
     //@formatter:off
     private record PerJobSemaphores(Semaphore jobProducer,
                                     Semaphore inFlightProduction,
                                     Semaphore jobConsumer,
                                     Semaphore pendingConsumerSlot,
                                     Semaphore perJobStorage) {}
-    
+
     private record PermitPairs(PermitPair consumer,
                                PermitPair inFlight,
                                PermitPair producer,

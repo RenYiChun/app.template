@@ -116,10 +116,10 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 try {
                     task.run();
                 } finally {
-                    resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
                     for (int i = 0; i < permits; i++) {
                         launcher.getTracker().onConsumerReleased(jobId);
                     }
+                    resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
                     if (leaseToRelease != null) {
                         leaseToRelease.close();
                     }

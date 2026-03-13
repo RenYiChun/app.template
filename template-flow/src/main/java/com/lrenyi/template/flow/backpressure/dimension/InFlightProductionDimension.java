@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.backpressure.dimension;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.backpressure.BackpressureTimeoutException;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -44,36 +45,36 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
         if (pair == null) {
             return;
         }
-        
+        TemplateConfigProperties.Flow flowConfig = ctx.getFlowConfig();
+        boolean metricsEnabled = flowConfig != null
+                && (flowConfig.getLimits().getGlobal().getInFlightProduction() > 0
+                || flowConfig.getLimits().getPerJob().getInFlightProduction() > 0);
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
-        
-        Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-               .register(registry)
-               .increment();
-        
-        TemplateConfigProperties.Flow flowConfig = ctx.getFlowConfig();
+        if (metricsEnabled) {
+            recordAttempts(registry, metricJobId, pair);
+        }
         boolean blockForever = flowConfig == null || flowConfig.getProducerBackpressureBlockingMode()
                 == TemplateConfigProperties.Flow.BackpressureBlockingMode.BLOCK_FOREVER;
         long timeoutMs = (flowConfig != null) ? flowConfig.getProducerBackpressureTimeoutMill() : 30_000L;
-        
-        Timer.Sample sample = Timer.start(registry);
+        Timer.Sample sample = metricsEnabled ? Timer.start(registry) : null;
         boolean acquired = false;
-        boolean blocked = false;
+        PermitPair.AcquireResult lastResult = PermitPair.AcquireResult.SUCCESS;
         long startMs = System.currentTimeMillis();
         long startNanos = System.nanoTime();
-        
         try {
             if (blockForever) {
-                // Repeatedly try with short intervals to honour stopCheck
                 while (!ctx.getStopCheck().getAsBoolean()) {
-                    if (pair.tryAcquireBoth(permits, CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS)) {
+                    PermitPair.AcquireResult result =
+                            pair.tryAcquireBothWithResult(permits, CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS);
+                    lastResult = result;
+                    if (result == PermitPair.AcquireResult.SUCCESS) {
                         acquired = true;
                         break;
                     }
-                    blocked = true;
+                    if (metricsEnabled) {
+                        recordBlocked(registry, metricJobId, result);
+                    }
                 }
             } else {
                 long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
@@ -84,28 +85,22 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
                     }
                     long remainingMs = TimeUnit.NANOSECONDS.toMillis(timeoutNanos - elapsedNanos);
                     long waitMs = Math.min(remainingMs, CHECK_INTERVAL_MS);
-                    if (pair.tryAcquireBoth(permits, waitMs, TimeUnit.MILLISECONDS)) {
+                    PermitPair.AcquireResult result =
+                            pair.tryAcquireBothWithResult(permits, waitMs, TimeUnit.MILLISECONDS);
+                    lastResult = result;
+                    if (result == PermitPair.AcquireResult.SUCCESS) {
                         acquired = true;
                         break;
                     }
-                    blocked = true;
+                    if (metricsEnabled) {
+                        recordBlocked(registry, metricJobId, result);
+                    }
                 }
             }
-            
-            if (blocked) {
-                Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED)
-                       .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                       .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                       .register(registry)
-                       .increment();
-            }
-            
             if (!acquired && !ctx.getStopCheck().getAsBoolean()) {
-                Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT)
-                       .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                       .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                       .register(registry)
-                       .increment();
+                if (metricsEnabled) {
+                    recordTimeout(registry, metricJobId, lastResult);
+                }
                 long waitedMs = System.currentTimeMillis() - startMs;
                 int perJobAvail = pair.getPerJobAvailablePermits();
                 int globalAvail = pair.getGlobalAvailablePermits();
@@ -116,14 +111,85 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
                          perJobAvail,
                          globalAvail == -1 ? "unlimited" : globalAvail
                 );
-                throw new TimeoutException(
-                        "in-flight-production acquire timeout for jobId=" + ctx.getJobId() + ", waitedMs=" + waitedMs);
+                throw new BackpressureTimeoutException(
+                        "in-flight-production acquire timeout for jobId=" + ctx.getJobId() + ", waitedMs=" + waitedMs,
+                        lastResult);
             }
         } finally {
-            sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
-                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                             .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                             .register(registry));
+            if (metricsEnabled && sample != null) {
+                recordDuration(registry, metricJobId, pair, sample);
+            }
+        }
+    }
+
+    private void recordAttempts(MeterRegistry registry, String metricJobId, PermitPair pair) {
+        if (pair.hasGlobal()) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+        if (pair.hasPerJob()) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+    }
+
+    private void recordTimeout(MeterRegistry registry, String metricJobId, PermitPair.AcquireResult lastResult) {
+        if (lastResult == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        } else if (lastResult == PermitPair.AcquireResult.FAILED_ON_PER_JOB) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+    }
+
+    private void recordDuration(MeterRegistry registry, String metricJobId, PermitPair pair, Timer.Sample sample) {
+        if (pair.hasGlobal()) {
+            Timer t = Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_GLOBAL)
+                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                           .register(registry);
+            long nanos = sample.stop(t);
+            if (pair.hasPerJob()) {
+                Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB)
+                     .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                     .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                     .register(registry)
+                     .record(nanos, TimeUnit.NANOSECONDS);
+            }
+        } else if (pair.hasPerJob()) {
+            sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB)
+                            .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                            .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                            .register(registry));
+        }
+    }
+
+    private void recordBlocked(MeterRegistry registry, String metricJobId, PermitPair.AcquireResult result) {
+        if (result == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        } else if (result == PermitPair.AcquireResult.FAILED_ON_PER_JOB) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
         }
     }
     
@@ -137,10 +203,28 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
             return;
         }
         pair.release(permits);
-        Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getMetricJobIdForTags())
-               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-               .register(ctx.getMeterRegistry())
-               .increment(permits);
+        var fc = ctx.getFlowConfig();
+        if (fc != null
+                && (fc.getLimits().getGlobal().getInFlightProduction() > 0
+                || fc.getLimits().getPerJob().getInFlightProduction() > 0)) {
+            recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
+        }
+    }
+
+    private void recordRelease(MeterRegistry registry, String metricJobId, PermitPair pair, int permits) {
+        if (pair.hasGlobal()) {
+            Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment(permits);
+        }
+        if (pair.hasPerJob()) {
+            Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment(permits);
+        }
     }
 }

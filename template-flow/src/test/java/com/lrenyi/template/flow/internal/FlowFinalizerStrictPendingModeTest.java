@@ -44,18 +44,18 @@ class FlowFinalizerStrictPendingModeTest {
         BackpressureManager backpressureManager = createBackpressureManager(jobId, flow, pending);
         
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, manager);
+        NoopJoiner<Object> joiner = new NoopJoiner<>();
+        FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
+        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowResourceContext context = FlowResourceContext.builder()
                                                          .resourceRegistry(registry)
                                                          .flowManager(manager)
                                                          .pendingConsumerSlotSemaphore(pending)
                                                          .backpressureManager(backpressureManager)
+                                                         .finalizer(finalizer)
                                                          .build();
-        NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
                 FlowLauncher.create(jobId, jobId, joiner, manager, tracker, flow, context);
-        
-        FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
-        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowEntry<Object> entry = new FlowEntry<>(new Object(), jobId);
         
         finalizer.submitDataToConsumer(entry, launcher, null);
@@ -74,18 +74,18 @@ class FlowFinalizerStrictPendingModeTest {
         BackpressureManager backpressureManager = createBackpressureManager(jobId, flow, pending);
         
         DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, manager);
+        NoopJoiner<Object> joiner = new NoopJoiner<>();
+        FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
+        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowResourceContext context = FlowResourceContext.builder()
                                                          .resourceRegistry(registry)
                                                          .flowManager(manager)
                                                          .pendingConsumerSlotSemaphore(pending)
                                                          .backpressureManager(backpressureManager)
+                                                         .finalizer(finalizer)
                                                          .build();
-        NoopJoiner<Object> joiner = new NoopJoiner<>();
         FlowLauncher<Object> launcher =
                 FlowLauncher.create(jobId, jobId, joiner, manager, tracker, flow, context);
-        
-        FlowEgressHandler<Object> egressHandler = new FlowEgressHandler<>(joiner, tracker, meterRegistry);
-        FlowFinalizer<Object> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, joiner);
         FlowEntry<Object> entry = new FlowEntry<>(new Object(), jobId);
 
         // In non-strict mode, submission is attempted even after timeout; the job isn't registered so acquire

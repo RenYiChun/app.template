@@ -298,30 +298,48 @@ AtomicInteger activeLeasesGauge  // 供 Gauge 指标读取
 
 ### 6.1 维度级指标（每维度独立上报）
 
+所有维度级指标均按 **global** 与 **per-job** 两个维度划分：
+
 | 指标名 | 类型 | 标签 | 含义 |
 |--------|------|------|------|
-| `backpressure.dimension.acquire.attempts` | Counter | `jobId`, `dimensionId` | acquire 调用次数 |
-| `backpressure.dimension.acquire.blocked` | Counter | `jobId`, `dimensionId` | 发生背压等待次数 |
-| `backpressure.dimension.acquire.timeout` | Counter | `jobId`, `dimensionId` | acquire 超时次数 |
-| `backpressure.dimension.acquire.duration` | Timer | `jobId`, `dimensionId` | acquire 耗时分布（含等待） |
-| `backpressure.dimension.release.count` | Counter | `jobId`, `dimensionId` | release 次数 |
+| `backpressure.dimension.acquire.attempts.global` | Counter | `jobId`, `dimensionId` | acquire 调用次数（global 层） |
+| `backpressure.dimension.acquire.attempts.per_job` | Counter | `jobId`, `dimensionId` | acquire 调用次数（per-job 层） |
+| `backpressure.dimension.acquire.blocked.global` | Counter | `jobId`, `dimensionId` | 因 global 信号量阻塞次数 |
+| `backpressure.dimension.acquire.blocked.per_job` | Counter | `jobId`, `dimensionId` | 因 per-job 信号量阻塞次数 |
+| `backpressure.dimension.acquire.timeout.global` | Counter | `jobId`, `dimensionId` | acquire 超时次数（global 层） |
+| `backpressure.dimension.acquire.timeout.per_job` | Counter | `jobId`, `dimensionId` | acquire 超时次数（per-job 层） |
+| `backpressure.dimension.acquire.duration.global` | Timer | `jobId`, `dimensionId` | acquire 耗时分布（global 层） |
+| `backpressure.dimension.acquire.duration.per_job` | Timer | `jobId`, `dimensionId` | acquire 耗时分布（per-job 层） |
+| `backpressure.dimension.release.count.global` | Counter | `jobId`, `dimensionId` | release 次数（global 层） |
+| `backpressure.dimension.release.count.per_job` | Counter | `jobId`, `dimensionId` | release 次数（per-job 层） |
+
+**注册条件**：仅当该维度的 `flow.limits.global.*` 或 `flow.limits.per-job.*` 配置 > 0 时注册上述指标；global 与 per-job 均未启用时该维度不产生任何背压指标。
 
 ### 6.2 管理器级指标（每 Job 一组）
 
 | 指标名 | 类型 | 标签 | 含义 |
 |--------|------|------|------|
-| `backpressure.manager.acquire.success` | Counter | `jobId` | acquire 成功总次数 |
-| `backpressure.manager.acquire.failed` | Counter | `jobId` | acquire 失败总次数 |
-| `backpressure.manager.lease.active` | Gauge | `jobId` | 当前活跃租约数 |
-| `backpressure.manager.release.idempotent_hit` | Counter | `jobId` | 幂等 close 次数 |
-| `backpressure.manager.release.leak_detected` | Counter | `jobId` | 泄露检测告警次数 |
+| `backpressure.manager.acquire.success.global` | Counter | `jobId` | acquire 成功次数（global 层） |
+| `backpressure.manager.acquire.success.per_job` | Counter | `jobId` | acquire 成功次数（per-job 层） |
+| `backpressure.manager.acquire.failed.global` | Counter | `jobId` | acquire 失败次数（超时于 global） |
+| `backpressure.manager.acquire.failed.per_job` | Counter | `jobId` | acquire 失败次数（超时于 per-job） |
+| `backpressure.manager.acquire.failed.other` | Counter | `jobId` | acquire 失败次数（中断、异常等无来源） |
+| `backpressure.manager.lease.active.global` | Gauge | `jobId` | 当前活跃租约数（持有 global 许可） |
+| `backpressure.manager.lease.active.per_job` | Gauge | `jobId` | 当前活跃租约数（持有 per-job 许可） |
+| `backpressure.manager.release.idempotent_hit.global` | Counter | `jobId` | 幂等 close 次数（global 层） |
+| `backpressure.manager.release.idempotent_hit.per_job` | Counter | `jobId` | 幂等 close 次数（per-job 层） |
+| `backpressure.manager.release.leak_detected.global` | Counter | `jobId` | 泄露检测告警次数（global 层） |
+| `backpressure.manager.release.leak_detected.per_job` | Counter | `jobId` | 泄露检测告警次数（per-job 层） |
+
+**注册条件**：仅当至少有一个维度的 global 配置 > 0 时注册；所有维度均未启用 global 时不注册 Manager 级指标。
 
 ### 6.3 监控建议
 
-- **背压强度**：`acquire.blocked / acquire.attempts`，超过 10% 时建议检查资源上限配置。
-- **租约泄露**：`lease.active` 长时间不归零或 `leak_detected > 0` 时，需排查是否有 `finally` 缺失。
+- **背压强度**：`(acquire.blocked.global + acquire.blocked.per_job) / acquire.attempts`，超过 10% 时建议检查资源上限配置。
+- **阻塞来源区分**：`blocked.global` 高表示全局配额紧张；`blocked.per_job` 高表示单 Job 配额紧张。
+- **租约泄露**：`lease.active.global` / `lease.active.per_job` 长时间不归零或 `leak_detected.* > 0` 时，需排查是否有 `finally` 缺失。
 - **幂等命中**：`idempotent_hit` 较高属正常现象（`getParentReference` 场景），无需告警。
-- **性能瓶颈**：`acquire.duration` p99 超过业务 SLA 时，考虑放宽资源上限或调整阻塞模式。
+- **性能瓶颈**：`acquire.duration.per_job` 或 `acquire.duration.global` 的 p99 超过业务 SLA 时，考虑放宽资源上限或调整阻塞模式。
 
 ---
 

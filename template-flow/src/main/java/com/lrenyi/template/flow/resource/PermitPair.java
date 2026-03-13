@@ -9,14 +9,26 @@ import java.util.concurrent.TimeUnit;
  * 获取顺序：先 global 再 per-job；释放顺序：先 per-job 再 global。失败时立即回滚已占用的许可。
  */
 public final class PermitPair {
+
+    /**
+     * acquire 结果：成功或失败于 global/per-job。
+     */
+    public enum AcquireResult {
+        /** 全部获取成功 */
+        SUCCESS,
+        /** 在 global 信号量上阻塞/超时 */
+        FAILED_ON_GLOBAL,
+        /** global 已获取，在 per-job 信号量上阻塞/超时 */
+        FAILED_ON_PER_JOB
+    }
     private final Semaphore globalSemaphore;
     private final Semaphore perJobSemaphore;
-    
+
     private PermitPair(Semaphore globalSemaphore, Semaphore perJobSemaphore) {
         this.globalSemaphore = globalSemaphore;
         this.perJobSemaphore = perJobSemaphore;
     }
-    
+
     /**
      * 创建双层许可对，供后续 acquire/release 使用。
      *
@@ -29,30 +41,32 @@ public final class PermitPair {
 
     /**
      * 尝试获取两个信号量：先 global，再 per-job。
-     * 任一步失败则立即 release 已占用的，返回 false。
+     * 任一步失败则立即 release 已占用的，返回失败原因。
      *
      * @param permits 许可数量
-     * @return true 表示全部获取成功；false 表示失败或已回滚
+     * @return SUCCESS 全部成功；FAILED_ON_GLOBAL 在 global 上失败；FAILED_ON_PER_JOB 在 per-job 上失败
      */
-    public boolean tryAcquireBoth(int permits) throws InterruptedException {
+    public AcquireResult tryAcquireBothWithResult(int permits) throws InterruptedException {
         if (permits <= 0) {
-            return true;
+            return AcquireResult.SUCCESS;
         }
         if (perJobSemaphore == null && globalSemaphore == null) {
-            return false;
+            return AcquireResult.FAILED_ON_PER_JOB;
         }
         if (perJobSemaphore == null) {
             globalSemaphore.acquire(permits);
-            return true;
+            return AcquireResult.SUCCESS;
+        }
+        if (globalSemaphore == null) {
+            perJobSemaphore.acquire(permits);
+            return AcquireResult.SUCCESS;
         }
         boolean globalAcquired = false;
         try {
-            if (globalSemaphore != null) {
-                globalSemaphore.acquire(permits);
-                globalAcquired = true;
-            }
+            globalSemaphore.acquire(permits);
+            globalAcquired = true;
             perJobSemaphore.acquire(permits);
-            return true;
+            return AcquireResult.SUCCESS;
         } catch (InterruptedException e) {
             if (globalAcquired) {
                 globalSemaphore.release(permits);
@@ -62,41 +76,49 @@ public final class PermitPair {
             if (globalAcquired) {
                 globalSemaphore.release(permits);
             }
-            return false;
+            return AcquireResult.FAILED_ON_PER_JOB;
         }
     }
 
     /**
      * 带超时的 acquire：先 global，再 per-job。
+     *
+     * @param permits 许可数量
+     * @param timeout 超时时间
+     * @param unit    时间单位
+     * @return SUCCESS 全部成功；FAILED_ON_GLOBAL 在 global 上超时；FAILED_ON_PER_JOB 在 per-job 上超时
      */
-    public boolean tryAcquireBoth(int permits, long timeout, TimeUnit unit) throws InterruptedException {
+    public AcquireResult tryAcquireBothWithResult(int permits,
+        long timeout,
+        TimeUnit unit) throws InterruptedException {
         if (permits <= 0) {
-            return true;
+            return AcquireResult.SUCCESS;
         }
         if (perJobSemaphore == null && globalSemaphore == null) {
-            return false;
+            return AcquireResult.FAILED_ON_PER_JOB;
         }
         if (perJobSemaphore == null) {
-            return globalSemaphore.tryAcquire(permits, timeout, unit);
+            return globalSemaphore.tryAcquire(permits, timeout, unit) ? AcquireResult.SUCCESS :
+                AcquireResult.FAILED_ON_GLOBAL;
+        }
+        if (globalSemaphore == null) {
+            return perJobSemaphore.tryAcquire(permits, timeout, unit) ? AcquireResult.SUCCESS :
+                AcquireResult.FAILED_ON_PER_JOB;
         }
         boolean globalAcquired = false;
         long deadline = System.nanoTime() + unit.toNanos(timeout);
         try {
-            if (globalSemaphore != null) {
-                long remaining = deadline - System.nanoTime();
-                if (!globalSemaphore.tryAcquire(permits, remaining, TimeUnit.NANOSECONDS)) {
-                    return false;
-                }
-                globalAcquired = true;
-            }
             long remaining = deadline - System.nanoTime();
-            if (!perJobSemaphore.tryAcquire(permits, remaining, TimeUnit.NANOSECONDS)) {
-                if (globalAcquired) {
-                    globalSemaphore.release(permits);
-                }
-                return false;
+            if (!globalSemaphore.tryAcquire(permits, remaining, TimeUnit.NANOSECONDS)) {
+                return AcquireResult.FAILED_ON_GLOBAL;
             }
-            return true;
+            globalAcquired = true;
+            remaining = deadline - System.nanoTime();
+            if (!perJobSemaphore.tryAcquire(permits, remaining, TimeUnit.NANOSECONDS)) {
+                globalSemaphore.release(permits);
+                return AcquireResult.FAILED_ON_PER_JOB;
+            }
+            return AcquireResult.SUCCESS;
         } catch (InterruptedException e) {
             if (globalAcquired) {
                 globalSemaphore.release(permits);
@@ -124,7 +146,7 @@ public final class PermitPair {
             // 已释放部分，无法回滚，仅记录
         }
     }
-    
+
     /**
      * 释放许可，且仅在「当前 global 可用数 &lt; globalConcurrencyLimit」时释放 global（防御性，避免超限）。
      * 先释放 per-job，再按条件释放 global。所有释放逻辑均封装在此。
@@ -150,14 +172,28 @@ public final class PermitPair {
             return false;
         }
     }
-    
+
+    /**
+     * 是否包含 global 信号量。
+     */
+    public boolean hasGlobal() {
+        return globalSemaphore != null;
+    }
+
+    /**
+     * 是否包含 per-job 信号量。
+     */
+    public boolean hasPerJob() {
+        return perJobSemaphore != null;
+    }
+
     /**
      * 当前 global 信号量可用许可数；无 global 时返回 -1（仅用于内部判断/日志，不暴露信号量引用）。
      */
     public int getGlobalAvailablePermits() {
         return globalSemaphore != null ? globalSemaphore.availablePermits() : -1;
     }
-    
+
     /**
      * 当前 per-job 信号量可用许可数；无 per-job 时返回 -1。
      */

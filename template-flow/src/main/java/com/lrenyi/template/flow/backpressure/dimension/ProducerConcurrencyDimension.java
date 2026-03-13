@@ -1,7 +1,9 @@
 package com.lrenyi.template.flow.backpressure.dimension;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
+import com.lrenyi.template.flow.backpressure.BackpressureTimeoutException;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.backpressure.ResourceBackpressureDimension;
 import com.lrenyi.template.flow.resource.PermitPair;
@@ -42,37 +44,45 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         if (pair == null) {
             return;
         }
-        
+        var fc = ctx.getFlowConfig();
+        boolean metricsEnabled = fc != null
+                && (fc.getLimits().getGlobal().getProducerThreads() > 0
+                || fc.getLimits().getPerJob().getProducerThreads() > 0);
         MeterRegistry registry = ctx.getMeterRegistry();
         String metricJobId = ctx.getMetricJobIdForTags();
-        
-        Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-               .register(registry)
-               .increment();
-        
-        Timer.Sample sample = Timer.start(registry);
-        boolean acquired;
-        try {
-            acquired = pair.tryAcquireBoth(permits);
-        } finally {
-            sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION)
-                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                             .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                             .register(registry));
+        if (metricsEnabled) {
+            recordAttempts(registry, metricJobId, pair);
         }
-        
-        if (!acquired) {
-            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT)
-                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                   .register(registry)
-                   .increment();
-            throw new TimeoutException("producer-concurrency acquire failed for jobId=" + ctx.getJobId());
+        Timer.Sample sample = metricsEnabled ? Timer.start(registry) : null;
+        PermitPair.AcquireResult result;
+        try {
+            result = pair.tryAcquireBothWithResult(permits);
+        } finally {
+            if (metricsEnabled && sample != null) {
+                recordDuration(registry, metricJobId, pair, sample);
+            }
+        }
+        if (result != PermitPair.AcquireResult.SUCCESS) {
+            if (metricsEnabled) {
+                recordTimeout(registry, metricJobId, result);
+                if (result == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
+                    Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL)
+                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                           .register(registry)
+                           .increment();
+                } else {
+                    Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB)
+                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                           .register(registry)
+                           .increment();
+                }
+            }
+            throw new BackpressureTimeoutException("producer-concurrency acquire failed for jobId=" + ctx.getJobId(),
+                    result);
         }
     }
-    
     @Override
     public void onBusinessRelease(DimensionContext ctx, int permits) {
         if (permits <= 0) {
@@ -83,10 +93,83 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
             return;
         }
         pair.release(permits);
-        Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT)
-               .tag(BackpressureMetricNames.TAG_JOB_ID, ctx.getMetricJobIdForTags())
-               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-               .register(ctx.getMeterRegistry())
-               .increment(permits);
+        var fc = ctx.getFlowConfig();
+        if (fc != null
+                && (fc.getLimits().getGlobal().getProducerThreads() > 0
+                || fc.getLimits().getPerJob().getProducerThreads() > 0)) {
+            recordRelease(ctx.getMeterRegistry(), ctx.getMetricJobIdForTags(), pair, permits);
+        }
+    }
+
+    private void recordAttempts(MeterRegistry registry, String metricJobId, PermitPair pair) {
+        if (pair.hasGlobal()) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+        if (pair.hasPerJob()) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+    }
+
+    private void recordTimeout(MeterRegistry registry, String metricJobId, PermitPair.AcquireResult result) {
+        if (result == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        } else if (result == PermitPair.AcquireResult.FAILED_ON_PER_JOB) {
+            Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment();
+        }
+    }
+
+    private void recordDuration(MeterRegistry registry, String metricJobId, PermitPair pair, Timer.Sample sample) {
+        if (pair.hasGlobal()) {
+            Timer t = Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_GLOBAL)
+                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                           .register(registry);
+            long nanos = sample.stop(t);
+            if (pair.hasPerJob()) {
+                Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB)
+                     .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                     .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                     .register(registry)
+                     .record(nanos, TimeUnit.NANOSECONDS);
+            }
+        } else if (pair.hasPerJob()) {
+            sample.stop(Timer.builder(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB)
+                            .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                            .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                            .register(registry));
+        }
+    }
+
+    private void recordRelease(MeterRegistry registry, String metricJobId, PermitPair pair, int permits) {
+        if (pair.hasGlobal()) {
+            Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT_GLOBAL)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment(permits);
+        }
+        if (pair.hasPerJob()) {
+            Counter.builder(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB)
+                   .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+                   .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+                   .register(registry)
+                   .increment(permits);
+        }
     }
 }

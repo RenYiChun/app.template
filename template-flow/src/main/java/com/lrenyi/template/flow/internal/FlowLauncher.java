@@ -20,10 +20,10 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
-import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -121,10 +121,12 @@ public class FlowLauncher<T> {
             Thread.currentThread().interrupt();
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted",
                     metricJobId);
+            consumeOnBackpressureTimeout(data);
             return;
         } catch (TimeoutException e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout",
                     metricJobId);
+            consumeOnBackpressureTimeout(data);
             return;
         }
         tracker.onProductionAcquired();
@@ -161,6 +163,9 @@ public class FlowLauncher<T> {
                                                 FlowPhase.STORAGE,
                                                 "producer_concurrency_acquire_interrupted"
             );
+            tracker.onProductionReleased();
+            inFlightLease.close();
+            consumeOnBackpressureTimeout(data);
             return;
         } catch (TimeoutException e) {
             FlowExceptionHelper.handleException(jobId,
@@ -170,8 +175,12 @@ public class FlowLauncher<T> {
                                                 "producer_concurrency_acquire_timeout",
                                                 metricJobId
             );
+            tracker.onProductionReleased();
+            inFlightLease.close();
+            consumeOnBackpressureTimeout(data);
             return;
         }
+        FlowLauncher<?> launcher = this;
         getProducerExecutor().execute(() -> {
             try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
                 matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
@@ -198,11 +207,13 @@ public class FlowLauncher<T> {
                                                         "storage_acquire_interrupted",
                                                         metricJobId
                     );
+                    getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
                     return;
                 } catch (TimeoutException e) {
                     FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "storage_acquire_timeout",
                             metricJobId);
-                    return;
+                    getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
+                    return;  // finally 会执行 onProductionReleased、inFlightLease.close、producerLease.close
                 }
                 ctx.setStorageLease(storageLease);
                 try {
@@ -233,6 +244,25 @@ public class FlowLauncher<T> {
                 }
             }
         });
+    }
+
+    /**
+     * 背压超时时，当前线程直接调用 submitDataToConsumer 消费数据，避免丢数。
+     * entry 生命周期由 submitDataToConsumer 内部的 consumer 任务负责。
+     */
+    @SuppressWarnings("unchecked")
+    private void consumeOnBackpressureTimeout(T data) {
+        FlowFinalizer<?> fin = resourceContext.getFinalizer();
+        if (fin == null) {
+            return;
+        }
+        FlowEntry<T> entry = new FlowEntry<>(data, jobId);
+        ((FlowFinalizer<T>) fin).submitDataToConsumer(entry, this, EgressReason.BACKPRESSURE_TIMEOUT);
+    }
+
+    @SuppressWarnings("unchecked")
+    private FlowFinalizer<T> getFinalizer() {
+        return (FlowFinalizer<T>) resourceContext.getFinalizer();
     }
 
     public long getCacheCapacity() {

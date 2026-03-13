@@ -7,6 +7,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
+import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -83,6 +84,11 @@ public class FlowResourceContext {
      * 统一出口记账：供 FlowLauncher 在 stopped 等场景调用 performSingleConsumed
      */
     private final FlowEgressHandler<?> egressHandler;
+
+    /**
+     * FlowFinalizer：供背压超时时当前线程直接调用 submitDataToConsumer，数据不丢
+     */
+    private final FlowFinalizer<?> finalizer;
 
     /**
      * 消费许可对（global + per-job），创建时绑定，各处引用同一实例。
