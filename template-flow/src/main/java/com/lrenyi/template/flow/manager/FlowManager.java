@@ -159,7 +159,33 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public void unregister(String jobId) {
+        // 1. 移除 Gauge 指标
         FlowResourceMetrics.unregisterPerJob(jobId, meterRegistry);
+        
+        // 2. 移除 Counter 指标
+        String metricJobId = resolveMetricJobId(jobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.production_acquired", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.production_released", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.terminated", metricJobId);
+        
+        // 3. 移除完成判定相关指标
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.source_finished", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.in_flight_push", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.active_consumers", metricJobId);
+        
+        // 4. 移除背压相关指标
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire-wait-duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.count", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
+        
         resourceRegistry.deregisterJob(jobId);
         jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
@@ -171,6 +197,16 @@ public class FlowManager implements ActiveLauncherLookup {
             }
             log.info("Job [{}] 已从管理器中注销", FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()));
         }
+    }
+    
+    /**
+     * 移除指定 jobId 的所有指标
+     */
+    private void removeJobMetrics(MeterRegistry registry, String metricName, String jobId) {
+        registry.find(metricName)
+                .tag("jobId", jobId)
+                .meters()
+                .forEach(registry::remove);
     }
 
     /**
