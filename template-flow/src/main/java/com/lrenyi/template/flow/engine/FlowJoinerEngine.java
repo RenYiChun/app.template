@@ -87,7 +87,7 @@ public class FlowJoinerEngine {
         }
         awaitSubSourcesFinished(activeSubSources);
         awaitInProductionDrained(launcher);
-        launcher.getTracker().markSourceFinished(jobId);
+        launcher.getTracker().markSourceFinished(jobId, true);
         launcher.getStorage().triggerCompletionDrain();
         log.info("子流生产阶段结束, {}, submittedSubSources={}, elapsedMs={}",
                  FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()),
