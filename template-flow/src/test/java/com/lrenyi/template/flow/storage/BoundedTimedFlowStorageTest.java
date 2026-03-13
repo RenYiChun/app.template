@@ -8,10 +8,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.FlowTestSupport;
+import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
-import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
@@ -452,7 +452,7 @@ class BoundedTimedFlowStorageTest {
         }
 
         @Override
-        public void markSourceFinished(String jobId) {
+        public void markSourceFinished(String jobId, boolean status) {
         }
 
         @Override
@@ -561,7 +561,7 @@ class BoundedTimedFlowStorageTest {
         }
 
         @Override
-        public void markSourceFinished(String jobId) {
+        public void markSourceFinished(String jobId, boolean status) {
         }
 
         @Override

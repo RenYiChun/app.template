@@ -77,7 +77,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         activeConsumers.decrement();
         terminated.increment();
         incrementCounter(FlowMetricNames.TERMINATED);
-        checkCompletion();
+        checkCompletion(true);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class DefaultProgressTracker implements ProgressTracker {
             terminated.increment();
             incrementCounter(FlowMetricNames.TERMINATED);
         }
-        checkCompletion();
+        checkCompletion(true);
     }
 
     private void incrementCounter(String name) {

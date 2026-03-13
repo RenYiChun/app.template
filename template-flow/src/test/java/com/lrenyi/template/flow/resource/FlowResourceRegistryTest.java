@@ -148,7 +148,7 @@ class FlowResourceRegistryTest {
         }
 
         @Override
-        public void markSourceFinished(String jobId) {
+        public void markSourceFinished(String jobId, boolean status) {
         }
 
         @Override
@@ -193,7 +193,7 @@ class FlowResourceRegistryTest {
         }
 
         @Override
-        public void markSourceFinished(String jobId) {
+        public void markSourceFinished(String jobId, boolean status) {
         }
 
         @Override
