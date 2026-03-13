@@ -23,20 +23,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowResourceRegistryTest {
-    
+
     @AfterEach
     void tearDown() {
         FlowManager.reset();
         FlowResourceRegistry.reset();
     }
-    
+
     @Test
     void testConstructorCreatesInitializedInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(16);
-        
+
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), true);
-        
+
         assertTrue(registry.isInitialized());
         assertNotNull(registry.getGlobalSemaphore());
         assertNotNull(registry.getFlowConsumerExecutor());
@@ -45,7 +45,7 @@ class FlowResourceRegistryTest {
         assertNotNull(registry.getFairLock());
         assertNotNull(registry.getPermitReleased());
         assertNotNull(registry.getFlowCacheManager());
-        
+
         try {
             registry.shutdown();
         } catch (ResourceShutdownException e) {
@@ -53,20 +53,20 @@ class FlowResourceRegistryTest {
         }
         assertTrue(registry.isShutdown());
     }
-    
+
     @Test
     void testConstructorShutdownStopsExecutors() throws ResourceShutdownException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(8);
-        
+
         FlowResourceRegistry registry = new FlowResourceRegistry(config, new SimpleMeterRegistry(), false);
         assertFalse(registry.isShutdown());
-        
+
         registry.shutdown();
         assertTrue(registry.isShutdown());
         assertTrue(registry.getFlowConsumerExecutor().isShutdown());
     }
-    
+
     @Test
     void submitConsumerToGlobalAcquireFailureShouldRollbackPendingCounter() throws InterruptedException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
@@ -93,16 +93,16 @@ class FlowResourceRegistryTest {
         var launcher = flowManager.createLauncher(jobId, joiner, blockingTracker, config);
         FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
         FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
-        
+
         finalizer.submitDataToConsumer(entry1, launcher, null);
         assertTrue(acquiredLatch.await(2, TimeUnit.SECONDS), "First task should acquire and block");
         Thread.sleep(300);
-        
+
         assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher, null));
         assertEquals(1L, registry.getGlobalPendingConsumerAdder().sum(),
                 "Second's increment was rolled back; first task still holds 1 until it completes");
     }
-    
+
     private static final class BlockingTracker implements ProgressTracker {
         private final CountDownLatch acquiredLatch;
         private final CountDownLatch blockLatch = new CountDownLatch(1);
@@ -152,7 +152,7 @@ class FlowResourceRegistryTest {
         }
 
         @Override
-        public boolean isCompleted() {
+        public boolean isCompleted(boolean status) {
             return false;
         }
 
@@ -166,41 +166,41 @@ class FlowResourceRegistryTest {
         @Override
         public void onProductionAcquired() {
         }
-        
+
         @Override
         public void onProductionReleased() {
         }
-        
+
         @Override
         public void onConsumerAcquired() {
         }
-        
+
         @Override
         public void onConsumerReleased(String jobId) {
         }
-        
+
         @Override
         public void onTerminated(int count) {
         }
-        
+
         @Override
         public FlowProgressSnapshot getSnapshot() {
             return FlowProgressSnapshot.builder().build();
         }
-        
+
         @Override
         public void setTotalExpected(String jobId, long total) {
         }
-        
+
         @Override
         public void markSourceFinished(String jobId) {
         }
-        
+
         @Override
-        public boolean isCompleted() {
+        public boolean isCompleted(boolean status) {
             return true;
         }
-        
+
         @Override
         public boolean isCompletionConditionMet() {
             return true;

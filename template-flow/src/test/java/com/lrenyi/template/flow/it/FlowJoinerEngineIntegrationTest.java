@@ -98,7 +98,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run("job-pull-single", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-single");
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
 
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
@@ -172,7 +172,7 @@ class FlowJoinerEngineIntegrationTest {
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_PULL_MULTI, manager);
         tracker.setTotalExpected(JOB_PULL_MULTI, pairCount * 2);
         engine.run(JOB_PULL_MULTI, joiner, tracker, flowConfig);
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         awaitCondition(() -> joiner.getOnSuccessCount() >= pairCount, 10_000);
 
         assertEquals(pairCount, joiner.getOnSuccessCount());
@@ -197,7 +197,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run("job-pull-queue", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-pull-queue");
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         awaitConsumedOrTerminated(() -> (long) joiner.getConsumedCount(), tracker, total);
 
         FlowProgressSnapshot snapshot = tracker.getSnapshot();
@@ -335,7 +335,7 @@ class FlowJoinerEngineIntegrationTest {
         DefaultProgressTracker tracker = new DefaultProgressTracker(JOB_MISMATCH, manager);
         tracker.setTotalExpected(JOB_MISMATCH, 4);
         engine.run(JOB_MISMATCH, joiner, tracker, mismatchConfig);
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         // 匹配模式下无法配对的条目由 TTL 驱逐，通过 processEvictedSlot 以 SINGLE_CONSUMED 离库
         awaitCondition(() -> joiner.getOnFailedCount(EgressReason.SINGLE_CONSUMED) >= 4, 15_000);
 
@@ -445,7 +445,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run(jobId, joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker(jobId);
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
     }
 
@@ -462,7 +462,7 @@ class FlowJoinerEngineIntegrationTest {
 
         engine.run(pullJobId, pullJoiner, singleSource, total, flowConfig);
         ProgressTracker pullTracker = engine.getProgressTracker(pullJobId);
-        awaitCompleted(pullTracker::isCompleted);
+        awaitCompleted(() -> pullTracker.isCompleted(true));
         awaitConsumedOrTerminated(pullJoiner::getOnConsumeCount, pullTracker, total);
 
         String pushJobId = "job-metrics-completed-push";
@@ -520,7 +520,7 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
         engine.run("job-completion", joiner, singleSource, total, flowConfig);
         ProgressTracker tracker = engine.getProgressTracker("job-completion");
-        awaitCompleted(tracker::isCompleted);
+        awaitCompleted(() -> tracker.isCompleted(true));
         awaitConsumedOrTerminated(joiner::getOnConsumeCount, tracker, total);
 
         FlowProgressSnapshot snapshot = tracker.getSnapshot();

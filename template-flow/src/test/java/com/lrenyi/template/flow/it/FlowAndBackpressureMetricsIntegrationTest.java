@@ -9,7 +9,6 @@ import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
-import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
@@ -17,6 +16,7 @@ import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimens
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.engine.FlowJoinerEngine;
 import com.lrenyi.template.flow.health.FlowHealth;
+import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -172,7 +172,7 @@ class FlowAndBackpressureMetricsIntegrationTest {
             FlowSource<PairItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
             engine.run(jobId, joiner, source, total, flowConfig);
             ProgressTracker tracker = engine.getProgressTracker(jobId);
-            awaitCompleted(tracker::isCompleted, 15_000);
+            awaitCompleted(() -> tracker.isCompleted(true), 15_000);
 
             long snapshotAcquired = tracker.getSnapshot().productionAcquired();
             assertEquals(snapshotAcquired, getFlowCounter(FlowMetricNames.PRODUCTION_ACQUIRED, jobId),
@@ -192,7 +192,7 @@ class FlowAndBackpressureMetricsIntegrationTest {
             FlowSource<PairItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
             engine.run(jobId, joiner, source, total, flowConfig);
             ProgressTracker tracker = engine.getProgressTracker(jobId);
-            awaitCompleted(tracker::isCompleted, 15_000);
+            awaitCompleted(() -> tracker.isCompleted(true), 15_000);
 
             long snapshotTerminated = tracker.getSnapshot().terminated();
             assertEquals(snapshotTerminated, getFlowCounter(FlowMetricNames.TERMINATED, jobId),
@@ -232,7 +232,7 @@ class FlowAndBackpressureMetricsIntegrationTest {
             DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, manager);
             tracker.setTotalExpected(jobId, pairCount * 2L);
             engine.run(jobId, joiner, tracker, flowConfig);
-            awaitCompleted(tracker::isCompleted, 15_000);
+            awaitCompleted(() -> tracker.isCompleted(true), 15_000);
 
             assertTrue(getFlowTimerCount(FlowMetricNames.MATCH_DURATION, jobId) >= 1,
                     "MATCH_DURATION 配对模式应有记录");
@@ -284,7 +284,7 @@ class FlowAndBackpressureMetricsIntegrationTest {
             DefaultProgressTracker tracker = new DefaultProgressTracker(jobId, manager);
             tracker.setTotalExpected(jobId, 2L);
             engine.run(jobId, failingJoiner, tracker, flowConfig);
-            awaitCompleted(tracker::isCompleted, 20_000);
+            awaitCompleted(() -> tracker.isCompleted(true), 20_000);
 
             double matchFailed = getFlowErrorsCounter(FlowMetricNames.ERRORS, "onPairConsumed_failed", "CONSUMPTION");
             assertTrue(matchFailed >= 1,
@@ -304,10 +304,10 @@ class FlowAndBackpressureMetricsIntegrationTest {
             var inlet = engine.startPush(jobId, joiner, flowConfig);
             inlet.push(new PairItem("b1", "v1", null));
             inlet.markSourceFinished();
-            
+
             // 在 Job 完成前验证指标(因为完成后会注销指标)
             awaitCompleted(inlet::isCompleted, 10_000);
-            
+
             // 注意:Job 完成后会注销指标,所以这里验证的是指标在完成前确实存在过
             // 由于指标已被注销,我们无法直接验证,但可以验证 Job 正常完成
             assertTrue(inlet.isCompleted(), "Job 应正常完成");
@@ -320,10 +320,10 @@ class FlowAndBackpressureMetricsIntegrationTest {
             var inlet = engine.startPush(jobId, joiner, flowConfig);
             inlet.push(new PairItem("l1", "v1", null));
             inlet.markSourceFinished();
-            
+
             // 在 Job 完成前验证指标
             awaitCompleted(inlet::isCompleted, 10_000);
-            
+
             // 注意:Job 完成后会注销指标,所以这里验证的是 Job 正常完成
             assertTrue(inlet.isCompleted(), "Job 应正常完成");
         }
@@ -357,7 +357,7 @@ class FlowAndBackpressureMetricsIntegrationTest {
             FlowSource<PairItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
             engine.run(jobId, joiner, source, 5, flowConfig);
             ProgressTracker tracker = engine.getProgressTracker(jobId);
-            awaitCompleted(tracker::isCompleted, 15_000);
+            awaitCompleted(() -> tracker.isCompleted(true), 15_000);
 
             assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
                     ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");

@@ -274,7 +274,7 @@ public class FlowLauncher<T> {
     }
 
     public boolean isCompleted() {
-        return tracker.isCompleted();
+        return tracker.isCompleted(true);
     }
 
     public void stop(boolean force) {

@@ -276,7 +276,7 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public boolean isCompleted(String jobId) {
         ProgressTracker tracker = getProgressTracker(jobId);
-        return tracker != null && tracker.isCompleted();
+        return tracker != null && tracker.isCompleted(true);
     }
 
     @Override

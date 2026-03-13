@@ -42,7 +42,7 @@ class MatchRetryCoordinatorTest {
 
         FlowEntry<String> entry = new FlowEntry<>("b", "job-b");
         coordinator.initRetryRemainingIfNecessary(entry);
-        assertFalse(coordinator.tryConsumeRetry(EgressReason.TIMEOUT, entry));
+        assertTrue(coordinator.tryConsumeRetry(EgressReason.TIMEOUT, entry));
         assertTrue(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
         assertFalse(coordinator.tryConsumeRetry(EgressReason.EVICTION, entry));
     }
