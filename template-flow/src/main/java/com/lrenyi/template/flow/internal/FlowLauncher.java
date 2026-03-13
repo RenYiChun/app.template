@@ -121,11 +121,15 @@ public class FlowLauncher<T> {
             Thread.currentThread().interrupt();
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted",
                     metricJobId);
+            tracker.onProductionAcquired();
+            tracker.onProductionReleased();
             consumeOnBackpressureTimeout(data);
             return;
         } catch (TimeoutException e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout",
                     metricJobId);
+            tracker.onProductionAcquired();
+            tracker.onProductionReleased();
             consumeOnBackpressureTimeout(data);
             return;
         }

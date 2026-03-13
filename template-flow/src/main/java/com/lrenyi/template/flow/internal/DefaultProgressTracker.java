@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantLock;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -184,8 +185,13 @@ public class DefaultProgressTracker implements ProgressTracker {
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
      */
     private void checkCompletion(boolean showStatus) {
+        FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
+        if (activeLauncher == null) {
+            return;
+        }
+        TemplateConfigProperties.Flow flow = activeLauncher.getFlow();
         CompletionState state = computeCompletionState();
-        if (showStatus) {
+        if (showStatus || flow.isShowStatus()) {
             logCompletionBlocked(state);
         }
         if (!state.completionConditionMet()) {
@@ -199,9 +205,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                     return;
                 }
                 endTimeMillis.set(System.currentTimeMillis());
-                FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
-                boolean stopped =
-                        flowManager.isStopped(jobId) || (activeLauncher != null && activeLauncher.isStopped());
+                boolean stopped = flowManager.isStopped(jobId) || activeLauncher.isStopped();
                 log.info("Job completion confirmed, {}, sourceFinished={}, productionAcquired={}, "
                                  + "productionReleased={}, terminated={}, inStorage={}, activeConsumers={}, "
                                  + "inProduction={}, pendingConsumer={}, inFlightPush={}, stopped={}",

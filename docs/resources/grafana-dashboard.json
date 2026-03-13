@@ -310,7 +310,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -319,10 +319,10 @@
       },
       "gridPos": { "x": 0, "y": 3, "w": 4, "h": 4 },
       "id": 375,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Source未读完",
       "type": "stat",
-      "targets": [{ "expr": "1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -330,7 +330,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -339,10 +339,10 @@
       },
       "gridPos": { "x": 4, "y": 3, "w": 4, "h": 4 },
       "id": 376,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Storage未清空",
       "type": "stat",
-      "targets": [{ "expr": "app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -350,7 +350,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -359,10 +359,10 @@
       },
       "gridPos": { "x": 8, "y": 3, "w": 4, "h": 4 },
       "id": 377,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Consumer未释放",
       "type": "stat",
-      "targets": [{ "expr": "app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -370,7 +370,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -379,10 +379,10 @@
       },
       "gridPos": { "x": 12, "y": 3, "w": 4, "h": 4 },
       "id": 378,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "生产未完成",
       "type": "stat",
-      "targets": [{ "expr": "app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -390,7 +390,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -399,10 +399,10 @@
       },
       "gridPos": { "x": 16, "y": 3, "w": 4, "h": 4 },
       "id": 379,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "待消费未清",
       "type": "stat",
-      "targets": [{ "expr": "clamp_min(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}, 0)", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(clamp_min(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}, 0))", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -410,7 +410,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "no data", "color": "green" } } }],
+          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
           "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
           "min": 0,
           "max": 1
@@ -419,10 +419,10 @@
       },
       "gridPos": { "x": 20, "y": 3, "w": 4, "h": 4 },
       "id": 380,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["max"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Push未完成",
       "type": "stat",
-      "targets": [{ "expr": "app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -631,7 +631,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成判定原始值：用于判断 Job 是否可结束的 9 个指标。完成条件：sourceFinished=1 且其余均为 0。",
+      "description": "Job 完成判定原始值：用于判断 Job 是否可结束的 6 个指标。完成条件：sourceFinished=1 且其余均为 0。",
       "fieldConfig": {
         "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
         "overrides": []
@@ -642,15 +642,12 @@
       "title": "Job 完成判定（原始值）",
       "type": "timeseries",
       "targets": [
-        { "expr": "app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "productionAcquired {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "productionReleased {{jobId}}", "refId": "B" },
-        { "expr": "app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "terminated {{jobId}}", "refId": "C" },
-        { "expr": "app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "inStorage {{jobId}}", "refId": "D" },
-        { "expr": "app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "activeConsumers {{jobId}}", "refId": "E" },
-        { "expr": "app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "inProduction {{jobId}}", "refId": "F" },
-        { "expr": "app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "pendingConsumer {{jobId}}", "refId": "G" },
-        { "expr": "app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "sourceFinished {{jobId}}", "refId": "H" },
-        { "expr": "app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "inFlightPush {{jobId}}", "refId": "I" }
+        { "expr": "sum by (jobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inStorage {{jobId}}", "refId": "A" },
+        { "expr": "sum by (jobId) (app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "activeConsumers {{jobId}}", "refId": "B" },
+        { "expr": "sum by (jobId) (app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inProduction {{jobId}}", "refId": "C" },
+        { "expr": "sum by (jobId) (clamp_min(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}, 0))", "legendFormat": "pendingConsumer {{jobId}}", "refId": "D" },
+        { "expr": "sum by (jobId) (1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "Source未读完 {{jobId}}", "refId": "E" },
+        { "expr": "sum by (jobId) (app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inFlightPush {{jobId}}", "refId": "F" }
       ]
     },
     {
@@ -754,14 +751,14 @@
         "allValue": ".*",
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "definition": "label_values(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}, jobId)",
+        "definition": "label_values(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}, jobId)",
         "hide": 0,
         "includeAll": true,
         "label": "Job ID",
         "multi": true,
         "name": "jobId",
         "options": [],
-        "query": { "query": "label_values(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}, jobId)", "refId": "StandardVariableQuery" },
+        "query": { "query": "label_values(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}, jobId)", "refId": "StandardVariableQuery" },
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

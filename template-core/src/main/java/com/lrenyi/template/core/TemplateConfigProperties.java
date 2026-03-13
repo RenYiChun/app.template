@@ -27,45 +27,45 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "app.template")
 public class TemplateConfigProperties implements InitializingBean {
     private boolean enabled = true;
-    
+
     /**
      * OAuth2模块配置
      */
     @NestedConfigurationProperty
     private OAuth2Config oauth2 = new OAuth2Config();
-    
+
     /**
      * 方法级安全配置（@PreAuthorize / @PostAuthorize / @Secured 等是否生效）
      */
     @NestedConfigurationProperty
     private MethodSecurityConfig methodSecurity = new MethodSecurityConfig();
-    
+
     @NestedConfigurationProperty
     private Flow flow = new Flow();
-    
+
     /**
      * 安全配置
      */
     @NestedConfigurationProperty
     private SecurityProperties security = new SecurityProperties();
-    
+
     /**
      * Web模块配置
      */
     @NestedConfigurationProperty
     private WebProperties web = new WebProperties();
-    
+
     @NestedConfigurationProperty
     private FeignProperties feign = new FeignProperties();
-    
+
     /**
      * WebSocket 相关配置
      */
     @NestedConfigurationProperty
     private WebSocketProperties websocket = new WebSocketProperties();
-    
+
     private AuditLogProperties audit = new AuditLogProperties();
-    
+
     @Override
     public void afterPropertiesSet() {
         String faviconPath = StringUtils.hasText(security.getFaviconPath()) ? security.getFaviconPath() :
@@ -82,7 +82,7 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         validateConfig();
     }
-    
+
     /**
      * 配置合理性校验，防止远程配置源（如 Nacos）覆盖导致行为异常。
      * Flow limits 校验失败时抛出 IllegalArgumentException，应用启动中止。
@@ -122,7 +122,7 @@ public class TemplateConfigProperties implements InitializingBean {
                  isMethodSecurityEffectivelyEnabled()
         );
     }
-    
+
     private static Flow.@NonNull KeyedCache judgmentPerJobConfig(Flow.PerJob perJob) {
         Flow.KeyedCache keyedCache = perJob.getKeyedCache();
         if (keyedCache.isMustMatchRetryEnabled() && keyedCache.getMustMatchRetryMaxTimes() < 1) {
@@ -135,7 +135,7 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return keyedCache;
     }
-    
+
     private Flow.@NonNull PerJob getPerJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = getJob(limits, global);
         Flow.KeyedCache keyedCache = judgmentJobConfig(perJob);
@@ -155,7 +155,7 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return perJob;
     }
-    
+
     private static Flow.@NonNull KeyedCache judgmentJobConfig(Flow.PerJob perJob) {
         Flow.KeyedCache keyedCache = judgmentConfig(perJob);
         if (keyedCache.getExpiryDeferInitialMill() <= 0) {
@@ -169,7 +169,7 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return keyedCache;
     }
-    
+
     private static Flow.@NonNull KeyedCache judgmentConfig(Flow.PerJob perJob) {
         Flow.KeyedCache keyedCache = perJob.getKeyedCache();
         int effectivePending = perJob.getEffectivePendingConsumer();
@@ -185,7 +185,7 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return keyedCache;
     }
-    
+
     private static Flow.@NonNull PerJob getJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = judgmentValidate(limits, global);
         if (perJob.getInFlightProduction() <= 0) {
@@ -198,10 +198,10 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return perJob;
     }
-    
+
     private static Flow.@NonNull PerJob judgmentValidate(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = limits.getPerJob();
-        
+
         if (global.getConsumerThreads() <= 0 && perJob.getConsumerThreads() <= 0) {
             throw new IllegalArgumentException(
                     "flow.limits.global.consumer-threads 或 flow.limits.per-job.consumer-threads 至少一个必须 > 0，"
@@ -214,37 +214,37 @@ public class TemplateConfigProperties implements InitializingBean {
         }
         return perJob;
     }
-    
+
     /**
      * 总开关关闭时，各功能均视为未启用。以下方法用于统一判断"有效启用"状态。
      */
     public boolean isSecurityEffectivelyEnabled() {
         return enabled && security.isEnabled();
     }
-    
+
     public boolean isFeignEffectivelyEnabled() {
         return enabled && feign.isEnabled();
     }
-    
+
     public boolean isOauth2EffectivelyEnabled() {
         return enabled && oauth2.isEnabled();
     }
-    
+
     public boolean isAuditEffectivelyEnabled() {
         return enabled && audit.isEnabled();
     }
-    
+
     public boolean isMethodSecurityEffectivelyEnabled() {
         return enabled && methodSecurity.isEnabled();
     }
-    
+
     @Setter
     @Getter
     public static class MethodSecurityConfig {
         /** 是否启用方法级安全（@PreAuthorize 等注解生效） */
         private boolean enabled = true;
     }
-    
+
     /**
      * Flow 配置
      */
@@ -280,15 +280,18 @@ public class TemplateConfigProperties implements InitializingBean {
          * 消费端获取消费许可时允许的最长等待时间（毫秒），仅在 BLOCK_WITH_TIMEOUT 模式下生效。
          */
         private long consumerAcquireTimeoutMill = 30_000L;
+
+        private boolean showStatus;
+
         /** 限流配置（全局与按 Job 分离） */
         @NestedConfigurationProperty
         private Limits limits = new Limits();
-        
+
         /** 便捷方法：获取 limits，若为 null 则返回默认 */
         public Limits getLimits() {
             return limits != null ? limits : new Limits();
         }
-        
+
         @Setter
         @Getter
         public static class Limits {
@@ -298,16 +301,16 @@ public class TemplateConfigProperties implements InitializingBean {
             /** 每 Job 独立限制 */
             @NestedConfigurationProperty
             private PerJob perJob = new PerJob();
-            
+
             public Global getGlobal() {
                 return global != null ? global : new Global();
             }
-            
+
             public PerJob getPerJob() {
                 return perJob != null ? perJob : new PerJob();
             }
         }
-        
+
         @Setter
         @Getter
         public static class Global {
@@ -328,7 +331,7 @@ public class TemplateConfigProperties implements InitializingBean {
             /** 驱逐扫描间隔（毫秒），0 表示使用 take() 阻塞等待，>0 表示 poll(timeout) 定期唤醒以检查关闭 */
             private long evictionScanIntervalMill = 0;
         }
-        
+
         @Setter
         @Getter
         public static class PerJob {
@@ -350,22 +353,22 @@ public class TemplateConfigProperties implements InitializingBean {
             private long evictionScanIntervalMill = 0;
             /** pending slot 获取超时时是否仍“提交 anyway” */
             private boolean strictPendingConsumerSlot = true;
-            
+
             /** 带 key 的缓存：多值、超时与驱逐等统一在此配置（app.template.flow.limits.per-job.keyed-cache.*） */
             @NestedConfigurationProperty
             private KeyedCache keyedCache = new KeyedCache();
-            
+
             /** 有效背压阈值：inFlightConsumer>0 时取该值，否则取 per-job.consumer-threads */
             public int getEffectivePendingConsumer() {
                 return inFlightConsumer > 0 ? inFlightConsumer : consumerThreads;
             }
-            
+
             /** 有效驱逐协调线程数：per-job > 0 时取 per-job，否则取 global。 */
             public int getEffectiveEvictionCoordinatorThreads(Flow.Global global) {
                 return evictionCoordinatorThreads > 0 ? evictionCoordinatorThreads :
                         (global != null ? Math.max(1, global.getEvictionCoordinatorThreads()) : 1);
             }
-            
+
             /** 有效驱逐扫描间隔：per-job > 0 时取 per-job，否则取 global；0 表示 take() 阻塞，>0 表示 poll(timeout)。 */
             public long getEffectiveEvictionScanIntervalMill(Flow.Global global) {
                 return evictionScanIntervalMill > 0 ? evictionScanIntervalMill :
@@ -381,7 +384,7 @@ public class TemplateConfigProperties implements InitializingBean {
                 return getKeyedCache().getPairingMultiMatchEnabled();
             }
         }
-        
+
         /**
          * 带 key 的缓存配置：同 key 多 value、超时与驱逐等归为一类。
          * 配置前缀：app.template.flow.limits.per-job.keyed-cache.*
@@ -395,7 +398,7 @@ public class TemplateConfigProperties implements InitializingBean {
             private int multiValueMaxPerKey = 1;
             /** 同 key 多 value：超限策略 DROP_OLDEST / DROP_NEWEST */
             private Flow.MultiValueOverflowPolicy multiValueOverflowPolicy = Flow.MultiValueOverflowPolicy.DROP_OLDEST;
-            
+
             /** 缓存 TTL（毫秒，必须 >0） */
             private long cacheTtlMill = 10000L;
             /** 首次延期时长（毫秒） */
@@ -434,7 +437,7 @@ public class TemplateConfigProperties implements InitializingBean {
                 return cacheTtlMill > 0 ? cacheTtlMill : 10_000L;
             }
         }
-        
+
         /** 同 key 多 value 超限策略 */
         public enum MultiValueOverflowPolicy {
             /** 超限时淘汰最老项 */
@@ -443,7 +446,7 @@ public class TemplateConfigProperties implements InitializingBean {
             DROP_NEWEST
         }
     }
-    
+
     @Setter
     @Getter
     public static class AuditLogProperties {
@@ -451,14 +454,14 @@ public class TemplateConfigProperties implements InitializingBean {
         public static final String DEFAULT_OAUTH2_TOKEN_ENDPOINT = "/oauth2/token";
         /** OAuth2 审计路径前缀默认值，可通过 app.template.audit.oauth2-audit-path-prefix 自定义。 */
         public static final String DEFAULT_OAUTH2_AUDIT_PATH_PREFIX = "/oauth2";
-        
+
         private boolean enabled = false;
         /** 需审计的 OAuth2 端点 URI 列表（与 oauth2AuditPathPrefix 二选一或同时生效） */
         private List<String> oauth2Endpoints = Collections.singletonList(DEFAULT_OAUTH2_TOKEN_ENDPOINT);
         /** 审计该路径前缀下的所有请求（如 /oauth2 表示 /oauth2/authorize、/oauth2/token、/oauth2/revoke 等全部审计），为空则仅按 oauth2Endpoints 列表 */
         private String oauth2AuditPathPrefix = DEFAULT_OAUTH2_AUDIT_PATH_PREFIX;
     }
-    
+
     @Setter
     @Getter
     public static class FeignProperties {
@@ -476,7 +479,7 @@ public class TemplateConfigProperties implements InitializingBean {
         @NestedConfigurationProperty
         private RetryConfig retry = new RetryConfig();
     }
-    
+
     @Setter
     @Getter
     public static class RetryConfig {
@@ -489,7 +492,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 最大重试间隔（毫秒） */
         private long maxPeriod = 1000;
     }
-    
+
     /**
      * Web模块配置
      */
@@ -499,7 +502,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private String jsonProcessorType;
         private boolean exportExceptionDetail;
     }
-    
+
     /**
      * WebSocket 配置
      */
@@ -513,7 +516,7 @@ public class TemplateConfigProperties implements InitializingBean {
          */
         private boolean allowTokenInQueryParameter = false;
     }
-    
+
     /**
      * OAuth2模块配置
      */
@@ -525,20 +528,20 @@ public class TemplateConfigProperties implements InitializingBean {
         private String tokenUrl;
         @NestedConfigurationProperty
         private OpaqueTokenConfig opaqueToken = new OpaqueTokenConfig();
-        
+
         @Setter
         @Getter
         public static class OpaqueTokenConfig {
             /** Opaque Token 内省 URI 默认值，可通过 app.template.oauth2.opaque-token.introspection-uri 自定义。 */
             public static final String DEFAULT_INTROSPECTION_URI = "http://127.0.0.1/oauth2/introspect";
-            
+
             private String introspectionUri = DEFAULT_INTROSPECTION_URI;
             private boolean enabled = false;
             private String clientId = "default-client-id";
             private String clientSecret = "app.template";
         }
     }
-    
+
     /**
      * 安全配置
      */
@@ -549,7 +552,7 @@ public class TemplateConfigProperties implements InitializingBean {
         public static final String DEFAULT_NET_JWT_PUBLIC_KEY_PATH = "/jwt/public/key"; //NOSONAR
         /** Favicon 路径默认值，可通过 app.template.security.favicon-path 自定义。 */
         public static final String DEFAULT_FAVICON_PATH = "/favicon";
-        
+
         private boolean enabled = true;
         private String securityKey = "default";
         private Set<String> allPermitUrls = new HashSet<>();
@@ -585,7 +588,7 @@ public class TemplateConfigProperties implements InitializingBean {
         private boolean sessionIdleTimeout = false;
         private Long sessionTimeOutSeconds;
         private Long tokenMaxLifetimeSeconds = 24 * 3600L;
-        
+
         /**
          * 授权信息存储方式：memory（默认）、redis、jdbc。
          * 对应配置项 app.template.security.authorization.store-type。
@@ -593,7 +596,7 @@ public class TemplateConfigProperties implements InitializingBean {
          */
         @NestedConfigurationProperty
         private AuthorizationProperties authorization = new AuthorizationProperties();
-        
+
         /**
          * CORS 跨域配置。enabled=true 时由框架根据下方属性构建 CorsConfigurationSource 并注入 Security 链，
          * 无需再写 Java 代码；需完全自定义时可将 enabled 置为 false 并通过 httpConfigurerProvider 注入自己的 CORS。
@@ -601,7 +604,7 @@ public class TemplateConfigProperties implements InitializingBean {
         @NestedConfigurationProperty
         private CorsProperties cors = new CorsProperties();
     }
-    
+
     /**
      * 授权相关配置，对应 app.template.security.authorization.*
      */
@@ -611,7 +614,7 @@ public class TemplateConfigProperties implements InitializingBean {
         /** 存储类型：memory、redis、jdbc */
         private String storeType = "memory";
     }
-    
+
     /**
      * CORS 跨域配置项，对应 app.template.security.cors.*
      */
