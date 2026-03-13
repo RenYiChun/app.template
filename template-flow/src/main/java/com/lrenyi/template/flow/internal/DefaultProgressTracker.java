@@ -54,7 +54,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         productionAcquired.increment();
         incrementCounter(FlowMetricNames.PRODUCTION_ACQUIRED);
         if (totalExpected != -1 && productionAcquired.sum() >= totalExpected) {
-            markSourceFinished(jobId);
+            markSourceFinished(jobId, true);
         }
     }
 
@@ -133,7 +133,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     @Override
-    public void markSourceFinished(String jobId) {
+    public void markSourceFinished(String jobId, boolean showStatus) {
         if (sourceFinished) {
             return;
         }
@@ -151,7 +151,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                  state.pendingConsumer(),
                  state.inFlightPush()
         );
-        checkCompletion();
+        checkCompletion(showStatus);
     }
 
     @Override
@@ -159,7 +159,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         if (completionFuture.isDone()) {
             return true;
         }
-        checkCompletion();
+        checkCompletion(showStatus);
         return completionFuture.isDone();
     }
 
@@ -177,10 +177,12 @@ public class DefaultProgressTracker implements ProgressTracker {
      * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
      */
-    private void checkCompletion() {
+    private void checkCompletion(boolean showStatus) {
         CompletionState state = computeCompletionState();
-        if (!state.completionConditionMet()) {
+        if (showStatus) {
             logCompletionBlocked(state);
+        }
+        if (!state.completionConditionMet()) {
             return;
         }
         finishLock.lock();

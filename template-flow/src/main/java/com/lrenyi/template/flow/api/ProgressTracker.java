@@ -55,7 +55,7 @@ public interface ProgressTracker {
     /**
      * 标记任务输入已截止（Source 读完了）
      */
-    void markSourceFinished(String jobId);
+    void markSourceFinished(String jobId, boolean showStatus);
 
     /**
      * 设置用于监控指标标签的 jobId（可读展示名）。

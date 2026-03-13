@@ -283,7 +283,7 @@ public class FlowLauncher<T> {
         }
         log.info("停止 Job [{}], force={}", FlowLogHelper.formatJobContext(jobId, metricJobId), force);
         this.stopped = true;
-        tracker.markSourceFinished(jobId);
+        tracker.markSourceFinished(jobId, true);
         try {
             FlowStorageType type = flowJoiner.getStorageType();
             resourceContext.getCacheManager()
