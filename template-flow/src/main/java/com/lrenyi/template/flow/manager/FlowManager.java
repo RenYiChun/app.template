@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -38,6 +39,9 @@ import org.jspecify.annotations.NonNull;
 public class FlowManager implements ActiveLauncherLookup {
     private static final AtomicReference<FlowManager> instanceRef = new AtomicReference<>();
     private static int lastConcurrencyLimit = -1;
+    /** 延迟秒数，需覆盖至少 2–3 个 Prometheus 抓取周期（scrape_interval 常为 15–60s），
+     * 以便抓取到 Job 完成时的最终 0 值。否则时序停止后，Prometheus 会持续返回最后样本直至 stale（约 5min）。 */
+    private static final int UNREGISTER_DELAY_SECONDS = 90;
     private final TemplateConfigProperties.Flow globalConfig;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
@@ -167,6 +171,23 @@ public class FlowManager implements ActiveLauncherLookup {
             }
             log.info("Job [{}] 已从管理器中注销", FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()));
         }
+    }
+
+    /**
+     * 延迟执行 unregister，使 Prometheus 有机会抓取 Job 完成时的最终指标（storage=0、activeConsumers=0 等），
+     * 避免 Grafana 因指标立即移除而显示过期值（如 storage 仍为运行中的 22K）。
+     */
+    public void scheduleUnregister(String jobId) {
+        Thread.ofVirtual().name("flow-unregister-delayed").start(() -> {
+            try {
+                Thread.sleep(TimeUnit.SECONDS.toMillis(UNREGISTER_DELAY_SECONDS));
+                unregister(jobId);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.warn("延迟注销 Job [{}] 时发生异常", jobId, e);
+            }
+        });
     }
 
     /**

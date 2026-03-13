@@ -458,6 +458,7 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                 continue;
             }
             finalizer().submitPairDataToConsumer(parent, incoming, launcher);
+            parent.closeStorageLease();
             incoming.closeStorageLease();
             savedEntryCount.decrement();
             return parent;

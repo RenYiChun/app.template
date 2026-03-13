@@ -105,6 +105,11 @@ public final class FlowMetricNames {
     public static final String COMPLETION_SOURCE_FINISHED = PREFIX + ".completion.source_finished";
     /** 推送模式下 in-flight push 数量，用于完成判定。 */
     public static final String COMPLETION_IN_FLIGHT_PUSH = PREFIX + ".completion.in_flight_push";
+    /**
+     * 活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定。
+     * 与 in_flight_consumer_used 不同：后者来自背压信号量（含排队中），前者仅统计已获取消费线程、回调执行中的条数。
+     */
+    public static final String COMPLETION_ACTIVE_CONSUMERS = PREFIX + ".completion.active_consumers";
 
     private FlowMetricNames() {}
 }
