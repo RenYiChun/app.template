@@ -17,17 +17,17 @@ import lombok.extern.slf4j.Slf4j;
 public class DefaultProgressTracker implements ProgressTracker {
     private final FlowManager flowManager;
     private final String jobId;
-    
+
     // 任务启动的时间戳（毫秒）
     private final long startTimeMillis = System.currentTimeMillis();
-    
+
     // 任务结束的时间戳，默认为 0。任务终结时会被锁定。
     private final AtomicLong endTimeMillis = new AtomicLong(0L);
     // [生产许可获取数]：代表进入系统的原始请求总量
     private final LongAdder productionAcquired = new LongAdder();
     // [生产许可释放数]：代表成功存入存储层（Storage）的总量
     private final LongAdder productionReleased = new LongAdder();
-    
+
     // --- 物理水位计数器 (使用 LongAdder 保证高并发写性能) ---
     // [活跃消费许可数]：当前正在系统中"生存"的数据总量（已入库但未终结）
     private final LongAdder activeConsumers = new LongAdder();
@@ -43,12 +43,12 @@ public class DefaultProgressTracker implements ProgressTracker {
     private volatile long totalExpected = -1L;
     // 生产端状态：标记 Source 是否已经彻底读完
     private volatile boolean sourceFinished = false;
-    
+
     public DefaultProgressTracker(String jobId, FlowManager flowManager) {
         this.jobId = jobId;
         this.flowManager = flowManager;
     }
-    
+
     @Override
     public void onProductionAcquired() {
         productionAcquired.increment();
@@ -57,12 +57,12 @@ public class DefaultProgressTracker implements ProgressTracker {
             markSourceFinished(jobId);
         }
     }
-    
+
     @Override
     public void onProductionReleased() {
         productionReleased.increment();
     }
-    
+
     /**
      * 获取全局消费许可：
      * 数据在入库（Storage）时调用，代表该单位正式进入业务生命周期
@@ -71,7 +71,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void onConsumerAcquired() {
         activeConsumers.increment();
     }
-    
+
     @Override
     public void onConsumerReleased(String jobId) {
         activeConsumers.decrement();
@@ -79,7 +79,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         incrementCounter(FlowMetricNames.TERMINATED);
         checkCompletion();
     }
-    
+
     @Override
     public void onTerminated(int count) {
         for (int i = 0; i < count; i++) {
@@ -88,7 +88,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         }
         checkCompletion();
     }
-    
+
     private void incrementCounter(String name) {
         String tagJobId = (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
         Counter.builder(name)
@@ -96,7 +96,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                .register(flowManager.getMeterRegistry())
                .increment();
     }
-    
+
     @Override
     public FlowProgressSnapshot getSnapshot() {
         long inStorage = 0;
@@ -116,7 +116,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                         endTimeMillis.get()
         );
     }
-    
+
     @Override
     public void setMetricJobId(String metricJobId) {
         this.metricJobId = metricJobId;
@@ -131,7 +131,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void setTotalExpected(String jobId, long total) {
         this.totalExpected = total;
     }
-    
+
     @Override
     public void markSourceFinished(String jobId) {
         if (sourceFinished) {
@@ -153,26 +153,26 @@ public class DefaultProgressTracker implements ProgressTracker {
         );
         checkCompletion();
     }
-    
+
     @Override
-    public boolean isCompleted() {
+    public boolean isCompleted(boolean showStatus) {
         if (completionFuture.isDone()) {
             return true;
         }
         checkCompletion();
         return completionFuture.isDone();
     }
-    
+
     @Override
     public boolean isCompletionConditionMet() {
         return computeCompletionState().completionConditionMet();
     }
-    
+
     @Override
     public boolean isProductionComplete() {
         return sourceFinished && productionReleased.sum() >= productionAcquired.sum();
     }
-    
+
     /**
      * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
      * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
@@ -252,7 +252,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                  state.inFlightPush()
         );
     }
-    
+
     /**
      * 基于快照计算完成状态，保证与 getSnapshot() 暴露的数据一致、一次取数避免中间状态不一致。
      * inFlightPush 不在快照中，仍从 launcher 读取。
@@ -280,7 +280,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    completionConditionMet
         );
     }
-    
+
     private record CompletionState(long acquired,
                                    long released,
                                    long terminated,

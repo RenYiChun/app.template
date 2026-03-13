@@ -77,7 +77,7 @@ class BoundedTimedFlowStorageTest {
         flow.getLimits().getPerJob().getKeyedCache().setCacheTtlMill(ttlMs);
         return flow;
     }
-    
+
     /** 配对模式测试用：多值、同 key、短 TTL，仅 A-B 可配对。 */
     private static TemplateConfigProperties.Flow fakeFlowConfigForPairing(long ttlMs) {
         TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
@@ -199,9 +199,9 @@ class BoundedTimedFlowStorageTest {
         assertTrue(consumed.stream().anyMatch(r -> "x".equals(r.item)));
         assertTrue(consumed.stream().anyMatch(r -> "y".equals(r.item)));
     }
-    
+
     // ---------- 配对场景：3 条数据仅 2 条可配对，校验 job 结束条件各计数 ----------
-    
+
     /**
      * 场景1：第 2 条与第 1 条入缓存前就配对成功，第 3 条通过驱逐出缓存。
      * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条 TIMEOUT。
@@ -236,7 +236,7 @@ class BoundedTimedFlowStorageTest {
         assertEquals(0, snapshot.inStorage(), "inStorage");
         assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
     }
-    
+
     /**
      * 场景2：第 3 条才与缓存中某一条配对成功，未配对的这条在生产线程内被 CLEARED_AFTER_PAIR_SUCCESS 移除。
      * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条 CLEARED_AFTER_PAIR_SUCCESS。
@@ -318,31 +318,31 @@ class BoundedTimedFlowStorageTest {
     }
 
     // ---------- 内部辅助 ----------
-    
+
     /** 仅 "A" 与 "B" 可配对，同 key 多值。 */
     private static final class PairingCollectingJoiner extends CollectingJoiner {
         private final AtomicLong pairConsumedCount = new AtomicLong(0);
-        
+
         @Override
         public String joinKey(String item) {
             return "sameKey";
         }
-        
+
         @Override
         public boolean needMatched() {
             return true;
         }
-        
+
         @Override
         public boolean isMatched(String existing, String incoming) {
             return ("A".equals(existing) && "B".equals(incoming)) || ("B".equals(existing) && "A".equals(incoming));
         }
-        
+
         @Override
         public void onPairConsumed(String existing, String incoming, String jobId) {
             pairConsumedCount.incrementAndGet();
         }
-        
+
         long getPairConsumedCount() {
             return pairConsumedCount.get();
         }
@@ -386,7 +386,7 @@ class BoundedTimedFlowStorageTest {
             return pairConsumedCount.get();
         }
     }
-    
+
     /** 统计各回调次数，用于校验 job 结束条件中的计数。 */
     private static final class CountingProgressTracker implements ProgressTracker {
         private final String jobId;
@@ -446,20 +446,20 @@ class BoundedTimedFlowStorageTest {
                                             0L
             );
         }
-        
+
         @Override
         public void setTotalExpected(String jobId, long total) {
         }
-        
+
         @Override
         public void markSourceFinished(String jobId) {
         }
-        
+
         @Override
-        public boolean isCompleted() {
+        public boolean isCompleted(boolean status) {
             return false;
         }
-        
+
         @Override
         public boolean isCompletionConditionMet() {
             return false;
@@ -565,7 +565,7 @@ class BoundedTimedFlowStorageTest {
         }
 
         @Override
-        public boolean isCompleted() {
+        public boolean isCompleted(boolean status) {
             return false;
         }
 
