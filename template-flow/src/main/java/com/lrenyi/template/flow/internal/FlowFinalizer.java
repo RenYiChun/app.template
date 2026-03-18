@@ -94,7 +94,12 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        submitConsumer(launcher, 1, runnable);
+        try {
+            submitConsumer(launcher, 1, runnable);
+        } catch (RuntimeException e) {
+            leaseToClose.close();
+            throw e;
+        }
     }
 
     /**
@@ -215,6 +220,11 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        submitConsumer(launcher, 2, runnable);
+        try {
+            submitConsumer(launcher, 2, runnable);
+        } catch (RuntimeException e) {
+            leaseToClose.close();
+            throw e;
+        }
     }
 }

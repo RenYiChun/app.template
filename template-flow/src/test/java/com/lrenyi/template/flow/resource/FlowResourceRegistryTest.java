@@ -103,6 +103,48 @@ class FlowResourceRegistryTest {
                 "Second's increment was rolled back; first task still holds 1 until it completes");
     }
 
+    @Test
+    void submitConsumerFailureShouldReleaseInFlightConsumerSlot() throws InterruptedException {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(1);
+        config.getLimits().getGlobal().setInFlightConsumer(4);
+        config.getLimits().getPerJob().setConsumerThreads(1);
+        config.getLimits().getPerJob().setInFlightConsumer(4);
+        config.setConsumerAcquireBlockingMode(BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
+        config.setConsumerAcquireTimeoutMill(500);
+
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+        FlowResourceRegistry registry = flowManager.getResourceRegistry();
+        String jobId = "job-slot-rollback";
+        QueueJoiner joiner = new QueueJoiner();
+        CountDownLatch startedLatch = new CountDownLatch(1);
+        CountDownLatch releaseLatch = new CountDownLatch(1);
+        BlockingJoiner blockingJoiner = new BlockingJoiner(startedLatch, releaseLatch);
+        NoopTracker tracker = new NoopTracker();
+        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(blockingJoiner,
+                                                                              tracker,
+                                                                              flowManager.getMeterRegistry());
+        FlowFinalizer<PairItem> finalizer = new FlowFinalizer<>(registry,
+                                                                flowManager.getMeterRegistry(),
+                                                                blockingHandler,
+                                                                blockingJoiner);
+
+        var launcher = flowManager.createLauncher(jobId, blockingJoiner, tracker, config);
+        FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
+        FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
+
+        finalizer.submitDataToConsumer(entry1, launcher, null);
+        assertTrue(startedLatch.await(2, TimeUnit.SECONDS), "First task should hold the consumer slot");
+        assertEquals(3, registry.getGlobalInFlightConsumerSemaphore().availablePermits(),
+                     "First task should occupy exactly one in-flight-consumer slot");
+
+        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher, null));
+        assertEquals(3, registry.getGlobalInFlightConsumerSemaphore().availablePermits(),
+                     "Failed second submission must roll back the extra in-flight-consumer slot");
+
+        releaseLatch.countDown();
+    }
+
     private static final class BlockingTracker implements ProgressTracker {
         private final CountDownLatch acquiredLatch;
         private final CountDownLatch blockLatch = new CountDownLatch(1);
@@ -204,6 +246,27 @@ class FlowResourceRegistryTest {
         @Override
         public boolean isCompletionConditionMet() {
             return true;
+        }
+    }
+
+    private static final class BlockingJoiner extends QueueJoiner {
+        private final CountDownLatch startedLatch;
+        private final CountDownLatch releaseLatch;
+
+        private BlockingJoiner(CountDownLatch startedLatch, CountDownLatch releaseLatch) {
+            this.startedLatch = startedLatch;
+            this.releaseLatch = releaseLatch;
+        }
+
+        @Override
+        public void onSingleConsumed(PairItem item, String jobId, com.lrenyi.template.flow.model.EgressReason reason) {
+            startedLatch.countDown();
+            try {
+                releaseLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
         }
     }
 }
