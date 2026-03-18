@@ -23,12 +23,23 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
 
     @Override
     public void push(T item) {
-        if (sourceClosed.get()) {
-            log.warn("Push rejected because source already closed, {}",
-                    FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
-            throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
+        // 使用 double-check 模式解决 check-then-act 竞态条件：
+        // 问题：sourceClosed 检查与 inFlightPush 增量之间无原子性保证。
+        // 当 markSourceFinished() 等待 inFlightPush==0 时，若 push() 刚通过检查但未增量，
+        // 会导致 markSourceFinished() 误判为已排空并关闭入口，新数据被拒绝。
+        // 解决：增量后再次检查 sourceClosed，若已关闭则回滚计数并重试。
+        while (true) {
+            if (sourceClosed.get()) {
+                log.warn("Push rejected because source already closed, {}",
+                        FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
+                throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
+            }
+            inFlightPush.incrementAndGet();
+            if (!sourceClosed.get()) {
+                break;
+            }
+            inFlightPush.decrementAndGet();
         }
-        inFlightPush.incrementAndGet();
         try {
             launcher.launch(item);
         } finally {
