@@ -99,8 +99,12 @@ public class InFlightConsumerDimension implements ResourceBackpressureDimension 
         if (pair == null) {
             return;
         }
-        pair.release(permits);
+        // 防御性释放：使用 global limit 避免信号量超限
         var fc = ctx.getFlowConfig();
+        int globalLimit = (fc != null && fc.getLimits().getGlobal().getInFlightConsumer() > 0)
+                ? fc.getLimits().getGlobal().getInFlightConsumer()
+                : Integer.MAX_VALUE;
+        pair.release(permits, globalLimit);
         var perJob = fc != null ? fc.getLimits().getPerJob() : null;
         if (fc != null
                 && (fc.getLimits().getGlobal().getInFlightConsumer() > 0

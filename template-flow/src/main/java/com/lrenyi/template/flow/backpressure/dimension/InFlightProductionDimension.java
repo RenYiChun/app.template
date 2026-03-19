@@ -202,8 +202,12 @@ public class InFlightProductionDimension implements ResourceBackpressureDimensio
         if (pair == null) {
             return;
         }
-        pair.release(permits);
+        // 防御性释放：使用 global limit 避免信号量超限
         var fc = ctx.getFlowConfig();
+        int globalLimit = (fc != null && fc.getLimits().getGlobal().getInFlightProduction() > 0)
+                ? fc.getLimits().getGlobal().getInFlightProduction()
+                : Integer.MAX_VALUE;
+        pair.release(permits, globalLimit);
         if (fc != null
                 && (fc.getLimits().getGlobal().getInFlightProduction() > 0
                 || fc.getLimits().getPerJob().getInFlightProduction() > 0)) {

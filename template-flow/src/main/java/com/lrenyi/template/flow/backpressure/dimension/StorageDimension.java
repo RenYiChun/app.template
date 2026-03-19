@@ -159,8 +159,12 @@ public class StorageDimension implements ResourceBackpressureDimension {
         }
         PermitPair pair = ctx.getStoragePermitPair();
         if (pair != null) {
-            pair.release(permits);
+            // 防御性释放：使用 global limit 避免信号量超限
             var fc = ctx.getFlowConfig();
+            int globalLimit = (fc != null && fc.getLimits().getGlobal().getStorageCapacity() > 0)
+                    ? fc.getLimits().getGlobal().getStorageCapacity()
+                    : Integer.MAX_VALUE;
+            pair.release(permits, globalLimit);
             if (fc != null
                     && (fc.getLimits().getGlobal().getStorageCapacity() > 0
                     || fc.getLimits().getPerJob().getStorageCapacity() > 0)) {
