@@ -92,8 +92,12 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         if (pair == null) {
             return;
         }
-        pair.release(permits);
+        // 防御性释放：使用 global limit 避免信号量超限
         var fc = ctx.getFlowConfig();
+        int globalLimit = (fc != null && fc.getLimits().getGlobal().getProducerThreads() > 0)
+                ? fc.getLimits().getGlobal().getProducerThreads()
+                : Integer.MAX_VALUE;
+        pair.release(permits, globalLimit);
         if (fc != null
                 && (fc.getLimits().getGlobal().getProducerThreads() > 0
                 || fc.getLimits().getPerJob().getProducerThreads() > 0)) {
