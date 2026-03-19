@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegistry meterRegistry,
                                FlowEgressHandler<T> egressHandler, FlowJoiner<T> joiner) {
-    
+
     /**
      * 将数据提交至消费端，通过 BackpressureManager 获取 in-flight-consumer 槽位租约。
      * 租约在消费任务完成后由 close() 释放。
@@ -59,7 +59,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             );
             return;
         }
-        
+
         final EgressReason finalReason = reason != null ? reason : EgressReason.SINGLE_CONSUMED;
         final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
@@ -70,7 +70,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                         egressHandler.performSingleConsumed(entry, finalReason);
                         didFinalize = true;
                     } else {
-                        log.info("Entry {} claimed by other path, skipping finalizer",
+                        log.debug("Entry {} claimed by other path, skipping finalizer",
                                 FlowLogHelper.formatJobContext(entry.getJobId(), launcher.getMetricJobId()));
                     }
                 } catch (Exception t) {
