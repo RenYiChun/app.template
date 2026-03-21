@@ -6,6 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import com.lrenyi.template.dataforge.meta.EntityMeta;
+import com.lrenyi.template.dataforge.permission.DataPermissionApplicator;
 import com.lrenyi.template.dataforge.permission.DataforgePermissionChecker;
 import com.lrenyi.template.dataforge.registry.ActionRegistry;
 import com.lrenyi.template.dataforge.registry.EntityRegistry;
@@ -14,6 +15,8 @@ import com.lrenyi.template.dataforge.support.BeanAccessor;
 import com.lrenyi.template.dataforge.support.DataforgeExceptionHandler;
 import com.lrenyi.template.dataforge.support.DataforgeServices;
 import com.lrenyi.template.dataforge.support.EntityMapperProvider;
+import com.lrenyi.template.dataforge.support.FilterCondition;
+import com.lrenyi.template.dataforge.support.Op;
 import com.lrenyi.template.dataforge.support.SearchRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -49,8 +52,11 @@ class GenericEntityControllerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final EntityRegistry entityRegistry = new EntityRegistry();
     private final EntityCrudService crudService = mock(EntityCrudService.class);
+    private final DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
     private MockMvc mockMvc;
     private EntityMeta meta;
+    private DataforgeProperties properties;
+    private DataforgePermissionChecker permissionChecker;
 
     @AfterEach
     void tearDown() {
@@ -61,22 +67,25 @@ class GenericEntityControllerTest {
     void setUp() {
         SecurityContextHolder.getContext().setAuthentication(
                 new TestingAuthenticationToken("tester", "password", "ROLE_USER"));
-        DataforgeProperties properties = new DataforgeProperties();
+        beanFactory.destroySingletons();
+        properties = new DataforgeProperties();
         properties.setExposeExceptionMessage(true);
         properties.setValidationEnabled(false);
-        DataforgePermissionChecker permissionChecker = mock(DataforgePermissionChecker.class);
+        permissionChecker = mock(DataforgePermissionChecker.class);
         when(permissionChecker.hasAnyPermission(any())).thenReturn(true);
 
         meta = new EntityMeta();
-        meta.setEntityName("tests");
+        meta.setEntityName("test-entity");
         meta.setPathSegment("tests");
         meta.setEntityClass(TestEntity.class);
         meta.setPrimaryKeyType(Long.class);
         meta.setTreeEntity(true);
         meta.setAccessor(new ReflectionBeanAccessor(TestEntity.class));
         entityRegistry.register(meta);
+        rebuildMockMvc();
+    }
 
-        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+    private void rebuildMockMvc() {
         ObjectProvider<jakarta.validation.Validator> validatorProvider =
                 beanFactory.getBeanProvider(jakarta.validation.Validator.class);
         ObjectProvider<com.lrenyi.template.dataforge.validation.AssociationValidator> associationValidatorProvider =
@@ -137,6 +146,21 @@ class GenericEntityControllerTest {
                 .andExpect(jsonPath("$.data[0].label").value("root"))
                 .andExpect(jsonPath("$.data[0].children[0].label").value("child"))
                 .andExpect(jsonPath("$.data[0].children[0].children[0].label").value("leaf"));
+    }
+
+    @Test
+    void getReturnsNotFoundWhenDataPermissionRejectsRow() throws Exception {
+        meta.setEnableDataPermission(true);
+        beanFactory.registerSingleton("dataPermissionApplicator", (DataPermissionApplicator)
+                entityMeta -> List.of(new FilterCondition("id", Op.EQ, 1L)));
+        rebuildMockMvc();
+        when(crudService.list(eq(meta), any(Pageable.class), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/tests/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(404));
+
+        verify(crudService, never()).get(meta, 2L);
     }
 
     @Test
@@ -210,6 +234,24 @@ class GenericEntityControllerTest {
         @SuppressWarnings("unchecked")
         List<Object> parsedIds = (List<Object>) captor.getValue();
         assertThat(parsedIds).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void deleteBatchReturnsNotFoundWhenAnyRowIsOutsideDataPermission() throws Exception {
+        meta.setEnableDataPermission(true);
+        beanFactory.registerSingleton("dataPermissionApplicator", (DataPermissionApplicator)
+                entityMeta -> List.of(new FilterCondition("id", Op.EQ, 1L)));
+        rebuildMockMvc();
+        when(crudService.list(eq(meta), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of(entity(1L, "one", null))));
+
+        mockMvc.perform(delete("/api/tests/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[1,2]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(404));
+
+        verify(crudService, never()).deleteBatch(eq(meta), any());
     }
 
     private static TestEntity entity(Long id, String name, Long parentId) {

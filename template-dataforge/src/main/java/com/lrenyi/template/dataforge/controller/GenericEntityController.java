@@ -152,7 +152,7 @@ public class GenericEntityController {
     }
 
     /**
-     * 获取实体的选项列表（按 entityName 解析，供关联下拉等使用）。
+     * 获取实体的选项列表（按 pathSegment 解析，供关联下拉等使用）。
      * 支持 query 按显示字段模糊匹配，size 上限 100。
      */
     @GetMapping("/{entity}/options")
@@ -162,7 +162,7 @@ public class GenericEntityController {
             @org.springframework.web.bind.annotation.RequestParam(required = false) Integer page,
             @org.springframework.web.bind.annotation.RequestParam(required = false) Integer size,
             @org.springframework.web.bind.annotation.RequestParam(required = false) String sort) {
-        EntityMeta meta = entityRegistry.getByEntityName(entity);
+        EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isListEnabled()) {
             throw new DataforgeHttpException(
                     org.springframework.http.HttpStatus.NOT_FOUND.value(),
@@ -220,7 +220,7 @@ public class GenericEntityController {
     }
 
     /**
-     * 获取树形数据（按 entityName 解析，仅树形实体可用）。
+     * 获取树形数据（按 pathSegment 解析，仅树形实体可用）。
      */
     @GetMapping("/{entity}/tree")
     public Result<Object> getTree(
@@ -228,7 +228,7 @@ public class GenericEntityController {
             @org.springframework.web.bind.annotation.RequestParam(required = false) String parentId,
             @org.springframework.web.bind.annotation.RequestParam(required = false) Integer maxDepth,
             @org.springframework.web.bind.annotation.RequestParam(required = false) Boolean includeDisabled) {
-        EntityMeta meta = entityRegistry.getByEntityName(entity);
+        EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isListEnabled()) {
             throw new DataforgeHttpException(HttpStatus.NOT_FOUND.value(), DataforgeErrorCodes.ENTITY_NOT_FOUND,
                     "实体不存在或未开启列表: " + entity);
@@ -258,7 +258,7 @@ public class GenericEntityController {
     }
 
     /**
-     * 批量查显示值（按 entityName 解析），ids 逗号分隔，单次上限 1000。
+     * 批量查显示值（按 pathSegment 解析），ids 逗号分隔，单次上限 1000。
      * @param fields 可选，逗号分隔的字段名，返回 Map 中仅包含这些键；未指定时默认返回 id、label
      */
     @GetMapping("/{entity}/batch-lookup")
@@ -266,7 +266,7 @@ public class GenericEntityController {
             @PathVariable String entity,
             @org.springframework.web.bind.annotation.RequestParam String ids,
             @org.springframework.web.bind.annotation.RequestParam(required = false) String fields) {
-        EntityMeta meta = entityRegistry.getByEntityName(entity);
+        EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isListEnabled()) {
             throw new DataforgeHttpException(HttpStatus.NOT_FOUND.value(), DataforgeErrorCodes.ENTITY_NOT_FOUND,
                     "实体不存在或未开启列表: " + entity);
@@ -469,6 +469,9 @@ public class GenericEntityController {
         if (idObj == null) {
             return badRequest(ERR_ID_FORMAT);
         }
+        if (!isDataAccessible(meta, idObj)) {
+            return notFound();
+        }
         Object one = crudService.get(meta, idObj);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
     }
@@ -541,6 +544,9 @@ public class GenericEntityController {
         if (idObj == null) {
             return badRequest(ERR_ID_FORMAT);
         }
+        if (!isDataAccessible(meta, idObj)) {
+            return notFound();
+        }
 
         EntityMutationSupport.MutationResult mutation = entityMutationSupport.prepareUpdate(meta, body, idObj);
         if (mutation.error() != null) {
@@ -605,6 +611,9 @@ public class GenericEntityController {
         if (idObj == null) {
             return badRequest(ERR_ID_FORMAT);
         }
+        if (!isDataAccessible(meta, idObj)) {
+            return notFound();
+        }
         CascadeDeleteService cascadeDelete = cascadeDeleteServiceProvider.getIfAvailable();
         if (cascadeDelete != null) {
             cascadeDelete.checkCascadeConstraints(meta, idObj);
@@ -634,6 +643,9 @@ public class GenericEntityController {
         List<Object> parsedIds = parseIdsOrBadRequest(meta, ids);
         if (parsedIds == null) {
             return badRequest("id 列表格式错误");
+        }
+        if (!allDataAccessible(meta, parsedIds)) {
+            return notFound();
         }
         CascadeDeleteService cascadeDelete = cascadeDeleteServiceProvider.getIfAvailable();
         if (cascadeDelete != null) {
@@ -691,6 +703,13 @@ public class GenericEntityController {
         if (mutation.error() != null) {
             return mutation.error();
         }
+        List<Object> requestedIds = mutation.entities().stream()
+                .map(entityItem -> meta.getAccessor() != null ? meta.getAccessor().get(entityItem, "id") : null)
+                .filter(Objects::nonNull)
+                .toList();
+        if (!allDataAccessible(meta, requestedIds)) {
+            return notFound();
+        }
         List<?> updated = crudService.updateBatch(meta, mutation.entities());
         for (Object object : updated) {
             Object id = meta.getAccessor() != null ? meta.getAccessor().get(object, "id") : null;
@@ -743,6 +762,34 @@ public class GenericEntityController {
             return null;
         }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    private boolean isDataAccessible(EntityMeta meta, Object id) {
+        if (id == null) {
+            return false;
+        }
+        return allDataAccessible(meta, List.of(id));
+    }
+
+    private boolean allDataAccessible(EntityMeta meta, List<?> ids) {
+        if (ids == null || ids.isEmpty() || !meta.isEnableDataPermission()) {
+            return true;
+        }
+        if (meta.getAccessor() == null) {
+            return false;
+        }
+        Object filterValue = ids.size() == 1 ? ids.getFirst() : ids;
+        Op op = ids.size() == 1 ? Op.EQ : Op.IN;
+        ListCriteria criteria = entityQuerySupport.withDataPermission(meta,
+                ListCriteria.of(List.of(new FilterCondition("id", op, filterValue)), List.of()));
+        Page<?> page = crudService.list(meta, Pageable.unpaged(), criteria);
+        if (page.getContent().size() != ids.size()) {
+            return false;
+        }
+        Set<Object> accessibleIds = page.getContent().stream()
+                .map(item -> meta.getAccessor().get(item, "id"))
+                .collect(Collectors.toSet());
+        return ids.stream().allMatch(accessibleIds::contains);
     }
 
     /**

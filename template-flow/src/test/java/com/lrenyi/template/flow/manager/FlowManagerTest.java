@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -65,6 +66,18 @@ class FlowManagerTest {
         config2.getLimits().getGlobal().setConsumerThreads(200);
         FlowManager m2 = FlowManager.getInstance(config2);
         assertNotNull(m2);
+        assertNotSame(m1, m2);
+    }
+
+    @Test
+    void getInstanceDifferentTimeoutAlsoRecreatesInstance() {
+        FlowManager m1 = FlowManager.getInstance(config);
+        TemplateConfigProperties.Flow config2 = new TemplateConfigProperties.Flow();
+        config2.getLimits().getGlobal().setConsumerThreads(100);
+        config2.setConsumerAcquireTimeoutMill(1234);
+
+        FlowManager m2 = FlowManager.getInstance(config2);
+
         assertNotSame(m1, m2);
     }
     
@@ -152,5 +165,42 @@ class FlowManagerTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void createLauncherAllowsReplacingStoppedJobAndIgnoresStaleUnregister() {
+        FlowLauncher<Object> launcher1 = mock(FlowLauncher.class);
+        FlowLauncher<Object> launcher2 = mock(FlowLauncher.class);
+        FlowJoiner<Object> joiner = mock(FlowJoiner.class);
+        ProgressTracker tracker1 = mock(ProgressTracker.class);
+        ProgressTracker tracker2 = mock(ProgressTracker.class);
+        when(launcher1.getJobId()).thenReturn("job-1");
+        when(launcher1.getTracker()).thenReturn(tracker1);
+        when(launcher1.isStopped()).thenReturn(true);
+        when(launcher2.getJobId()).thenReturn("job-1");
+        when(launcher2.getTracker()).thenReturn(tracker2);
+
+        FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true) {
+            @Override
+            <T> FlowLauncher<T> buildLauncher(String jobId,
+                    String metricJobId,
+                    FlowJoiner<T> flowJoiner,
+                    ProgressTracker tracker,
+                    TemplateConfigProperties.Flow flowConfig) {
+                @SuppressWarnings("unchecked")
+                FlowLauncher<T> launcher = (FlowLauncher<T>) (tracker == tracker1 ? launcher1 : launcher2);
+                return launcher;
+            }
+        };
+
+        FlowLauncher<Object> first = manager.createLauncher("job-1", joiner, tracker1, config);
+        long firstGeneration = manager.currentGeneration("job-1");
+        FlowLauncher<Object> second = manager.createLauncher("job-1", joiner, tracker2, config);
+
+        assertSame(launcher1, first);
+        assertSame(launcher2, second);
+        assertSame(launcher2, manager.getActiveLauncher("job-1"));
+        assertFalse(manager.unregisterIfGenerationMatches("job-1", firstGeneration));
+        assertSame(launcher2, manager.getActiveLauncher("job-1"));
     }
 }
