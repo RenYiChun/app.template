@@ -11,6 +11,7 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +80,17 @@ class FlowManagerTest {
         FlowManager m2 = FlowManager.getInstance(config2);
 
         assertNotSame(m1, m2);
+    }
+
+    @Test
+    void getInstanceRebindsFromFallbackRegistryToApplicationRegistry() {
+        FlowManager fallbackManager = FlowManager.getInstance(config);
+        CompositeMeterRegistry applicationRegistry = new CompositeMeterRegistry();
+
+        FlowManager rebound = FlowManager.getInstance(config, applicationRegistry);
+
+        assertNotSame(fallbackManager, rebound);
+        assertSame(applicationRegistry, rebound.getMeterRegistry());
     }
     
     @Test

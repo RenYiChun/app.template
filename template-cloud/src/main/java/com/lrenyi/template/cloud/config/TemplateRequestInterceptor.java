@@ -55,6 +55,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         // 获取当前请求的header，获取到jwt令牌
         Enumeration<String> headerNames = request.getHeaderNames();
         if (headerNames == null) {
+            makeClientOauth(template);
             return;
         }
         boolean haveAuthorization = false;

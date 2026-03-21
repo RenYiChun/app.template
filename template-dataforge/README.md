@@ -8,9 +8,9 @@
   提供统一主键及审计字段：`id`、`createTime`、`updateTime`、`createBy`、`updateBy`、`deleted`、`remark`。主键类型 `ID` 支持
   `Long`、`Integer`、`UUID`、`String`。`createTime`/`updateTime` 由 `@PrePersist`/`@PreUpdate` 自动填充；`createBy`/
   `updateBy` 在引入 `template-api`（提供 AuditorAware）与 `template-dataforge-jpa` 时，由框架自动启用 JPA Auditing 填充当前登录用户名，业务无需配置。
-- **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/DELETE /api/{entity}/{id}`；Action 使用
+- **URL**：CRUD 使用 REST `POST /api/{entity}/search`（分页搜索）、`GET/POST/PUT/PATCH/DELETE /api/{entity}/{id}`；Action 使用
   `GET/POST/PUT/DELETE /api/{entity}/{id}/{actionName}`，HTTP 方法由 `@EntityAction(method = ...)` 指定，默认 POST。导出使用
-  `POST /api/{entity}/export`。
+  `POST /api/{entity}/export`。其中 `PUT` 与 `PATCH` 在框架内都按“非 null 字段部分更新”处理，不会因为请求体缺字段而清空旧值。
 - **主键类型**：由 `@DataforgeEntity(primaryKeyType = ...)` 显式指定，或由 BaseEntity 泛型 / `id` 字段类型推断；支持
   `Long`、`String`、`UUID`、`Integer`。URL 路径与请求体中的 `id` 均按该类型解析（如 Long 解析数字、UUID 解析标准格式），解析失败返回
   400。Long/Integer 使用序列 `dataforge_entity_seq` 生成；UUID 随机生成；String 需业务在持久化前赋值。
@@ -38,6 +38,7 @@ app:
     api-prefix: /api
     scan-packages: com.example.your.package   # 扫描 @DataforgeEntity 的包，多个用逗号分隔
     enabled: true
+    conceal-data-permission-denied-as-not-found: true  # 数据权限拒绝时返回 404；设为 false 时返回 403
     permission-enabled: true
     default-allow-if-no-permission: true
     docs-ui-enabled: true   # 是否启用内嵌 API 文档界面（Scalar），默认 true

@@ -5,6 +5,7 @@ import com.lrenyi.template.dataforge.config.DataforgeProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -46,25 +47,25 @@ public class DataforgeExceptionHandler {
     }
     
     @ExceptionHandler(IllegalArgumentException.class)
-    public Result<Object> handleBadRequest(IllegalArgumentException e) {
+    public ResponseEntity<Result<Object>> handleBadRequest(IllegalArgumentException e) {
         log.debug("Bad request: {}", e.getMessage());
         String message = properties.isExposeExceptionMessage() ? e.getMessage() : "请求参数错误";
         Result<Object> r = Result.getError(null, message);
         r.setCode(400);
-        return r;
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(r);
     }
     
     @ExceptionHandler(IllegalStateException.class)
-    public Result<Object> handleIllegalState(IllegalStateException e) {
+    public ResponseEntity<Result<Object>> handleIllegalState(IllegalStateException e) {
         log.warn("Illegal state: {}", e.getMessage());
         String message = properties.isExposeExceptionMessage() ? e.getMessage() : GENERIC_ERROR_MESSAGE;
-        return Result.getError(null, message);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.getError(null, message));
     }
     
     @ExceptionHandler(Exception.class)
-    public Result<Object> handleOther(Exception e) {
+    public ResponseEntity<Result<Object>> handleOther(Exception e) {
         log.error("Unhandled error", e);
         String message = properties.isExposeExceptionMessage() ? e.getMessage() : GENERIC_ERROR_MESSAGE;
-        return Result.getError(null, message);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.getError(null, message));
     }
 }

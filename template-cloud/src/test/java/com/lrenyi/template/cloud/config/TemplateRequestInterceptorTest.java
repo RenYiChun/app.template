@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -65,5 +66,29 @@ class TemplateRequestInterceptorTest {
         interceptor.apply(template);
 
         assertEquals(List.of("Bearer user-token"), template.headers().get("Authorization").stream().toList());
+    }
+
+    @Test
+    void applyFallsBackToClientTokenWhenHeaderNamesIsNull() {
+        TemplateConfigProperties properties = new TemplateConfigProperties();
+        properties.setEnabled(true);
+        properties.getSecurity().setEnabled(true);
+        properties.getFeign().setEnabled(true);
+        properties.getFeign().setNotOauth(false);
+        properties.getFeign().setHeaders(List.of("Authorization"));
+
+        OauthUtilService oauthUtilService = mock(OauthUtilService.class);
+        when(oauthUtilService.fetchToken("server")).thenReturn("client-token");
+        TemplateRequestInterceptor interceptor = new TemplateRequestInterceptor(properties, oauthUtilService);
+
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getHeaderNames()).thenReturn(null);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        RequestTemplate template = new RequestTemplate();
+
+        interceptor.apply(template);
+
+        assertEquals(List.of("Bearer client-token"), template.headers().get("Authorization").stream().toList());
+        verify(oauthUtilService).fetchToken("server");
     }
 }

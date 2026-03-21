@@ -95,17 +95,26 @@ public class FlowManager implements ActiveLauncherLookup {
      * 配置变更时会重建实例，需委托给两参版本以执行 configChanged 检查。
      */
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
+        FlowManager current = instanceRef.get();
+        if (current != null && !configChanged(globalConfig)) {
+            return current;
+        }
+        log.warn("FlowManager.getInstance(flowConfig) 使用回退 SimpleMeterRegistry；建议改为显式传入应用的 MeterRegistry。");
         return getInstance(globalConfig, new SimpleMeterRegistry());
     }
 
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
         FlowManager current = instanceRef.get();
-        if (current == null || configChanged(globalConfig)) {
+        if (current == null || configChanged(globalConfig) || shouldRebindMeterRegistry(current, meterRegistry)) {
             synchronized (FlowManager.class) {
                 current = instanceRef.get();
-                if (current == null || configChanged(globalConfig)) {
+                if (current == null || configChanged(globalConfig) || shouldRebindMeterRegistry(current, meterRegistry)) {
                     if (current != null) {
-                        log.info("检测到 FlowManager 配置变更，正在重启管理器...");
+                        if (shouldRebindMeterRegistry(current, meterRegistry)) {
+                            log.info("检测到更高优先级的 MeterRegistry，正在重建 FlowManager...");
+                        } else {
+                            log.info("检测到 FlowManager 配置变更，正在重启管理器...");
+                        }
                         try {
                             current.shutdownAll();
                         } catch (Exception e) {
@@ -119,6 +128,13 @@ public class FlowManager implements ActiveLauncherLookup {
             }
         }
         return instanceRef.get();
+    }
+
+    private static boolean shouldRebindMeterRegistry(FlowManager current, MeterRegistry meterRegistry) {
+        return current != null
+                && current.getMeterRegistry() instanceof SimpleMeterRegistry
+                && !(meterRegistry instanceof SimpleMeterRegistry)
+                && current.getMeterRegistry() != meterRegistry;
     }
 
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
@@ -378,6 +394,7 @@ public class FlowManager implements ActiveLauncherLookup {
                     log.warn("重置时关闭实例失败", e);
                 }
             }
+            FlowExceptionHelper.clearMeterRegistry();
             instanceRef.set(null);
             lastConfigFingerprint = null;
         }

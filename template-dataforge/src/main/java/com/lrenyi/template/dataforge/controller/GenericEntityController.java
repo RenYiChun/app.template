@@ -455,6 +455,10 @@ public class GenericEntityController {
         return r;
     }
 
+    private Result<Object> dataPermissionDenied() {
+        return properties.isConcealDataPermissionDeniedAsNotFound() ? notFound() : forbidden();
+    }
+
     @GetMapping("/{entity}/{id}")
     public Result<Object> get(@PathVariable String entity, @PathVariable String id) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
@@ -470,7 +474,7 @@ public class GenericEntityController {
             return badRequest(ERR_ID_FORMAT);
         }
         if (!isDataAccessible(meta, idObj)) {
-            return notFound();
+            return dataPermissionDenied();
         }
         Object one = crudService.get(meta, idObj);
         return one == null ? notFound() : Result.getSuccess(toResponse(meta, one));
@@ -528,7 +532,7 @@ public class GenericEntityController {
         return Result.getSuccess(toResponse(meta, created));
     }
 
-    @PutMapping("/{entity}/{id}")
+    @RequestMapping(path = "/{entity}/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     public Result<Object> update(@PathVariable String entity,
             @PathVariable String id,
             @RequestBody Map<String, Object> body) {
@@ -545,7 +549,7 @@ public class GenericEntityController {
             return badRequest(ERR_ID_FORMAT);
         }
         if (!isDataAccessible(meta, idObj)) {
-            return notFound();
+            return dataPermissionDenied();
         }
 
         EntityMutationSupport.MutationResult mutation = entityMutationSupport.prepareUpdate(meta, body, idObj);
@@ -612,7 +616,7 @@ public class GenericEntityController {
             return badRequest(ERR_ID_FORMAT);
         }
         if (!isDataAccessible(meta, idObj)) {
-            return notFound();
+            return dataPermissionDenied();
         }
         CascadeDeleteService cascadeDelete = cascadeDeleteServiceProvider.getIfAvailable();
         if (cascadeDelete != null) {
@@ -645,7 +649,7 @@ public class GenericEntityController {
             return badRequest("id 列表格式错误");
         }
         if (!allDataAccessible(meta, parsedIds)) {
-            return notFound();
+            return dataPermissionDenied();
         }
         CascadeDeleteService cascadeDelete = cascadeDeleteServiceProvider.getIfAvailable();
         if (cascadeDelete != null) {
@@ -686,7 +690,7 @@ public class GenericEntityController {
     /**
      * 更新。请求体为对象列表，每项需包含 id 及要更新的字段，例如 [{"id":1,"name":"a"},{"id":2,"name":"b"}]。
      */
-    @PutMapping("/{entity}/batch")
+    @RequestMapping(path = "/{entity}/batch", method = {RequestMethod.PUT, RequestMethod.PATCH})
     public Result<Object> updateBatch(@PathVariable String entity, @RequestBody List<Map<String, Object>> body) {
         EntityMeta meta = entityRegistry.getByPathSegment(entity);
         if (meta == null || !meta.isUpdateBatchEnabled()) {
@@ -708,7 +712,7 @@ public class GenericEntityController {
                 .filter(Objects::nonNull)
                 .toList();
         if (!allDataAccessible(meta, requestedIds)) {
-            return notFound();
+            return dataPermissionDenied();
         }
         List<?> updated = crudService.updateBatch(meta, mutation.entities());
         for (Object object : updated) {
@@ -778,18 +782,22 @@ public class GenericEntityController {
         if (meta.getAccessor() == null) {
             return false;
         }
-        Object filterValue = ids.size() == 1 ? ids.getFirst() : ids;
-        Op op = ids.size() == 1 ? Op.EQ : Op.IN;
+        List<?> distinctIds = ids.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinctIds.isEmpty()) {
+            return false;
+        }
+        Object filterValue = distinctIds.size() == 1 ? distinctIds.getFirst() : distinctIds;
+        Op op = distinctIds.size() == 1 ? Op.EQ : Op.IN;
         ListCriteria criteria = entityQuerySupport.withDataPermission(meta,
                 ListCriteria.of(List.of(new FilterCondition("id", op, filterValue)), List.of()));
         Page<?> page = crudService.list(meta, Pageable.unpaged(), criteria);
-        if (page.getContent().size() != ids.size()) {
+        if (page.getContent().size() != distinctIds.size()) {
             return false;
         }
         Set<Object> accessibleIds = page.getContent().stream()
                 .map(item -> meta.getAccessor().get(item, "id"))
                 .collect(Collectors.toSet());
-        return ids.stream().allMatch(accessibleIds::contains);
+        return distinctIds.stream().allMatch(accessibleIds::contains);
     }
 
     /**

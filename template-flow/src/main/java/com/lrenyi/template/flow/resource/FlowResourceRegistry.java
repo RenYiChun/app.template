@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.resource;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowResourceRegistry implements ResourceLifecycle {
     private static final AtomicReference<FlowResourceRegistry> instanceRef = new AtomicReference<>();
     private static final AtomicInteger lastConcurrencyLimitRef = new AtomicInteger(-1);
+    private static volatile String lastConfigFingerprint;
     
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -142,6 +144,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                     FlowResourceRegistry newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
                     lastConcurrencyLimitRef.set(globalConfig.getLimits().getGlobal().getConsumerThreads());
+                    lastConfigFingerprint = fingerprint(globalConfig);
                     return newInstance;
                 }
             }
@@ -153,7 +156,18 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerThreads() != lastConcurrencyLimitRef.get();
+        return !Objects.equals(fingerprint(config), lastConfigFingerprint);
+    }
+
+    private static String fingerprint(TemplateConfigProperties.Flow config) {
+        TemplateConfigProperties.Flow.Global global = config.getLimits().getGlobal();
+        return String.join("|",
+                String.valueOf(global.getConsumerThreads()),
+                String.valueOf(global.getInFlightProduction()),
+                String.valueOf(global.getStorageCapacity()),
+                String.valueOf(global.getProducerThreads()),
+                String.valueOf(global.getInFlightConsumer()),
+                String.valueOf(global.isFairScheduling()));
     }
     
     private static FlowResourceRegistry create(TemplateConfigProperties.Flow globalConfig,
@@ -205,6 +219,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                 }
             }
             instanceRef.set(null);
+            lastConfigFingerprint = null;
+            lastConcurrencyLimitRef.set(-1);
         }
     }
     
@@ -245,6 +261,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         shutdownExecutorSafely("缓存移除执行器", cacheRemovalExecutor, errors);
         shutdownExecutorSafely("存储出口执行器", storageEgressExecutor, errors);
         shutdownExecutorSafely("流消费执行器", flowConsumerExecutor, errors);
+        shutdownExecutorSafely("流生产执行器", flowProducerExecutor, errors);
         
         shutdown.set(true);
         

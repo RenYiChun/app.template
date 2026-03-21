@@ -31,6 +31,12 @@ public class DataforgeProperties {
      * 未配置权限标识时：true = 仅认证即可；false = 拒绝访问。
      */
     private boolean defaultAllowIfNoPermission = true;
+
+    /**
+     * 数据权限拒绝时是否伪装为 404。
+     * true = 返回 404 隐藏资源存在性；false = 返回 403 显式告知无权限。
+     */
+    private boolean concealDataPermissionDeniedAsNotFound = true;
     
     /**
      * 扫描 @DataforgeEntity 的包名，多个用逗号分隔。为空则不扫描实体。

@@ -22,6 +22,10 @@ public interface EntityCrudService {
     
     Object create(EntityMeta entityMeta, Object body);
     
+    /**
+     * 更新：按非 null 字段执行部分更新，语义等同 PATCH。
+     * 当 HTTP 层使用 PUT 时，框架仍按部分更新处理，以避免未提交字段被清空。
+     */
     Object update(EntityMeta entityMeta, Object id, Object body);
     
     void delete(EntityMeta entityMeta, Object id);
@@ -32,7 +36,7 @@ public interface EntityCrudService {
     void deleteBatch(EntityMeta entityMeta, List<?> ids);
     
     /**
-     * 更新：按传入的实体列表（每条需带 id）执行更新，返回更新后的实体列表。
+     * 批量更新：按传入实体列表中的非 null 字段执行部分更新（每条需带 id），返回更新后的实体列表。
      */
     List<Object> updateBatch(EntityMeta entityMeta, List<Object> entities);
 }

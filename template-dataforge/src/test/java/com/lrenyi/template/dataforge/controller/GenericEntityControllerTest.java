@@ -42,6 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -164,6 +165,23 @@ class GenericEntityControllerTest {
     }
 
     @Test
+    void getReturnsForbiddenWhenConfiguredToExposeDataPermissionDenial() throws Exception {
+        meta.setEnableDataPermission(true);
+        properties.setConcealDataPermissionDeniedAsNotFound(false);
+        beanFactory.registerSingleton("dataPermissionApplicator", (DataPermissionApplicator)
+                entityMeta -> List.of(new FilterCondition("id", Op.EQ, 1L)));
+        rebuildMockMvc();
+        when(crudService.list(eq(meta), any(Pageable.class), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/tests/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("无权限"));
+
+        verify(crudService, never()).get(meta, 2L);
+    }
+
+    @Test
     void createMapsBodyAndReturnsCreatedEntity() throws Exception {
         when(crudService.create(eq(meta), any(TestEntity.class)))
                 .thenAnswer(invocation -> {
@@ -181,12 +199,39 @@ class GenericEntityControllerTest {
     }
 
     @Test
+    void createReturnsHttp500WhenServiceThrowsIllegalState() throws Exception {
+        when(crudService.create(eq(meta), any(TestEntity.class)))
+                .thenThrow(new IllegalStateException("create failed"));
+
+        mockMvc.perform(post("/api/tests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"created\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value("create failed"));
+    }
+
+    @Test
     void updateUsesPathIdAndReturnsUpdatedEntity() throws Exception {
         when(crudService.get(meta, 5L)).thenReturn(entity(5L, "before", null));
         when(crudService.update(eq(meta), eq(5L), any(TestEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(2));
 
         mockMvc.perform(put("/api/tests/5")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"after\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(5))
+                .andExpect(jsonPath("$.data.name").value("after"));
+    }
+
+    @Test
+    void patchUsesSamePartialUpdatePath() throws Exception {
+        when(crudService.get(meta, 5L)).thenReturn(entity(5L, "before", null));
+        when(crudService.update(eq(meta), eq(5L), any(TestEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(2));
+
+        mockMvc.perform(patch("/api/tests/5")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"after\"}"))
                 .andExpect(status().isOk())
@@ -207,6 +252,19 @@ class GenericEntityControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("new-1"))
                 .andExpect(jsonPath("$.data[1].name").value("new-2"));
+    }
+
+    @Test
+    void patchBatchReturnsUpdatedEntities() throws Exception {
+        when(crudService.get(meta, 1L)).thenReturn(entity(1L, "old-1", null));
+        when(crudService.updateBatch(eq(meta), any()))
+                .thenReturn(List.of(entity(1L, "new-1", null)));
+
+        mockMvc.perform(patch("/api/tests/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":1,\"name\":\"new-1\"}]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("new-1"));
     }
 
     @Test
@@ -252,6 +310,44 @@ class GenericEntityControllerTest {
                 .andExpect(jsonPath("$.code").value(404));
 
         verify(crudService, never()).deleteBatch(eq(meta), any());
+    }
+
+    @Test
+    void deleteBatchReturnsForbiddenWhenConfiguredToExposeDataPermissionDenial() throws Exception {
+        meta.setEnableDataPermission(true);
+        properties.setConcealDataPermissionDeniedAsNotFound(false);
+        beanFactory.registerSingleton("dataPermissionApplicator", (DataPermissionApplicator)
+                entityMeta -> List.of(new FilterCondition("id", Op.EQ, 1L)));
+        rebuildMockMvc();
+        when(crudService.list(eq(meta), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of(entity(1L, "one", null))));
+
+        mockMvc.perform(delete("/api/tests/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[1,2]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("无权限"));
+
+        verify(crudService, never()).deleteBatch(eq(meta), any());
+    }
+
+    @Test
+    void deleteBatchAllowsDuplicateIdsWhenRowIsAccessible() throws Exception {
+        meta.setEnableDataPermission(true);
+        beanFactory.registerSingleton("dataPermissionApplicator", (DataPermissionApplicator)
+                entityMeta -> List.of(new FilterCondition("id", Op.EQ, 1L)));
+        rebuildMockMvc();
+        when(crudService.list(eq(meta), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of(entity(1L, "one", null))));
+
+        mockMvc.perform(delete("/api/tests/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[1,1]"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(crudService).deleteBatch(eq(meta), eq(List.of(1L, 1L)));
     }
 
     private static TestEntity entity(Long id, String name, Long parentId) {

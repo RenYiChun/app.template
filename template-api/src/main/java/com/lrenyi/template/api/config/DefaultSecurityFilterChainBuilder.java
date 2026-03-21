@@ -78,6 +78,8 @@ public class DefaultSecurityFilterChainBuilder {
         TemplateConfigProperties.SecurityProperties security = templateConfigProperties.getSecurity();
         if (isSecurityDisabled()) {
             http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+            configureCorsIfEnabled(http, security);
+            applyCustomConfigurer(http);
             return http.build();
         }
         Set<String> permitUrls = collectPermitUrls(security);

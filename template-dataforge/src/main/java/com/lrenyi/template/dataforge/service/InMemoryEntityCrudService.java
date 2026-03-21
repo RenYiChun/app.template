@@ -81,9 +81,12 @@ public class InMemoryEntityCrudService implements EntityCrudService {
         if (map == null) {
             return null;
         }
-        Object entity = objectMapper.convertValue(body, entityMeta.getEntityClass());
-        setEntityId(entity, id, entityMeta);
-        return map.computeIfPresent(id, (k, v) -> entity);
+        Object patch = objectMapper.convertValue(body, entityMeta.getEntityClass());
+        return map.computeIfPresent(id, (k, existing) -> {
+            mergeNonNullFields(patch, existing, entityMeta.getEntityClass());
+            setEntityId(existing, id, entityMeta);
+            return existing;
+        });
     }
     
     @Override
@@ -121,16 +124,36 @@ public class InMemoryEntityCrudService implements EntityCrudService {
             Object id = getEntityId(entity, entityMeta);
             if (id != null) {
                 Object updated = map.computeIfPresent(id, (k, v) -> {
-                                                          setEntityId(entity, id, entityMeta);
-                                                          return entity;
+                                                          mergeNonNullFields(entity, v, entityMeta.getEntityClass());
+                                                          setEntityId(v, id, entityMeta);
+                                                          return v;
                                                       }
                 );
                 if (updated != null) {
-                    result.add(entity);
+                    result.add(updated);
                 }
             }
         }
         return result;
+    }
+
+    private static void mergeNonNullFields(Object source, Object target, Class<?> entityClass) {
+        for (Class<?> c = entityClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if ("id".equals(f.getName()) || java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+                try {
+                    f.setAccessible(true); // NOSONAR
+                    Object value = f.get(source);
+                    if (value != null) {
+                        f.set(target, value); // NOSONAR
+                    }
+                } catch (IllegalAccessException ignored) {
+                    // skip
+                }
+            }
+        }
     }
     
     private Object getEntityId(Object entity, EntityMeta meta) {

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,6 +66,25 @@ class FlowResourceRegistryTest {
         registry.shutdown();
         assertTrue(registry.isShutdown());
         assertTrue(registry.getFlowConsumerExecutor().isShutdown());
+        assertTrue(registry.getFlowProducerExecutor().isShutdown());
+    }
+
+    @Test
+    void getInstanceDifferentGlobalLimitRecreatesInstance() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        config.getLimits().getGlobal().setInFlightProduction(16);
+
+        FlowResourceRegistry first = FlowResourceRegistry.getInstance(config, new SimpleMeterRegistry());
+
+        TemplateConfigProperties.Flow changed = new TemplateConfigProperties.Flow();
+        changed.getLimits().getGlobal().setConsumerThreads(8);
+        changed.getLimits().getGlobal().setInFlightProduction(32);
+
+        FlowResourceRegistry second = FlowResourceRegistry.getInstance(changed, new SimpleMeterRegistry());
+
+        assertNotNull(second);
+        assertNotSame(first, second);
     }
 
     @Test
