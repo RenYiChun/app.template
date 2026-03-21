@@ -556,8 +556,8 @@ logging:
 ### 自定义日志处理
 
 ```java
-import com.lrenyi.template.dataforge.audit.model.AuditLogInfo;
-import com.lrenyi.template.dataforge.audit.processor.AuditLogProcessor;
+import com.lrenyi.template.api.audit.model.AuditLogInfo;
+import com.lrenyi.template.api.audit.processor.AuditLogProcessor;
 
 @Component
 public class CustomLogProcessor implements AuditLogProcessor {

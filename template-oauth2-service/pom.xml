@@ -21,10 +21,6 @@
             <artifactId>template-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.lrenyi</groupId>
-            <artifactId>template-dataforge</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>

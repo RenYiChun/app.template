@@ -186,21 +186,6 @@
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
-                <artifactId>template-dataforge</artifactId>
-                <version>${app.template.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.lrenyi</groupId>
-                <artifactId>template-dataforge-jpa</artifactId>
-                <version>${app.template.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.lrenyi</groupId>
-                <artifactId>template-dataforge-processor</artifactId>
-                <version>${app.template.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.lrenyi</groupId>
                 <artifactId>template-flow-sources-kafka</artifactId>
                 <version>${app.template.version}</version>
             </dependency>

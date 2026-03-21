@@ -16,7 +16,6 @@
 - [选型收益](design/framework-benefits.md) - 开发效率与稳定性
 - [加密与 Coder](design/encryption-and-coder.md) - 密码与配置解密
 - [JSON 处理器](design/json-processor.md) - 可切换 JSON 实现
-- [Dataforge 实体 UI 布局元数据设计](design/dataforge-entity-ui-layout.md) - 普通表格与左树右表布局的统一元数据方案
 - [Flow 分层背压与受控超时存储](design/flow-layered-backpressure.md) - 让缓存参与背压链路，受控延期超时驱逐
 - [Flow 分层背压实现蓝图](design/flow-layered-backpressure-implementation-blueprint.md) - 类、字段、方法签名与伪代码级落地约束
 - [Flow 完成态收敛优化](design/flow-completion-isCompleted.md) - isCompleted 轮询与并发风险控制
@@ -31,8 +30,3 @@
 
 - [Grafana 仪表板](resources/grafana-dashboard.json)
 - [OAuth2 请求示例](resources/http-client/oauth2.http)
-
-## Dataforge 前端
-
-- [Dataforge 框架原理](../template-dataforge-headless/docs/FRAMEWORK-PRINCIPLES.md)
-- [空列问题排查](../template-dataforge-headless/docs/COLUMN-EMPTY-TROUBLESHOOTING.md)

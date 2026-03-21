@@ -218,13 +218,6 @@ ofSeconds(1),meterRegistry);
 ofSeconds(1),meterRegistry);
 ```
 
-### 2.6 Dataforge 指标 (template-dataforge)
-
-| 指标名                                       | 标签                    | 含义                                |
-|-------------------------------------------|-----------------------|-----------------------------------|
-| `app.template.dataforge.request.duration` | `method`              | GenericEntityController CRUD 操作耗时 |
-| `app.template.dataforge.request.errors`   | `method`, `errorType` | CRUD 操作错误次数                       |
-
 ---
 
 ## 3. 自定义业务指标
@@ -407,18 +400,7 @@ sum(rate(app_template_oauth2_token_failed_total[5m]))
 rate(app_template_oauth2_logout_total[5m])
 ```
 
-### 5.4 Dataforge
-
-```promql
-# CRUD 操作 P99 延迟
-histogram_quantile(0.99,
-  sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket[5m])))
-
-# 按方法分组的错误率
-sum by (method) (rate(app_template_dataforge_request_errors_total[5m]))
-```
-
-### 5.5 数据源
+### 5.4 数据源
 
 ```promql
 # Kafka/NATS 消息接收速率

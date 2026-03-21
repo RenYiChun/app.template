@@ -49,7 +49,6 @@
 
     <!-- SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING：REST API 使用 Bearer token，非 Cookie 鉴权，CSRF 不适用 -->
     <Match>
-        <Class name="com.lrenyi.template.dataforge.controller.GenericEntityController"/>
         <Bug pattern="SPRING_CSRF_UNRESTRICTED_REQUEST_MAPPING"/>
     </Match>
 

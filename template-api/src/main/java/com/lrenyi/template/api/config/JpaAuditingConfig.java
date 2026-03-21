@@ -12,15 +12,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * JPA 审计 AuditorAware：从 SecurityContext 获取当前登录用户名，供 @CreatedBy / @LastModifiedBy 使用。
  * <p>
  * 当 classpath 存在 Spring Security 与 spring-data-commons 时自动注册。
- * template-dataforge-jpa 的 @EnableJpaAuditing 会引用此 bean（dataforgeAuditorAware）。
+ * JPA 审计功能会引用此 bean（jpaAuditorAware）。
  * </p>
  */
 @Configuration
 @ConditionalOnClass(Authentication.class)
 public class JpaAuditingConfig {
 
-    @Bean("dataforgeAuditorAware")
-    public AuditorAware<String> dataforgeAuditorAware() {
+    @Bean("jpaAuditorAware")
+    public AuditorAware<String> jpaAuditorAware() {
         return () -> Optional.ofNullable(SecurityContextHolder.getContext().getAuthentication())
                 .filter(Authentication::isAuthenticated)
                 .map(Authentication::getName)
