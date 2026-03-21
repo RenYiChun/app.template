@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -50,6 +52,12 @@ public class FlowManager implements ActiveLauncherLookup {
     private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
     /** 显式注册的 jobId -> 显示名，用于监控指标 */
     private final Map<String, String> jobIdToDisplayName = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService delayedUnregisterExecutor =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "flow-unregister-scheduler");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -123,6 +131,8 @@ public class FlowManager implements ActiveLauncherLookup {
             stopAll(true);
         } catch (Exception e) {
             log.error("停止所有任务时发生异常", e);
+        } finally {
+            delayedUnregisterExecutor.shutdownNow();
         }
     }
 
@@ -234,16 +244,13 @@ public class FlowManager implements ActiveLauncherLookup {
      * 避免 Grafana 因指标立即移除而显示过期值（如 storage 仍为运行中的 22K）。
      */
     public void scheduleUnregister(String jobId) {
-        Thread.ofVirtual().name("flow-unregister-delayed").start(() -> {
+        delayedUnregisterExecutor.schedule(() -> {
             try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(UNREGISTER_DELAY_SECONDS));
                 unregister(jobId);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             } catch (Exception e) {
                 log.warn("延迟注销 Job [{}] 时发生异常", jobId, e);
             }
-        });
+        }, UNREGISTER_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     /**
@@ -294,28 +301,38 @@ public class FlowManager implements ActiveLauncherLookup {
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
         try {
-            if (activeLaunchers.containsKey(jobId)) {
-                throw new IllegalStateException(
-                    "Job " + jobId + " 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
-            }
-            completedTrackers.remove(jobId);
+            synchronized (activeLaunchers) {
+                if (activeLaunchers.containsKey(jobId)) {
+                    throw new IllegalStateException(
+                        "Job " + jobId + " 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
+                }
+                completedTrackers.remove(jobId);
 
-            if (displayName != null && !displayName.isEmpty()) {
-                jobIdToDisplayName.put(jobId, displayName);
-            }
-            String metricJobId = resolveMetricJobId(jobId);
-            tracker.setMetricJobId(metricJobId);
+                if (displayName != null && !displayName.isEmpty()) {
+                    jobIdToDisplayName.put(jobId, displayName);
+                }
+                String metricJobId = resolveMetricJobId(jobId);
+                tracker.setMetricJobId(metricJobId);
 
-            FlowLauncher<T> launcher =
-                FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
-            activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
-            resourceRegistry.registerJob(jobId);
-            FlowResourceMetrics.registerPerJob(launcher, meterRegistry);
-            return launcher;
+                FlowLauncher<T> launcher =
+                    buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig);
+                activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
+                resourceRegistry.registerJob(jobId);
+                FlowResourceMetrics.registerPerJob(launcher, meterRegistry);
+                return launcher;
+            }
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
             throw e;
         }
+    }
+
+    <T> FlowLauncher<T> buildLauncher(String jobId,
+        String metricJobId,
+        FlowJoiner<T> flowJoiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow flowConfig) {
+        return FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
     }
 
     /** 解析用于指标标签的 jobId：显式注册 > 原样 */

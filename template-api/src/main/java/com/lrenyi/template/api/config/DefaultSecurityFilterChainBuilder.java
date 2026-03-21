@@ -39,6 +39,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -117,9 +118,14 @@ public class DefaultSecurityFilterChainBuilder {
                              .permitAll();
             TemplateConfigProperties.FeignProperties feign = templateConfigProperties.getFeign();
             if (feign.isNotOauth()) {
-                registry =
-                        registry.requestMatchers(new InternalRequestMatcher(feign.getInternalCallAllowedIpPatterns()))
-                                .permitAll();
+                if (CollectionUtils.isEmpty(feign.getInternalCallAllowedIpPatterns())) {
+                    log.error("app.template.feign.not-oauth=true 但未配置 internal-call-allowed-ip-patterns，"
+                            + "已拒绝启用内部请求免认证放行。");
+                } else {
+                    registry =
+                            registry.requestMatchers(new InternalRequestMatcher(feign.getInternalCallAllowedIpPatterns()))
+                                    .permitAll();
+                }
             }
             registry.anyRequest().authenticated();
         });

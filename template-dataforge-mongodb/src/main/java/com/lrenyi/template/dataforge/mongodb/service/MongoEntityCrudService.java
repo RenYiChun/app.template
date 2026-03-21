@@ -93,10 +93,12 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         long total = mongoTemplate.count(query, entityClass, collection);
         Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
         query.with(sort);
-        query.skip(pageable.getOffset());
-        query.limit(pageable.getPageSize());
+        if (pageable.isPaged()) {
+            query.skip(pageable.getOffset());
+            query.limit(pageable.getPageSize());
+        }
         List<Object> content = mongoTemplate.find(query, entityClass, collection);
-        return new PageImpl<>(content, pageable, total);
+        return new PageImpl<>(content, pageable.isPaged() ? pageable : Pageable.unpaged(), total);
     }
 
     private Page<Object> listWithLookup(EntityMeta entityMeta, Class<Object> entityClass, Pageable pageable,
@@ -144,12 +146,14 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
                             o.getProperty()))
                     .toList())));
         }
-        ops.add(Aggregation.skip(pageable.getOffset()));
-        ops.add(Aggregation.limit(pageable.getPageSize()));
+        if (pageable.isPaged()) {
+            ops.add(Aggregation.skip(pageable.getOffset()));
+            ops.add(Aggregation.limit(pageable.getPageSize()));
+        }
         Aggregation aggregation = Aggregation.newAggregation(ops);
         List<Object> content = mongoTemplate.aggregate(aggregation, collection, Document.class).getMappedResults()
                 .stream().map(doc -> (Object) new java.util.LinkedHashMap<String, Object>(doc)).toList();
-        return new PageImpl<>(content, pageable, total);
+        return new PageImpl<>(content, pageable.isPaged() ? pageable : Pageable.unpaged(), total);
     }
     
     @Override
@@ -162,11 +166,7 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         Object resolvedId = resolveId(id, entityMeta.getPrimaryKeyType());
         Query query = new Query(Criteria.where(MONGO_ID).is(resolvedId));
         addSoftDeleteCriteria(query);
-        Object entity = mongoTemplate.findOne(query, entityClass, entityMeta.getTableName());
-        if (entity == null) {
-            throw new IllegalArgumentException("Entity not found with id: " + id);
-        }
-        return entity;
+        return mongoTemplate.findOne(query, entityClass, entityMeta.getTableName());
     }
     
     @Override
@@ -204,25 +204,26 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
         addSoftDeleteCriteria(query);
         Object existing = mongoTemplate.findOne(query, entityClass, entityMeta.getTableName());
         if (existing == null) {
-            throw new IllegalArgumentException("Entity not found with id: " + id);
+            return null;
         }
         Long existingVersion = getVersion(existing);
         Object entity = objectMapper.convertValue(body, entityClass);
-        setIfPersistable(entity, FIELD_ID, resolvedId);
-        setIfPersistable(entity, FIELD_UPDATE_TIME, LocalDateTime.now());
-        Long newVersion = getVersion(entity);
+        Long requestVersion = getVersion(entity);
+        mergeNonNullFields(entity, existing, entityClass);
+        setIfPersistable(existing, FIELD_ID, resolvedId);
+        setIfPersistable(existing, FIELD_UPDATE_TIME, LocalDateTime.now());
         boolean lockEnabled = entityMeta.isEnableVersionControl() && existingVersion != null;
-        if (lockEnabled && (newVersion == null || !newVersion.equals(existingVersion))) {
+        if (lockEnabled && (requestVersion == null || !requestVersion.equals(existingVersion))) {
             throw new IllegalStateException("Optimistic lock conflict: version mismatch for id " + id);
         }
         if (lockEnabled) {
-            setIfPersistable(entity, FIELD_VERSION, existingVersion + 1);
+            setIfPersistable(existing, FIELD_VERSION, existingVersion + 1);
         }
-        setIfPersistable(entity, FIELD_DELETED, getDeleted(existing));
-        setIfPersistable(entity, FIELD_CREATE_TIME, getCreateTime(existing));
-        setIfPersistable(entity, FIELD_CREATE_BY, getCreateBy(existing));
-        mongoTemplate.save(entity, entityMeta.getTableName());
-        return entity;
+        setIfPersistable(existing, FIELD_DELETED, getDeleted(existing));
+        setIfPersistable(existing, FIELD_CREATE_TIME, getCreateTime(existing));
+        setIfPersistable(existing, FIELD_CREATE_BY, getCreateBy(existing));
+        mongoTemplate.save(existing, entityMeta.getTableName());
+        return existing;
     }
     
     @Override
@@ -309,22 +310,25 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
             if (existing == null) {
                 continue;
             }
-            applyBatchUpdateFields(entityMeta, entity, existing, now, id);
-            mongoTemplate.save(entity, collection);
-            result.add(entity);
+            Object patch = entity;
+            Long requestVersion = getVersion(patch);
+            mergeNonNullFields(patch, existing, entityClass);
+            applyBatchUpdateFields(entityMeta, existing, existing, now, id, requestVersion);
+            mongoTemplate.save(existing, collection);
+            result.add(existing);
         }
         return result;
     }
-    
+
     private void applyBatchUpdateFields(EntityMeta entityMeta,
             Object entity,
             Object existing,
             LocalDateTime now,
-            Object id) {
+            Object id,
+            Long requestVersion) {
         if (entityMeta.isEnableVersionControl()) {
             Long existingVersion = getVersion(existing);
-            Long newVersion = getVersion(entity);
-            if (existingVersion != null && (newVersion == null || !newVersion.equals(existingVersion))) {
+            if (existingVersion != null && (requestVersion == null || !requestVersion.equals(existingVersion))) {
                 throw new IllegalStateException("Optimistic lock conflict: version mismatch for id " + id);
             }
             setIfPersistable(entity, FIELD_VERSION, existingVersion != null ? existingVersion + 1 : 1L);
@@ -375,6 +379,25 @@ public class MongoEntityCrudService implements StorageTypeAwareCrudService {
     
     private static Field findIdField(Class<?> clazz) {
         return findField(clazz, FIELD_ID);
+    }
+
+    private static void mergeNonNullFields(Object source, Object target, Class<?> entityClass) {
+        for (Class<?> c = entityClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                if (FIELD_ID.equals(f.getName()) || java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                    continue;
+                }
+                try {
+                    f.setAccessible(true); // NOSONAR
+                    Object value = f.get(source);
+                    if (value != null) {
+                        f.set(target, value); // NOSONAR
+                    }
+                } catch (IllegalAccessException ignored) {
+                    // skip
+                }
+            }
+        }
     }
     
     private void setIfPersistable(Object entity, String fieldName, Object value) {

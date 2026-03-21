@@ -47,6 +47,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         }
         List<String> headers = feign.getHeaders();
         if (headers == null || headers.isEmpty()) {
+            makeClientOauth(template);
             return;
         }
         // 获取请求对象

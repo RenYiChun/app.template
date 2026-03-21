@@ -14,6 +14,7 @@ import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.SortOrder;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -47,9 +48,13 @@ public class JpaEntityCrudService implements EntityCrudService {
         Set<String> allowedFields = getEntityFieldNames(entityClass);
         Specification<Object> spec = FilterConditionSpecification.from(c.getFilters(), allowedFields);
         Sort sort = resolveSort(c.getSortOrders(), pageable.getSort());
+        SimpleJpaRepository<Object, Object> repo = repositoryFor(entityClass);
+        if (pageable.isUnpaged()) {
+            List<Object> content = sort.isSorted() ? repo.findAll(spec, sort) : repo.findAll(spec);
+            return new PageImpl<>(content, Pageable.unpaged(), content.size());
+        }
         Pageable resolvedPageable =
                 sort.isSorted() ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort) : pageable;
-        SimpleJpaRepository<Object, Object> repo = repositoryFor(entityClass);
         return repo.findAll(spec, resolvedPageable);
     }
     
@@ -60,11 +65,7 @@ public class JpaEntityCrudService implements EntityCrudService {
         if (entityClass == null) {
             throw new IllegalStateException("Entity class not set for " + entityMeta.getEntityName());
         }
-        Object entity = repositoryFor(entityClass).findById(id).orElse(null);
-        if (entity == null) {
-            throw new IllegalArgumentException("Entity not found with id: " + id);
-        }
-        return entity;
+        return repositoryFor(entityClass).findById(id).orElse(null);
     }
     
     @Override
@@ -88,7 +89,7 @@ public class JpaEntityCrudService implements EntityCrudService {
         SimpleJpaRepository<Object, Object> repo = repositoryFor(entityClass);
         Object existing = repo.findById(id).orElse(null);
         if (existing == null) {
-            throw new IllegalArgumentException("Entity not found with id: " + id);
+            return null;
         }
         // 合并：仅将 body 中非 null 的字段写入 existing，避免未提交字段（如 password）被置为 null 导致违反 NOT NULL 约束
         mergeNonNullFields(body, existing, entityClass);
@@ -172,8 +173,13 @@ public class JpaEntityCrudService implements EntityCrudService {
         List<Object> toSave = new ArrayList<>();
         for (Object entity : entities) {
             Object id = getEntityId(entity);
-            if (id != null && repo.existsById(id)) {
-                toSave.add(entity);
+            if (id == null) {
+                continue;
+            }
+            Object existing = repo.findById(id).orElse(null);
+            if (existing != null) {
+                mergeNonNullFields(entity, existing, entityClass);
+                toSave.add(existing);
             }
         }
         return new ArrayList<>(repo.saveAll(toSave));

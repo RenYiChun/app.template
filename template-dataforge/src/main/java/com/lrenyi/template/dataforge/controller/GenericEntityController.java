@@ -30,8 +30,11 @@ import com.lrenyi.template.dataforge.support.AssociationChangeAuditor;
 import com.lrenyi.template.dataforge.support.EntityChangeNotifier;
 import com.lrenyi.template.dataforge.support.EntityMapperProvider;
 import com.lrenyi.template.dataforge.support.EntityOption;
+import com.lrenyi.template.dataforge.support.EntityMutationSupport;
+import com.lrenyi.template.dataforge.support.EntityQuerySupport;
 import com.lrenyi.template.dataforge.support.DisplayValueEnricher;
 import com.lrenyi.template.dataforge.support.ExcelExportSupport;
+import com.lrenyi.template.dataforge.support.EntityTreeSupport;
 import com.lrenyi.template.dataforge.support.FilterCondition;
 import com.lrenyi.template.dataforge.support.ListCriteria;
 import com.lrenyi.template.dataforge.support.Op;
@@ -91,6 +94,9 @@ public class GenericEntityController {
     private final ObjectProvider<Validator> validatorProvider;
     private final ConversionService conversionService;
     private final EntityMapperProvider mapperProvider;
+    private final EntityTreeSupport entityTreeSupport;
+    private final EntityQuerySupport entityQuerySupport;
+    private final EntityMutationSupport entityMutationSupport;
     private final ObjectProvider<AssociationValidator> associationValidatorProvider;
     private final ObjectProvider<CascadeDeleteService> cascadeDeleteServiceProvider;
     private final ObjectProvider<DataPermissionApplicator> dataPermissionApplicatorProvider;
@@ -107,7 +113,17 @@ public class GenericEntityController {
         this.validatorProvider = services.validatorProvider();
         this.conversionService = services.conversionService();
         this.mapperProvider = services.mapperProvider();
+        this.entityTreeSupport = new EntityTreeSupport(this.conversionService);
         this.associationValidatorProvider = services.associationValidatorProvider();
+        this.entityQuerySupport = new EntityQuerySupport(this.crudService, this.properties,
+                services.dataPermissionApplicatorProvider());
+        this.entityMutationSupport = new EntityMutationSupport(this.objectMapper,
+                this.conversionService,
+                this.mapperProvider,
+                this.properties,
+                this.validatorProvider,
+                this.associationValidatorProvider,
+                this.crudService);
         this.cascadeDeleteServiceProvider = services.cascadeDeleteServiceProvider();
         this.dataPermissionApplicatorProvider = services.dataPermissionApplicatorProvider();
         this.entityChangeNotifierProvider = services.entityChangeNotifierProvider();
@@ -133,23 +149,6 @@ public class GenericEntityController {
         if (notifier != null) {
             notifier.notifyDeleted(meta, id);
         }
-    }
-
-    /**
-     * 合并数据权限过滤条件到已有 filters；当 meta.isEnableDataPermission() 且存在 DataPermissionApplicator 时追加。
-     */
-    private List<FilterCondition> mergeDataPermissionFilters(EntityMeta meta, List<FilterCondition> baseFilters) {
-        List<FilterCondition> filters = new ArrayList<>(baseFilters);
-        if (meta.isEnableDataPermission()) {
-            DataPermissionApplicator applicator = dataPermissionApplicatorProvider.getIfAvailable();
-            if (applicator != null) {
-                List<FilterCondition> extra = applicator.getDataPermissionFilters(meta);
-                if (extra != null && !extra.isEmpty()) {
-                    filters.addAll(extra);
-                }
-            }
-        }
-        return filters;
     }
 
     /**
@@ -182,7 +181,7 @@ public class GenericEntityController {
         if (query != null && !query.isBlank()) {
             filters.add(new FilterCondition(displayField, Op.LIKE, "%" + query.trim() + "%"));
         }
-        filters = mergeDataPermissionFilters(meta, filters);
+        filters = entityQuerySupport.mergeDataPermissionFilters(meta, filters);
         List<SortOrder> sortOrders = parseSortParam(sort, displayField);
         ListCriteria criteria = ListCriteria.of(filters, sortOrders);
         Pageable pageable = buildPageable(pageNum, sizeVal, sortOrders);
@@ -242,57 +241,20 @@ public class GenericEntityController {
             throw new DataforgeHttpException(HttpStatus.BAD_REQUEST.value(), DataforgeErrorCodes.ENTITY_NOT_FOUND,
                     "该实体不是树形结构: " + entity);
         }
-        int depth = maxDepth != null && maxDepth > 0 ? maxDepth : meta.getTreeMaxDepth() > 0 ? meta.getTreeMaxDepth() : 10;
+        int depth = entityTreeSupport.resolveDepth(meta, maxDepth);
         boolean include = Boolean.TRUE.equals(includeDisabled);
         List<FilterCondition> filters = new ArrayList<>();
         boolean hasStatusField = meta.getFields() != null && meta.getFields().stream().anyMatch(f -> "status".equals(f.getName()));
         if (!include && hasStatusField) {
             filters.add(new FilterCondition("status", Op.EQ, "1"));
         }
-        filters = mergeDataPermissionFilters(meta, filters);
+        filters = entityQuerySupport.mergeDataPermissionFilters(meta, filters);
         ListCriteria criteria = ListCriteria.of(filters, List.of());
         Page<?> pageResult = crudService.list(meta, Pageable.unpaged(), criteria);
         List<?> allNodes = pageResult.getContent();
-        Object parentIdObj = parseParentId(meta, parentId);
-        List<TreeNode> tree = buildTree(allNodes, meta, parentIdObj, depth);
+        Object parentIdObj = entityTreeSupport.parseParentId(meta, parentId);
+        List<TreeNode> tree = entityTreeSupport.buildTree(allNodes, meta, parentIdObj, depth);
         return Result.getSuccess(tree);
-    }
-
-    private Object parseParentId(EntityMeta meta, String parentId) {
-        if (parentId == null || parentId.isBlank() || "null".equalsIgnoreCase(parentId)) {
-            return null;
-        }
-        try {
-            Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
-            return conversionService.convert(parentId.trim(), pkType);
-        } catch (ConversionException | IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private List<TreeNode> buildTree(List<?> allNodes, EntityMeta meta, Object parentId, int maxDepth) {
-        if (allNodes == null || maxDepth <= 0) {
-            return List.of();
-        }
-        var accessor = meta.getAccessor();
-        if (accessor == null) {
-            return List.of();
-        }
-        String parentField = meta.getTreeParentField() != null && !meta.getTreeParentField().isBlank()
-                ? meta.getTreeParentField() : "parentId";
-        String nameField = meta.getTreeNameField() != null && !meta.getTreeNameField().isBlank()
-                ? meta.getTreeNameField() : "name";
-        return allNodes.stream()
-                .filter(node -> Objects.equals(accessor.get(node, parentField), parentId))
-                .map(node -> {
-                    Object id = accessor.get(node, "id");
-                    Object nodeParentId = accessor.get(node, parentField);
-                    Object nameVal = accessor.get(node, nameField);
-                    String label = nameVal != null ? nameVal.toString() : "";
-                    List<TreeNode> children = buildTree(allNodes, meta, id, maxDepth - 1);
-                    return new TreeNode(id, label, nodeParentId, children, null, children.isEmpty());
-                })
-                .toList();
     }
 
     /**
@@ -323,7 +285,7 @@ public class GenericEntityController {
             return Result.getSuccess(Map.of());
         }
         List<FilterCondition> filters = new ArrayList<>(List.of(new FilterCondition("id", Op.IN, idList)));
-        filters = mergeDataPermissionFilters(meta, filters);
+        filters = entityQuerySupport.mergeDataPermissionFilters(meta, filters);
         ListCriteria criteria = ListCriteria.of(filters, List.of());
         Page<?> pageResult = crudService.list(meta, Pageable.unpaged(), criteria);
         List<?> content = pageResult.getContent();
@@ -399,12 +361,8 @@ public class GenericEntityController {
             return forbidden;
         }
         SearchRequest request = req != null ? req : SearchRequest.empty();
-        int safeSize = Math.clamp(request.size(), 1, properties.getMaxPageSize());
-        Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
-        ListCriteria criteria = ListCriteria.from(request, meta);
-        List<FilterCondition> mergedFilters = mergeDataPermissionFilters(meta, criteria.getFilters());
-        criteria = ListCriteria.of(mergedFilters, criteria.getSortOrders());
-        Page<?> pageResult = crudService.list(meta, pageable, criteria);
+        EntityQuerySupport.QueryExecution execution = entityQuerySupport.prepareSearch(meta, request);
+        Page<?> pageResult = entityQuerySupport.list(meta, execution);
         List<?> converted = toResponseList(meta, pageResult.getContent());
         PagedResult<Object> pagedResult = PagedResult.from(pageResult, converted);
         return Result.getSuccess(pagedResult);
@@ -554,31 +512,11 @@ public class GenericEntityController {
             return forbidden;
         }
 
-        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
-        Object bodyEntity;
-
-        if (info != null && info.createDtoClass() != null) {
-            // Use Mapper
-            Object dto = objectMapper.convertValue(body, info.createDtoClass());
-            Result<Object> error = validateAndReturnError(dto, Create.class);
-            if (error != null) {
-                return error;
-            }
-            bodyEntity = ((BaseMapper<Object, Object, ?, ?, ?>) info.mapper()).toEntity(dto);
-        } else {
-            // No Mapper found, try to convert directly to Entity (simple fallback without DTO)
-            try {
-                bodyEntity = objectMapper.convertValue(body, meta.getEntityClass());
-                Result<Object> error = validateAndReturnError(bodyEntity);
-                if (error != null) {
-                    return error;
-                }
-            } catch (IllegalArgumentException e) {
-                return badRequest(ERR_INVALID_REQUEST_DATA);
-            }
+        EntityMutationSupport.MutationResult mutation = entityMutationSupport.prepareCreate(meta, body);
+        if (mutation.error() != null) {
+            return mutation.error();
         }
-
-        validateAssociations(meta, bodyEntity);
+        Object bodyEntity = mutation.entity();
         Object created = crudService.create(meta, bodyEntity);
         Object createdId = meta.getAccessor() != null ? meta.getAccessor().get(created, "id") : null;
         if (createdId != null) {
@@ -587,70 +525,7 @@ public class GenericEntityController {
         return Result.getSuccess(toResponse(meta, created));
     }
 
-    private void validateAssociations(EntityMeta meta, Object bodyEntity) {
-        AssociationValidator validator = associationValidatorProvider.getIfAvailable();
-        if (validator != null) {
-            validator.validateAssociations(meta, bodyEntity);
-        }
-    }
-
-    /**
-     * 树形实体更新时检测循环引用：新 parentId 不能是自身或自身的后代。
-     */
-    private void validateTreeNoCycle(EntityMeta meta, Object selfId, Object bodyEntity) {
-        if (meta == null || !meta.isTreeEntity() || bodyEntity == null || meta.getAccessor() == null) {
-            return;
-        }
-        String parentField = meta.getTreeParentField() != null && !meta.getTreeParentField().isBlank()
-                ? meta.getTreeParentField() : "parentId";
-        Object newParentId = meta.getAccessor().get(bodyEntity, parentField);
-        if (newParentId == null) {
-            return;
-        }
-        int maxDepth = meta.getTreeMaxDepth() > 0 ? meta.getTreeMaxDepth() : 10;
-        Object current = newParentId;
-        for (int i = 0; i < maxDepth; i++) {
-            if (Objects.equals(current, selfId)) {
-                throw new DataforgeHttpException(HttpStatus.BAD_REQUEST.value(),
-                        DataforgeErrorCodes.CIRCULAR_REFERENCE, "不能将上级设为自己或自己的下级，否则将形成循环引用");
-            }
-            current = getParentId(meta, current);
-            if (current == null) {
-                break;
-            }
-        }
-    }
-
-    private Object getParentId(EntityMeta meta, Object id) {
-        Object entity = crudService.get(meta, id);
-        if (entity == null || meta.getAccessor() == null) {
-            return null;
-        }
-        String parentField = meta.getTreeParentField() != null && !meta.getTreeParentField().isBlank()
-                ? meta.getTreeParentField() : "parentId";
-        return meta.getAccessor().get(entity, parentField);
-    }
-
-    private Result<Object> validateAndReturnError(Object dto, Class<?>... groups) {
-        if (!properties.isValidationEnabled() || dto == null) {
-            return null;
-        }
-        Validator validator = validatorProvider.getIfAvailable();
-        if (validator == null) {
-            return null;
-        }
-        Set<ConstraintViolation<Object>> violations = validator.validate(dto, groups);
-        if (violations.isEmpty()) {
-            return null;
-        }
-        String message = violations.stream()
-                                   .map(v -> v.getPropertyPath() + ": " + v.getMessage())
-                                   .collect(Collectors.joining("; "));
-        return badRequest(message);
-    }
-
     @PutMapping("/{entity}/{id}")
-    @SuppressWarnings("unchecked")
     public Result<Object> update(@PathVariable String entity,
             @PathVariable String id,
             @RequestBody Map<String, Object> body) {
@@ -667,35 +542,11 @@ public class GenericEntityController {
             return badRequest(ERR_ID_FORMAT);
         }
 
-        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
-        Object bodyEntity;
-
-        if (info != null && info.updateDtoClass() != null) {
-            // Use Mapper
-            Object dto = objectMapper.convertValue(body, info.updateDtoClass());
-            Result<Object> error = validateAndReturnError(dto, Update.class);
-            if (error != null) {
-                return error;
-            }
-            // Instantiate entity and update it
-            bodyEntity = BeanUtils.instantiateClass(meta.getEntityClass());
-            ((BaseMapper<Object, ?, Object, ?, ?>) info.mapper()).updateEntity(dto, bodyEntity);
-        } else {
-            // No Mapper found, try to convert directly to Entity
-            try {
-                bodyEntity = objectMapper.convertValue(body, meta.getEntityClass());
-                Result<Object> error = validateAndReturnError(bodyEntity);
-                if (error != null) {
-                    return error;
-                }
-            } catch (IllegalArgumentException e) {
-                return badRequest(ERR_INVALID_REQUEST_DATA);
-            }
+        EntityMutationSupport.MutationResult mutation = entityMutationSupport.prepareUpdate(meta, body, idObj);
+        if (mutation.error() != null) {
+            return mutation.error();
         }
-
-        setEntityId(bodyEntity, idObj);
-        validateAssociations(meta, bodyEntity);
-        validateTreeNoCycle(meta, idObj, bodyEntity);
+        Object bodyEntity = mutation.entity();
         Object oldEntity = crudService.get(meta, idObj);
         Object updated = crudService.update(meta, idObj, bodyEntity);
         if (updated != null) {
@@ -737,19 +588,6 @@ public class GenericEntityController {
         }
         if (!changedFields.isEmpty()) {
             auditor.auditAssociationChanges(meta, id, changedFields, oldDisplays, newDisplays);
-        }
-    }
-
-    private static void setEntityId(Object entity, Object id) {
-        if (entity == null || id == null) {
-            return;
-        }
-        try {
-            java.lang.reflect.Field idField = entity.getClass().getDeclaredField("id");
-            idField.setAccessible(true); //NOSONAR
-            idField.set(entity, id);     //NOSONAR
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
-            // ignore
         }
     }
 
@@ -821,11 +659,15 @@ public class GenericEntityController {
             }
             List<Object> result = new ArrayList<>(ids.size());
             for (Object id : ids) {
-                result.add(conversionService.convert(id, pkType));
+                Object converted = conversionService.convert(id, pkType);
+                if (converted == null) {
+                    return null;
+                }
+                result.add(converted);
             }
             return result;
         } catch (ConversionException | IllegalArgumentException e) {
-            return List.of();
+            return null;
         }
     }
 
@@ -845,77 +687,22 @@ public class GenericEntityController {
         if (body == null || body.isEmpty()) {
             return Result.getSuccess(List.of());
         }
-
-        List<Object> entities = new ArrayList<>(body.size());
-        Map<Object, Object> oldEntities = new LinkedHashMap<>();
-        Class<?> pkType = meta.getPrimaryKeyType() != null ? meta.getPrimaryKeyType() : Long.class;
-        EntityMapperProvider.MapperInfo info = mapperProvider.getMapperInfo(meta.getEntityClass());
-
-        for (Map<String, Object> map : body) {
-            Result<Object> error = processBatchUpdateItem(map, meta, pkType, info, entities, oldEntities);
-            if (error != null) {
-                return error;
-            }
+        EntityMutationSupport.BatchMutationResult mutation = entityMutationSupport.prepareBatchUpdate(meta, body);
+        if (mutation.error() != null) {
+            return mutation.error();
         }
-        List<?> updated = crudService.updateBatch(meta, entities);
+        List<?> updated = crudService.updateBatch(meta, mutation.entities());
         for (Object object : updated) {
             Object id = meta.getAccessor() != null ? meta.getAccessor().get(object, "id") : null;
             if (id != null) {
                 notifyUpdated(meta, id);
-                Object oldEntity = oldEntities.get(id);
+                Object oldEntity = mutation.oldEntities().get(id);
                 if (oldEntity != null) {
                     auditAssociationChangesIfNeeded(meta, id, oldEntity, object);
                 }
             }
         }
         return Result.getSuccess(toResponseList(meta, updated));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Result<Object> processBatchUpdateItem(Map<String, Object> map,
-            EntityMeta meta, Class<?> pkType, EntityMapperProvider.MapperInfo info,
-            List<Object> entities, Map<Object, Object> oldEntities) {
-        Object idObj = map.get("id");
-        if (idObj == null) {
-            return badRequest("批量更新项缺少 id");
-        }
-        Object idParsed;
-        try {
-            idParsed = conversionService.convert(idObj, pkType);
-        } catch (ConversionException | IllegalArgumentException e) {
-            return badRequest("id 格式错误: " + e.getMessage());
-        }
-        Object oldEntity = crudService.get(meta, idParsed);
-        if (oldEntity != null) {
-            oldEntities.put(idParsed, oldEntity);
-        }
-
-        Object bodyEntity;
-        if (info != null && info.updateDtoClass() != null) {
-            Object dto = objectMapper.convertValue(map, info.updateDtoClass());
-            Result<Object> ve = validateAndReturnError(dto, Update.class);
-            if (ve != null) {
-                return ve;
-            }
-            bodyEntity = BeanUtils.instantiateClass(meta.getEntityClass());
-            ((BaseMapper<Object, ?, Object, ?, ?>) info.mapper()).updateEntity(dto, bodyEntity);
-        } else {
-            try {
-                bodyEntity = objectMapper.convertValue(map, meta.getEntityClass());
-                Result<Object> ve = validateAndReturnError(bodyEntity);
-                if (ve != null) {
-                    return ve;
-                }
-            } catch (IllegalArgumentException e) {
-                return badRequest(ERR_INVALID_REQUEST_DATA);
-            }
-        }
-
-        setEntityId(bodyEntity, idParsed);
-        validateAssociations(meta, bodyEntity);
-        validateTreeNoCycle(meta, idParsed, bodyEntity);
-        entities.add(bodyEntity);
-        return null;
     }
 
     /**
@@ -933,11 +720,8 @@ public class GenericEntityController {
         if (forbiddenResp != null) {
             return forbiddenResp;
         }
-        SearchRequest request = req != null ? req : SearchRequest.emptyForExport();
-        int safeSize = Math.clamp(request.size(), 1, properties.getMaxExportSize());
-        Pageable pageable = buildPageable(request.page(), safeSize, request.sort());
-        ListCriteria criteria = ListCriteria.from(request, meta);
-        Page<?> pageResult = crudService.list(meta, pageable, criteria);
+        EntityQuerySupport.QueryExecution execution = entityQuerySupport.prepareExport(meta, req);
+        Page<?> pageResult = entityQuerySupport.list(meta, execution);
         try {
             byte[] bytes = ExcelExportSupport.toExcel(meta, pageResult.getContent(), entityRegistry, crudService);
             String filename = entity + "-export.xlsx";

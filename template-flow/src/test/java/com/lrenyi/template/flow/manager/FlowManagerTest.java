@@ -1,18 +1,29 @@
 package com.lrenyi.template.flow.manager;
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowJoiner;
+import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.health.FlowHealth;
+import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class FlowManagerTest {
     
@@ -86,5 +97,60 @@ class FlowManagerTest {
         FlowManager.reset();
         FlowManager m2 = FlowManager.getInstance(config);
         assertNotNull(m2);
+    }
+
+    @Test
+    void createLauncherRejectsConcurrentDuplicateJobId() throws Exception {
+        FlowLauncher<Object> launcher = mock(FlowLauncher.class);
+        FlowJoiner<Object> joiner = mock(FlowJoiner.class);
+        ProgressTracker tracker1 = mock(ProgressTracker.class);
+        ProgressTracker tracker2 = mock(ProgressTracker.class);
+        CountDownLatch enteredFactory = new CountDownLatch(1);
+        CountDownLatch releaseFactory = new CountDownLatch(1);
+        when(launcher.getJobId()).thenReturn("job-1");
+        when(launcher.getTracker()).thenReturn(tracker1);
+
+        FlowManager manager = new FlowManager(config, new SimpleMeterRegistry(), true) {
+            @Override
+            <T> FlowLauncher<T> buildLauncher(String jobId,
+                    String metricJobId,
+                    FlowJoiner<T> flowJoiner,
+                    ProgressTracker tracker,
+                    TemplateConfigProperties.Flow flowConfig) {
+                enteredFactory.countDown();
+                try {
+                    releaseFactory.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                @SuppressWarnings("unchecked")
+                FlowLauncher<T> casted = (FlowLauncher<T>) launcher;
+                return casted;
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<FlowLauncher<Object>> first = executor.submit(() ->
+                    manager.createLauncher("job-1", joiner, tracker1, config));
+            enteredFactory.await();
+            Future<Object> second = executor.submit(() -> {
+                try {
+                    return manager.createLauncher("job-1", joiner, tracker2, config);
+                } catch (Exception ex) {
+                    return ex;
+                }
+            });
+            releaseFactory.countDown();
+
+            assertSame(launcher, first.get());
+            Object secondResult = second.get();
+            assertInstanceOf(IllegalStateException.class, secondResult);
+            assertEquals("Job job-1 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。",
+                    ((IllegalStateException) secondResult).getMessage());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
