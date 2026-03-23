@@ -477,7 +477,7 @@ class FlowJoinerEngineIntegrationTest {
     }
 
     @Test
-    void itAutoUnregisterAfterCompletionAndTrackerRetained() throws Exception {
+    void itUnregisterAfterCompletionRetainsTracker() throws Exception {
         int total = 5;
         String jobId = "job-auto-unregister";
         List<PairItem> list = new ArrayList<>();
@@ -488,6 +488,11 @@ class FlowJoinerEngineIntegrationTest {
         FlowSource<PairItem> singleSource = FlowSourceAdapters.fromIterator(list.iterator(), null);
 
         engine.run(jobId, joiner, singleSource, total, flowConfig);
+        ProgressTracker runningTracker = engine.getProgressTracker(jobId);
+        awaitCompleted(() -> runningTracker.isCompleted(true));
+        awaitConsumedOrTerminated(joiner::getOnConsumeCount, runningTracker, total);
+
+        manager.unregister(jobId);
         awaitCondition(() -> manager.isStopped(jobId), 10_000);
         assertTrue(manager.getActiveLaunchers().isEmpty());
 
@@ -567,8 +572,9 @@ class FlowJoinerEngineIntegrationTest {
 
         assertEquals(1, joiner1.getOnConsumeCount());
         assertEquals(1, joiner2.getOnConsumeCount());
-        awaitCondition(() -> manager.isStopped("job-isolation-1") && manager.isStopped("job-isolation-2"), 10_000);
-        assertTrue(manager.getActiveLaunchers().isEmpty(), "完成后应自动注销 launcher");
+        manager.unregister("job-isolation-1");
+        manager.unregister("job-isolation-2");
+        assertTrue(manager.getActiveLaunchers().isEmpty(), "手动注销后应无活跃 launcher");
     }
 
     @Test

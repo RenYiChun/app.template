@@ -1,132 +1,70 @@
-# Flow 引擎 Job 显示名映射方案
+# Flow Job 显示名能力说明
 
-## 背景
+本文档描述的是当前已经落地的 Flow job 显示名能力，不是待实现方案。
 
-当前 Flow 引擎的 `jobId` 是业务传入的字符串（如 UUID、业务主键等），在 Grafana 等监控中直接作为 `jobId` 标签展示，对运维人员不够友好。需要支持将业务 jobId 映射为易读的显示名（如「订单匹配」「对账任务-20250110」），用于监控指标展示。
+## 1. 解决的问题
 
-## 设计目标
+Flow 运行时内部仍以 `jobId` 作为业务标识，但在监控和日志观察面上，原始 `jobId` 可能过长或不可读。  
+当前实现允许在启动任务时额外传入 `displayName`，把它作为指标标签和日志展示名使用。
 
-1. **业务 jobId 不变**：内部逻辑、日志、存储仍使用原始 jobId
-2. **监控友好**：指标标签使用可读的显示名
-3. **显式注册**：启动时通过 `createLauncher(jobId, displayName, ...)` 传入显示名
-4. **零侵入可选**：未配置时行为与现有一致
+目标是：
 
-## 方案概述
+- 不改变业务侧真正的 `jobId`
+- 提升监控面可读性
+- 保持未配置时的兼容行为
 
-采用 **仅显式注册** 方式，在创建 Launcher 时通过 `displayName` 参数注册，指标注册时使用显示名作为 `jobId` 标签值。
+## 2. 当前行为
 
-### 核心组件
+当前实现已经支持：
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  FlowManager                                                     │
-│  └── jobIdToDisplayName Map (显式注册，createLauncher 时写入)       │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  createLauncher(jobId) / createLauncher(jobId, displayName)      │
-│  → metricJobId = displayName ?? jobId                            │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  DimensionContext / FlowLauncher / BackpressureManager           │
-│  → 指标注册时使用 metricJobId 作为 TAG_JOB_ID 的值                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+- `FlowManager.createLauncher(jobId, displayName, ...)`
+- `FlowJoinerEngine.run(jobId, displayName, ...)`
+- `FlowJoinerEngine.startPush(jobId, displayName, ...)`
 
-## 详细设计
+运行时规则：
 
-### 1. 注册方式
+- 内部管理、停止、注销仍按原始 `jobId` 处理
+- 指标标签优先使用 `displayName`
+- 日志输出通过 `FlowLogHelper.formatJobContext(jobId, displayName)` 同时保留业务 `jobId`
+- 未传 `displayName` 时，监控与日志继续使用原始 `jobId`
 
-| 方式 | 适用场景 | 示例 |
-|------|----------|------|
-| **显式 displayName** | 启动时已知展示名 | `createLauncher("uuid-xxx", "订单匹配", ...)` |
-| **原样 jobId** | 未传 displayName | `createLauncher("uuid-xxx", ...)` |
+## 3. 实现位置
 
-### 2. API 变更
+核心实现点：
 
-#### 2.1 FlowJoinerEngine（外部入口）
+- [FlowManager.java](../../template-flow/src/main/java/com/lrenyi/template/flow/manager/FlowManager.java)
+  - 维护 `jobIdToDisplayName`
+  - 创建 launcher 时解析 `metricJobId`
+- [FlowJoinerEngine.java](../../template-flow/src/main/java/com/lrenyi/template/flow/engine/FlowJoinerEngine.java)
+  - 对外暴露带 `displayName` 的 `run` / `startPush` 重载
+- [FlowLauncher.java](../../template-flow/src/main/java/com/lrenyi/template/flow/internal/FlowLauncher.java)
+  - 持有 `metricJobId`
+- [DefaultProgressTracker.java](../../template-flow/src/main/java/com/lrenyi/template/flow/internal/DefaultProgressTracker.java)
+  - 记录并暴露用于指标标签的 `metricJobId`
+- [FlowLogHelper.java](../../template-flow/src/main/java/com/lrenyi/template/flow/util/FlowLogHelper.java)
+  - 统一日志展示格式
+
+## 4. 使用方式
 
 ```java
-// run：多流 / 单流
-void run(String jobId, String displayName, FlowJoiner<T> joiner, long total, Flow flowConfig);
-void run(String jobId, String displayName, FlowJoiner<T> joiner, ProgressTracker tracker, Flow flowConfig);
-void run(String jobId, String displayName, FlowJoiner<T> joiner, FlowSource<T> singleSource, ...);
+engine.run("order-match-20250323-001", "订单匹配", joiner, total, flowConfig);
 
-// startPush：推送模式
-FlowInlet<T> startPush(String jobId, String displayName, FlowJoiner<T> joiner, long total, Flow flowConfig);
+engine.startPush("reconcile-push-001", "推送对账", joiner, total, flowConfig);
 ```
 
-原有无 `displayName` 的重载保留，内部委托时传 `null`。
-
-#### 2.2 使用示例
-
-外部通过 `FlowJoinerEngine` 启动任务，支持在 `run` / `startPush` 中传入 `displayName`：
+如果不需要展示名，仍可以继续使用原有重载：
 
 ```java
-// 显式注册：启动时传入展示名
-engine.run("order-match-20250110-abc", "订单匹配", joiner, total, flow);
-engine.run("order-match-abc", "订单匹配", joiner, tracker, flow);
-engine.startPush("push-job-abc", "推送对账", joiner, total, flow);
-
-// 不配置：使用 jobId 原样（原有调用方式不变）
-engine.run("uuid-xxx", joiner, total, flow);
+engine.run("order-match-20250323-001", joiner, total, flowConfig);
 ```
 
-### 3. 内部实现要点
+## 5. 边界与注意事项
 
-#### 3.1 解析逻辑（FlowManager）
+- `displayName` 只用于展示，不应用来承载唯一业务主键。
+- 不要把高基数字段放进 `displayName`，例如订单号、请求号、用户 ID。
+- 适合放入 `displayName` 的是稳定、低基数、便于看板识别的名字，例如“订单匹配”“账单对齐”“推送回流”。
 
-```java
-String resolveMetricJobId(String jobId) {
-    String explicit = jobIdToDisplayName.get(jobId);
-    return explicit != null ? explicit : jobId;
-}
-```
+## 6. 当前判断
 
-#### 3.2 传递链路
-
-- `FlowManager.createLauncher` 解析得到 `metricJobId`
-- `FlowLauncherFactory.create` 接收 `(jobId, metricJobId)`
-- `DimensionContext.builder().jobId(jobId).metricJobId(metricJobId)` 
-- `BackpressureManager`、`FlowLauncher`、`FlowFinalizer`、`DefaultProgressTracker` 在注册指标时使用 `metricJobId`
-
-#### 3.3 指标注册处修改
-
-所有 `.tag(TAG_JOB_ID, xxx)` 改为使用 `getMetricJobId()`：
-
-- `DimensionContext.getMetricJobId()`：返回 metricJobId，null 时用 jobId
-- `FlowLauncher`：持有 metricJobId，供 deposit timer 等使用
-- `FlowFinalizer`：从 launcher 取 metricJobId
-- `DefaultProgressTracker`：构造时传入 metricJobId
-
-### 4. 生命周期
-
-- **注册**：`createLauncher(jobId, displayName)` 时写入 `jobIdToDisplayName`
-- **注销**：`unregister(jobId)` 时从 map 移除，避免内存泄漏
-
-### 5. 兼容性
-
-- 不传 displayName：行为与当前完全一致
-- 现有 `createLauncher(jobId, ...)` 调用方无需修改
-- 新增重载 `createLauncher(jobId, displayName, ...)` 为可选参数
-
-### 6. 注意事项
-
-1. **标签基数**：displayName 应控制枚举数量，避免高基数（如不要用「订单-{orderId}」）
-2. **日志关联**：日志仍用原始 jobId，便于与业务排查；监控用 displayName 便于看板
-3. **Grafana**：legend 使用 `{{jobId}}` 即可展示友好名
-
-## 实现清单
-
-- [x] `FlowManager`：`jobIdToDisplayName` Map、`resolveMetricJobId`
-- [x] `FlowManager`：`createLauncher(jobId, displayName, ...)` 重载
-- [x] `DimensionContext`：新增 `metricJobId` 字段
-- [x] `FlowLauncherFactory`：接收并传递 metricJobId
-- [x] `BackpressureManager`：使用 metricJobId 注册指标
-- [x] 各 `ResourceBackpressureDimension`：`ctx.getMetricJobIdForTags()`
-- [x] `FlowLauncher`、`FlowFinalizer`、`DefaultProgressTracker`：使用 metricJobId
-- [x] `unregister` 时清理 `jobIdToDisplayName`
-- [x] 单元测试与集成测试
+这项能力已经属于当前主线的一部分，应该保留在活跃设计区。  
+它解释的是当前设计取舍和对外观察口径，而不是历史迁移过程。

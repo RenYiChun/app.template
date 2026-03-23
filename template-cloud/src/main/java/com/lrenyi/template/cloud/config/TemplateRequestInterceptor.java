@@ -47,6 +47,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         }
         List<String> headers = feign.getHeaders();
         if (headers == null || headers.isEmpty()) {
+            makeClientOauth(template);
             return;
         }
         // 获取请求对象
@@ -54,6 +55,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         // 获取当前请求的header，获取到jwt令牌
         Enumeration<String> headerNames = request.getHeaderNames();
         if (headerNames == null) {
+            makeClientOauth(template);
             return;
         }
         boolean haveAuthorization = false;

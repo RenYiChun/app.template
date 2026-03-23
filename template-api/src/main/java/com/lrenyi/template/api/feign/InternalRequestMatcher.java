@@ -9,10 +9,10 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.CollectionUtils;
 
 /**
- * 匹配「内部调用」请求：带 X-Internal-Call: true，且可选地要求来源 IP 在白名单内。
+ * 匹配「内部调用」请求：带 X-Internal-Call: true，且要求来源 IP 在白名单内。
  * <p>
- * 仅当配置了 {@code app.template.feign.internal-call-allowed-ip-patterns} 时才会校验 IP，
- * 否则仅校验请求头。建议生产环境配置 IP 白名单，防止客户端伪造 X-Internal-Call 绕过认证。
+ * 必须配置 {@code app.template.feign.internal-call-allowed-ip-patterns} 后才会放行，
+ * 否则一律拒绝，避免客户端伪造 X-Internal-Call 绕过认证。
  * </p>
  */
 @Slf4j
@@ -30,8 +30,8 @@ public class InternalRequestMatcher implements RequestMatcher {
     public InternalRequestMatcher(List<String> allowedIpPatterns) {
         this.allowedIpPatterns = allowedIpPatterns;
         if (CollectionUtils.isEmpty(allowedIpPatterns)) {
-            log.warn("[安全警告] InternalRequestMatcher 未配置 IP 白名单！仅依赖 X-Internal-Call 请求头是不安全的，容易被伪造。请配置 app.template"
-                             + ".feign.internal-call-allowed-ip-patterns。");
+            log.warn("[安全警告] InternalRequestMatcher 未配置 IP 白名单！内部调用放行已禁用。请配置 "
+                    + "app.template.feign.internal-call-allowed-ip-patterns。");
         }
     }
     
@@ -41,7 +41,7 @@ public class InternalRequestMatcher implements RequestMatcher {
             return false;
         }
         if (CollectionUtils.isEmpty(allowedIpPatterns)) {
-            return true;
+            return false;
         }
         String remoteAddr = getRemoteAddr(request);
         for (String pattern : allowedIpPatterns) {

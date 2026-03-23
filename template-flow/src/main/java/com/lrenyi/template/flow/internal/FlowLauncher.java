@@ -295,6 +295,10 @@ public class FlowLauncher<T> {
         } catch (Exception e) {
             log.error("Job [{}] 停止时清理 Storage 失败", FlowLogHelper.formatJobContext(jobId, metricJobId), e);
         }
-        flowManager.scheduleUnregister(jobId);
+        if (force) {
+            flowManager.unregister(jobId);
+        } else {
+            flowManager.scheduleUnregister(jobId);
+        }
     }
 }

@@ -42,6 +42,12 @@ public final class KafkaFlowSource<T> implements FlowSource<T> {
             java.util.function.Function<ConsumerRecord<?, ?>, T> mapper,
             Duration pollTimeout,
             MeterRegistry meterRegistry) {
+        if (consumer == null) {
+            throw new IllegalArgumentException("consumer 非 null");
+        }
+        if (mapper == null) {
+            throw new IllegalArgumentException("mapper 非 null");
+        }
         this.consumer = consumer;
         this.mapper = mapper;
         this.pollTimeout = pollTimeout != null ? pollTimeout : Duration.ofMillis(1000);

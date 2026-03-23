@@ -1,320 +1,393 @@
-# Flow 流聚合使用指导
+# Flow 使用指导
 
-## 1. 概述
+本文档解释当前仓库里已经存在、且对外可用的 Flow 能力。只写真实公开 API，不写源码中不存在的抽象。
 
-Flow 是 template-core 中的**流聚合引擎**：多路数据按 `joinKey` 汇聚，支持「配对成功」（双流对齐）与「单条覆盖 / 队列消费」等语义。
+## 1. Flow 是什么
 
-- **核心抽象**：`FlowJoiner<T>` 定义如何取 key、使用哪种存储、配对/消费/失败时如何回调；引擎负责拉取或接收数据、背压与任务生命周期。
-- **两种模式**：
-    - **拉取（Pull）**：数据来自业务自己拉取的流（如 DB 游标、Kafka consumer、分页 API），由引擎驱动 `FlowSource` 拉取并注入。
-    - **推送（Push）**：数据由外部调用方持续 `push`（如 HTTP 请求体、消息队列 consumer 主动投递），业务持有 `FlowInlet` 调用
-      `push(item)` 与 `markSourceFinished()`。
+Flow 是 `template-flow` 模块里的流聚合引擎，用来处理“多路数据进入系统后，按业务 key 聚合并消费”的问题。
 
----
+它的核心不是 CRUD，也不是消息中间件替代品，而是：
 
-## 2. 核心概念
+- 把多条输入流统一纳入一个 Job
+- 对输入过程做背压控制
+- 在存储层中完成等待、覆盖、配对或排队
+- 在消费回调中交给业务处理
+- 提供完成判定、指标和健康检查
 
-### FlowJoiner&lt;T&gt;
+## 2. 公开 API 里最重要的对象
 
-业务实现接口，定义数据如何聚合与回调。
+### `FlowJoiner<T>`
 
-- **必实现**：`getDataType()`、`joinKey(T)`、`sourceProvider()`（推送模式可用 `FlowSourceAdapters.emptyProvider()`）、
-  `onPairConsumed(T, T, String)`（配对成功）、`onSingleConsumed(T, String, EgressReason)`（单条消费，含主动/被动原因）。
-- **可选**：`needMatched()` 返回 `true` 表示双流配对；`isMatched(existing, incoming)` 做配对校验；
-  `getPairingStrategy()` 覆写可自定义配对查找逻辑。
+`template-flow/src/main/java/com/lrenyi/template/flow/api/FlowJoiner.java`
 
-### 配对策略（PairingStrategy）
+业务实现接口。你至少需要定义：
 
-仅当 `needMatched()` 为 `true` 时生效。默认采用 **key 等值 1:1 配对**：同 `joinKey` 的条目相遇即尝试配对，`isMatched` 做业务校验。
+- `getDataType()`
+- `sourceProvider()`
+- `joinKey(T item)`
+- `onPairConsumed(...)`
+- `onSingleConsumed(...)`
 
-业务可覆写 `FlowJoiner.getPairingStrategy()` 以实现自定义配对语义，例如：
+可选项：
 
-- **多 key 尝试**：对 incoming 派生多个候选 key，依次 `ctx.getAndRemove(k)` 直到命中
-- **自定义候选选择**：在 `PairingContext` 提供的 `getAndRemove`/`put` 基础上实现更复杂逻辑
+- `getStorageType()`：默认 `LOCAL_BOUNDED`
+- `needMatched()`：返回 `true` 时按配对语义运行
+- `isMatched(existing, incoming)`：配对场景下做业务校验
+- `isRetryable(item, jobId)`：是否允许重试
+
+当前公开接口里没有 `PairingStrategy`、`PairingContext`、`getPairingStrategy()` 这些扩展点，文档和接入代码不要按这些名字编写。
+
+### `FlowJoinerEngine`
+
+`template-flow/src/main/java/com/lrenyi/template/flow/engine/FlowJoinerEngine.java`
+
+Flow Job 的启动入口，主要有两类方法：
+
+- `run(...)`：拉取模式
+- `startPush(...)`：推送模式
+
+### `FlowManager`
+
+`template-flow/src/main/java/com/lrenyi/template/flow/manager/FlowManager.java`
+
+负责：
+
+- 创建和登记 Job
+- 获取 `ProgressTracker`
+- 停止 Job
+- 提供健康状态
+
+### `FlowInlet<T>`
+
+`template-flow/src/main/java/com/lrenyi/template/flow/api/FlowInlet.java`
+
+推送模式下的入口，只提供这些公开能力：
+
+- `push(item)`
+- `markSourceFinished()`
+- `getProgressTracker()`
+- `isCompleted()`
+- `stop(force)`
+
+当前没有 `getCompletionFuture()`。
+
+### `ProgressTracker`
+
+`template-flow/src/main/java/com/lrenyi/template/flow/api/ProgressTracker.java`
+
+用于观测任务进度和完成态：
+
+- `getSnapshot()`
+- `isCompleted(boolean showStatus)`
+- `isCompletionConditionMet()`
+- `markSourceFinished(...)`
+- `setTotalExpected(...)`
+
+## 3. 两种运行模式
+
+### 拉取模式
+
+适用于数据已经抽象成 `FlowSource<T>` 或 `FlowSourceProvider<T>` 的场景。
+
+典型来源：
+
+- Kafka consumer
+- NATS subscription
+- 分页 API
+- 内存列表、游标、迭代器
+
+### 推送模式
+
+适用于数据由业务方自己消费出来，再手工交给 Flow 的场景。
+
+典型来源：
+
+- HTTP 请求
+- MQ consumer 业务代码
+- 定时任务
+
+## 4. 两种存储类型
+
+### `FlowStorageType.LOCAL_BOUNDED`
+
+- 默认值
+- 按 `joinKey` 存储
+- 可用于覆盖消费或配对消费
+
+常见行为：
+
+- 同 key 后来的数据覆盖先来的数据，旧数据以 `REPLACE` 出场
+- 配对成功时触发 `onPairConsumed(...)`
+- TTL 到期或驱逐时触发 `onSingleConsumed(..., reason)`
+
+### `FlowStorageType.QUEUE`
+
+- FIFO 队列
+- 不按 key 配对
+- 数据按队列语义逐条消费
+
+## 5. 最小 Joiner 写法
 
 ```java
-@Override
-public PairingStrategy<MyItem> getPairingStrategy() {
-    return (key, incoming, ctx) -> {
-        // 示例：多 key 尝试
-        for (String k : deriveCandidateKeys(incoming.getData())) {
-            Optional<FlowEntry<MyItem>> p = ctx.getAndRemove(k);
-            if (p.isPresent()) return p;
-        }
-        return Optional.empty();  // 未找到，incoming 将由存储层存入等待
-    };
+import com.lrenyi.template.flow.api.FlowJoiner;
+import com.lrenyi.template.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.model.EgressReason;
+import com.lrenyi.template.flow.model.FlowStorageType;
+
+record DemoItem(String id, String value) {}
+
+class DemoJoiner implements FlowJoiner<DemoItem> {
+    @Override
+    public FlowStorageType getStorageType() {
+        return FlowStorageType.LOCAL_BOUNDED;
+    }
+
+    @Override
+    public Class<DemoItem> getDataType() {
+        return DemoItem.class;
+    }
+
+    @Override
+    public FlowSourceProvider<DemoItem> sourceProvider() {
+        return FlowSourceAdapters.emptyProvider();
+    }
+
+    @Override
+    public String joinKey(DemoItem item) {
+        return item.id();
+    }
+
+    @Override
+    public void onPairConsumed(DemoItem existing, DemoItem incoming, String jobId) {
+        // 配对成功时的业务处理
+    }
+
+    @Override
+    public void onSingleConsumed(DemoItem item, String jobId, EgressReason reason) {
+        // 单条出场时的业务处理
+    }
 }
 ```
 
-### 存储类型（FlowStorageType）
-
-- **LOCAL_BOUNDED**：按 key 的本地缓存（BoundedTimedFlowStorage），支持配对（双流相遇触发 `onPairConsumed`）或覆盖（同 key 后到顶替先到，先到者走
-  `onSingleConsumed(..., REPLACE)`）。
-- **QUEUE**：FIFO 队列，无 key 配对，每条数据最终走 `onSingleConsumed(..., SINGLE_CONSUMED)`。
-
-### FlowJoinerEngine
-
-入口类，持有 `FlowManager`；提供 `run(...)`（拉取）与 `startPush(...)`（推送）。
-
-### FlowManager
-
-单例，通过 `FlowManager.getInstance(flowConfig)` 获取；负责 Job 注册、Launcher、停止；测试中可用 `FlowManager.reset()` 清理。
-
-### FlowInlet&lt;T&gt;
-
-推送模式入口：`push(item)`、`markSourceFinished()`、`getProgressTracker()`、`getCompletionFuture()`、`stop(boolean)`。
-
----
-
-## 3. 配置
-
-Flow 配置采用 `app.template.flow.limits` 结构，分为 `global`（全主机）与 `per-job`（每 Job）。
-
-### limits.global（全主机级）
-
-- `fair-scheduling`：全局信号量公平调度（默认 true），false 时更高吞吐。
-- `consumer-concurrency`：全主机消费并发数（必须 >0，默认 1000）。
-- `producer-threads`：全主机生产线程上限，<=0 不启用（默认 0）。
-- `in-flight-production`：全主机生产在途数据量上限，<=0 不启用（默认 0）。
-- `storage`：全主机存储容量上限，<=0 不启用（默认 0）。
-- `pending-consumer`：全主机已离库未终结条数上限，<=0 不启用（默认 0）。
-
-### limits.per-job（每 Job）
-
-- `producer-threads`：每 Job 生产线程数（必须 >0，默认 40）。
-- `in-flight-production`：每 Job 生产在途数据量（必须 >0，默认 4000）。
-- `storage`：每 Job 缓存/队列容量（必须 >0，默认 40000）。
-- `pending-consumer`：每 Job 背压阈值，>0 为显式值，0 表示使用 global.consumer-concurrency。
-- `cache-ttl-mill`：Caffeine 缓存过期时间（毫秒，必须 >0，默认 10000），配对场景下超时未匹配会走 `onSingleConsumed(..., TIMEOUT)`。
-- `queue-poll-interval-mill`：Queue 轮询间隔（毫秒，必须 >0，默认 10000）。
-- **同 key 多 value**：`multi-value-enabled`、`multi-value-max-per-key`、`multi-value-overflow-policy`、`pairing-multi-match-enabled`，详见 [Flow 同 Key 多 Value 使用指南](flow-multi-value-guide.md)。
-
-配置示例见 [Flow 配置参考](../getting-started/config-reference.md#flow-配置)。
-
----
-
-## 4. 拉取模式（Pull）
-
-适用于数据由业务侧拉取的场景。
+## 6. 拉取模式用法
 
 ### 单流
 
 ```java
-TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
+import java.util.List;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
+import com.lrenyi.template.flow.manager.FlowManager;
 
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
 FlowManager manager = FlowManager.getInstance(flowConfig);
 FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 
-FlowJoiner<MyItem> joiner = new MyOverwriteJoiner(); // 实现 getDataType/joinKey/sourceProvider/onPairConsumed/onSingleConsumed 等
-FlowSource<MyItem> singleSource = FlowSourceAdapters.fromIterator(myList.iterator(), null);
+List<DemoItem> list = List.of(
+        new DemoItem("k1", "v1"),
+        new DemoItem("k2", "v2")
+);
 
-engine.run("job-1", joiner, singleSource, myList.size(), flowConfig);
-ProgressTracker tracker = engine.getProgressTracker("job-1");
-tracker.
+FlowSource<DemoItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
+engine.run("pull-single", new DemoJoiner(), source, list.size(), flowConfig);
 
-getCompletionFuture().
-
-get(30,TimeUnit.SECONDS);
+ProgressTracker tracker = engine.getProgressTracker("pull-single");
+while (!tracker.isCompleted(true)) {
+    Thread.sleep(50);
+}
+System.out.println(tracker.getSnapshot());
 ```
-
-- 若总量未知，`total` 可传 `-1`。
-- `run()` 在提交完子流后即返回，实际消费在异步执行；需「全部处理完」时务必用 `getCompletionFuture().get(timeout, unit)`
-  等待，必要时再短轮询业务回调计数（与集成测试中的做法一致）。
 
 ### 多流
 
-由 `FlowJoiner.sourceProvider()` 返回多个子流，并传入自建的 `ProgressTracker` 与 `setTotalExpected`：
-
 ```java
-DefaultProgressTracker tracker = new DefaultProgressTracker("job-2", manager);
-tracker.
+import java.util.List;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.internal.DefaultProgressTracker;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
+import com.lrenyi.template.flow.manager.FlowManager;
 
-setTotalExpected("job-2",totalItemCount);
-joiner.
-
-setSourceProvider(FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB)));
-        engine.run("job-2", joiner, tracker, flowConfig);
-tracker.
-
-getCompletionFuture().
-
-get(30,TimeUnit.SECONDS);
-```
-
----
-
-## 5. 推送模式（Push）
-
-适用于数据由调用方持续推送的场景。
-
-```java
-FlowInlet<MyItem> inlet = engine.startPush("job-3", joiner, flowConfig);
-for(
-MyItem item :items){
-        inlet.
-
-push(item);
-}
-        inlet.
-
-markSourceFinished();
-inlet.
-
-getCompletionFuture().
-
-get(30,TimeUnit.SECONDS);
-```
-
-- 未调用 `markSourceFinished()` 就调用 `inlet.stop(true)` 时，`getCompletionFuture()` 可能不会完成；若需提前结束，可
-  `stop(true)` 后按业务决定是否短时等待或忽略 Future。
-
----
-
-## 6. 进度与完成
-
-- **ProgressTracker**：`getSnapshot()` 得到 `FlowProgressSnapshot`；`getCompletionFuture()` 在「source 已结束且缓存排空、活跃消费归零」时完成。
-- **FlowProgressSnapshot** 常用字段与方法：
-    - `terminated`：已物理终结的条数。
-    - `activeEgress` / `passiveEgress`：主动出口（业务达成）与被动出口（超时/驱逐/替换等）。
-    - `passiveEgressByReason`：按 `FailureReason` 统计的被动出口数。
-    - `getCompletionRate()`：完成率（如 terminated/totalExpected）。
-    - `getSuccessRate()`：成功率（activeEgress / (activeEgress + passiveEgress)）。
-    - `getStuckCount()`：已出缓存但尚未终结的数量，可反映回调或线程池积压。
-
-可用于监控或测试断言（如完成率、成功率、按原因统计的损耗）。
-
-完成态收敛优化的设计细节与并发风险控制，见 [Flow 完成态收敛优化设计](../design/flow-completion-isCompleted.md)。
-
----
-
-## 7. 失败原因与 onSingleConsumed
-
-枚举 `EgressReason`：TIMEOUT、EVICTION、REPLACE、OVERFLOW_DROP_OLDEST、OVERFLOW_DROP_NEWEST、CLEARED_AFTER_PAIR_SUCCESS、MISMATCH、REJECT、SHUTDOWN、UNKNOWN。
-
-| 原因       | 含义                                                |
-|----------|---------------------------------------------------|
-| TIMEOUT  | 配对场景下在缓存中等待超时（TTL 到期）                             |
-| EVICTION | 容量满导致条目被驱逐                                        |
-| REPLACE  | 非配对模式下同 key 新条顶替旧条，旧条走失败出口                        |
-| OVERFLOW_DROP_OLDEST | 多值模式超限时淘汰最老项（详见 [多 Value 指南](flow-multi-value-guide.md)） |
-| OVERFLOW_DROP_NEWEST | 多值模式超限时丢弃新入项                                      |
-| CLEARED_AFTER_PAIR_SUCCESS | 多值模式配对成功后清空剩余（`pairing-multi-match-enabled=false` 时，详见 [多 Value 指南](flow-multi-value-guide.md)） |
-| MISMATCH | `isMatched(existing, incoming)` 返回 false，两条均走失败出口 |
-| REJECT   | 背压/过载拒绝准入                                         |
-| SHUTDOWN | 任务/系统关闭时存储内残留未处理数据                                |
-| UNKNOWN  | 未分类                                               |
-
-实现 `onSingleConsumed(T item, String jobId, EgressReason reason)` 可做统计或日志；
-被动原因（TIMEOUT、EVICTION 等）可通过 Micrometer 指标 `egress.passive` 的 reason 标签观测。
-
----
-
-## 8. 监控与健康检查
-
-### 指标
-
-- `FlowManager.getMetrics()` 或 `FlowMetrics.getMetrics()` 返回结构包含：
-    - `counters`：各类计数（如 job_started、job_completed）。
-    - `latencies`：按操作名的延迟统计（count/min/max/avg/median/p95/p99）。
-    - `resources`：资源使用（如 active_launchers、semaphore_available）。
-    - `errors`：按 errorType:jobId 的错误计数。
-    - `failureReasons`：按 `EgressReason` 的被动出口计数。
-
-### 健康
-
-- `FlowManager.checkHealth()` 返回 `HealthStatus`：HEALTHY / DEGRADED / UNHEALTHY。
-- `FlowManager.getHealthStatus()` 返回详情（含 `overallStatus`、`indicators`）。
-- 多指示器时取最差状态；可与 Spring Boot Actuator 集成（暴露自定义 HealthIndicator 或读取上述接口）。
-
----
-
-## 9. 最小示例
-
-### 单流拉取（最简 Joiner + 列表）
-
-```java
-// 1. 配置与引擎
 TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
-
 FlowManager manager = FlowManager.getInstance(flowConfig);
 FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 
-// 2. Joiner：LOCAL_BOUNDED + 单条消费（覆盖语义），推送模式可不用 source，此处用 emptyProvider）
-FlowJoiner<MyItem> joiner = new FlowJoiner<MyItem>() {
+FlowSource<DemoItem> sourceA = FlowSourceAdapters.fromIterator(List.of(
+        new DemoItem("k1", "A-1"),
+        new DemoItem("k2", "A-2")
+).iterator(), null);
+FlowSource<DemoItem> sourceB = FlowSourceAdapters.fromIterator(List.of(
+        new DemoItem("k1", "B-1"),
+        new DemoItem("k2", "B-2")
+).iterator(), null);
+
+DemoJoiner joiner = new DemoJoiner() {
     @Override
-    public FlowStorageType getStorageType() {return FlowStorageType.LOCAL_BOUNDED;}
-    
-    @Override
-    public Class<MyItem> getDataType() {return MyItem.class;}
-    
-    @Override
-    public FlowSourceProvider<MyItem> sourceProvider() {return FlowSourceAdapters.emptyProvider();}
-    
-    @Override
-    public String joinKey(MyItem item) {return item.getId();}
-    
-    @Override
-    public void onPairConsumed(MyItem existing, MyItem incoming, String jobId) {}
-    
-    @Override
-    public void onSingleConsumed(MyItem item, String jobId, EgressReason reason) { /* 处理单条，可按 reason 区分 */ }
+    public boolean needMatched() {
+        return true;
+    }
 };
 
-// 3. 单流拉取
-FlowSource<MyItem> source = FlowSourceAdapters.fromIterator(list.iterator(), null);
-engine.run("job-single", joiner, source, list.size(), flowConfig);
-        engine.
+DefaultProgressTracker tracker = new DefaultProgressTracker("pull-multi", manager);
+tracker.setTotalExpected("pull-multi", 4);
 
-getProgressTracker("job-single").
+joiner = new DemoJoiner() {
+    @Override
+    public FlowSourceProvider<DemoItem> sourceProvider() {
+        return FlowSourceAdapters.fromFlowSources(List.of(sourceA, sourceB));
+    }
 
-getCompletionFuture().
+    @Override
+    public boolean needMatched() {
+        return true;
+    }
+};
 
-get(30,TimeUnit.SECONDS);
+engine.run("pull-multi", joiner, tracker, flowConfig);
+while (!tracker.isCompleted(true)) {
+    Thread.sleep(50);
+}
 ```
 
-### 推送
+## 7. 推送模式用法
 
 ```java
-FlowInlet<MyItem> inlet = engine.startPush("job-push", joiner, flowConfig);
-for(
-MyItem item :list)inlet.
+import java.util.List;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowInlet;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
+import com.lrenyi.template.flow.manager.FlowManager;
 
-push(item);
-inlet.
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
+FlowManager manager = FlowManager.getInstance(flowConfig);
+FlowJoinerEngine engine = new FlowJoinerEngine(manager);
 
-markSourceFinished();
-inlet.
+FlowInlet<DemoItem> inlet = engine.startPush("push-demo", new DemoJoiner(), flowConfig);
+for (DemoItem item : List.of(new DemoItem("k1", "v1"), new DemoItem("k2", "v2"))) {
+    inlet.push(item);
+}
+inlet.markSourceFinished();
 
-getCompletionFuture().
-
-get(30,TimeUnit.SECONDS);
+while (!inlet.isCompleted()) {
+    Thread.sleep(50);
+}
+System.out.println(inlet.getProgressTracker().getSnapshot());
 ```
 
-完整可运行示例见 [FlowJoinerEngineIntegrationTest](template-flow/src/test/java/com/lrenyi/template/flow/it/FlowJoinerEngineIntegrationTest.java)。
+## 8. 进度与完成态怎么理解
 
----
+`FlowProgressSnapshot` 位于 `template-flow/src/main/java/com/lrenyi/template/flow/context/FlowProgressSnapshot.java`。
 
-## 10. 测试与重置
+最常看的字段：
 
-- 单测/集成测中，每个用例后建议调用：`FlowManager.reset()`、`FlowResourceRegistry.reset()`；如需清空健康指示器可调用
-  `FlowHealth.clearIndicators()`，避免跨用例残留。
-- 配置校验：`limits.per-job.*` 与 `limits.global.consumer-concurrency` 必须 >0，否则启动时抛出 `IllegalArgumentException`。
+- `productionAcquired`：已进入系统的数据数
+- `productionReleased`：已成功入存储的数据数
+- `activeConsumers`：当前仍在消费中的数量
+- `inStorage`：当前仍在存储中等待的数据数
+- `terminated`：已经彻底离场的数据数
 
----
+最常看的方法：
 
-## 11. 参考与延伸
+- `getCompletionRate()`
+- `getInProductionCount()`
+- `getPendingConsumerCount()`
+- `getTps()`
 
-- **同 Key 多 Value**：详见 [Flow 同 Key 多 Value 使用指南](flow-multi-value-guide.md)。
-- **主要包与类**：
-    - `com.lrenyi.template.flow`：FlowJoiner、FlowJoinerEngine、FlowInlet、ProgressTracker、FailureReason
-    - `com.lrenyi.template.flow.model`：FlowStorageType
-    - `com.lrenyi.template.flow.context`：FlowProgressSnapshot
-    - `com.lrenyi.template.flow.manager`：FlowManager
-    - `com.lrenyi.template.flow.api`：FlowSource、FlowSourceProvider、FlowSourceAdapters、PairingStrategy
-    - `com.lrenyi.template.flow.storage`：PairingContext、DefaultKeyEqualsPairingStrategy
-    - `com.lrenyi.template.flow.health`：FlowHealth、HealthStatus
-    - `com.lrenyi.template.flow.metrics`：FlowMetricNames
-- **集成测试**：`template-flow/src/test/java/com/lrenyi/template/flow/it/FlowJoinerEngineIntegrationTest.java`
-  覆盖拉取/推送、存储类型、失败原因、进度与指标、生命周期等场景。
-- **测试用 Joiner 与数据模型**：`PairItem`、`PairingJoiner`、`OverwriteJoiner`、`QueueJoiner`、`MismatchPairingJoiner` 位于
-  `template-flow/src/test/.../flow/`，可作实现参考。
+当前公开 API 的完成判定方式是：
+
+- 拉取模式：`tracker.isCompleted(true)`
+- 推送模式：`inlet.isCompleted()`
+
+不是 `getCompletionFuture()`。
+
+## 9. `EgressReason` 怎么用
+
+`EgressReason` 定义位于 `template-flow/src/main/java/com/lrenyi/template/flow/model/EgressReason.java`。
+
+常见值：
+
+- `PAIR_MATCHED`
+- `SINGLE_CONSUMED`
+- `TIMEOUT`
+- `EVICTION`
+- `REPLACE`
+- `MISMATCH`
+- `REJECT`
+- `BACKPRESSURE_TIMEOUT`
+- `SHUTDOWN`
+- `CLEARED_AFTER_PAIR_SUCCESS`
+
+业务上常见的处理方式是：
+
+- `PAIR_MATCHED`：统计配对成功
+- `SINGLE_CONSUMED`：统计单条正常消费
+- `TIMEOUT` / `EVICTION` / `REPLACE`：记录损耗或报警
+- `SHUTDOWN`：记录任务被中断时的残留数据
+
+## 10. 健康检查与指标
+
+### 健康
+
+- `FlowManager.checkHealth()`：返回 `HealthStatus`
+- `FlowManager.getHealthStatus()`：返回健康详情
+
+引入 Actuator 后，Flow 会桥接到健康检查。
+
+### 指标
+
+Flow 指标名定义在 `template-flow/src/main/java/com/lrenyi/template/flow/metrics/FlowMetricNames.java`。
+
+当前公开文档里应以这些能力为准：
+
+- 生产累计：`app.template.flow.production_acquired`
+- 终结累计：`app.template.flow.terminated`
+- 错误计数：`app.template.flow.errors`
+- 阶段耗时：`app.template.flow.deposit.duration`
+- 阶段耗时：`app.template.flow.match.duration`
+- 阶段耗时：`app.template.flow.finalize.duration`
+
+资源 Gauge 由 `template-flow/src/main/java/com/lrenyi/template/flow/metrics/FlowResourceMetrics.java` 注册。
+
+## 11. 第一次接入时最容易踩的坑
+
+### 用了旧配置键
+
+当前真实键是：
+
+- `consumer-threads`
+- `storage-capacity`
+- `in-flight-consumer`
+- `keyed-cache.cache-ttl-mill`
+
+不是：
+
+- `consumer-concurrency`
+- `storage`
+- `pending-consumer`
+
+### 推送模式忘记调用 `markSourceFinished()`
+
+不声明输入结束，Job 往往不会进入完成态。
+
+### 文档照抄了不存在的 API
+
+当前没有：
+
+- `FlowInlet.getCompletionFuture()`
+- `ProgressTracker.getCompletionFuture()`
+- `FlowManager.getMetrics()`
+- `FlowMetrics.getMetrics()`
+- `FlowJoiner.getPairingStrategy()`
+
+## 12. 参考
+
+- [Flow 快速开始](../getting-started/quick-start.md)
+- [Flow 配置参考](../getting-started/config-reference.md)
+- [Flow 同 Key 多 Value 使用指南](flow-multi-value-guide.md)
+- [Flow 完成态收敛设计（归档）](../design/archive/flow-completion-isCompleted.md)

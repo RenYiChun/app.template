@@ -1,11 +1,17 @@
 package com.lrenyi.template.flow.manager;
 
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
@@ -38,7 +44,7 @@ import org.jspecify.annotations.NonNull;
 @Setter
 public class FlowManager implements ActiveLauncherLookup {
     private static final AtomicReference<FlowManager> instanceRef = new AtomicReference<>();
-    private static int lastConcurrencyLimit = -1;
+    private static String lastConfigFingerprint;
     /** 延迟秒数，需覆盖至少 2–3 个 Prometheus 抓取周期（scrape_interval 常为 15–60s），
      * 以便抓取到 Job 完成时的最终 0 值。否则时序停止后，Prometheus 会持续返回最后样本直至 stale（约 5min）。 */
     private static final int UNREGISTER_DELAY_SECONDS = 90;
@@ -50,6 +56,14 @@ public class FlowManager implements ActiveLauncherLookup {
     private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
     /** 显式注册的 jobId -> 显示名，用于监控指标 */
     private final Map<String, String> jobIdToDisplayName = new ConcurrentHashMap<>();
+    private final Map<String, Long> jobGenerations = new ConcurrentHashMap<>();
+    private final AtomicLong nextGeneration = new AtomicLong(0L);
+    private final ScheduledExecutorService delayedUnregisterExecutor =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "flow-unregister-scheduler");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     FlowManager(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry, boolean unused) {
         this(globalConfig, meterRegistry);
@@ -81,20 +95,26 @@ public class FlowManager implements ActiveLauncherLookup {
      * 配置变更时会重建实例，需委托给两参版本以执行 configChanged 检查。
      */
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig) {
+        FlowManager current = instanceRef.get();
+        if (current != null && !configChanged(globalConfig)) {
+            return current;
+        }
+        log.warn("FlowManager.getInstance(flowConfig) 使用回退 SimpleMeterRegistry；建议改为显式传入应用的 MeterRegistry。");
         return getInstance(globalConfig, new SimpleMeterRegistry());
     }
 
     public static FlowManager getInstance(TemplateConfigProperties.Flow globalConfig, MeterRegistry meterRegistry) {
         FlowManager current = instanceRef.get();
-        if (current == null || configChanged(globalConfig)) {
+        if (current == null || configChanged(globalConfig) || shouldRebindMeterRegistry(current, meterRegistry)) {
             synchronized (FlowManager.class) {
                 current = instanceRef.get();
-                if (current == null || configChanged(globalConfig)) {
+                if (current == null || configChanged(globalConfig) || shouldRebindMeterRegistry(current, meterRegistry)) {
                     if (current != null) {
-                        log.info("检测到 FlowManager 配置变更 [Limit: {} -> {}], 正在重启管理器...",
-                                 lastConcurrencyLimit,
-                                 globalConfig.getLimits().getGlobal().getConsumerThreads()
-                        );
+                        if (shouldRebindMeterRegistry(current, meterRegistry)) {
+                            log.info("检测到更高优先级的 MeterRegistry，正在重建 FlowManager...");
+                        } else {
+                            log.info("检测到 FlowManager 配置变更，正在重启管理器...");
+                        }
                         try {
                             current.shutdownAll();
                         } catch (Exception e) {
@@ -103,18 +123,100 @@ public class FlowManager implements ActiveLauncherLookup {
                     }
                     FlowManager newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimit = globalConfig.getLimits().getGlobal().getConsumerThreads();
+                    lastConfigFingerprint = fingerprint(globalConfig);
                 }
             }
         }
         return instanceRef.get();
     }
 
+    private static boolean shouldRebindMeterRegistry(FlowManager current, MeterRegistry meterRegistry) {
+        return current != null
+                && current.getMeterRegistry() instanceof SimpleMeterRegistry
+                && !(meterRegistry instanceof SimpleMeterRegistry)
+                && current.getMeterRegistry() != meterRegistry;
+    }
+
     private static boolean configChanged(TemplateConfigProperties.Flow config) {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerThreads() != lastConcurrencyLimit;
+        return !Objects.equals(fingerprint(config), lastConfigFingerprint);
+    }
+
+    private static String fingerprint(TemplateConfigProperties.Flow config) {
+        StringBuilder builder = new StringBuilder();
+        appendFingerprint(builder, config, java.util.Collections.newSetFromMap(new IdentityHashMap<>()));
+        return builder.toString();
+    }
+
+    private static void appendFingerprint(StringBuilder builder, Object value, Set<Object> visited) {
+        if (value == null) {
+            builder.append("null;");
+            return;
+        }
+        Class<?> type = value.getClass();
+        if (isSimpleValue(type)) {
+            builder.append(type.getName()).append('=').append(value).append(';');
+            return;
+        }
+        if (!visited.add(value)) {
+            builder.append(type.getName()).append("@cycle;");
+            return;
+        }
+        if (type.isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            builder.append(type.getComponentType().getName()).append('[').append(length).append("]{");
+            for (int i = 0; i < length; i++) {
+                appendFingerprint(builder, java.lang.reflect.Array.get(value, i), visited);
+            }
+            builder.append("};");
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            builder.append(type.getName()).append('[');
+            for (Object item : iterable) {
+                appendFingerprint(builder, item, visited);
+            }
+            builder.append("];");
+            return;
+        }
+        if (value instanceof Map<?, ?> map) {
+            builder.append(type.getName()).append('{');
+            map.entrySet().stream()
+               .sorted(Map.Entry.comparingByKey(java.util.Comparator.comparing(String::valueOf)))
+               .forEach(entry -> {
+                   appendFingerprint(builder, entry.getKey(), visited);
+                   appendFingerprint(builder, entry.getValue(), visited);
+               });
+            builder.append("};");
+            return;
+        }
+        builder.append(type.getName()).append('{');
+        java.lang.reflect.Field[] fields = type.getDeclaredFields();
+        java.util.Arrays.sort(fields, java.util.Comparator.comparing(java.lang.reflect.Field::getName));
+        for (java.lang.reflect.Field field : fields) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            field.setAccessible(true); // NOSONAR
+            builder.append(field.getName()).append('=');
+            try {
+                appendFingerprint(builder, field.get(value), visited);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("读取 Flow 配置字段失败: " + field.getName(), e);
+            }
+        }
+        builder.append("};");
+    }
+
+    private static boolean isSimpleValue(Class<?> type) {
+        return type.isPrimitive()
+                || Number.class.isAssignableFrom(type)
+                || CharSequence.class.isAssignableFrom(type)
+                || Boolean.class == type
+                || Character.class == type
+                || Enum.class.isAssignableFrom(type);
     }
 
     public void shutdownAll() {
@@ -123,6 +225,8 @@ public class FlowManager implements ActiveLauncherLookup {
             stopAll(true);
         } catch (Exception e) {
             log.error("停止所有任务时发生异常", e);
+        } finally {
+            delayedUnregisterExecutor.shutdownNow();
         }
     }
 
@@ -159,6 +263,19 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public void unregister(String jobId) {
+        Long generation = jobGenerations.get(jobId);
+        unregister(jobId, generation);
+    }
+
+    private void unregister(String jobId, Long expectedGeneration) {
+        if (expectedGeneration != null) {
+            Long currentGeneration = jobGenerations.get(jobId);
+            if (!expectedGeneration.equals(currentGeneration)) {
+                log.debug("Skip unregister for stale generation, jobId={}, expectedGeneration={}, currentGeneration={}",
+                        jobId, expectedGeneration, currentGeneration);
+                return;
+            }
+        }
         // 1. 移除 Gauge 指标
         FlowResourceMetrics.unregisterPerJob(jobId, meterRegistry);
         
@@ -209,6 +326,11 @@ public class FlowManager implements ActiveLauncherLookup {
         resourceRegistry.deregisterJob(jobId);
         jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
+        if (expectedGeneration != null) {
+            jobGenerations.remove(jobId, expectedGeneration);
+        } else {
+            jobGenerations.remove(jobId);
+        }
         if (launcher != null) {
             completedTrackers.put(jobId, launcher.getTracker());
             ExecutorService producerExecutor = launcher.getProducerExecutor();
@@ -234,16 +356,17 @@ public class FlowManager implements ActiveLauncherLookup {
      * 避免 Grafana 因指标立即移除而显示过期值（如 storage 仍为运行中的 22K）。
      */
     public void scheduleUnregister(String jobId) {
-        Thread.ofVirtual().name("flow-unregister-delayed").start(() -> {
+        Long expectedGeneration = jobGenerations.get(jobId);
+        if (expectedGeneration == null) {
+            return;
+        }
+        delayedUnregisterExecutor.schedule(() -> {
             try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(UNREGISTER_DELAY_SECONDS));
-                unregister(jobId);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                unregister(jobId, expectedGeneration);
             } catch (Exception e) {
                 log.warn("延迟注销 Job [{}] 时发生异常", jobId, e);
             }
-        });
+        }, UNREGISTER_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     /**
@@ -271,7 +394,9 @@ public class FlowManager implements ActiveLauncherLookup {
                     log.warn("重置时关闭实例失败", e);
                 }
             }
+            FlowExceptionHelper.clearMeterRegistry();
             instanceRef.set(null);
+            lastConfigFingerprint = null;
         }
     }
 
@@ -294,28 +419,43 @@ public class FlowManager implements ActiveLauncherLookup {
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
         try {
-            if (activeLaunchers.containsKey(jobId)) {
-                throw new IllegalStateException(
-                    "Job " + jobId + " 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
-            }
-            completedTrackers.remove(jobId);
+            synchronized (activeLaunchers) {
+                FlowLauncher<?> existing = activeLaunchers.get(jobId);
+                if (existing != null && !existing.isStopped() && !existing.isCompleted()) {
+                    throw new IllegalStateException(
+                        "Job " + jobId + " 未结束，不能重复创建。请先对该 job 执行 stop 后再启动新任务。");
+                }
+                if (existing != null) {
+                    unregister(jobId, jobGenerations.get(jobId));
+                }
+                completedTrackers.remove(jobId);
 
-            if (displayName != null && !displayName.isEmpty()) {
-                jobIdToDisplayName.put(jobId, displayName);
-            }
-            String metricJobId = resolveMetricJobId(jobId);
-            tracker.setMetricJobId(metricJobId);
+                if (displayName != null && !displayName.isEmpty()) {
+                    jobIdToDisplayName.put(jobId, displayName);
+                }
+                String metricJobId = resolveMetricJobId(jobId);
+                tracker.setMetricJobId(metricJobId);
 
-            FlowLauncher<T> launcher =
-                FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
-            activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
-            resourceRegistry.registerJob(jobId);
-            FlowResourceMetrics.registerPerJob(launcher, meterRegistry);
-            return launcher;
+                FlowLauncher<T> launcher =
+                    buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig);
+                jobGenerations.put(jobId, nextGeneration.incrementAndGet());
+                activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
+                resourceRegistry.registerJob(jobId);
+                FlowResourceMetrics.registerPerJob(launcher, meterRegistry);
+                return launcher;
+            }
         } catch (Exception e) {
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "create_launcher_failed");
             throw e;
         }
+    }
+
+    <T> FlowLauncher<T> buildLauncher(String jobId,
+        String metricJobId,
+        FlowJoiner<T> flowJoiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow flowConfig) {
+        return FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
     }
 
     /** 解析用于指标标签的 jobId：显式注册 > 原样 */
@@ -325,7 +465,8 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public boolean isStopped(String jobId) {
-        return !activeLaunchers.containsKey(jobId);
+        FlowLauncher<?> launcher = activeLaunchers.get(jobId);
+        return launcher == null || launcher.isStopped() || launcher.isCompleted();
     }
 
     public void stopById(String jobId, boolean force) {
@@ -339,7 +480,13 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public Map<String, FlowLauncher<Object>> getActiveLaunchers() {
-        return Collections.unmodifiableMap(activeLaunchers);
+        Map<String, FlowLauncher<Object>> activeOnly = new java.util.LinkedHashMap<>();
+        activeLaunchers.forEach((jobId, launcher) -> {
+            if (!launcher.isStopped() && !launcher.isCompleted()) {
+                activeOnly.put(jobId, launcher);
+            }
+        });
+        return Collections.unmodifiableMap(activeOnly);
     }
 
     public ProgressTracker getProgressTracker(String jobId) {
@@ -366,7 +513,7 @@ public class FlowManager implements ActiveLauncherLookup {
      * 当前活跃 Job 数。返回至少 1 以避免 fair share 等计算中的除零，无 Job 时仍返回 1。
      */
     public int getActiveJobCount() {
-        return Math.max(1, activeLaunchers.size());
+        return Math.max(1, getActiveLaunchers().size());
     }
 
     public Map<String, Object> getHealthStatus() {
@@ -375,5 +522,18 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public HealthStatus checkHealth() {
         return FlowHealth.checkHealth();
+    }
+
+    long currentGeneration(String jobId) {
+        return jobGenerations.getOrDefault(jobId, -1L);
+    }
+
+    boolean unregisterIfGenerationMatches(String jobId, long expectedGeneration) {
+        Long currentGeneration = jobGenerations.get(jobId);
+        if (currentGeneration == null || currentGeneration.longValue() != expectedGeneration) {
+            return false;
+        }
+        unregister(jobId, expectedGeneration);
+        return true;
     }
 }

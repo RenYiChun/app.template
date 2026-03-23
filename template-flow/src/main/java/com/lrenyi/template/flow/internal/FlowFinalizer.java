@@ -118,11 +118,25 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
             String jobId = launcher.getJobId();
             DimensionLease leaseToRelease = consumerLease;
             Runnable wrappedTask = () -> {
+                RuntimeException trackerFailure = null;
                 try {
                     task.run();
                 } finally {
                     for (int i = 0; i < permits; i++) {
-                        launcher.getTracker().onConsumerReleased(jobId);
+                        try {
+                            launcher.getTracker().onConsumerReleased(jobId);
+                        } catch (RuntimeException ex) {
+                            if (trackerFailure == null) {
+                                trackerFailure = ex;
+                            }
+                            FlowExceptionHelper.handleException(jobId,
+                                                                null,
+                                                                ex,
+                                                                FlowPhase.FINALIZATION,
+                                                                "consumer_release_callback_failed",
+                                                                launcher.getMetricJobId()
+                            );
+                        }
                     }
                     resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
                     if (leaseToRelease != null) {
@@ -133,6 +147,10 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                         resourceRegistry.getPermitReleased().signalAll();
                     } finally {
                         resourceRegistry.getFairLock().unlock();
+                    }
+                    if (trackerFailure != null) {
+                        log.warn("Tracker callback failed after consumer completion, {}",
+                                FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()), trackerFailure);
                     }
                 }
             };

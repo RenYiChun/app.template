@@ -2,6 +2,8 @@ package com.lrenyi.template.flow.exception;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.lrenyi.template.flow.api.FlowExceptionHandler;
+import com.lrenyi.template.flow.manager.FlowManager;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +16,7 @@ class FlowExceptionHelperTest {
     @AfterEach
     void tearDown() {
         FlowExceptionHelper.clearHandlers();
+        FlowExceptionHelper.clearMeterRegistry();
     }
     
     @Test
@@ -163,5 +166,30 @@ class FlowExceptionHelperTest {
                                                                      new RuntimeException("test clearHandlers"),
                                                                      FlowPhase.UNKNOWN
         ));
+    }
+
+    @Test
+    void clearMeterRegistryMakesMetricRecordingNoop() {
+        FlowExceptionHelper.setMeterRegistry(new SimpleMeterRegistry());
+        FlowExceptionHelper.clearMeterRegistry();
+
+        assertDoesNotThrow(() -> FlowExceptionHelper.handleException("j",
+                null,
+                new RuntimeException("test clearMeterRegistry"),
+                FlowPhase.UNKNOWN,
+                "test_error"));
+    }
+
+    @Test
+    void flowManagerResetClearsMeterRegistryReference() {
+        FlowExceptionHelper.setMeterRegistry(new SimpleMeterRegistry());
+
+        FlowManager.reset();
+
+        assertDoesNotThrow(() -> FlowExceptionHelper.handleException("j",
+                null,
+                new RuntimeException("test flowManagerReset"),
+                FlowPhase.UNKNOWN,
+                "test_error"));
     }
 }

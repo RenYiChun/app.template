@@ -209,7 +209,7 @@
             { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Match P99", "refId": "B" },
             { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Finalize P99", "refId": "C" },
             { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "超时 {{dimensionId}}", "refId": "D" },
-            { "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])))", "legendFormat": "Dataforge {{method}} P99", "refId": "E" }
+            { "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "Source {{sourceType}}", "refId": "E" }
           ]
         },
         {
@@ -670,7 +670,7 @@
         { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Match P99 {{jobId}}", "refId": "B" },
         { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Finalize P99 {{jobId}}", "refId": "C" },
         { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "超时 {{jobId}} {{dimensionId}}", "refId": "D" },
-        { "expr": "histogram_quantile(0.99, sum by (le, method) (rate(app_template_dataforge_request_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])))", "legendFormat": "Dataforge {{method}} P99", "refId": "E" }
+        { "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "Source {{sourceType}}", "refId": "E" }
       ]
     },
     {
@@ -688,10 +688,10 @@
       "collapsed": true,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
       "id": 102,
-      "title": "Dataforge 与数据源指标",
+      "title": "数据源指标",
       "type": "row",
       "panels": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "Dataforge 数据源接收速率：各数据源（Kafka、NATS、分页 API 等）每秒接收的条目数，按 sourceType 分组。", "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 }, "id": 14, "options": { "tooltip": { "mode": "multi" } }, "title": "Dataforge 数据源接收速率（按 sourceType，条/秒）", "type": "timeseries", "targets": [{ "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{sourceType}}", "refId": "A" }] }
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "数据源接收速率：各数据源（Kafka、NATS、分页 API 等）每秒接收的条目数，按 sourceType 分组。", "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 }, "id": 14, "options": { "tooltip": { "mode": "multi" } }, "title": "数据源接收速率（按 sourceType，条/秒）", "type": "timeseries", "targets": [{ "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{sourceType}}", "refId": "A" }] }
       ]
     }
   ],

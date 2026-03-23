@@ -1,3 +1,0 @@
-com.lrenyi.template.dataforge.DataforgeAutoConfiguration
-com.lrenyi.template.dataforge.audit.DataforgeAuditAutoConfiguration
-com.lrenyi.template.dataforge.rbac.DataforgeRbacAutoConfiguration

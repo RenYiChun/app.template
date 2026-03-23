@@ -1,8 +1,0 @@
-# 集成测试：将 /api/** 加入白名单并放宽权限，便于 RestTemplate 直接访问 API
-app:
-  dataforge:
-    permission-enabled: false
-    default-allow-if-no-permission: true
-  template:
-    security:
-      enabled: false

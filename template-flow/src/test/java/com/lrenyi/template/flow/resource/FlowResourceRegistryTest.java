@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,6 +66,25 @@ class FlowResourceRegistryTest {
         registry.shutdown();
         assertTrue(registry.isShutdown());
         assertTrue(registry.getFlowConsumerExecutor().isShutdown());
+        assertTrue(registry.getFlowProducerExecutor().isShutdown());
+    }
+
+    @Test
+    void getInstanceDifferentGlobalLimitRecreatesInstance() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        config.getLimits().getGlobal().setInFlightProduction(16);
+
+        FlowResourceRegistry first = FlowResourceRegistry.getInstance(config, new SimpleMeterRegistry());
+
+        TemplateConfigProperties.Flow changed = new TemplateConfigProperties.Flow();
+        changed.getLimits().getGlobal().setConsumerThreads(8);
+        changed.getLimits().getGlobal().setInFlightProduction(32);
+
+        FlowResourceRegistry second = FlowResourceRegistry.getInstance(changed, new SimpleMeterRegistry());
+
+        assertNotNull(second);
+        assertNotSame(first, second);
     }
 
     @Test
@@ -145,6 +165,35 @@ class FlowResourceRegistryTest {
         releaseLatch.countDown();
     }
 
+    @Test
+    void trackerReleaseFailureShouldStillRollbackPendingCounterAndSlots() throws InterruptedException {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(1);
+        config.getLimits().getGlobal().setInFlightConsumer(4);
+        config.getLimits().getPerJob().setConsumerThreads(1);
+        config.getLimits().getPerJob().setInFlightConsumer(4);
+
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+        FlowResourceRegistry registry = flowManager.getResourceRegistry();
+        String jobId = "job-release-fail";
+        QueueJoiner joiner = new QueueJoiner();
+        CountDownLatch releasedLatch = new CountDownLatch(1);
+        ThrowingReleaseTracker tracker = new ThrowingReleaseTracker(releasedLatch);
+        FlowEgressHandler<PairItem> handler = new FlowEgressHandler<>(joiner, tracker, flowManager.getMeterRegistry());
+        FlowFinalizer<PairItem> finalizer = new FlowFinalizer<>(registry,
+                                                                flowManager.getMeterRegistry(),
+                                                                handler,
+                                                                joiner);
+
+        var launcher = flowManager.createLauncher(jobId, joiner, tracker, config);
+        finalizer.submitDataToConsumer(new FlowEntry<>(new PairItem("1"), jobId), launcher, null);
+
+        assertTrue(releasedLatch.await(2, TimeUnit.SECONDS), "Tracker release callback should be invoked");
+        Thread.sleep(200);
+        assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
+        assertEquals(4, registry.getGlobalInFlightConsumerSemaphore().availablePermits());
+    }
+
     private static final class BlockingTracker implements ProgressTracker {
         private final CountDownLatch acquiredLatch;
         private final CountDownLatch blockLatch = new CountDownLatch(1);
@@ -204,7 +253,7 @@ class FlowResourceRegistryTest {
         }
     }
 
-    private static final class NoopTracker implements ProgressTracker {
+    private static class NoopTracker implements ProgressTracker {
         @Override
         public void onProductionAcquired() {
         }
@@ -246,6 +295,20 @@ class FlowResourceRegistryTest {
         @Override
         public boolean isCompletionConditionMet() {
             return true;
+        }
+    }
+
+    private static final class ThrowingReleaseTracker extends NoopTracker {
+        private final CountDownLatch releasedLatch;
+
+        private ThrowingReleaseTracker(CountDownLatch releasedLatch) {
+            this.releasedLatch = releasedLatch;
+        }
+
+        @Override
+        public void onConsumerReleased(String jobId) {
+            releasedLatch.countDown();
+            throw new IllegalStateException("tracker failed");
         }
     }
 

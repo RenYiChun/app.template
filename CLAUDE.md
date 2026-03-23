@@ -4,13 +4,12 @@
 
 ## 项目概述
 
-App Template 是一个基于 Spring Boot 的快速开发模板库，提供 OAuth2 安全认证、实体驱动 CRUD（Dataforge）、流聚合引擎和微服务能力，设计目标是零侵入接入、快速开发。
+App Template 是一个基于 Spring Boot 的开发模板库，当前聚焦于 OAuth2 安全认证、Flow 流聚合引擎与微服务集成能力。
 
 **环境要求：**
 
 - Java 21+
 - Maven 3.6+
-- Node.js（前端模块需要）
 
 ## 构建命令
 
@@ -33,25 +32,7 @@ App Template 是一个基于 Spring Boot 的快速开发模板库，提供 OAuth
 ./mvnw test -Dtest=ClassName#methodName -pl module-name
 ```
 
-**注意：** Windows 上使用 `mvnw.cmd` 代替 `./mvnw`（虽然此环境中优先使用 bash 语法）。
-
-### 前端（npm + Vite）
-
-```bash
-# 按正确顺序构建所有前端模块
-./build-frontend.ps1  # PowerShell
-# 或
-./build-frontend.cmd  # Command Prompt
-
-# 单个模块命令（在模块目录中执行）
-npm install
-npm run dev      # 开发服务器
-npm run build    # 生产构建
-npm run lint     # ESLint 自动修复
-npm run format   # Prettier 格式化
-```
-
-**前端构建顺序：** template-dataforge-headless → template-dataforge-ui → template-dataforge-sample-frontend（由于本地文件依赖）。
+**注意：** Windows 上使用 `mvnw.cmd` 代替 `./mvnw`。
 
 ## 模块架构
 
@@ -63,20 +44,6 @@ npm run format   # Prettier 格式化
 - **template-flow-sources**: 数据源适配器（Kafka、NATS、分页 API）
 - **template-cloud**: Feign 客户端、OAuth2 Token 获取、凭证透传
 - **template-oauth2-service**: OAuth2 授权服务器实现（Spring Authorization Server）
-
-### Dataforge 模块（实体驱动 CRUD）
-
-- **template-dataforge**: 核心 CRUD 引擎、权限、OpenAPI 生成
-- **template-dataforge-jpa**: JPA 实现，支持审计
-- **template-dataforge-mongodb**: MongoDB 实现
-- **template-dataforge-processor**: 编译期注解处理器（生成元数据）
-- **template-dataforge-sample-backend**: 示例后端应用
-
-### 前端模块
-
-- **template-dataforge-headless**: 框架无关的核心库
-- **template-dataforge-ui**: Vue 3 + Element Plus 组件库
-- **template-dataforge-sample-frontend**: 示例前端应用（Vue 3 + Vite）
 
 ### 依赖管理模块
 
@@ -97,23 +64,13 @@ Flow 模块提供按 joinKey 的多路数据流聚合，具备以下特性：
 
 **适用场景：** 订单匹配、消息对齐、多源数据汇聚。
 
-### Dataforge（实体驱动 CRUD）
-
-注解驱动的 CRUD 生成：
-
-- 在 JPA 实体上使用 `@DataEntity` 自动生成 REST API
-- 编译期注解处理生成元数据
-- 内置 Excel 导出、OpenAPI 文档
-- Action 扩展支持自定义操作
-- 通过注解实现字段分组和排序
-
 ### OAuth2 安全
 
 - 双 Token 支持：JWT 和 Opaque Token
 - RBAC 权限模型，声明式白名单
 - WebSocket 认证复用 OAuth2 Token
 - Feign 客户端凭证透传
-- 审计日志，自动填充 @CreatedBy/@LastModifiedBy
+- 审计日志支持
 
 ## 代码质量与规范
 
@@ -138,19 +95,13 @@ Flow 模块提供按 joinKey 的多路数据流聚合，具备以下特性：
 - 排除：`*AutoConfiguration*.class`、`*Configuration.class`、`*Application*.class`
 - 报告位置：`target/site/jacoco/index.html`
 
-### 前端代码检查
-
-- ESLint 配合 Vue 插件
-- Prettier 格式化
-- 配置文件：`eslint.config.js`、`.prettierrc.json`
-
 ## 提交信息规范
 
-**重要：** 所有提交信息必须使用中文（由 cursor rules 强制执行）。
+**重要：** 所有提交信息必须使用中文。
 
 格式：
 
-```
+```text
 <type>: <中文描述>
 
 [可选的中文正文]
@@ -166,16 +117,9 @@ Flow 模块提供按 joinKey 的多路数据流聚合，具备以下特性：
 - `test`: 测试相关
 - `chore`: 构建/工具相关
 
-**示例：**
-
-- ✅ `fix: 修复 FlowManager 与 ActiveLauncherLookup 的方法签名冲突`
-- ✅ `feat: 新增 FlowLauncherFactory 工厂类，抽离 Launcher 创建逻辑`
-- ❌ `fix: Resolve method signature conflict`（禁止使用英文）
-
 ## 包结构
 
 - 后端：`com.lrenyi.template.*`（主要模块）、`com.lrenyi.oauth2.*`（OAuth2 服务）
-- 前端：`@lrenyi/dataforge-headless`、`@lrenyi/dataforge-ui`
 
 ## 测试
 
@@ -185,11 +129,6 @@ Flow 模块提供按 joinKey 的多路数据流聚合，具备以下特性：
 - 框架：JUnit 5 + Spring Boot Test
 - 运行单个测试：`./mvnw test -Dtest=ClassName#methodName -pl module-name`
 - 集成测试：命名为 `*IntegrationTest.java`（如 `FlowJoinerEngineIntegrationTest`）
-
-### 前端测试
-
-- 在各模块目录中通过 npm scripts 运行
-- 测试文件通常位于 `src/__tests__/` 或与组件同目录
 
 ## 文档
 
@@ -204,7 +143,5 @@ Flow 模块提供按 joinKey 的多路数据流聚合，具备以下特性：
 ## 重要注意事项
 
 1. **多模块构建：** 修改 `template-dependencies` 需要重新构建所有模块
-2. **前端依赖：** 前端模块使用 `file:` 协议的本地依赖，必须按顺序构建
-3. **注解处理：** 修改 `@DataEntity` 注解需要完整重新构建以重新生成元数据
-4. **虚拟线程：** Flow 引擎使用虚拟线程（Java 21+），确保 JVM 兼容性
-5. **Git 分支：** 主分支为 `main`，功能分支通常为 `feature/*`
+2. **虚拟线程：** Flow 引擎使用虚拟线程（Java 21+），确保 JVM 兼容性
+3. **Git 分支：** 主分支为 `main`，功能分支通常为 `feature/*`
