@@ -135,6 +135,11 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     @Override
+    public CompletableFuture<Void> getCompletionFuture() {
+        return completionFuture;
+    }
+
+    @Override
     public void markSourceFinished(String jobId, boolean showStatus) {
         if (sourceFinished) {
             return;
