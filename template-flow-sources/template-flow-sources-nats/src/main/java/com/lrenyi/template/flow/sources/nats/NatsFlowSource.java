@@ -49,10 +49,16 @@ public final class NatsFlowSource<T> implements FlowSource<T> {
         this.mapper = mapper;
         this.nextMessageTimeout = nextMessageTimeout != null ? nextMessageTimeout : Duration.ofSeconds(1);
         this.meterRegistry = meterRegistry;
-        
+
         if (meterRegistry != null) {
-            Gauge.builder("app.template.source.nats.pending.messages", subscription, s -> {
-                              try {return s.getPendingMessageCount();} catch (Exception e) {return 0;}
+            Gauge.builder("app.template.source.nats.pending.messages",
+                          subscription,
+                          s -> {
+                              try {
+                                  return s.getPendingMessageCount();
+                              } catch (Exception e) {
+                                  return 0;
+                              }
                           }
             ).description("NATS 订阅中待处理的消息数").register(meterRegistry);
         }

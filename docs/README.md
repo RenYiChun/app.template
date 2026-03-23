@@ -16,10 +16,7 @@
 - [选型收益](design/framework-benefits.md) - 开发效率与稳定性
 - [加密与 Coder](design/encryption-and-coder.md) - 密码与配置解密
 - [JSON 处理器](design/json-processor.md) - 可切换 JSON 实现
-- [Flow 分层背压与受控超时存储](design/flow-layered-backpressure.md) - 让缓存参与背压链路，受控延期超时驱逐
-- [Flow 分层背压实现蓝图](design/flow-layered-backpressure-implementation-blueprint.md) - 类、字段、方法签名与伪代码级落地约束
-- [Flow 完成态收敛优化](design/flow-completion-isCompleted.md) - isCompleted 轮询与并发风险控制
-- [Flow 消费出口统一设计](design/flow-egress-unification.md) - 统一 handleEgress 出口与迁移策略
+- [Flow 历史设计归档](design/archive/README.md) - 已归档的 Flow 设计稿与演进记录
 
 ## 参考
 

@@ -271,6 +271,32 @@ class BoundedTimedFlowStorageTest {
         assertEquals(1, joiner.getPairConsumedCount(), "配对消费次数");
     }
 
+    @Test
+    void pairingScenario2_clearedEntryShouldNotBeEvictedAgain_storageGaugeStaysNonNegative() throws InterruptedException {
+        long ttlMs = 150L;
+        String jobId = JOB_ID + "-sc2-storage";
+        TemplateConfigProperties.Flow config = fakeFlowConfigForPairing(ttlMs);
+        flowManager = FlowManager.getInstance(config, meterRegistry);
+        resourceRegistry = flowManager.getResourceRegistry();
+        FlowJoinerEngine engine = new FlowJoinerEngine(flowManager);
+
+        PairingCollectingJoiner joiner = new PairingCollectingJoiner();
+        FlowInlet<String> inlet = engine.startPush(jobId, joiner, config);
+
+        inlet.push("A");
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 1, 5_000);
+        inlet.push("C");
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 2, 5_000);
+        inlet.push("B");
+
+        FlowStorage<?> storage = flowManager.getActiveLauncher(jobId).getStorage();
+        awaitCondition(() -> storage.size() == 0, 5_000);
+
+        Thread.sleep(ttlMs + 1_000L);
+
+        assertEquals(0, storage.size(), "已 CLEARED_AFTER_PAIR_SUCCESS 的条目不应在后续 TTL 再次扣减 storage.size()");
+    }
+
     /**
      * 场景3：3 条数据不入缓存时配对，而是全部进缓存后由驱逐时再配对（A-B 在 processEvictedSlot 中配对，C 以 TIMEOUT 离库）。
      * 校验 job 结束条件各计数：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；

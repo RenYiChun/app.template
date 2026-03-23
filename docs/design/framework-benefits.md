@@ -1,127 +1,57 @@
-# 使用本框架可获得的实实在在的好处
+# 使用本框架的实际收益
 
-本文档从开发者视角列出使用 App Template 时仍然值得保留的收益，重点聚焦在安全基座、Flow 引擎与微服务集成。
+本文档只保留当前仓库中仍然成立的收益，不再承诺源码里不存在的能力。
 
----
+## 1. 接入成本更低
 
-## 一、开发效率类
+- 异常处理、统一响应、安全配置和 Flow 运行时能力已经模块化，业务项目按需引入即可。
+- 配置集中在 `app.template.*`，并带启动期校验，降低了靠人工约束配置的风险。
+- Flow 与 `template-flow-sources` 的边界清晰，接 source 不需要改引擎内核。
 
-### 1. 异常处理零样板
+## 2. Flow 运行时能力可直接复用
 
-- **一行抛出即 404**：`throw new NotFoundException("订单", orderId)` 会自动映射为标准 HTTP 状态与统一响应结构。
-- **Controller 无需 try-catch**：领域层抛语义异常，API 层统一完成状态码和 JSON 映射。
-- **前端只处理一种结构**：错误响应统一收敛到 `Result<T>`。
+如果业务需要做按 key 汇聚、配对或单条消费，不需要自己重写这一层运行时：
 
-### 2. 安全配置声明式
+- 支持 push / pull 两种进入方式
+- 支持有界存储与背压控制
+- 支持多 source provider
+- 支持生命周期管理、健康检查和指标桥接
 
-- **声明式放行**：`app.template.security.permit-urls.{appName}` 按应用名维护白名单。
-- **双模认证可切换**：JWT 与 Opaque Token 通过配置切换，无需改业务代码。
-- **统一 Coder**：密码编码与配置解密共用 `TemplateEncryptService`。
+这类收益不是“少写几行工具代码”，而是少维护一套容易失控的并发与资源治理逻辑。
 
-### 3. WebSocket 与 HTTP 认证模型统一
+## 3. 运行稳定性更可控
 
-- 握手阶段可复用 OAuth2 Token。
-- Token 来源和跨域行为可通过配置收紧。
-- 业务侧可直接基于 `Principal` 做消息级鉴权。
+- 线程池、资源关闭、存储边界和背压语义都由框架统一收口。
+- Flow 对资源耗尽、停止、完成、被动离场等边界行为有明确模型。
+- source 侧已经补到 Kafka / NATS / Paged 的最小可用品质，不再只是源码片段。
 
-### 4. 配置集中且带校验
+## 4. 可观测性更完整
 
-- 所有配置通过 `@ConfigurationProperties` 绑定。
-- 启动期会校验明显不合理的配置。
-- 关键配置会输出摘要日志，便于排查环境覆盖问题。
+- Flow 已接上 Actuator health bridge，可通过 `/actuator/health` 观察状态。
+- Flow 与 sources 都有 Micrometer 指标接入点，可直接接 Prometheus。
+- `displayName` / `metricJobId` 能改善任务级看板的可读性。
 
----
+## 5. 工程化验证更扎实
 
-## 二、运行稳定性与资源管理
+- `template-flow` 已形成自动配置测试、集成测试、存储边界测试。
+- `template-flow-sources` 已形成 provider 层测试和 source 行为测试。
+- `FlowTestSupport` 可复用于模块内测试，降低构造样板。
 
-### 5. Flow 流聚合引擎
+## 6. 更适合当前仓库主线
 
-- **背压控制**：满载时自动阻塞生产端，避免无界堆积。
-- **公平调度**：多 Job 共享全局消费许可，避免单 Job 吞噬全部吞吐。
-- **虚拟线程**：基于 Java 21 提升高并发场景下的线程利用率。
-- **可插拔数据源与存储**：Kafka、NATS、分页 API 与多种存储模型可以按场景组合。
+当前仓库已经不再围绕 CRUD 平台设计，真正值得保留的主线能力是：
 
-### 6. 统一缓存与线程治理
+- 安全基础能力
+- Flow 流聚合运行时
+- Flow source 适配能力
 
-- 关键缓存统一走 Caffeine，并具备上限与 TTL。
-- 线程池有命名前缀，定位与排障成本更低。
-- Spring 关闭与 JVM hook 共同兜底资源释放。
+从这个角度看，框架的核心收益不是“大而全”，而是把这些主线能力做成可接入、可验证、可交付的稳定模块。
 
-### 7. 可选 Feign 重试
+## 7. 相关文档
 
-- 默认关闭，轻量项目零额外负担。
-- 需要时通过配置启用重试次数与间隔。
-
----
-
-## 三、可观测性
-
-### 8. 请求追踪（MDC）
-
-- `TraceFilter` 自动注入 `traceId`、`userId`、`requestPath`。
-- 日志天然具备跨层串联能力。
-
-### 9. 指标系统（Micrometer + Prometheus）
-
-- 覆盖 Flow 引擎、安全认证和数据源接入等关键路径。
-- 业务侧可通过 `AppMetrics` 追加自定义埋点。
-
-### 10. 健康检查
-
-- `FlowHealth` 与 Actuator 集成，支持多级健康状态聚合。
-- 附带 Grafana 仪表板资源，便于快速落地监控。
-
----
-
-## 四、微服务与调用
-
-### 11. Feign 凭证透传与内部调用安全
-
-- 内部 Feign 调用可自动携带认证上下文。
-- `FeignClientErrorDecoder` 将远端异常收敛到统一异常契约。
-- 内部调用放行支持来源网段限制，减少伪造请求头风险。
-
-### 12. 模块化依赖
-
-- `template-api`、`template-cloud`、`template-flow-sources` 可以按需引入。
-- 各模块通过自动配置接入，避免业务项目手工拼装。
-
----
-
-## 五、测试与开发体验
-
-### 13. Flow 测试辅助
-
-- `FlowTestSupport` 提供统一测试入口，减少样板初始化代码。
-- `SimpleMeterRegistry` 让指标验证不污染外部监控系统。
-
-### 14. 模块边界清晰
-
-- `template-core` 不依赖 Web，可在批处理、定时任务等非 Web 场景复用。
-- 依赖通过父 POM 管理，避免版本漂移。
-
----
-
-## 六、综合对比（使用 vs 不使用）
-
-| 能力 | 不用框架 | 使用本框架 |
-|------|----------|------------|
-| 异常返回格式 | 每个 Controller 手写映射 | 抛出语义异常，全局统一映射 |
-| 缓存实现 | 容易混用且无界 | 统一 Caffeine，有界且可调 |
-| 请求全链路追踪 | 需要自行注入 MDC | TraceFilter 自动注入 |
-| 线程池管理 | 自建、自命名、易忘记释放 | 统一创建、命名、关闭 |
-| 配置校验 | 靠人工约束 | 启动时自动校验并输出摘要 |
-| Flow 流聚合 | 需要自己处理背压与调度 | 实现 FlowJoiner，引擎负责运行时复杂性 |
-| 指标埋点 | 需要自行约定命名 | 内置核心指标并支持扩展 |
-| 安全白名单 | 分散在 SecurityConfig | 声明式配置集中管理 |
-
----
-
-## 七、相关文档
-
-- [框架设计优势](architecture-advantages.md) — 设计原则与主要架构收益
-- [加密与 Coder 设计说明](encryption-and-coder.md) — 密码与配置解密方案
-- [JSON 处理器与框架切换能力](json-processor.md) — 全局切换 JSON 实现的方式
-- [质量评分卡](../reference/quality-scorecard.md) — 当前工程质量与改进方向
-- [Flow 流聚合使用指导](../guides/flow-usage-guide.md) — Flow 引擎使用示例
-- [指标监控指南](../guides/metrics-guide.md) — 指标接入与 PromQL 示例
+- [架构优势](architecture-advantages.md)
+- [Flow Job 显示名能力说明](flow-job-display-name.md)
+- [快速开始](../getting-started/quick-start.md)
+- [配置参考](../getting-started/config-reference.md)
+- [Flow 流聚合使用指导](../guides/flow-usage-guide.md)
+- [监控指标使用指南](../guides/metrics-guide.md)

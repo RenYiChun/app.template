@@ -416,11 +416,13 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             if (parentEntry != null) {
                 slot.remove(parentEntry);
                 if (!perJob.isPairingMultiMatchEnabled()) {
-                    slot.entries().forEach(entry -> {
+                    List<FlowEntry<T>> remainingEntries = slot.drainAll();
+                    remainingEntries.forEach(entry -> {
                         entry.closeStorageLease();
                         handleEgress(key, entry, EgressReason.CLEARED_AFTER_PAIR_SUCCESS, true);
                         savedEntryCount.decrement();
                     });
+                    slotByKey.remove(key);
                 }
             } else {
                 // 处理 overflow：若 slot 已满被淘汰的旧条目需正确核减计数并走被动出口
@@ -491,4 +493,3 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return System.currentTimeMillis() + (nextCheckAtClock - clock.millis());
     }
 }
-

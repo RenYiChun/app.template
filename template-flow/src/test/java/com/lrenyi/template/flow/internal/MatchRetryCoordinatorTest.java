@@ -33,7 +33,7 @@ class MatchRetryCoordinatorTest {
         TemplateConfigProperties.Flow.PerJob perJob = new TemplateConfigProperties.Flow.PerJob();
         TemplateConfigProperties.Flow.KeyedCache cache = perJob.getKeyedCache();
         cache.setMustMatchRetryEnabled(true);
-        cache.setMustMatchRetryMaxTimes(1);
+        cache.setMustMatchRetryMaxTimes(2);
         MatchRetryCoordinator<String> coordinator = new MatchRetryCoordinator<>("job-b",
                                                                                  perJob,
                                                                                 new TestJoiner(true, true),
@@ -50,34 +50,38 @@ class MatchRetryCoordinatorTest {
     private record TestJoiner(boolean needMatched, boolean retryable) implements FlowJoiner<String> {
 
         @Override
-            public Class<String> getDataType() {
-                return String.class;
-            }
-
-            @Override
-            public FlowSourceProvider<String> sourceProvider() {
-                return FlowSourceAdapters.emptyProvider();
-            }
-
-            @Override
-            public String joinKey(String item) {
-                return item;
-            }
-
-            @Override
-            public void onPairConsumed(String existing, String incoming, String jobId) {
-
-            }
-
-            @Override
-            public void onSingleConsumed(String item, String jobId, EgressReason reason) {
-
-            }
-
-            @Override
-            public boolean isRetryable(String item, String jobId) {
-                return retryable;
-            }
+        public boolean needMatched() {
+            return needMatched;
         }
-}
 
+        @Override
+        public Class<String> getDataType() {
+            return String.class;
+        }
+
+        @Override
+        public FlowSourceProvider<String> sourceProvider() {
+            return FlowSourceAdapters.emptyProvider();
+        }
+
+        @Override
+        public String joinKey(String item) {
+            return item;
+        }
+
+        @Override
+        public void onPairConsumed(String existing, String incoming, String jobId) {
+
+        }
+
+        @Override
+        public void onSingleConsumed(String item, String jobId, EgressReason reason) {
+
+        }
+
+        @Override
+        public boolean isRetryable(String item, String jobId) {
+            return retryable;
+        }
+    }
+}

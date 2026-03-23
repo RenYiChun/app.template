@@ -1,219 +1,209 @@
-# App Template 最小配置文档
+# Flow 快速开始
 
-本文档提供运行 App Template 框架的最小配置要求。
+本文档只回答一件事：第一次接入 `template-flow` 时，怎样尽快跑通一个 Flow Job。
 
-## 环境要求
+## 1. 环境
 
-- **JDK**: 21
-- **Spring Boot**: __SPRING_BOOT__
-- **Spring Cloud**: __SPRING_CLOUD__
+- Java 21+
+- Maven 3.6+
 
-## 快速开始
+## 2. 引入依赖
 
-### 1. 创建新项目
-
-创建一个新的 Maven 项目，在 `pom.xml` 中继承 template-dependencies：
+推荐在新项目中继承 `template-dependencies`，然后按需引入 `template-flow`。
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>com.lrenyi</groupId>
         <artifactId>template-dependencies</artifactId>
-        <version>__APP_VERSION__</version>
+        <version>2.5.2-SNAPSHOT</version>
         <relativePath/>
     </parent>
 
     <groupId>com.example</groupId>
-    <artifactId>my-app</artifactId>
+    <artifactId>flow-demo</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
 
     <dependencies>
-        <!-- 选择一个应用类型 -->
-
-        <!-- 前端服务接口应用 -->
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-api</artifactId>
+            <artifactId>template-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lrenyi</groupId>
+            <artifactId>template-flow</artifactId>
         </dependency>
 
-        <!-- 或者 OAuth2 认证服务 -->
+        <!-- 需要 Kafka / NATS / 分页 API Source 时再按需引入 -->
         <!--
         <dependency>
             <groupId>com.lrenyi</groupId>
-            <artifactId>template-oauth2-service</artifactId>
+            <artifactId>template-flow-sources-kafka</artifactId>
         </dependency>
         -->
     </dependencies>
 </project>
 ```
 
-### 2. 创建启动类
+## 3. 最小配置
 
-```java
-package com.example;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class Application {
-    public static void main(String[] args) {
-        SpringApplication.run(Application.class, args);
-    }
-}
-```
-
-### 3. 最小配置文件
-
-创建 `application.yml`：
+Flow 的默认值已经能运行。第一次接入建议只保留总开关和一组易于理解的 limit。
 
 ```yaml
-spring:
-  application:
-    name: your-app-name
-
-# 框架总开关
 app:
   template:
-    enabled: true  # 如果不需要框架所有功能，可以禁用
-
-    # 安全配置
-    security:
-      enabled: true  # 如果不需要安全功能，可以禁用
-      security-key: "default"  # 密码编码器密钥
-      authorization:
-        store-type: "memory"  # 授权存储类型: memory, redis, jdbc
-
-      # 免认证 URL 配置
-      permit-urls:
-        your-app-name: # 应用名称
-          - "/public/**"
-          - "/health"
-          - "/info"
-
-    # OAuth2 配置
-    oauth2:
-      enabled: true  # 是否启用 OAuth2 功能
-      skip-pre-authentication: false  # 是否跳过预认证检查
-
-    # 方法级安全（@PreAuthorize 等是否生效）
-    method-security:
-      enabled: true
-
-    # 审计日志配置
-    audit:
-      enabled: true  # 是否启用审计日志
-
-    # Feign 配置（引入 template-cloud 时生效）
-    feign:
-      enabled: true  # 是否启用 Feign 客户端
-      # 内部调用放行：生产环境建议配置 internal-call-allowed-ip-patterns（如 10.0.0.0/8）防伪造，详见《详细配置教程》Feign 配置与内部调用安全
-
-    # Web 配置
-    web:
-      json-processor-type: "jackson"  # JSON 处理器类型: jackson, gson
-      export-exception-detail: false  # 是否导出异常详情
+    enabled: true
+    flow:
+      limits:
+        global:
+          consumer-threads: 32
+        per-job:
+          producer-threads: 4
+          consumer-threads: 8
+          in-flight-production: 256
+          storage-capacity: 2048
+          queue-poll-interval-mill: 1000
+          keyed-cache:
+            cache-ttl-mill: 30000
 ```
 
-### 4. OAuth2 认证服务最小配置
+完整配置项见 [Flow 配置参考](config-reference.md)。
 
-如果使用 OAuth2 认证服务，需要额外配置：
+## 4. 最小 Pull 示例
 
-#### 4.1 实现用户认证接口
+下面的示例展示单流拉取。核心只有 4 个对象：
+
+- `FlowJoiner<T>`：定义 joinKey、消费回调和 sourceProvider
+- `FlowManager`：管理 Job 生命周期
+- `FlowJoinerEngine`：启动 Flow Job
+- `FlowSource<T>`：实际数据流
 
 ```java
-package com.example.service;
+import java.util.List;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowJoiner;
+import com.lrenyi.template.flow.api.FlowSource;
+import com.lrenyi.template.flow.api.FlowSourceAdapters;
+import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
+import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.EgressReason;
 
-import com.lrenyi.oauth2.service.oauth2.password.IRbacService;
-import com.lrenyi.oauth2.service.oauth2.password.LoginNameType;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
+record DemoItem(String id, String value) {}
 
-@Service
-public class DefaultLoginNameUserDetailService implements IRbacService {
-    
+class DemoJoiner implements FlowJoiner<DemoItem> {
     @Override
-    public String loginNameType() {
-        return LoginNameType.USER_NAME.getCode(); // 登录名类型
+    public Class<DemoItem> getDataType() {
+        return DemoItem.class;
     }
-    
+
     @Override
-    public UserDetails loadUserDetail(String username) throws UsernameNotFoundException {
-        // 根据用户名加载用户信息
-        // 这里需要实现你的用户查询逻辑
-        return User.builder().username(username).password("{noop}app.template") // 使用明文密码，生产环境请使用加密
-                   .authorities("ROLE_USER").build();
+    public FlowSourceProvider<DemoItem> sourceProvider() {
+        return FlowSourceAdapters.emptyProvider();
+    }
+
+    @Override
+    public String joinKey(DemoItem item) {
+        return item.id();
+    }
+
+    @Override
+    public void onPairConsumed(DemoItem existing, DemoItem incoming, String jobId) {
+        // 单流覆盖场景可留空
+    }
+
+    @Override
+    public void onSingleConsumed(DemoItem item, String jobId, EgressReason reason) {
+        System.out.println("jobId=" + jobId + ", item=" + item + ", reason=" + reason);
     }
 }
+
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
+FlowManager manager = FlowManager.getInstance(flowConfig);
+FlowJoinerEngine engine = new FlowJoinerEngine(manager);
+
+List<DemoItem> items = List.of(
+        new DemoItem("k1", "v1"),
+        new DemoItem("k2", "v2")
+);
+
+FlowSource<DemoItem> source = FlowSourceAdapters.fromIterator(items.iterator(), null);
+engine.run("demo-pull", new DemoJoiner(), source, items.size(), flowConfig);
+
+ProgressTracker tracker = engine.getProgressTracker("demo-pull");
+while (!tracker.isCompleted(true)) {
+    Thread.sleep(50);
+}
+System.out.println(tracker.getSnapshot());
 ```
 
-#### 4.2 OAuth2 客户端配置
+## 5. 最小 Push 示例
 
-在 `application.yml` 中添加：
+Push 模式适合“数据已经在业务侧被消费到手里，再交给 Flow”的场景。
 
-```yaml
-spring:
-  security:
-    oauth2:
-      authorization-server:
-        client:
-          default-client-id:
-            registration:
-              client-id: default-client-id
-              client-secret: "{default}app.template"
-              client-authentication-methods:
-                - client_secret_post
-                - client_secret_get
-              authorization-grant-types:
-                - authorization_code
-                - authorization_password
-                - client_credentials
-              scopes:
-                - openid
-              redirect-uris:
-                - http://localhost/
-              post-logout-redirect-uris:
-                - http://localhost/logout
-            token:
-              access-token-time-to-live: 60m
-              access-token-format: reference
+```java
+import java.util.List;
+import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowInlet;
+import com.lrenyi.template.flow.engine.FlowJoinerEngine;
+import com.lrenyi.template.flow.manager.FlowManager;
+
+TemplateConfigProperties.Flow flowConfig = new TemplateConfigProperties.Flow();
+FlowManager manager = FlowManager.getInstance(flowConfig);
+FlowJoinerEngine engine = new FlowJoinerEngine(manager);
+
+FlowInlet<DemoItem> inlet = engine.startPush("demo-push", new DemoJoiner(), flowConfig);
+for (DemoItem item : List.of(new DemoItem("k1", "v1"), new DemoItem("k2", "v2"))) {
+    inlet.push(item);
+}
+inlet.markSourceFinished();
+
+while (!inlet.isCompleted()) {
+    Thread.sleep(50);
+}
+System.out.println(inlet.getProgressTracker().getSnapshot());
 ```
 
-### 5. 运行应用
+## 6. 如何判断已经跑通
 
-```bash
-mvn spring-boot:run
-```
+满足下面 3 点，就可以认为最小接入成功：
 
-## 测试 OAuth2 认证
+1. `onSingleConsumed(...)` 或 `onPairConsumed(...)` 被实际触发。
+2. `ProgressTracker.isCompleted(true)` 或 `FlowInlet.isCompleted()` 最终返回 `true`。
+3. `FlowProgressSnapshot` 中 `terminated` 大于 0，且 `inStorage`、`activeConsumers` 最终回到 0。
 
-### 获取访问令牌
+## 7. 常见接入错误
 
-在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`登录获取token`
-来获取访问令牌。
+### 7.1 用错配置键
 
-### 访问受保护资源
+当前真实配置键是：
 
-在 `docs/resources/http-client` 文件夹下，提供了 `oauth2.http` 文件，您可以在 IntelliJ IDEA 中直接打开并运行`访问受保护的资源`
-来测试受保护的接口。
+- `consumer-threads`
+- `storage-capacity`
+- `in-flight-consumer`
+- `keyed-cache.cache-ttl-mill`
 
-## 常见问题
+不是旧文档里的 `consumer-concurrency`、`storage`、`pending-consumer`。
 
-1. **启动失败**: 检查 JDK 版本是否为 21
-2. **认证失败**: 确保实现了 `IRbacService` 接口
-3. **端口冲突**: 在配置文件中修改 `server.port`
-4. **依赖冲突**: 确保使用正确的 Spring Boot 和 Spring Cloud 版本
+### 7.2 只启动了 Push，但没调用 `markSourceFinished()`
 
-## 下一步
+Push 模式下如果没有声明输入结束，任务通常不会进入完成态。
 
-- 查看[配置参考](config-reference.md)了解更多高级配置
-- 查看[安全配置](config-reference.md#安全配置)了解安全相关配置
+### 7.3 误以为 `FlowInlet` 或 `ProgressTracker` 提供完成 Future
+
+当前公开 API 没有 `getCompletionFuture()`。完成判定用：
+
+- `FlowInlet.isCompleted()`
+- `ProgressTracker.isCompleted(boolean showStatus)`
+
+## 8. 下一步
+
+- 需要理解运行模型和边界行为：看 [Flow 使用指导](../guides/flow-usage-guide.md)
+- 需要调整背压和 TTL：看 [Flow 配置参考](config-reference.md)
+- 需要接 Kafka / NATS / 分页 Source：看 `template-flow-sources` 对应模块

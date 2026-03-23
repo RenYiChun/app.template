@@ -1,81 +1,67 @@
 # App Template
 
-面向 Spring Boot 的开发模板库，提供 OAuth2 安全认证、流聚合引擎与微服务能力，按需引入、零侵入接入。
+以 Spring Boot 为基础的模板仓库，当前主线能力聚焦在 Flow 流聚合框架。
 
-## 设计目标
+## 当前主线
 
-- **开发效率**：异常零样板、声明式安全、自动配置，减少重复集成与配置
-- **运行稳定**：背压控制、有界缓存、双重关闭保障，避免 OOM 与资源泄漏
-- **可观测**：traceId、指标、健康检查开箱即用，便于运维排障
-- **原则**：KISS、SOLID、约定优于配置，横切能力可开关、按需引入
+- `template-flow`：Flow 核心引擎，负责多子流聚合、背压、存储、生命周期、指标和健康检查
+- `template-flow-sources`：Kafka、NATS、分页 API 等数据源适配器
 
-## 适用场景
+其他模块仍在仓库中，但本仓库当前对外优先交付的是 Flow 能力，而不是大而全平台。
 
-- 个人/小团队快速搭建服务端系统，需要 OAuth2、RBAC、审计
-- 微服务架构下的资源服务或 API 网关后端
-- 需要多路数据流按 Key 汇聚、对齐、消费的业务（订单匹配、消息拉齐等）
+## Flow 适用场景
 
-## 特性
+- 订单匹配、消息对齐、多源数据汇聚
+- 同一业务键下的双流配对
+- 单流覆盖消费或 FIFO 队列消费
+- 需要显式背压、可观测、可控关闭的批量流任务
 
-- **OAuth2 认证与授权**：基于 Spring Authorization Server
-- **安全与 RBAC**：JWT、Opaque Token 双模、RBAC 权限模型、声明式白名单
-- **微服务支持**：Feign 客户端、凭证透传、审计日志
-- **Flow 流聚合引擎**：多路数据按 joinKey 汇聚，背压控制、虚拟线程、可插拔存储（Caffeine/Queue）
-- **Flow 数据源**：Kafka、NATS、分页 API 适配器
-- **WebSocket**：复用 OAuth2 认证、消息级鉴权
-- **可观测**：traceId 追踪、Micrometer/Prometheus 指标、Flow 健康检查
-- **全局异常**：语义异常→HTTP 状态码，统一 Result 响应格式
+## Flow 已提供的能力
+
+- 拉取模式和推送模式
+- 两种存储模型：`LOCAL_BOUNDED`、`QUEUE`
+- 全局与 per-job 背压限制
+- Job 生命周期管理
+- Micrometer 指标与 Actuator 健康检查桥接
+- Kafka / NATS / 分页 API Source 适配器
+
+## 最小接入入口
+
+第一次接入 Flow，按下面顺序看：
+
+1. [Flow 快速开始](docs/getting-started/quick-start.md)
+2. [Flow 配置参考](docs/getting-started/config-reference.md)
+3. [Flow 使用指导](docs/guides/flow-usage-guide.md)
+4. [Flow 指标监控指南](docs/guides/metrics-guide.md)
+
+## 构建
+
+Windows:
+
+```powershell
+.\mvnw.cmd clean install
+```
+
+Unix:
+
+```bash
+./mvnw clean install
+```
 
 ## 环境要求
 
 - Java 21+
 - Maven 3.6+
 
-## 技术栈
-
-| 类别   | 技术                                                                 |
-|------|--------------------------------------------------------------------|
-| 基础框架 | Spring Boot __SPRING_BOOT__、Spring Cloud __SPRING_CLOUD__          |
-| 安全   | Spring Security、Spring Authorization Server、OAuth2 JOSE、Nimbus JWT |
-| 微服务  | OpenFeign、Spring Cloud LoadBalancer                                |
-| 缓存与流 | Caffeine、Spring Data Redis、Kafka、NATS                              |
-| 可观测  | Micrometer、Prometheus、Actuator                                     |
-| 数据   | Spring Data Redis、Spring JDBC                                          |
-| 其他   | Jackson、Lombok、Commons Lang3/Text/Codec                            |
-
 ## 模块
 
-### 后端模块
-
-| 模块                                | 说明                            |
-|-----------------------------------|-------------------------------|
-| template-api                      | 审计、RBAC、WebSocket、安全配置、全局异常处理 |
-| template-core                     | 工具类、加密服务、JSON 抽象、配置属性         |
-| template-flow                     | Flow 流聚合引擎                    |
-| template-flow-sources             | Kafka、NATS、分页数据源适配器           |
-| template-cloud                    | Feign、OAuth2 Token 获取         |
-| template-oauth2-service           | OAuth2 授权服务器实现                |
-
-## 构建
-
-```bash
-.\mvnw.cmd clean install
-```
-
-（Windows 使用 `mvnw.cmd`；Unix 使用 `./mvnw`）
-
-## 文档
-
-完整文档索引见 [docs/README.md](docs/README.md)。主要入口：
-
-- [快速开始](docs/getting-started/quick-start.md)
-- [配置参考](docs/getting-started/config-reference.md)
-- [框架选型收益](docs/design/framework-benefits.md)
-- [架构优势](docs/design/architecture-advantages.md)
-- [Flow 流聚合使用指导](docs/guides/flow-usage-guide.md)
-- [指标监控指南](docs/guides/metrics-guide.md)
-- [质量评分卡](docs/reference/quality-scorecard.md)
+- `template-core`：基础配置和通用能力
+- `template-flow`：Flow 核心引擎
+- `template-flow-sources`：Flow Source 适配器
+- `template-api`：安全、审计、WebSocket 等 Web 侧能力
+- `template-cloud`：Feign、OAuth2 token 透传
+- `template-oauth2-service`：OAuth2 授权服务
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE)
+Apache License 2.0

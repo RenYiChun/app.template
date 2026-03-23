@@ -465,7 +465,8 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public boolean isStopped(String jobId) {
-        return !activeLaunchers.containsKey(jobId);
+        FlowLauncher<?> launcher = activeLaunchers.get(jobId);
+        return launcher == null || launcher.isStopped() || launcher.isCompleted();
     }
 
     public void stopById(String jobId, boolean force) {
@@ -479,7 +480,13 @@ public class FlowManager implements ActiveLauncherLookup {
     }
 
     public Map<String, FlowLauncher<Object>> getActiveLaunchers() {
-        return Collections.unmodifiableMap(activeLaunchers);
+        Map<String, FlowLauncher<Object>> activeOnly = new java.util.LinkedHashMap<>();
+        activeLaunchers.forEach((jobId, launcher) -> {
+            if (!launcher.isStopped() && !launcher.isCompleted()) {
+                activeOnly.put(jobId, launcher);
+            }
+        });
+        return Collections.unmodifiableMap(activeOnly);
     }
 
     public ProgressTracker getProgressTracker(String jobId) {
@@ -506,7 +513,7 @@ public class FlowManager implements ActiveLauncherLookup {
      * 当前活跃 Job 数。返回至少 1 以避免 fair share 等计算中的除零，无 Job 时仍返回 1。
      */
     public int getActiveJobCount() {
-        return Math.max(1, activeLaunchers.size());
+        return Math.max(1, getActiveLaunchers().size());
     }
 
     public Map<String, Object> getHealthStatus() {
