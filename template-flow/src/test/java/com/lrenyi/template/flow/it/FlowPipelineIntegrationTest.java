@@ -31,10 +31,10 @@ public class FlowPipelineIntegrationTest {
         // 限制并发加速测试且易于观察
         config.getLimits().getGlobal().setConsumerThreads(8);
         FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
-        
+
         AtomicLong sinkCountA = new AtomicLong();
         AtomicLong sinkCountB = new AtomicLong();
-        
+
         FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("test-pipeline", Integer.class, flowManager);
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
@@ -47,27 +47,27 @@ public class FlowPipelineIntegrationTest {
                       .sink(Integer.class, (Integer i, String jobId) -> sinkCountA.incrementAndGet()),
                 // 分支 B：攒批 10 个后计数
                 (FlowPipeline.Builder<Integer> b) -> b.aggregate(10, 5, TimeUnit.SECONDS)
-                      .sink((BiConsumer<List<Integer>, String>) (list, jobId) -> sinkCountB.addAndGet(list.size()))
+                      .sink((list, jobId) -> sinkCountB.addAndGet(list.size()))
             );
 
         List<Integer> data = new ArrayList<>();
         for (int i = 1; i <= 100; i++) {
             data.add(i);
         }
-        
+
         log.info("Starting pipeline execution...");
         pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
-        
+
         // 等待整个管道完成（最后一阶段完成）
         long start = System.currentTimeMillis();
         while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
             Thread.sleep(100);
         }
-        
+
         boolean completed = pipeline.getProgressTracker().isCompleted(true);
         var snapshot = pipeline.getProgressTracker().getSnapshot();
         log.info("Pipeline completed: {}, progress: {}", completed, snapshot);
-        
+
         assertEquals(50, sinkCountA.get(), "分支 A 应收到 50 个偶数");
         assertEquals(50, sinkCountB.get(), "分支 B 应收到 50 个偶数（通过聚合阶段）");
         assertTrue(completed, "管道应当在 10 秒内完成");

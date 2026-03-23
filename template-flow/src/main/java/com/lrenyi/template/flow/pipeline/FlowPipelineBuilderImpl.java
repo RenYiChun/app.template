@@ -97,7 +97,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @SuppressWarnings("unchecked")
     public FlowPipeline.Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit) {
         AggregationJoiner<T> aggregator = new AggregationJoiner<>(currentClass, batchSize, timeout, unit);
-        Function<Object, List<Object>> identity = (Object obj) -> List.of(obj);
+        Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) aggregator, identity, null);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, dispatch));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<T>>) (Class<?>) List.class, flowManager, stages);
@@ -108,9 +108,9 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     public FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink) {
         Class<T> actualClass = sinkClass != null ? sinkClass : currentClass;
         SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink);
-        Function<Object, List<Object>> identity = obj -> List.of(obj);
+        Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) sinkJoiner, identity, null);
-        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) sinkJoiner, null, dispatch));
+        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, dispatch));
         return build();
     }
 
