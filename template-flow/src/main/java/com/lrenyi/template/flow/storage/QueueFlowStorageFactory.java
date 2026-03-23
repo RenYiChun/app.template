@@ -33,13 +33,15 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             FlowEgressHandler<T> egressHandler,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
+        long pollMillis = joiner.storageConsumerTickIntervalMillis()
+                .orElseGet(() -> config.getLimits().getPerJob().getQueuePollIntervalMill());
         return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorageCapacity(),
                 joiner,
                 progressTracker,
                 finalizer,
                 egressHandler,
                 jobId,
-                config.getLimits().getPerJob().getQueuePollIntervalMill(),
+                pollMillis,
                 meterRegistry
         );
     }

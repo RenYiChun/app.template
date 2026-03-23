@@ -14,3 +14,4 @@
 - [Flow 流聚合使用指导](../guides/flow-usage-guide.md)
 - [Flow 同 Key 多 Value 使用指南](../guides/flow-multi-value-guide.md)
 - [监控指标使用指南](../guides/metrics-guide.md)
+- [FlowPipeline 架构与运行时流程](./flow-pipeline-architecture.md)（分层、构建顺序、运行时与完成传播；与单任务 Flow 引擎的边界）

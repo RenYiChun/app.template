@@ -96,19 +96,19 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
             FlowFinalizer<T> finalizer,
             FlowEgressHandler<T> egressHandler,
             MeterRegistry meterRegistry,
-            String jobId) {
+            String jobId,
+            long evictionScanIntervalMillis) {
         super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
         this.perJob = flowConfig.getLimits().getPerJob();
         this.maxPerKey = perJob.getKeyedCache().getEffectiveMultiValueMaxPerKey();
         this.jobId = jobId;
         this.clock = Clock.systemUTC();
         int evictionThreads = perJob.getEffectiveEvictionCoordinatorThreads(flowConfig.getLimits().getGlobal());
-        long evictionScanIntervalMill = perJob.getEffectiveEvictionScanIntervalMill(flowConfig.getLimits().getGlobal());
         this.evictionCoordinator = new EvictionCoordinator(expiryIndex,
                                                            this,
                                                            FlowConstants.THREAD_NAME_PREFIX_EVICTION,
                                                            evictionThreads,
-                                                           evictionScanIntervalMill
+                                                           evictionScanIntervalMillis
         );
         this.evictionCoordinator.start();
     }

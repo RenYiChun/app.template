@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.api;
 
+import java.util.concurrent.CompletableFuture;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 
 /**
@@ -94,5 +95,12 @@ public interface ProgressTracker {
      */
     default boolean isSourceFinished() {
         return false;
+    }
+
+    /**
+     * 获取完成 Future，当任务彻底完成时触发。
+     */
+    default CompletableFuture<Void> getCompletionFuture() {
+        return CompletableFuture.completedFuture(null);
     }
 }

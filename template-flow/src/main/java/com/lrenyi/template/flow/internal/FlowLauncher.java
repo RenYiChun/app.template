@@ -21,7 +21,6 @@ import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
 import com.lrenyi.template.flow.model.EgressReason;
-import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
@@ -289,9 +288,7 @@ public class FlowLauncher<T> {
         this.stopped = true;
         tracker.markSourceFinished(jobId, true);
         try {
-            FlowStorageType type = flowJoiner.getStorageType();
-            resourceContext.getCacheManager()
-               .invalidateByJobId(jobId, metricJobId, type, flowJoiner.getDataType().getSimpleName());
+            resourceContext.getCacheManager().invalidateForJoiner(jobId, metricJobId, flowJoiner);
         } catch (Exception e) {
             log.error("Job [{}] 停止时清理 Storage 失败", FlowLogHelper.formatJobContext(jobId, metricJobId), e);
         }
