@@ -9,6 +9,7 @@ import com.lrenyi.template.flow.model.FlowStorageType;
 
 /**
  * 终端 Joiner。作为管道的最后一个阶段，执行最终的业务落库或收尾逻辑。
+ * <p>存储类型说明同 {@link MapOperatorJoiner}（线性阶段与 {@link FlowStorageType#QUEUE} 的取舍）。</p>
  *
  * @param <T> 到达终端的数据类型
  */

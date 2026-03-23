@@ -16,6 +16,7 @@ import com.lrenyi.template.flow.model.FlowStorageType;
 /**
  * 聚合 Joiner。用于将多个单一数据项（T）攒批为列表（List&lt;T&gt;）。
  * 支持基于数量（batchSize）和时间（timeout）的双重触发机制。
+ * <p>引擎侧存储仍使用 {@link FlowStorageType#LOCAL_BOUNDED}，原因见 {@link MapOperatorJoiner} 类注释（{@code QueueFlowStorage} 轮询出队与默认间隔）。</p>
  *
  * @param <T> 待聚合的原始数据类型
  */

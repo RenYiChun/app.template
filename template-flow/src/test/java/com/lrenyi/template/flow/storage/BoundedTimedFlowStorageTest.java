@@ -99,13 +99,15 @@ class BoundedTimedFlowStorageTest {
             String jobId) {
         FlowEgressHandler<String> egressHandler = new FlowEgressHandler<>(joiner, progressTracker, registryMeter);
         FlowFinalizer<String> finalizer = new FlowFinalizer<>(registry, registryMeter, egressHandler, joiner);
+        long scanMs = config.getLimits().getPerJob().getEffectiveEvictionScanIntervalMill(config.getLimits().getGlobal());
         return new BoundedTimedFlowStorage<>(
                 config,
                 joiner,
                 progressTracker,
                 finalizer,
                 egressHandler, registryMeter,
-                jobId
+                jobId,
+                scanMs
         );
     }
 

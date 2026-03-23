@@ -33,6 +33,17 @@ public class FlowCacheManager {
         this.resourceRegistry = resourceRegistry;
     }
 
+    /**
+     * 与 {@link #getOrCreateStorage} / Job 停止时清理逻辑共用的注册表键（含可选的消费节拍后缀）。
+     */
+    public static String buildStorageRegistryKey(String jobId, FlowJoiner<?> joiner) {
+        FlowStorageType type = joiner.getStorageType();
+        String base = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
+        return joiner.storageConsumerTickIntervalMillis().isPresent()
+                ? base + ":tick:" + joiner.storageConsumerTickIntervalMillis().getAsLong()
+                : base;
+    }
+
     @SuppressWarnings("unchecked")
     public <T> FlowStorage<T> getOrCreateStorage(String jobId,
         FlowJoiner<T> joiner,
@@ -40,8 +51,8 @@ public class FlowCacheManager {
         FlowFinalizer<T> finalizer,
         ProgressTracker progressTracker,
         FlowEgressHandler<T> egressHandler) {
+        String uniqueKey = buildStorageRegistryKey(jobId, joiner);
         FlowStorageType type = joiner.getStorageType();
-        String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
 
         Function<String, FlowStorage<?>> storageFunction = k -> {
             FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
@@ -62,20 +73,11 @@ public class FlowCacheManager {
     }
 
     /**
-     * 按 jobId + 存储类型使对应缓存失效并 shutdown，与 getOrCreateStorage 的 key 约定一致（用于 Job 强制停止）
+     * 按 {@link #buildStorageRegistryKey} 使对应缓存失效并 shutdown（用于 Job 停止）。
      */
-    public void invalidateByJobId(String jobId, FlowStorageType type, String className) {
-        invalidateByJobId(jobId, null, type, className);
-    }
-
-    /**
-     * 按 jobId + 存储类型使对应缓存失效并 shutdown，displayName 用于日志展示。
-     */
-    public void invalidateByJobId(String jobId,
-        String displayName,
-        FlowStorageType type,
-        String className) {
-        String uniqueKey = jobId + ":" + type.name() + ":" + className;
+    public void invalidateForJoiner(String jobId, String displayName, FlowJoiner<?> joiner) {
+        String uniqueKey = buildStorageRegistryKey(jobId, joiner);
+        FlowStorageType type = joiner.getStorageType();
         FlowStorage<?> storage = storageRegistry.remove(uniqueKey);
         if (storage != null) {
             storage.shutdown();

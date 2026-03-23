@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
+import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -37,10 +38,12 @@ public class FlowPipelineIntegrationTest {
         FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("test-pipeline", Integer.class, flowManager);
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
-            .nextStage(Integer.class, new IntegerPassThroughJoiner(), (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()) // 过滤奇数
+            .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
+                    (Integer i) -> i % 2 == 0 ? List.of(i) : List.of())) // 过滤奇数
             .fork(
                 // 分支 A：直接乘 10 并计数
-                (FlowPipeline.Builder<Integer> b) -> b.nextStage(Integer.class, new IntegerPassThroughJoiner(), (Integer i) -> List.of(i * 10))
+                (FlowPipeline.Builder<Integer> b) -> b.nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
+                        (Integer i) -> List.of(i * 10)))
                       .sink(Integer.class, (Integer i, String jobId) -> sinkCountA.incrementAndGet()),
                 // 分支 B：攒批 10 个后计数
                 (FlowPipeline.Builder<Integer> b) -> b.aggregate(10, 5, TimeUnit.SECONDS)

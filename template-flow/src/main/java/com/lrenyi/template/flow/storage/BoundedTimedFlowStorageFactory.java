@@ -33,12 +33,17 @@ public class BoundedTimedFlowStorageFactory implements FlowStorageFactory {
             FlowEgressHandler<T> egressHandler,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
+        TemplateConfigProperties.Flow.Global global = config.getLimits().getGlobal();
+        TemplateConfigProperties.Flow.PerJob perJob = config.getLimits().getPerJob();
+        long evictionScanMillis = joiner.storageConsumerTickIntervalMillis()
+                .orElseGet(() -> perJob.getEffectiveEvictionScanIntervalMill(global));
         return new BoundedTimedFlowStorage<>(config,
                                              joiner,
                                              progressTracker,
                                              finalizer,
                                              egressHandler, meterRegistry,
-                                             jobId
+                                             jobId,
+                                             evictionScanMillis
         );
     }
     

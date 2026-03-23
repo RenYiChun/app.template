@@ -2,6 +2,7 @@ package com.lrenyi.template.flow.pipeline;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -9,6 +10,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
+import com.lrenyi.template.flow.api.NextMapSpec;
+import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.manager.FlowManager;
 
 /**
@@ -39,29 +42,29 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     }
 
     @Override
-    public <R> FlowPipeline.Builder<R> nextStage(Class<R> outputClass, FlowJoiner<T> joiner, Function<T, List<R>> transformer) {
-        return nextStageInternal(outputClass, joiner, transformer, null);
+    public <R> FlowPipeline.Builder<R> nextStage(NextStageSpec<T, R> spec) {
+        Objects.requireNonNull(spec, "spec");
+        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput());
     }
 
     @Override
-    public <R> FlowPipeline.Builder<R> nextStage(Class<R> outputClass,
-                                                 FlowJoiner<T> joiner,
-                                                 Function<T, List<R>> transformer,
-                                                 BiFunction<T, T, List<R>> pairOutput) {
-        return nextStageInternal(outputClass, joiner, transformer, pairOutput);
-    }
-
-    @Override
-    public <R> FlowPipeline.Builder<R> nextMap(Class<R> outputClass, Function<T, R> mapper) {
-        MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass);
+    public <R> FlowPipeline.Builder<R> nextMap(NextMapSpec<T, R> spec) {
+        Objects.requireNonNull(spec, "spec");
+        if (!spec.storageElementType().equals(currentClass)) {
+            throw new IllegalArgumentException(
+                    "storageElementType must match current stage type: expected " + currentClass.getName()
+                            + ", got " + spec.storageElementType().getName());
+        }
+        long millis = spec.consumeIntervalUnit().toMillis(spec.consumeInterval());
+        MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
         Function<T, List<R>> tf = t -> {
-            R r = mapper.apply(t);
+            R r = spec.cacheProducer().apply(t);
             if (r == null) {
                 return List.of();
             }
             return List.of(r);
         };
-        return nextStageInternal(outputClass, joiner, tf, null);
+        return nextStageInternal(spec.outputType(), joiner, tf, null);
     }
 
     @SuppressWarnings("unchecked")

@@ -3,9 +3,7 @@ package com.lrenyi.template.flow.api;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.pipeline.FlowPipelineBuilderImpl;
@@ -18,7 +16,7 @@ import com.lrenyi.template.flow.pipeline.FlowPipelineBuilderImpl;
  * @param <I> 管道初始输入的数据类型
  */
 public interface FlowPipeline<I> {
-    
+
     /**
      * 以拉取模式运行管道。
      *
@@ -26,7 +24,7 @@ public interface FlowPipeline<I> {
      * @param flowConfig 配置
      */
     void run(FlowSource<I> source, TemplateConfigProperties.Flow flowConfig);
-    
+
     /**
      * 以推送模式启动管道。
      *
@@ -34,60 +32,52 @@ public interface FlowPipeline<I> {
      * @return 管道第一阶段的入口
      */
     FlowInlet<I> startPush(TemplateConfigProperties.Flow flowConfig);
-    
+
     /**
      * 获取管道的全局进度追踪器。
      * 追踪器的 terminated 数量表示到达终（Sink）的数据量。
      */
     ProgressTracker getProgressTracker();
-    
+
     /**
      * 停止管道的所有阶段。
      */
     void stop(boolean force);
-    
+
     /**
      * 管道构建器。
+     * <p><b>语义约定（与实现对齐）</b>：下面每一次 {@code nextStage} / {@code nextMap} / {@code aggregate} / {@code sink}
+     * 都会在运行时对应 <b>一个独立的 {@link com.lrenyi.template.flow.internal.FlowLauncher}</b>，即一整条 Flow 任务在引擎里的
+     * 「生产侧入站 → {@link com.lrenyi.template.flow.storage.FlowStorage} 驻留（由 {@link FlowJoiner#getStorageType()} 决定实现）
+     * → 出口消费（{@code onSingleConsumed} / {@code onPairConsumed} 等）→ 再交给下游」。
+     * 因此 <b>不是</b> 单纯的函数式 {@code map}，而是「一段带存储与背压的完整流水线环节」。</p>
      *
      * @param <T> 当前阶段处理的数据类型
      */
     interface Builder<T> {
         /**
-         * 添加一个常规处理阶段。
+         * 添加一个常规处理阶段（一整段 FlowLauncher，见 {@link Builder} 接口说明）。
          *
-         * @param outputClass 该阶段转换后的输出数据类型
-         * @param joiner      该阶段的聚合/存储逻辑
-         * @param transformer 转换器
-         * @param <R>         下一阶段的数据类型
-         * @return 下一阶段的构建器
+         * @param spec 阶段配置（下游类型、Joiner、列表转换器、可选配对产出等）；后续扩展字段见 {@link NextStageSpec}
          */
-        <R> Builder<R> nextStage(Class<R> outputClass, FlowJoiner<T> joiner, Function<T, List<R>> transformer);
+        <R> Builder<R> nextStage(NextStageSpec<T, R> spec);
 
         /**
-         * 添加常规阶段，并显式声明「配对消费后」向下游的产出（一次配对一份列表，而非对两侧各走 transformer）。
+         * 线性映射阶段：语义上仍是 <b>一整段 FlowLauncher</b>（见 {@link Builder} 接口说明），内部使用占位
+         * {@link com.lrenyi.template.flow.pipeline.MapOperatorJoiner}，每条入站使用独立 {@code joinKey}，避免与
+         * 引擎「按 key 驻留」语义冲突；{@link NextMapSpec#cacheProducer()} 仅在消费侧把单条转为下游类型，返回 null 时过滤该条。
          *
-         * @param pairOutput 在 {@code onPairConsumed} 之后调用；返回 null 时表示与未注入时相同，回退为兼容行为或 {@link com.lrenyi.template.flow.pipeline.PipelineStageOutput}
+         * @param spec 映射段配置（驻留类型、下游类型、映射、消费节拍等）；后续扩展字段见 {@link NextMapSpec}
          */
-        <R> Builder<R> nextStage(Class<R> outputClass,
-                                 FlowJoiner<T> joiner,
-                                 Function<T, List<R>> transformer,
-                                 BiFunction<T, T, List<R>> pairOutput);
-
-        /**
-         * 线性映射阶段：每条入站使用独立存储键；{@code mapper} 返回 null 时过滤该条。
-         *
-         * @param outputClass 映射后的类型
-         * @param mapper      单条映射
-         */
-        <R> Builder<R> nextMap(Class<R> outputClass, Function<T, R> mapper);
+        <R> Builder<R> nextMap(NextMapSpec<T, R> spec);
 
         /**
          * 添加一个常规处理阶段（不改变数据类型）。
          */
         default Builder<T> nextStage(FlowJoiner<T> joiner) {
-            return nextStage(joiner.getDataType(), joiner, List::of);
+            return nextStage(NextStageSpec.of(joiner.getDataType(), joiner, List::of));
         }
-        
+
         /**
          * 扇出 (Fan-out)：将当前阶段的产出广播到多个并行的子管道逻辑中。
          *
@@ -96,7 +86,7 @@ public interface FlowPipeline<I> {
          */
         @SuppressWarnings("unchecked")
         FlowPipeline<?> fork(Consumer<Builder<T>>... branches);
-        
+
         /**
          * 攒批/聚合 (Batching)：将多个数据项合为一个列表下发给下一阶段。
          *
@@ -106,7 +96,7 @@ public interface FlowPipeline<I> {
          * @return 下一阶段（List 类型）的构建器
          */
         Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit);
-        
+
         /**
          * 定义管道终点。
          *
@@ -123,7 +113,7 @@ public interface FlowPipeline<I> {
             return sink(null, onSink);
         }
     }
-    
+
     /**
      * 创建管道构建器。
      *

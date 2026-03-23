@@ -7,7 +7,7 @@
 ## 核心概念
 
 ### 1. 阶段 (Stage)
-管道由一系列阶段组成。每个阶段通常包含一个 `FlowJoiner`（业务逻辑）和一个可选的 `Transformer`（类型转换）。
+管道由一系列阶段组成。每个阶段通常包含一个 `FlowJoiner`（业务逻辑）和一个列表转换器；声明式 API 使用 **`NextStageSpec`** 封装下游类型、Joiner、`Function<T, List<R>>` 及可选的配对产出，以便后续扩展字段而不改 `nextStage` 方法签名。
 
 ### 2. 扇出 (Fork)
 支持将上游阶段产出的数据广播到多个并行的子管道中。实现上，fork 节点会对 **每个分支子管道的首段 Inlet** 各 `push` 一次；若构建时 fork 之后仍存在主链下游，还会向 **主链** 再 `push` 一次（当前 `fork(...)` 在子链构建完成后即 `build()`，通常 **无** 主链延续）。`markSourceFinished` 同样按分支（及可选主链）广播。
@@ -20,13 +20,19 @@
 纯映射（类型变换或过滤）可使用 **`nextMap`**，内部使用 **`MapOperatorJoiner`**（每条 **`joinKey`** 唯一），无需手写「假 Joiner + 常数 key」：
 
 ```java
+import java.util.concurrent.TimeUnit;
+
+import com.lrenyi.template.flow.api.NextMapSpec;
+
 @SuppressWarnings("unchecked")
 FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("map-job", String.class, flowManager)
-    .nextMap(Integer.class, Integer::parseInt)
+    .nextMap(NextMapSpec.of(String.class, Integer.class, Integer::parseInt, 100, TimeUnit.MILLISECONDS))
     .sink(Integer.class, (n, jobId) -> save(n));
 ```
 
-`mapper` 返回 **`null`** 时该条被过滤（不下发）。
+（`NextMapSpec` 描述本段驻留类型、下游类型、映射与消费节拍；`QUEUE` 上为出队轮询间隔，`LOCAL_BOUNDED` 上为驱逐协调扫描间隔。后续若增加可选参数，可只扩展 `NextMapSpec`，而无需改动 `nextMap` 方法签名。）
+
+`cacheProducer` 返回 **`null`** 时该条被过滤（不下发）。
 
 ### 5. 配对后的下游产出（PipelineStageOutput / Builder）
 
@@ -35,7 +41,7 @@ FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("m
 更推荐的方式：
 
 - 让业务 `FlowJoiner` 实现 `com.lrenyi.template.flow.pipeline.PipelineStageOutput`，在 `outputsAfterPair` / `outputsAfterSingle` 中返回下发给下游的列表；或  
-- 使用 `FlowPipeline.Builder.nextStage(Class, FlowJoiner, Function, BiFunction)` 的 **第四个参数** `BiFunction<T,T,List<R>> pairOutput`，在一次配对后显式产出列表。
+- 使用 `NextStageSpec.of(outputClass, joiner, transformer, pairOutput)` 的 **第四个参数** `BiFunction<T,T,List<R>> pairOutput`，在一次配对后显式产出列表。
 
 实现 `PipelineEmitter` 的 Joiner（如 `AggregationJoiner`）仍通过 `setDownstream` 自行下发，不经过上述 `transformer` 自动转发路径。
 
@@ -58,8 +64,10 @@ FlowPipeline<Integer> pipeline = FlowPipeline.builder("simple-job", Integer.clas
 ### 2. 扇出 (Forking/Broadcasting)
 
 ```java
+import com.lrenyi.template.flow.api.NextStageSpec;
+
 FlowPipeline<Integer> pipeline = FlowPipeline.builder("fork-job", Integer.class, flowManager)
-    .nextStage(Integer.class, new FilterJoiner(), i -> i > 0 ? List.of(i) : List.of())
+    .nextStage(NextStageSpec.of(Integer.class, new FilterJoiner(), i -> i > 0 ? List.of(i) : List.of()))
     .fork(
         b -> b.nextStage(new BranchAJoiner()).sink((d, id) -> saveA(d)),
         b -> b.nextStage(new BranchBJoiner()).sink((d, id) -> saveB(d))
@@ -69,11 +77,13 @@ FlowPipeline<Integer> pipeline = FlowPipeline.builder("fork-job", Integer.class,
 ### 3. 聚合与转换 (Aggregation & Transformation)
 
 ```java
+import com.lrenyi.template.flow.api.NextStageSpec;
+
 FlowPipeline<AuditLog> pipeline = FlowPipeline.builder("audit-pipeline", AuditLog.class, flowManager)
     // 转换为 List<AuditLog>
     .aggregate(100, 5, TimeUnit.SECONDS)
     // 处理聚合后的数据
-    .nextStage((Class<List<AuditLog>>) (Class<?>) List.class, new BatchSaveJoiner(), batch -> List.of(batch))
+    .nextStage(NextStageSpec.of((Class<List<AuditLog>>) (Class<?>) List.class, new BatchSaveJoiner(), batch -> List.of(batch)))
     .sink((batch, jobId) -> log.info("Saved batch of size {}", batch.size()));
 ```
 
