@@ -91,6 +91,9 @@ public class PipelineProgressTracker implements ProgressTracker {
 
     @Override
     public void setTotalExpected(String jobId, long total) {
+        for (ProgressTracker tracker : trackers) {
+            tracker.setTotalExpected(jobId, total);
+        }
     }
 
     @Override
