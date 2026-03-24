@@ -170,7 +170,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @SuppressWarnings("unchecked")
     public FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink) {
         Class<T> actualClass = sinkClass != null ? sinkClass : currentClass;
-        SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink);
+        SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink, flowManager);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) sinkJoiner, identity, null);
         stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, null, dispatch, null));

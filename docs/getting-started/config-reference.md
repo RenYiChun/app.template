@@ -14,6 +14,7 @@ app:
       limits:
         global:
           consumer-threads: 32
+          sink-consumer-threads: 0
         per-job:
           producer-threads: 4
           consumer-threads: 8
@@ -44,6 +45,7 @@ app:
           storage-capacity: 0
           consumer-threads: 0
           in-flight-consumer: 0
+          sink-consumer-threads: 0
           eviction-coordinator-threads: 1
           eviction-scan-interval-mill: 0
         per-job:
@@ -145,6 +147,12 @@ app:
 
 - 默认值：`0`
 - 含义：全局已离库未终结条数上限，`<= 0` 表示不限制。
+
+### `sink-consumer-threads`
+
+- 默认值：`0`
+- 含义：全主机 **管道终端 Sink**（`.sink(...)` 用户回调）并发上限，`<= 0` 表示不限制。与 `consumer-threads` 独立：数据仍先经过既有消费背压（全局/每 Job 消费线程、在途消费槽位等），进入 Sink 回调前再占用本信号量。
+- 阻塞与超时：与顶层 `consumer-acquire-blocking-mode`、`consumer-acquire-timeout-mill` 一致（与消费许可 acquire 相同语义）。
 
 ### `eviction-coordinator-threads`
 
