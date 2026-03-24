@@ -58,6 +58,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Semaphore globalStorageSemaphore;
     private final Semaphore globalProducerThreadsSemaphore;
     private final Semaphore globalInFlightConsumerSemaphore;
+    /** 全主机 Sink 终端并发（limits.global.sink-consumer-threads），<=0 时为 null */
+    private final Semaphore globalSinkSemaphore;
     private final LongAdder globalPendingConsumerAdder;
     private final FlowExecutorProvider executorProvider;
     private final ExecutorService flowConsumerExecutor;
@@ -105,6 +107,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int globalInFlightConsumer = global.getInFlightConsumer();
         this.globalInFlightConsumerSemaphore =
                 globalInFlightConsumer > 0 ? new Semaphore(globalInFlightConsumer, fair) : null;
+        
+        int sinkGlobal = global.getSinkConsumerThreads();
+        this.globalSinkSemaphore = sinkGlobal > 0 ? new Semaphore(sinkGlobal, fair) : null;
+        log.info("FlowResourceRegistry 启动：全局 Sink 并发限制={}（<=0 时禁用）", sinkGlobal);
         
         this.globalPendingConsumerAdder = new LongAdder();
         
@@ -167,6 +173,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                 String.valueOf(global.getStorageCapacity()),
                 String.valueOf(global.getProducerThreads()),
                 String.valueOf(global.getInFlightConsumer()),
+                String.valueOf(global.getSinkConsumerThreads()),
                 String.valueOf(global.isFairScheduling()));
     }
     

@@ -69,6 +69,14 @@ public final class FlowMetricNames {
     public static final String RESOURCES_CONSUMER_THREADS_LIMIT = PREFIX + ".resources.consumer_threads.limit";
     /** 消费线程数当前使用（Gauge） */
     public static final String RESOURCES_CONSUMER_THREADS_USED = PREFIX + ".resources.consumer_threads.used";
+    /** Sink 终端全局并发限制上限（Gauge） */
+    public static final String RESOURCES_SINK_CONCURRENCY_LIMIT = PREFIX + ".resources.sink_concurrency.limit";
+    /** Sink 终端全局并发当前占用（Gauge） */
+    public static final String RESOURCES_SINK_CONCURRENCY_USED = PREFIX + ".resources.sink_concurrency.used";
+    /** 等待 Sink 全局并发许可的耗时（Timer） */
+    public static final String SINK_CONCURRENCY_WAIT_DURATION = PREFIX + ".sink_concurrency.wait.duration";
+    /** Sink 全局并发许可获取超时次数（Counter） */
+    public static final String SINK_CONCURRENCY_ACQUIRE_TIMEOUT = PREFIX + ".sink_concurrency.acquire.timeout";
 
     // ==================== Per-job 资源指标（与全局区分，避免同名冲突） ====================
     /** Per-job 生产在途数量限制上限 */

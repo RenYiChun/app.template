@@ -101,6 +101,19 @@ public final class FlowResourceMetrics {
                                       FlowResourceMetrics::getConsumerThreadsUsed
                       )
         ).description("消费线程数当前使用（全局）").register(meterRegistry);
+
+        // 全局：Sink 终端并发（limits.global.sinkConsumerThreads）
+        Gauge.builder(FlowMetricNames.RESOURCES_SINK_CONCURRENCY_LIMIT, registry, r -> global.getSinkConsumerThreads())
+             .description("Sink 终端全局并发限制上限（全局配置）")
+             .register(meterRegistry);
+        Gauge.builder(FlowMetricNames.RESOURCES_SINK_CONCURRENCY_USED,
+                      registry,
+                      r -> globalUsed(r.getGlobalSinkSemaphore(),
+                                      global.getSinkConsumerThreads(),
+                                      flowManager,
+                                      unused -> 0D
+                      )
+        ).description("Sink 终端全局并发当前占用").register(meterRegistry);
     }
 
     /**
