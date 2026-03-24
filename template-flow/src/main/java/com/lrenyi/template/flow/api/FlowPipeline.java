@@ -123,7 +123,16 @@ public interface FlowPipeline<I> {
          * @param unit      时间单位
          * @return 下一阶段（List 类型）的构建器
          */
-        Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit);
+        default Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit) {
+            return aggregate(batchSize, timeout, unit, null);
+        }
+
+        /**
+         * 与 {@link #aggregate(int, long, TimeUnit)} 相同，并为本阶段单独指定 {@code limits.per-job.storage-capacity}（条数上限）。
+         *
+         * @param storageCapacity 必须 {@code > 0}
+         */
+        Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit, Integer storageCapacity);
 
         /**
          * 定义管道终点。
@@ -132,7 +141,16 @@ public interface FlowPipeline<I> {
          * @param onSink    最终到达数据后的业务逻辑
          * @return 可执行的管道实例
          */
-        FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink);
+        default FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink) {
+            return sink(sinkClass, onSink, null);
+        }
+
+        /**
+         * 定义管道终点，并为本阶段单独指定 {@code limits.per-job.storage-capacity}。
+         *
+         * @param storageCapacity 必须 {@code > 0}
+         */
+        FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink, Integer storageCapacity);
 
         /**
          * 定义管道终点。

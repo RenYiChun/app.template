@@ -46,7 +46,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @Override
     public <R> FlowPipeline.Builder<R> nextStage(NextStageSpec<T, R> spec) {
         Objects.requireNonNull(spec, "spec");
-        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput(), null);
+        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput(), null,
+                spec.storageCapacity());
     }
 
     @Override
@@ -64,7 +65,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 null,
                 null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
-                batchSpec));
+                batchSpec,
+                spec.storageCapacity()));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -85,7 +87,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
             }
             return List.of(r);
         };
-        return nextStageInternal(spec.outputType(), joiner, tf, null, null);
+        return nextStageInternal(spec.outputType(), joiner, tf, null, null, spec.storageCapacity());
     }
 
     @Override
@@ -111,7 +113,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 null,
                 null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
-                batchSpec));
+                batchSpec,
+                spec.storageCapacity()));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -120,14 +123,16 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                                                           FlowJoiner<T> joiner,
                                                           Function<T, List<R>> transformer,
                                                           BiFunction<T, T, List<R>> explicitPairOutput,
-                                                          EmbeddedBatchSpec embeddedBatch) {
+                                                          EmbeddedBatchSpec embeddedBatch,
+                                                          Integer storageCapacityOverride) {
         Function<T, List<R>> tf = transformer != null ? transformer : t -> List.of((R) t);
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, explicitPairOutput);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
                 null,
                 null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
-                embeddedBatch));
+                embeddedBatch,
+                storageCapacityOverride));
         return new FlowPipelineBuilderImpl<>(jobId, outputClass, flowManager, stages);
     }
 
@@ -152,29 +157,38 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
             branchStages.add(subBuilder.stages);
             branchNames.add(branchSpec.name());
         }
-        stages.add(new StageDefinition<Object, Object>(null, branchStages, branchNames, null, null));
+        stages.add(new StageDefinition<Object, Object>(null, branchStages, branchNames, null, null, null));
         return build();
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public FlowPipeline.Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit) {
+    public FlowPipeline.Builder<List<T>> aggregate(int batchSize, long timeout, TimeUnit unit, Integer storageCapacity) {
+        validateStorageOverride(storageCapacity);
         AggregationJoiner<T> aggregator = new AggregationJoiner<>(currentClass, batchSize, timeout, unit);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) aggregator, identity, null);
-        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, null, dispatch, null));
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, null, dispatch, null,
+                storageCapacity));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<T>>) (Class<?>) List.class, flowManager, stages);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink) {
+    public FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink, Integer storageCapacity) {
+        validateStorageOverride(storageCapacity);
         Class<T> actualClass = sinkClass != null ? sinkClass : currentClass;
         SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink, flowManager);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) sinkJoiner, identity, null);
-        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, null, dispatch, null));
+        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, null, dispatch, null, storageCapacity));
         return build();
+    }
+
+    private static void validateStorageOverride(Integer storageCapacity) {
+        if (storageCapacity != null && storageCapacity <= 0) {
+            throw new IllegalArgumentException("per-stage storageCapacity must be > 0 when set, got " + storageCapacity);
+        }
     }
 
     private FlowPipeline<Object> build() {

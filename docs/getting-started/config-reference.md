@@ -193,6 +193,7 @@ per-job 限制作用于单个 Flow Job。
 
 - 默认值：`40000`
 - 约束：必须 `> 0`
+- **Pipeline**：使用 `FlowPipeline` 多阶段时，可在代码构建阶段按段覆盖本上限（见 `NextStageSpec` / `NextMapSpec` / `aggregate` / `sink` 的重载）；未覆盖的段仍使用此处或运行时传入的基底配置。
 
 ### `queue-poll-interval-mill`
 

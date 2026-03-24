@@ -218,8 +218,12 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager, true);
                 String metricTag = stageMetricTag(stageJobId);
                 tracker.setMetricJobId(metricTag);
+                Integer storageOverride = def.storageCapacityOverride();
+                TemplateConfigProperties.Flow stageFlow = storageOverride != null
+                        ? FlowPipelineConfigOverlay.copyWithPerJobStorageCapacity(flowConfig, storageOverride)
+                        : flowConfig;
                 FlowLauncher<Object> launcher =
-                        flowManager.createLauncher(stageJobId, metricTag, wrapper, tracker, flowConfig);
+                        flowManager.createLauncher(stageJobId, metricTag, wrapper, tracker, stageFlow);
 
                 FlowInlet<Object> inlet = new FlowInletImpl<>(launcher);
                 if (currentChainHead != null) {

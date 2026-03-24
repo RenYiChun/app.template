@@ -306,6 +306,19 @@ System.out.println(inlet.getProgressTracker().getSnapshot());
 
 不是 `getCompletionFuture()`。
 
+### Pipeline（`FlowPipeline`）与分阶段 `storage-capacity`
+
+多阶段管道（`FlowPipeline.builder(...)`）中，**默认**各阶段共用运行时传入的 `TemplateConfigProperties.Flow` 里的 `limits.per-job.storage-capacity`。
+
+若某一阶段需要**单独**的存储条数上限，可在构建阶段指定（均为可选，与 YAML 基底合并为**独立快照**，不会改写你传入的基底配置对象）：
+
+- `NextStageSpec.of(..., int storageCapacity)`：五参数工厂，最后一参为本段覆盖值（须 `> 0`）。
+- `NextMapSpec.of(..., int storageCapacity)`：六参数工厂，最后一参为本段覆盖值。
+- `aggregate(batchSize, timeout, unit, Integer storageCapacity)`：最后一参非 null 时覆盖该 aggregate 段。
+- `sink(sinkClass, onSink, Integer storageCapacity)`：最后一参非 null 时覆盖 Sink 段。
+
+未指定覆盖时，行为与仅配置 YAML/基底 `flow` 时一致。
+
 ## 9. `EgressReason` 怎么用
 
 `EgressReason` 定义位于 `template-flow/src/main/java/com/lrenyi/template/flow/model/EgressReason.java`。

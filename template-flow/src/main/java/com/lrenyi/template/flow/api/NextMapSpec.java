@@ -11,9 +11,10 @@ import java.util.function.Function;
  *
  * @param <T> 本段 {@link com.lrenyi.template.flow.storage.FlowStorage} 驻留元素类型
  * @param <R> 本段产出类型（亦即下游阶段元素类型）
+ * @param storageCapacity 非 null 时为本阶段单独设置 {@code limits.per-job.storage-capacity}（条数上限，必须 {@code > 0}）
  */
 public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType, Function<T, R> cacheProducer,
-                                long consumeInterval, TimeUnit consumeIntervalUnit) {
+                                long consumeInterval, TimeUnit consumeIntervalUnit, Integer storageCapacity) {
 
     public NextMapSpec {
         Objects.requireNonNull(storageElementType, "storageElementType");
@@ -22,6 +23,9 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
         Objects.requireNonNull(consumeIntervalUnit, "consumeIntervalUnit");
         if (consumeIntervalUnit.toMillis(consumeInterval) <= 0) {
             throw new IllegalArgumentException("consume interval must be positive in milliseconds");
+        }
+        if (storageCapacity != null && storageCapacity <= 0) {
+            throw new IllegalArgumentException("storageCapacity must be > 0 when set, got " + storageCapacity);
         }
     }
 
@@ -33,6 +37,19 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
         Function<T, R> cacheProducer,
         long consumeInterval,
         TimeUnit consumeIntervalUnit) {
-        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit);
+        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit, null);
+    }
+
+    /**
+     * 含本阶段存储条数上限覆盖。
+     */
+    public static <T, R> NextMapSpec<T, R> of(Class<T> storageElementType,
+        Class<R> outputType,
+        Function<T, R> cacheProducer,
+        long consumeInterval,
+        TimeUnit consumeIntervalUnit,
+        int storageCapacity) {
+        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
+                storageCapacity);
     }
 }
