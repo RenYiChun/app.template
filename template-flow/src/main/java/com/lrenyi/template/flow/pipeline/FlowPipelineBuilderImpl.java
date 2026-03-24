@@ -11,6 +11,7 @@ import java.util.function.Function;
 import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
+import com.lrenyi.template.flow.api.NamedBranchSpec;
 import com.lrenyi.template.flow.api.NextMapSpec;
 import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -61,6 +62,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 PipelineDispatchFactories.create(spec.joiner(), spec.transformer(), spec.pairOutput());
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) spec.joiner(),
                 null,
+                null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 batchSpec));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
@@ -107,6 +109,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, null);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
                 null,
+                null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 batchSpec));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
@@ -122,6 +125,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, explicitPairOutput);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
                 null,
+                null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 embeddedBatch));
         return new FlowPipelineBuilderImpl<>(jobId, outputClass, flowManager, stages);
@@ -130,13 +134,25 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @Override
     @SuppressWarnings("unchecked")
     public FlowPipeline<?> fork(Consumer<FlowPipeline.Builder<T>>... branches) {
-        List<List<StageDefinition<?, ?>>> branchStages = new ArrayList<>();
-        for (Consumer<FlowPipeline.Builder<T>> branch : branches) {
-            FlowPipelineBuilderImpl<T> subBuilder = new FlowPipelineBuilderImpl<>(jobId, currentClass, flowManager);
-            branch.accept(subBuilder);
-            branchStages.add(subBuilder.stages);
+        NamedBranchSpec<T>[] namedBranches = new NamedBranchSpec[branches.length];
+        for (int i = 0; i < branches.length; i++) {
+            namedBranches[i] = NamedBranchSpec.of("branch-" + i, branches[i]);
         }
-        stages.add(new StageDefinition<Object, Object>(null, branchStages, null, null));
+        return forkNamed(namedBranches);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public FlowPipeline<?> forkNamed(NamedBranchSpec<T>... branches) {
+        List<List<StageDefinition<?, ?>>> branchStages = new ArrayList<>();
+        List<String> branchNames = new ArrayList<>();
+        for (NamedBranchSpec<T> branchSpec : branches) {
+            FlowPipelineBuilderImpl<T> subBuilder = new FlowPipelineBuilderImpl<>(jobId, currentClass, flowManager);
+            branchSpec.branch().accept(subBuilder);
+            branchStages.add(subBuilder.stages);
+            branchNames.add(branchSpec.name());
+        }
+        stages.add(new StageDefinition<Object, Object>(null, branchStages, branchNames, null, null));
         return build();
     }
 
@@ -146,7 +162,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         AggregationJoiner<T> aggregator = new AggregationJoiner<>(currentClass, batchSize, timeout, unit);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) aggregator, identity, null);
-        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, dispatch, null));
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, null, dispatch, null));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<T>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -157,11 +173,11 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) sinkJoiner, identity, null);
-        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, dispatch, null));
+        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, null, dispatch, null));
         return build();
     }
 
     private FlowPipeline<Object> build() {
-        return new FlowPipelineImpl<>(jobId, flowManager, stages);
+        return new FlowPipelineImpl<>(jobId, flowManager, new ArrayList<>(stages));
     }
 }

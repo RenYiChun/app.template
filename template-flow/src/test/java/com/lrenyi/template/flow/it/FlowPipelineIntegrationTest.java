@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import org.junit.jupiter.api.Test;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
 import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
@@ -19,6 +19,7 @@ import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -151,6 +152,51 @@ public class FlowPipelineIntegrationTest {
 
         assertEquals(50, sinkCountB.get(), "nextStage 内嵌攒批应收到 50 条偶数");
         assertTrue(pipeline.getProgressTracker().isCompleted(true), "管道应当在 10 秒内完成");
+    }
+
+    @Test
+    public void testStartPushReturnsSameInletInstance() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("same-inlet", Integer.class, flowManager)
+                .nextStage(new IntegerPassThroughJoiner())
+                .sink((Integer i, String jobId) -> { });
+
+        FlowInlet<Integer> inlet1 = pipeline.startPush(config);
+        FlowInlet<Integer> inlet2 = pipeline.startPush(config);
+
+        assertSame(inlet1, inlet2, "重复 startPush 应返回同一个入口实例");
+    }
+
+    @Test
+    public void testBuiltPipelineIsImmutableSnapshotOfBuilder() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        AtomicLong sinkCount = new AtomicLong();
+        FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("builder-snapshot", Integer.class, flowManager)
+                .nextStage(new IntegerPassThroughJoiner());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> firstPipeline = (FlowPipeline<Integer>) builder
+                .sink((Integer i, String jobId) -> sinkCount.incrementAndGet());
+
+        // 继续基于旧 builder 衍生新定义，不应污染已经 build 的 firstPipeline
+        builder.nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i + 100)))
+                .sink((Integer i, String jobId) -> { });
+
+        firstPipeline.run(FlowSourceAdapters.fromIterator(List.of(1, 2, 3).iterator(), null), config);
+
+        long start = System.currentTimeMillis();
+        while (!firstPipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 5000) {
+            Thread.sleep(50);
+        }
+
+        assertEquals(3, sinkCount.get(), "已构建 pipeline 不应被 builder 后续追加的阶段污染");
     }
 
     private static class IntegerPassThroughJoiner implements FlowJoiner<Integer> {

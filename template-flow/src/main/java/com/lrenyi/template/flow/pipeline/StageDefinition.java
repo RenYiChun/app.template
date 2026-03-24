@@ -18,6 +18,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 record StageDefinition<I, O>(
         FlowJoiner<I> joiner,
         List<List<StageDefinition<?, ?>>> branchStages,
+        List<String> branchNames,
         PipelineStageDispatch<I, O> dispatch,
         EmbeddedBatchSpec embeddedBatch) {
     /**
