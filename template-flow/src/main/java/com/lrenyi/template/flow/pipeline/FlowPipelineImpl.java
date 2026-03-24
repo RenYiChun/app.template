@@ -112,6 +112,18 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
         }
     }
 
+    /**
+     * Micrometer {@code jobId} 标签：用管道级展示名替换冗长 UUID 前缀，后缀保留阶段序号与 fork 路径。
+     * <p>请在首次 {@link #startPush} 之前对 {@link #getProgressTracker()} 调用 {@link ProgressTracker#setMetricJobId(String)}。</p>
+     */
+    private String stageMetricTag(String stageJobId) {
+        String labelBase = pipelineTracker.getMetricJobId();
+        if (stageJobId.startsWith(jobId)) {
+            return labelBase + stageJobId.substring(jobId.length());
+        }
+        return stageJobId;
+    }
+
     private FlowInlet<Object> buildStagesRecursive(String baseJobId, 
                                                    List<StageDefinition<?, ?>> defs, 
                                                    TemplateConfigProperties.Flow flowConfig,
@@ -182,8 +194,10 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 }
 
                 DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager);
-                tracker.setMetricJobId(stageJobId);
-                FlowLauncher<Object> launcher = flowManager.createLauncher(stageJobId, stageJobId, wrapper, tracker, flowConfig);
+                String metricTag = stageMetricTag(stageJobId);
+                tracker.setMetricJobId(metricTag);
+                FlowLauncher<Object> launcher =
+                        flowManager.createLauncher(stageJobId, metricTag, wrapper, tracker, flowConfig);
 
                 FlowInlet<Object> inlet = new FlowInletImpl<>(launcher);
                 if (currentChainHead != null) {

@@ -36,6 +36,9 @@ public interface FlowPipeline<I> {
     /**
      * 获取管道的全局进度追踪器。
      * 追踪器的 terminated 数量表示到达终（Sink）的数据量。
+     * <p><b>监控展示名</b>：在首次 {@link #startPush} 之前对返回的 {@link ProgressTracker} 调用
+     * {@link ProgressTracker#setMetricJobId(String)}（如报表名），各阶段 Micrometer 的 {@code jobId}
+     * 标签将使用该展示名 + 阶段后缀（如 {@code MyReport:0}），避免仪表盘上出现整段 UUID 前缀。</p>
      */
     ProgressTracker getProgressTracker();
 

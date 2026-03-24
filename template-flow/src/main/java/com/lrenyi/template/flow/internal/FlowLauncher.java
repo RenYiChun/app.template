@@ -92,8 +92,12 @@ public class FlowLauncher<T> {
         return new FlowLauncher<>(jobId, metricJobId, flowManager, flowJoiner, tracker, flow, resourceContext);
     }
 
-    /** 用于监控指标标签的 jobId（可读展示名） */
+    /** 用于监控指标标签的 jobId（与 {@link ProgressTracker#getMetricJobId()} 对齐）。 */
     public String getMetricJobId() {
+        String t = tracker.getMetricJobId();
+        if (t != null && !t.isEmpty()) {
+            return t;
+        }
         return metricJobId;
     }
 

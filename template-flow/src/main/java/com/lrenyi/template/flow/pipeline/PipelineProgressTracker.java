@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
+import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 
 /**
  * 管道全局进度追踪器。通过聚合各阶段子 Job 的快照提供全局视图。
@@ -82,6 +83,19 @@ public class PipelineProgressTracker implements ProgressTracker {
     @Override
     public void setMetricJobId(String metricJobId) {
         this.metricJobId = metricJobId;
+        if (metricJobId == null || metricJobId.isEmpty()) {
+            return;
+        }
+        for (ProgressTracker t : trackers) {
+            if (t instanceof DefaultProgressTracker dpt) {
+                String internal = dpt.getInternalJobId();
+                if (internal.startsWith(jobId)) {
+                    dpt.setMetricJobId(metricJobId + internal.substring(jobId.length()));
+                } else {
+                    dpt.setMetricJobId(metricJobId + ":" + internal);
+                }
+            }
+        }
     }
 
     @Override
