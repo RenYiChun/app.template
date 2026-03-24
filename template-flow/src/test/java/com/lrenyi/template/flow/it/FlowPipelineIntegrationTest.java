@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
+import com.lrenyi.template.flow.api.NextMapSpec;
 import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
@@ -71,6 +73,84 @@ public class FlowPipelineIntegrationTest {
         assertEquals(50, sinkCountA.get(), "分支 A 应收到 50 个偶数");
         assertEquals(50, sinkCountB.get(), "分支 B 应收到 50 个偶数（通过聚合阶段）");
         assertTrue(completed, "管道应当在 10 秒内完成");
+    }
+
+    /**
+     * 与 {@link #testComplexPipeline} 分支 B 语义等价：使用 {@code nextMap(..., batchSize, timeout, unit)} 内嵌攒批，
+     * 不单独增加 {@code aggregate} 段。
+     */
+    @Test
+    public void testEmbeddedBatchNextMap() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        AtomicLong sinkCountB = new AtomicLong();
+
+        FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("embedded-batch-pipeline", Integer.class, flowManager);
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
+                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
+                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()))
+                .nextMap(NextMapSpec.of(
+                                Integer.class,
+                                Integer.class,
+                                i -> i,
+                                100L,
+                                TimeUnit.MILLISECONDS),
+                        EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
+                .sink((List<Integer> list, String jobId) -> sinkCountB.addAndGet(list.size()));
+
+        List<Integer> data = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) {
+            data.add(i);
+        }
+
+        pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
+
+        long start = System.currentTimeMillis();
+        while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
+            Thread.sleep(100);
+        }
+
+        assertEquals(50, sinkCountB.get(), "内嵌攒批应收到 50 条偶数（与独立 aggregate 段等价）");
+        assertTrue(pipeline.getProgressTracker().isCompleted(true), "管道应当在 10 秒内完成");
+    }
+
+    /**
+     * 与 {@link #testEmbeddedBatchNextMap} 等价，改用 {@code nextStage(NextStageSpec, EmbeddedBatchSpec)}。
+     */
+    @Test
+    public void testEmbeddedBatchNextStage() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        AtomicLong sinkCountB = new AtomicLong();
+
+        FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("embedded-batch-nextstage", Integer.class, flowManager);
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
+                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
+                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()))
+                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i)),
+                        EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
+                .sink((List<Integer> list, String jobId) -> sinkCountB.addAndGet(list.size()));
+
+        List<Integer> data = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) {
+            data.add(i);
+        }
+
+        pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
+
+        long start = System.currentTimeMillis();
+        while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
+            Thread.sleep(100);
+        }
+
+        assertEquals(50, sinkCountB.get(), "nextStage 内嵌攒批应收到 50 条偶数");
+        assertTrue(pipeline.getProgressTracker().isCompleted(true), "管道应当在 10 秒内完成");
     }
 
     private static class IntegerPassThroughJoiner implements FlowJoiner<Integer> {

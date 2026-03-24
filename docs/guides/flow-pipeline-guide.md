@@ -15,6 +15,12 @@
 ### 3. 聚合 (Aggregate)
 支持按数量或时间窗口将流式数据聚合为 `List<T>`，并传递给后续阶段。框架内 `AggregationJoiner` 为每条入站数据分配 **唯一 `joinKey`**，避免在存储层与固定 key 冲突导致无法逐条进入攒批缓冲。
 
+**内嵌攒批（推荐在「单段产出 + 攒批」紧耦合时）**：攒批参数使用 **`EmbeddedBatchSpec`**（`batchSize` / `timeout` / `unit`）。
+- **`nextMap(NextMapSpec, EmbeddedBatchSpec)`**：攒批挂在 **本段线性映射** 出口；
+- **`nextStage(NextStageSpec, EmbeddedBatchSpec)`**：攒批挂在 **本段常规 Joiner** 出口（与 `nextMap` 内嵌攒批同一机制，均不单独增加 `aggregate` 段 Launcher）。
+
+语义与「`nextMap` + `aggregate`」或「`nextStage` + `aggregate`」等价，但少一段异步边界。仍保留 **`aggregate(...)`** 用于仅需攒批、或需显式独立阶段的场景。
+
 ### 4. 线性映射 (Map)
 
 纯映射（类型变换或过滤）可使用 **`nextMap`**，内部使用 **`MapOperatorJoiner`**（每条 **`joinKey`** 唯一），无需手写「假 Joiner + 常数 key」：
@@ -33,6 +39,25 @@ FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("m
 （`NextMapSpec` 描述本段驻留类型、下游类型、映射与消费节拍；`QUEUE` 上为出队轮询间隔，`LOCAL_BOUNDED` 上为驱逐协调扫描间隔。后续若增加可选参数，可只扩展 `NextMapSpec`，而无需改动 `nextMap` 方法签名。）
 
 `cacheProducer` 返回 **`null`** 时该条被过滤（不下发）。
+
+内嵌攒批示例（下游为 `List<Integer>` 批次）：
+
+```java
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
+
+.nextMap(NextMapSpec.of(Integer.class, Integer.class, i -> i, 100, TimeUnit.MILLISECONDS),
+        EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
+.sink((List<Integer> batch, String jobId) -> { /* ... */ });
+```
+
+常规阶段同样支持（在 **`nextStage` 上**增加攒批参数，而非写在 `NextStageSpec` 里）：
+
+```java
+.nextStage(NextStageSpec.of(String.class, myJoiner, s -> List.of(transform(s))),
+        EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
+```
+
+（签名：`nextStage(NextStageSpec<T,R> spec, EmbeddedBatchSpec batchSpec)`，返回 `Builder<List<R>>`。）
 
 ### 5. 配对后的下游产出（PipelineStageOutput / Builder）
 

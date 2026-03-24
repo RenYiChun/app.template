@@ -8,6 +8,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
 import com.lrenyi.template.flow.api.NextMapSpec;
@@ -44,7 +45,25 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @Override
     public <R> FlowPipeline.Builder<R> nextStage(NextStageSpec<T, R> spec) {
         Objects.requireNonNull(spec, "spec");
-        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput());
+        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput(), null);
+    }
+
+    @Override
+    public <R> FlowPipeline.Builder<List<R>> nextStage(NextStageSpec<T, R> spec, EmbeddedBatchSpec batchSpec) {
+        Objects.requireNonNull(spec, "spec");
+        Objects.requireNonNull(batchSpec, "batchSpec");
+        if (!spec.joiner().getDataType().equals(currentClass)) {
+            throw new IllegalArgumentException(
+                    "joiner data type must match current stage type: expected " + currentClass.getName()
+                            + ", got " + spec.joiner().getDataType().getName());
+        }
+        PipelineStageDispatch<T, R> dispatch =
+                PipelineDispatchFactories.create(spec.joiner(), spec.transformer(), spec.pairOutput());
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) spec.joiner(),
+                null,
+                (PipelineStageDispatch<Object, Object>) (Object) dispatch,
+                batchSpec));
+        return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
     @Override
@@ -64,19 +83,47 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
             }
             return List.of(r);
         };
-        return nextStageInternal(spec.outputType(), joiner, tf, null);
+        return nextStageInternal(spec.outputType(), joiner, tf, null, null);
+    }
+
+    @Override
+    public <R> FlowPipeline.Builder<List<R>> nextMap(NextMapSpec<T, R> spec, EmbeddedBatchSpec batchSpec) {
+        Objects.requireNonNull(spec, "spec");
+        Objects.requireNonNull(batchSpec, "batchSpec");
+        if (!spec.storageElementType().equals(currentClass)) {
+            throw new IllegalArgumentException(
+                    "storageElementType must match current stage type: expected " + currentClass.getName()
+                            + ", got " + spec.storageElementType().getName());
+        }
+        long millis = spec.consumeIntervalUnit().toMillis(spec.consumeInterval());
+        MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
+        Function<T, List<R>> tf = t -> {
+            R r = spec.cacheProducer().apply(t);
+            if (r == null) {
+                return List.of();
+            }
+            return List.of(r);
+        };
+        PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, null);
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
+                null,
+                (PipelineStageDispatch<Object, Object>) (Object) dispatch,
+                batchSpec));
+        return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
     @SuppressWarnings("unchecked")
     private <R> FlowPipeline.Builder<R> nextStageInternal(Class<R> outputClass,
                                                           FlowJoiner<T> joiner,
                                                           Function<T, List<R>> transformer,
-                                                          BiFunction<T, T, List<R>> explicitPairOutput) {
+                                                          BiFunction<T, T, List<R>> explicitPairOutput,
+                                                          EmbeddedBatchSpec embeddedBatch) {
         Function<T, List<R>> tf = transformer != null ? transformer : t -> List.of((R) t);
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, explicitPairOutput);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
                 null,
-                (PipelineStageDispatch<Object, Object>) (Object) dispatch));
+                (PipelineStageDispatch<Object, Object>) (Object) dispatch,
+                embeddedBatch));
         return new FlowPipelineBuilderImpl<>(jobId, outputClass, flowManager, stages);
     }
 
@@ -89,7 +136,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
             branch.accept(subBuilder);
             branchStages.add(subBuilder.stages);
         }
-        stages.add(new StageDefinition<Object, Object>(null, branchStages, null));
+        stages.add(new StageDefinition<Object, Object>(null, branchStages, null, null));
         return build();
     }
 
@@ -99,7 +146,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         AggregationJoiner<T> aggregator = new AggregationJoiner<>(currentClass, batchSize, timeout, unit);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) aggregator, identity, null);
-        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, dispatch));
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, dispatch, null));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<T>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -110,7 +157,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         SinkJoiner<T> sinkJoiner = new SinkJoiner<>(actualClass, onSink);
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) sinkJoiner, identity, null);
-        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, dispatch));
+        stages.add(new StageDefinition<>((FlowJoiner<Object>) sinkJoiner, null, dispatch, null));
         return build();
     }
 

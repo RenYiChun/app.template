@@ -63,6 +63,14 @@ public interface FlowPipeline<I> {
         <R> Builder<R> nextStage(NextStageSpec<T, R> spec);
 
         /**
+         * 与 {@link #nextStage(NextStageSpec)} 相同，但将攒批挂在本段消费出口（不单独增加 {@code aggregate} 段 Launcher），
+         * 下游元素类型为 {@code List}{@code <R>}。
+         *
+         * @param batchSpec 攒批参数（条数上限与时间窗）
+         */
+        <R> Builder<List<R>> nextStage(NextStageSpec<T, R> spec, EmbeddedBatchSpec batchSpec);
+
+        /**
          * 线性映射阶段：语义上仍是 <b>一整段 FlowLauncher</b>（见 {@link Builder} 接口说明），内部使用占位
          * {@link com.lrenyi.template.flow.pipeline.MapOperatorJoiner}，每条入站使用独立 {@code joinKey}，避免与
          * 引擎「按 key 驻留」语义冲突；{@link NextMapSpec#cacheProducer()} 仅在消费侧把单条转为下游类型，返回 null 时过滤该条。
@@ -70,6 +78,14 @@ public interface FlowPipeline<I> {
          * @param spec 映射段配置（驻留类型、下游类型、映射、消费节拍等）；后续扩展字段见 {@link NextMapSpec}
          */
         <R> Builder<R> nextMap(NextMapSpec<T, R> spec);
+
+        /**
+         * 与 {@link #nextMap(NextMapSpec)} 相同，但将攒批挂在本段映射的消费出口（不单独增加 {@code aggregate} 段 Launcher），
+         * 下游元素类型为 {@code List}{@code <R>}。
+         *
+         * @param batchSpec 攒批参数（条数上限与时间窗）
+         */
+        <R> Builder<List<R>> nextMap(NextMapSpec<T, R> spec, EmbeddedBatchSpec batchSpec);
 
         /**
          * 添加一个常规处理阶段（不改变数据类型）。

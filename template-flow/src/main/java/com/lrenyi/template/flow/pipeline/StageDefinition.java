@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.pipeline;
 
 import java.util.List;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowJoiner;
 
 /**
@@ -11,12 +12,14 @@ import com.lrenyi.template.flow.api.FlowJoiner;
  * @param joiner       负责本阶段业务逻辑的 Joiner
  * @param branchStages 分叉阶段专属：包含多个并行的子管道定义。
  *                     如果是普通顺序阶段，该字段为 null 或空。
- * @param dispatch     配对/单条下发策略（已内联含 transformer 语义）；fork 阶段为 null。
+ * @param dispatch       配对/单条下发策略（已内联含 transformer 语义）；fork 阶段为 null。
+ * @param embeddedBatch  非 null 时在本阶段 Joiner 出口侧攒批后再 {@code push} 下游，不增加独立 aggregate Launcher
  */
 record StageDefinition<I, O>(
         FlowJoiner<I> joiner,
         List<List<StageDefinition<?, ?>>> branchStages,
-        PipelineStageDispatch<I, O> dispatch) {
+        PipelineStageDispatch<I, O> dispatch,
+        EmbeddedBatchSpec embeddedBatch) {
     /**
      * 判断当前阶段是否为分叉（扇出）阶段。
      */

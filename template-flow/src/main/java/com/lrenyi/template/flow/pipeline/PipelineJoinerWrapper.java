@@ -1,8 +1,14 @@
 package com.lrenyi.template.flow.pipeline;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
 import com.lrenyi.template.flow.model.EgressReason;
@@ -22,16 +28,46 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
     private final FlowJoiner<I> delegate;
     private final PipelineStageDispatch<I, O> dispatch;
     private final List<Consumer<O>> downstreams = new CopyOnWriteArrayList<>();
+    private final EmbeddedBatchDownstream<O> embeddedBatch;
 
+    public PipelineJoinerWrapper(FlowJoiner<I> delegate, PipelineStageDispatch<I, O> dispatch) {
+        this(delegate, dispatch, null);
+    }
+
+    /**
+     * @param embeddedBatch 非 null 时在本段出口对映射结果攒批后再下发，下游每次收到一条 {@link List}{@code <O>}（与独立 {@code aggregate} 段语义一致）
+     */
     public PipelineJoinerWrapper(FlowJoiner<I> delegate,
-                                 PipelineStageDispatch<I, O> dispatch) {
+                                 PipelineStageDispatch<I, O> dispatch,
+                                 EmbeddedBatchSpec embeddedBatch) {
         this.delegate = delegate;
         this.dispatch = dispatch;
-        dispatch.wireEmitter(delegate, this::forwardDirect);
+        this.embeddedBatch = embeddedBatch != null
+                ? new EmbeddedBatchDownstream<>(embeddedBatch, this::pushBatchToDownstreams)
+                : null;
+        dispatch.wireEmitter(delegate, this::forwardOneOrBatch);
     }
 
     public void addDownstream(Consumer<O> nextLauncher) {
         this.downstreams.add(nextLauncher);
+    }
+
+    /**
+     * 与 {@link AggregationJoiner#setScheduler} 相同：供时间窗触发 flush。
+     */
+    public void setSchedulerForEmbeddedBatch(ScheduledExecutorService scheduler) {
+        if (embeddedBatch != null) {
+            embeddedBatch.setScheduler(scheduler);
+        }
+    }
+
+    /**
+     * 本段 Launcher 结束时刷出残余批次，须在通知下游 {@code markSourceFinished} 之前调用。
+     */
+    public void flushEmbeddedBatchOnUpstreamComplete() {
+        if (embeddedBatch != null) {
+            embeddedBatch.flush();
+        }
     }
 
     @Override
@@ -69,7 +105,15 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
         dispatch.afterSingleConsumed(item, reason, this::emitDownstreamList);
     }
 
-    private void forwardDirect(O out) {
+    private void forwardOneOrBatch(O out) {
+        if (embeddedBatch != null) {
+            embeddedBatch.add(out);
+        } else {
+            forwardDirectRaw(out);
+        }
+    }
+
+    private void forwardDirectRaw(O out) {
         if (downstreams.isEmpty()) {
             return;
         }
@@ -78,14 +122,30 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
         }
     }
 
+    private void pushBatchToDownstreams(List<O> batch) {
+        if (downstreams.isEmpty() || batch.isEmpty()) {
+            return;
+        }
+        Object batchObj = batch;
+        for (Consumer<O> downstream : downstreams) {
+            @SuppressWarnings("unchecked")
+            Consumer<Object> wide = (Consumer<Object>) (Object) downstream;
+            wide.accept(batchObj);
+        }
+    }
+
     private void emitDownstreamList(List<O> outs) {
         if (outs == null || outs.isEmpty()) {
             return;
         }
-        log.info("Forwarding batch from delegate={}, size={}, downstreams={}",
-                delegate.getClass().getSimpleName(), outs.size(), downstreams.size());
-        for (O out : outs) {
-            forwardDirect(out);
+        if (embeddedBatch != null) {
+            embeddedBatch.addAll(outs);
+        } else {
+            log.info("Forwarding batch from delegate={}, size={}, downstreams={}",
+                    delegate.getClass().getSimpleName(), outs.size(), downstreams.size());
+            for (O out : outs) {
+                forwardDirectRaw(out);
+            }
         }
     }
 
@@ -102,5 +162,83 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
     @Override
     public boolean isRetryable(I item, String jobId) {
         return delegate.isRetryable(item, jobId);
+    }
+
+    /**
+     * 与 {@link AggregationJoiner} 对齐的数量/时间双触发攒批，挂在本段映射出口。
+     */
+    private static final class EmbeddedBatchDownstream<O> {
+        private final int batchSize;
+        private final long timeout;
+        private final TimeUnit unit;
+        private final Consumer<List<O>> flushSink;
+        private final List<O> buffer = new ArrayList<>();
+        private final ReentrantLock lock = new ReentrantLock();
+        private ScheduledExecutorService scheduler;
+        private ScheduledFuture<?> timer;
+
+        EmbeddedBatchDownstream(EmbeddedBatchSpec config, Consumer<List<O>> flushSink) {
+            this.batchSize = config.batchSize();
+            this.timeout = config.timeout();
+            this.unit = config.unit();
+            this.flushSink = flushSink;
+        }
+
+        void setScheduler(ScheduledExecutorService scheduler) {
+            this.scheduler = scheduler;
+        }
+
+        void add(O o) {
+            lock.lock();
+            try {
+                buffer.add(o);
+                if (buffer.size() >= batchSize) {
+                    flushLocked();
+                } else if (timer == null && scheduler != null) {
+                    timer = scheduler.schedule(this::flush, timeout, unit);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void addAll(List<O> outs) {
+            lock.lock();
+            try {
+                for (O o : outs) {
+                    buffer.add(o);
+                    if (buffer.size() >= batchSize) {
+                        flushLocked();
+                    }
+                }
+                if (!buffer.isEmpty() && timer == null && scheduler != null) {
+                    timer = scheduler.schedule(this::flush, timeout, unit);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void flush() {
+            lock.lock();
+            try {
+                flushLocked();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private void flushLocked() {
+            if (buffer.isEmpty()) {
+                return;
+            }
+            List<O> batch = new ArrayList<>(buffer);
+            buffer.clear();
+            if (timer != null) {
+                timer.cancel(false);
+                timer = null;
+            }
+            flushSink.accept(batch);
+        }
     }
 }
