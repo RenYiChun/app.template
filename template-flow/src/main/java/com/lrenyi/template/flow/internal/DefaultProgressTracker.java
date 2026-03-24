@@ -126,7 +126,14 @@ public class DefaultProgressTracker implements ProgressTracker {
 
     @Override
     public String getMetricJobId() {
-        return metricJobId;
+        return (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+    }
+
+    /**
+     * 引擎内部注册与存储键（含阶段索引、fork 路径），与 {@link #getMetricJobId()} 监控展示串分离。
+     */
+    public String getInternalJobId() {
+        return jobId;
     }
 
     @Override

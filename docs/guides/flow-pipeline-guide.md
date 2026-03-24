@@ -122,6 +122,8 @@ FlowPipeline<AuditLog> pipeline = FlowPipeline.builder("audit-pipeline", AuditLo
 *   `terminated`: 反映最终 Sink 阶段的完成数。
 *   `inStorage`: 所有各阶段缓存中的数据总和。
 
+**仪表盘 `jobId` 标签（管道）**：若不希望出现整段 UUID，请在**首次 `startPush` 之前**对 `FlowPipeline#getProgressTracker()` 调用 `setMetricJobId("可读名称")`；各阶段指标标签为该名称 + 后缀（如 `:0`、`:2:fork:0`）。若在 `startPush` 之后才设置，子阶段 `ProgressTracker` 会尽量同步，但背压等已在 Launcher 创建时绑定的指标可能仍带旧前缀。
+
 ## 最佳实践
 
 1.  **无副作用转换**: `transformer` 尽量只做纯函数式的类型转换或过滤。
