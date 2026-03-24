@@ -3,16 +3,16 @@ package com.lrenyi.template.flow.pipeline;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.core.TemplateConfigProperties;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
 import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
-import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowInletImpl;
@@ -41,7 +41,7 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
     public FlowPipelineImpl(String jobId, FlowManager flowManager, List<StageDefinition<?, ?>> stages) {
         this.jobId = jobId;
         this.flowManager = flowManager;
-        this.stageDefinitions = stages;
+        this.stageDefinitions = List.copyOf(stages);
         this.pipelineTracker = new PipelineProgressTracker(jobId);
     }
 
@@ -74,12 +74,22 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
             return existing;
         }
         initializeStages(flowConfig);
+        existing = firstInlet.get();
+        if (existing != null) {
+            return existing;
+        }
         @SuppressWarnings("unchecked")
         FlowLauncher<I> firstLauncher = (FlowLauncher<I>) launchers.get(0);
         FlowInletImpl<I> inlet = new FlowInletImpl<>(firstLauncher);
-        firstLauncher.setInFlightPushCountSupplier(inlet::getInFlightPushCount);
-        firstInlet.set(inlet);
-        return inlet;
+        if (firstInlet.compareAndSet(null, inlet)) {
+            firstLauncher.setInFlightPushCountSupplier(inlet::getInFlightPushCount);
+            return inlet;
+        }
+        FlowInlet<I> installed = firstInlet.get();
+        if (installed != null) {
+            return installed;
+        }
+        throw new IllegalStateException("Pipeline inlet initialization failed for job " + jobId);
     }
 
     @Override
@@ -138,7 +148,8 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
             if (def.isFork()) {
                 List<FlowInlet<Object>> branchInlets = new ArrayList<>();
                 for (int b = 0; b < def.branchStages().size(); b++) {
-                    String branchJobId = stageJobId + ":fork:" + b;
+                    String branchName = branchName(def, b);
+                    String branchJobId = stageJobId + ":fork:" + b + "-" + branchName;
                     branchInlets.add(buildStagesRecursive(branchJobId, def.branchStages().get(b), flowConfig, null));
                 }
                 
@@ -218,5 +229,31 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
             }
         }
         return currentChainHead;
+    }
+
+    private String branchName(StageDefinition<Object, Object> def, int branchIndex) {
+        if (def.branchNames() == null || branchIndex >= def.branchNames().size()) {
+            return "branch-" + branchIndex;
+        }
+        String raw = def.branchNames().get(branchIndex);
+        if (raw == null || raw.isBlank()) {
+            return "branch-" + branchIndex;
+        }
+        return sanitizeBranchName(raw);
+    }
+
+    private String sanitizeBranchName(String raw) {
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isLetterOrDigit(ch) || ch == '-' || ch == '_') {
+                sb.append(ch);
+            } else {
+                sb.append('-');
+            }
+        }
+        String sanitized = sb.toString().replaceAll("-{2,}", "-");
+        sanitized = sanitized.replaceAll("^-|-$", "");
+        return sanitized.isEmpty() ? "branch" : sanitized;
     }
 }

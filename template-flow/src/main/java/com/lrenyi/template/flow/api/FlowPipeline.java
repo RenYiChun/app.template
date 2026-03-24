@@ -107,6 +107,15 @@ public interface FlowPipeline<I> {
         FlowPipeline<?> fork(Consumer<Builder<T>>... branches);
 
         /**
+         * 带名称的扇出：分支名称会参与子阶段 jobId 构造，便于监控面板直接识别分支来源。
+         *
+         * @param branches 命名子管道构建器
+         * @return 无后续链条（扇出通常意味着该分支已处理或需独立汇聚）
+         */
+        @SuppressWarnings("unchecked")
+        FlowPipeline<?> forkNamed(NamedBranchSpec<T>... branches);
+
+        /**
          * 攒批/聚合 (Batching)：将多个数据项合为一个列表下发给下一阶段。
          *
          * @param batchSize 数量阈值
