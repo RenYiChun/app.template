@@ -70,10 +70,10 @@ public final class EvictionCoordinator implements AutoCloseable {
         } catch (Throwable t) {
             log.error("EvictionCoordinator loop failed", t);
         } finally {
-            log.info("EvictionCoordinator stopped");
+            log.debug("EvictionCoordinator stopped");
         }
     }
-    
+
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
