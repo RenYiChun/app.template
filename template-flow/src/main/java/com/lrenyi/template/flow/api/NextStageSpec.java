@@ -7,6 +7,7 @@ import java.util.function.Function;
 
 /**
  * {@link FlowPipeline.Builder#nextStage(NextStageSpec)} 的配置载体：下游类型、Joiner、列表转换器及可选的配对产出。
+ * 内嵌攒批参数见 {@link EmbeddedBatchSpec}，与 {@link FlowPipeline.Builder#nextStage(NextStageSpec, EmbeddedBatchSpec)} 搭配使用。
  * 后续若需增加可选参数，优先在本类型上扩展，以保持 {@link FlowPipeline.Builder} 方法签名稳定。
  *
  * @param <T> 本段输入（当前管道阶段元素类型）

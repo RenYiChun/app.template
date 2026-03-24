@@ -45,7 +45,7 @@ flowchart TB
 
 | 概念 | 含义 |
 | --- | --- |
-| **Builder 里的「阶段」** | 你在管道上每链一次 `nextStage` / `nextMap` / `aggregate` / `sink`，就多 **一段** 编排：通常对应 **一个** `FlowJoiner` + **一个** `FlowLauncher` + **一段** 存储后端。 |
+| **Builder 里的「阶段」** | 你在管道上每链一次 `nextStage` / `nextMap` / `aggregate` / `sink`，就多 **一段** 编排：通常对应 **一个** `FlowJoiner` + **一个** `FlowLauncher` + **一段** 存储后端。`nextMap(..., EmbeddedBatchSpec)` / `nextStage(..., EmbeddedBatchSpec)` 将攒批挂在 **本段** `PipelineJoinerWrapper` 出口，**不**再为攒批单独增加一段 Launcher（与「映射/常规段 + `aggregate`」相比少一段）。 |
 | **引擎内部的「三态」** | 对 **每一段** 里的每条数据，引擎都会走 **入站（生产侧写入存储）→ 在存储中驻留/配对 → 出站消费（触发 `onPairConsumed` / `onSingleConsumed` 等）**。这是 **单段内部** 的物理过程，**不是** 三个独立的 Builder 阶段。 |
 
 因此：**「生产 + 缓存（驻留）+ 消费」描述的是每一段内部的流控与存储语义**（与 `ProgressTracker` 上的生产许可、inStorage、消费释放等信号一致），**不是**「三个阶段 = 三次 `nextStage`」。只有当你 **显式** 写了多段 Builder，才会有多段 **串联** 的业务步骤；每一段内部仍各自包含上述三态。

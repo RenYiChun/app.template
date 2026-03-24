@@ -12,6 +12,7 @@ import com.lrenyi.template.flow.api.FlowPipeline;
 import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowInletImpl;
@@ -167,22 +168,34 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                     ((AggregationJoiner<Object>) userJoiner).setScheduler(
                         flowManager.getResourceRegistry().getStorageEgressExecutor());
                 }
-                
+
+                EmbeddedBatchSpec embeddedBatch = def.embeddedBatch();
                 PipelineJoinerWrapper<Object, Object> wrapper = new PipelineJoinerWrapper<>(
-                        userJoiner, def.dispatch());
+                        userJoiner, def.dispatch(), embeddedBatch);
+                if (embeddedBatch != null) {
+                    wrapper.setSchedulerForEmbeddedBatch(
+                            flowManager.getResourceRegistry().getStorageEgressExecutor());
+                }
                 if (currentChainHead != null) {
                     final FlowInlet<Object> nextInletRef = currentChainHead;
                     wrapper.addDownstream((obj) -> nextInletRef.push(obj));
                 }
-                
+
                 DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager);
                 tracker.setMetricJobId(stageJobId);
                 FlowLauncher<Object> launcher = flowManager.createLauncher(stageJobId, stageJobId, wrapper, tracker, flowConfig);
-                
+
                 FlowInlet<Object> inlet = new FlowInletImpl<>(launcher);
                 if (currentChainHead != null) {
                     final FlowInlet<Object> nextInletRef = currentChainHead;
-                    tracker.getCompletionFuture().thenRun(nextInletRef::markSourceFinished);
+                    if (embeddedBatch != null) {
+                        tracker.getCompletionFuture().thenRun(() -> {
+                            wrapper.flushEmbeddedBatchOnUpstreamComplete();
+                            nextInletRef.markSourceFinished();
+                        });
+                    } else {
+                        tracker.getCompletionFuture().thenRun(nextInletRef::markSourceFinished);
+                    }
                 }
                 
                 pipelineTracker.addTracker(tracker);

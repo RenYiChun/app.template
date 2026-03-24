@@ -6,6 +6,7 @@ import java.util.function.Function;
 
 /**
  * {@link FlowPipeline.Builder#nextMap(NextMapSpec)} 的配置载体：驻留类型、下游类型、映射与存储消费节拍等。
+ * 内嵌攒批参数见 {@link EmbeddedBatchSpec}，与 {@link FlowPipeline.Builder#nextMap(NextMapSpec, EmbeddedBatchSpec)} 搭配使用。
  * 后续若需增加可选参数，优先在本类型上扩展，以保持 {@link FlowPipeline.Builder} 方法签名稳定。
  *
  * @param <T> 本段 {@link com.lrenyi.template.flow.storage.FlowStorage} 驻留元素类型
