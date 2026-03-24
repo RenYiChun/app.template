@@ -54,9 +54,6 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void onProductionAcquired() {
         productionAcquired.increment();
         incrementCounter(FlowMetricNames.PRODUCTION_ACQUIRED);
-        if (totalExpected != -1 && productionAcquired.sum() >= totalExpected) {
-            markSourceFinished(jobId, true);
-        }
     }
 
     @Override
