@@ -276,53 +276,11 @@ public class FlowManager implements ActiveLauncherLookup {
                 return;
             }
         }
-        // 1. 移除 Gauge 指标
+        // 1. 移除 Gauge 指标（按内部 jobId）
         FlowResourceMetrics.unregisterPerJob(jobId, meterRegistry);
-        
-        // 2. 移除 Counter 指标
-        String metricJobId = resolveMetricJobId(jobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.production_acquired", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.production_released", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.terminated", metricJobId);
-        
-        // 3. 移除完成判定相关指标
-        removeJobMetrics(meterRegistry, "app.template.flow.completion.source_finished", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.completion.in_flight_push", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.completion.active_consumers", metricJobId);
-        
-        // 4. 移除背压相关指标
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire-wait-duration", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.count", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
-        
-        // 5. 移除各阶段耗时指标
-        removeJobMetrics(meterRegistry, "app.template.flow.deposit.duration", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.finalize.duration", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.match.duration", metricJobId);
-        
-        // 6. 移除背压获取时长指标
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire.duration", metricJobId);
-        
-        // 7. 移除背压体系指标（per-job 层）
-        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.attempts.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.blocked.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.timeout.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.duration.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.dimension.release.count.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.success.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.failed.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.manager.lease.active.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.manager.release.idempotent_hit.per_job", metricJobId);
-        removeJobMetrics(meterRegistry, "backpressure.manager.release.leak_detected.per_job", metricJobId);
-        
+        // 2–7. 移除带展示名标签的 Counter/Timer 等
+        removeMetricsForMetricJobId(resolveMetricJobId(jobId));
+
         resourceRegistry.deregisterJob(jobId);
         jobIdToDisplayName.remove(jobId);
         FlowLauncher<?> launcher = activeLaunchers.remove(jobId);
@@ -341,6 +299,47 @@ public class FlowManager implements ActiveLauncherLookup {
         }
     }
     
+    /**
+     * 移除指定 Micrometer {@code jobId} 标签下的全部 per-job 指标（不含 {@link FlowResourceMetrics} 注册的 Gauges），
+     * 用于展示名变更时清理旧序列或完整注销流程中的 Counter/Timer 部分。
+     */
+    public void removeMetricsForMetricJobId(String metricJobId) {
+        if (metricJobId == null || metricJobId.isEmpty()) {
+            return;
+        }
+        removeJobMetrics(meterRegistry, "app.template.flow.production_acquired", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.production_released", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.terminated", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.source_finished", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.in_flight_push", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.completion.active_consumers", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire-wait-duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.count", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.used", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.deposit.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.finalize.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.match.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.attempts.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.blocked.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.timeout.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.duration.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.dimension.release.count.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.success.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.acquire.failed.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.lease.active.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.release.idempotent_hit.per_job", metricJobId);
+        removeJobMetrics(meterRegistry, "backpressure.manager.release.leak_detected.per_job", metricJobId);
+    }
+
     /**
      * 移除指定 jobId 的所有指标
      */
@@ -458,8 +457,15 @@ public class FlowManager implements ActiveLauncherLookup {
         return FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
     }
 
-    /** 解析用于指标标签的 jobId：显式注册 > 原样 */
+    /** 解析用于指标标签的 jobId：Tracker 当前展示名优先，其次显式注册名，最后为内部 jobId */
     private String resolveMetricJobId(String jobId) {
+        ProgressTracker tracker = getProgressTracker(jobId);
+        if (tracker != null) {
+            String m = tracker.getMetricJobId();
+            if (m != null && !m.isEmpty()) {
+                return m;
+            }
+        }
         String explicit = jobIdToDisplayName.get(jobId);
         return explicit != null ? explicit : jobId;
     }

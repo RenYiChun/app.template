@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -33,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>同 ID 多个实现时，只执行 order 最小的实现</li>
  *   <li>{@link #acquire} 返回 {@link DimensionLease}，close() 触发幂等资源释放</li>
  *   <li>维护 activeLeases 注册表，支持泄露检测与在线观测</li>
+ *   <li>Micrometer 的 {@code jobId} 标签始终通过 {@link DimensionContext#getMetricJobIdForTags()} 解析，与 {@link com.lrenyi.template.flow.api.ProgressTracker} 一致</li>
  * </ul>
  */
 @Slf4j
@@ -41,79 +43,29 @@ public class BackpressureManager {
     private static final BooleanSupplier NEVER_STOP = () -> false;
 
     private final String jobId;
-    private final String metricJobId;
     private final DimensionContext baseCtx;
     private final Map<String, ResourceBackpressureDimension> dimensionMap;
     private final ConcurrentHashMap<String, DimensionLease> activeLeases = new ConcurrentHashMap<>();
     private final AtomicInteger activeLeasesGaugeGlobal = new AtomicInteger(0);
     private final AtomicInteger activeLeasesGaugePerJob = new AtomicInteger(0);
     private final AtomicLong leaseIdSeq = new AtomicLong(0);
-
-    // Pre-registered metrics (avoid hot-path lookup); null when all dimensions have global disabled
-    private final Counter acquireSuccessGlobal;
-    private final Counter acquireSuccessPerJob;
-    private final Counter acquireFailedGlobal;
-    private final Counter acquireFailedPerJob;
-    private final Counter acquireFailedOther;
-    private final Counter idempotentHitGlobal;
-    private final Counter idempotentHitPerJob;
-    private final Counter leakDetectedGlobal;
-    private final Counter leakDetectedPerJob;
+    /** 与当前已注册的租约活跃 Gauge 的 jobId 标签一致；展示名变更后由 {@link #onMetricJobIdChanged()} 置空以触发重绑 */
+    private volatile String leaseGaugeRegisteredTag;
     private final boolean metricsEnabled;
 
     public BackpressureManager(DimensionContext baseCtx, MeterRegistry meterRegistry) {
+        Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.jobId = baseCtx.getJobId();
-        this.metricJobId = baseCtx.getMetricJobIdForTags();
         this.baseCtx = baseCtx;
         this.dimensionMap = loadDimensions();
         this.metricsEnabled = hasAnyDimensionWithLimitsEnabled();
-        if (metricsEnabled) {
-            this.acquireSuccessGlobal = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_GLOBAL)
-                                               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                               .register(meterRegistry);
-            this.acquireSuccessPerJob = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_PER_JOB)
-                                               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                               .register(meterRegistry);
-            this.acquireFailedGlobal = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_GLOBAL)
-                                              .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                              .register(meterRegistry);
-            this.acquireFailedPerJob = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_PER_JOB)
-                                              .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                              .register(meterRegistry);
-            this.acquireFailedOther = Counter.builder(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER)
-                                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                             .register(meterRegistry);
-            this.idempotentHitGlobal = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_GLOBAL)
-                                              .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                              .register(meterRegistry);
-            this.idempotentHitPerJob = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_PER_JOB)
-                                              .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                              .register(meterRegistry);
-            this.leakDetectedGlobal = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_GLOBAL)
-                                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                             .register(meterRegistry);
-            this.leakDetectedPerJob = Counter.builder(BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_PER_JOB)
-                                             .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                                             .register(meterRegistry);
-            Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL,
-                          activeLeasesGaugeGlobal,
-                          AtomicInteger::get
-            ).tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId).register(meterRegistry);
-            Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB,
-                          activeLeasesGaugePerJob,
-                          AtomicInteger::get
-            ).tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId).register(meterRegistry);
-        } else {
-            this.acquireSuccessGlobal = null;
-            this.acquireSuccessPerJob = null;
-            this.acquireFailedGlobal = null;
-            this.acquireFailedPerJob = null;
-            this.acquireFailedOther = null;
-            this.idempotentHitGlobal = null;
-            this.idempotentHitPerJob = null;
-            this.leakDetectedGlobal = null;
-            this.leakDetectedPerJob = null;
-        }
+    }
+
+    /**
+     * 当 {@link com.lrenyi.template.flow.api.ProgressTracker#setMetricJobId(String)} 变更展示名时调用，使租约 Gauge 在下次 acquire 时按新标签重新注册。
+     */
+    public void onMetricJobIdChanged() {
+        leaseGaugeRegisteredTag = null;
     }
 
     private boolean hasAnyDimensionWithLimitsEnabled() {
@@ -201,22 +153,22 @@ public class BackpressureManager {
         } catch (BackpressureTimeoutException e) {
             if (metricsEnabled) {
                 if (e.getResult() == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
-                    acquireFailedGlobal.increment();
+                    counter(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_GLOBAL).increment();
                 } else if (e.getResult() == PermitPair.AcquireResult.FAILED_ON_PER_JOB) {
-                    acquireFailedPerJob.increment();
+                    counter(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_PER_JOB).increment();
                 } else {
-                    acquireFailedOther.increment();
+                    counter(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER).increment();
                 }
             }
             throw e;
         } catch (InterruptedException | TimeoutException e) {
             if (metricsEnabled) {
-                acquireFailedOther.increment();
+                counter(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER).increment();
             }
             throw e;
         } catch (Exception e) {
             if (metricsEnabled) {
-                acquireFailedOther.increment();
+                counter(BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER).increment();
             }
             throw new RuntimeException("Backpressure acquire failed: dimensionId=" + dimensionId + ", jobId=" + jobId,
                                        e
@@ -227,13 +179,14 @@ public class BackpressureManager {
         activeLeases.put(leaseId, lease);
         PermitPair pair = getPermitPairForDimension(dimensionId);
         if (metricsEnabled && pair != null) {
+            ensureLeaseGauges();
             if (pair.hasGlobal()) {
                 activeLeasesGaugeGlobal.incrementAndGet();
-                acquireSuccessGlobal.increment();
+                counter(BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_GLOBAL).increment();
             }
             if (pair.hasPerJob()) {
                 activeLeasesGaugePerJob.incrementAndGet();
-                acquireSuccessPerJob.increment();
+                counter(BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_PER_JOB).increment();
             }
         }
         return lease;
@@ -258,10 +211,10 @@ public class BackpressureManager {
             PermitPair pair = getPermitPairForDimension(dimensionId);
             if (pair != null) {
                 if (pair.hasGlobal()) {
-                    idempotentHitGlobal.increment();
+                    counter(BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_GLOBAL).increment();
                 }
                 if (pair.hasPerJob()) {
-                    idempotentHitPerJob.increment();
+                    counter(BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_PER_JOB).increment();
                 }
             }
         }
@@ -269,6 +222,7 @@ public class BackpressureManager {
             if (activeLeases.remove(leaseId) != null) {
                 PermitPair pair = getPermitPairForDimension(dimensionId);
                 if (metricsEnabled && pair != null) {
+                    ensureLeaseGauges();
                     if (pair.hasGlobal()) {
                         activeLeasesGaugeGlobal.decrementAndGet();
                     }
@@ -290,21 +244,22 @@ public class BackpressureManager {
             PermitPair pair = getPermitPairForDimension(dimensionId);
             if (pair != null) {
                 if (pair.hasGlobal()) {
-                    leakDetectedGlobal.increment();
+                    counter(BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_GLOBAL).increment();
                 }
                 if (pair.hasPerJob()) {
-                    leakDetectedPerJob.increment();
+                    counter(BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_PER_JOB).increment();
                 }
             }
         }
         log.warn("BackpressureManager: lease leak detected, leaseId={}, dimensionId={}, {}",
                  leaseId,
                  dimensionId,
-                 FlowLogHelper.formatJobContext(jobId, metricJobId)
+                 FlowLogHelper.formatJobContext(jobId, baseCtx.getMetricJobIdForTags())
         );
         if (activeLeases.remove(leaseId) != null) {
             PermitPair pair = getPermitPairForDimension(dimensionId);
             if (metricsEnabled && pair != null) {
+                ensureLeaseGauges();
                 if (pair.hasGlobal()) {
                     activeLeasesGaugeGlobal.decrementAndGet();
                 }
@@ -357,6 +312,7 @@ public class BackpressureManager {
         return DimensionContext.builder()
                                .jobId(baseCtx.getJobId())
                                .metricJobId(baseCtx.getMetricJobId())
+                               .progressTracker(baseCtx.getProgressTracker())
                                .dimensionId(dimensionId)
                                .permits(permits)
                                .stopCheck(stopCheck)
@@ -370,6 +326,40 @@ public class BackpressureManager {
                                .storagePermitPair(baseCtx.getStoragePermitPair())
                                .globalConsumerLimit(baseCtx.getGlobalConsumerLimit())
                                .build();
+    }
+
+    private Counter counter(String name) {
+        return Counter.builder(name)
+                      .tag(BackpressureMetricNames.TAG_JOB_ID, baseCtx.getMetricJobIdForTags())
+                      .register(baseCtx.getMeterRegistry());
+    }
+
+    private void ensureLeaseGauges() {
+        if (!metricsEnabled) {
+            return;
+        }
+        MeterRegistry reg = baseCtx.getMeterRegistry();
+        String tag = baseCtx.getMetricJobIdForTags();
+        if (tag.equals(leaseGaugeRegisteredTag)) {
+            return;
+        }
+        if (leaseGaugeRegisteredTag != null) {
+            removeMetersWithTag(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, leaseGaugeRegisteredTag);
+            removeMetersWithTag(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, leaseGaugeRegisteredTag);
+        }
+        Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL,
+                      activeLeasesGaugeGlobal,
+                      AtomicInteger::get
+        ).tag(BackpressureMetricNames.TAG_JOB_ID, tag).register(reg);
+        Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB,
+                      activeLeasesGaugePerJob,
+                      AtomicInteger::get
+        ).tag(BackpressureMetricNames.TAG_JOB_ID, tag).register(reg);
+        leaseGaugeRegisteredTag = tag;
+    }
+
+    private static void removeMetersWithTag(MeterRegistry reg, String metricName, String tagJobId) {
+        reg.find(metricName).tag(BackpressureMetricNames.TAG_JOB_ID, tagJobId).meters().forEach(reg::remove);
     }
 
     private static Map<String, ResourceBackpressureDimension> loadDimensions() {
@@ -407,25 +397,21 @@ public class BackpressureManager {
      * @param meterRegistry 指标注册表
      */
     public void unregisterMetrics(MeterRegistry meterRegistry) {
-        if (metricsEnabled) {
-            meterRegistry.remove(acquireSuccessGlobal);
-            meterRegistry.remove(acquireSuccessPerJob);
-            meterRegistry.remove(acquireFailedGlobal);
-            meterRegistry.remove(acquireFailedPerJob);
-            meterRegistry.remove(acquireFailedOther);
-            meterRegistry.remove(idempotentHitGlobal);
-            meterRegistry.remove(idempotentHitPerJob);
-            meterRegistry.remove(leakDetectedGlobal);
-            meterRegistry.remove(leakDetectedPerJob);
-            meterRegistry.find(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL)
-                         .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                         .gauges()
-                         .forEach(meterRegistry::remove);
-            meterRegistry.find(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB)
-                         .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                         .gauges()
-                         .forEach(meterRegistry::remove);
+        if (!metricsEnabled) {
+            return;
         }
+        String tag = baseCtx.getMetricJobIdForTags();
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_GLOBAL, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_PER_JOB, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_GLOBAL, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_PER_JOB, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_GLOBAL, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_PER_JOB, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_GLOBAL, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_PER_JOB, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, tag);
+        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, tag);
         log.debug("BackpressureManager: 已注销 Job [{}] 的所有背压指标", jobId);
     }
 }

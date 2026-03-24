@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.internal;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -9,6 +10,7 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowResourceMetrics;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
@@ -40,14 +42,23 @@ public class DefaultProgressTracker implements ProgressTracker {
     private final AtomicLong lastCompletionBlockedLogMillis = new AtomicLong(0L);
     /** 用于指标标签的 jobId（可读展示名），null 时使用 jobId */
     private volatile String metricJobId;
+    /**
+     * 为 true 时完成时不调用 {@link FlowManager#scheduleUnregister(String)}，由管道在全部子阶段完成后再统一注销指标。
+     */
+    private final boolean deferMetricsUnregister;
     // 业务预期的总条数，由 Source 探测或业务方指定
     private volatile long totalExpected = -1L;
     // 生产端状态：标记 Source 是否已经彻底读完
     private volatile boolean sourceFinished = false;
 
     public DefaultProgressTracker(String jobId, FlowManager flowManager) {
+        this(jobId, flowManager, false);
+    }
+
+    public DefaultProgressTracker(String jobId, FlowManager flowManager, boolean deferMetricsUnregister) {
         this.jobId = jobId;
         this.flowManager = flowManager;
+        this.deferMetricsUnregister = deferMetricsUnregister;
     }
 
     @Override
@@ -118,7 +129,21 @@ public class DefaultProgressTracker implements ProgressTracker {
 
     @Override
     public void setMetricJobId(String metricJobId) {
+        String oldEffective = getMetricJobId();
         this.metricJobId = metricJobId;
+        String newEffective = getMetricJobId();
+        if (Objects.equals(oldEffective, newEffective)) {
+            return;
+        }
+        if (flowManager == null) {
+            return;
+        }
+        flowManager.removeMetricsForMetricJobId(oldEffective);
+        FlowLauncher<?> launcher = flowManager.getActiveLauncher(jobId);
+        if (launcher != null) {
+            FlowResourceMetrics.reregisterPerJob(launcher, flowManager.getMeterRegistry());
+            launcher.getBackpressureManager().onMetricJobIdChanged();
+        }
     }
 
     @Override
@@ -230,7 +255,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                          lockedState.inFlightPush(),
                          stopped
                 );
-                if (!stopped) {
+                if (!stopped && !deferMetricsUnregister) {
                     flowManager.scheduleUnregister(jobId);
                 }
                 completionFuture.complete(null);

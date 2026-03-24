@@ -194,6 +194,14 @@ public final class FlowResourceMetrics {
         }
     }
 
+    /**
+     * 展示名（jobId 标签）变更时：按内部 jobId 移除旧 Gauges 后，用当前 {@link FlowLauncher#getMetricJobId()} 重新注册。
+     */
+    public static void reregisterPerJob(FlowLauncher<?> launcher, MeterRegistry meterRegistry) {
+        unregisterPerJob(launcher.getJobId(), meterRegistry);
+        registerPerJob(launcher, meterRegistry);
+    }
+
     private static double sumOverLaunchers(FlowManager fm, ToDoubleFunction<FlowLauncher<?>> extractor) {
         return fm.getActiveLaunchers().values().stream().mapToDouble(extractor).sum();
     }
