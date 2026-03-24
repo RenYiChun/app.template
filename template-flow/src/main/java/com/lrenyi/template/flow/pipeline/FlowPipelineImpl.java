@@ -134,17 +134,17 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
         return stageJobId;
     }
 
-    private FlowInlet<Object> buildStagesRecursive(String baseJobId, 
-                                                   List<StageDefinition<?, ?>> defs, 
+    private FlowInlet<Object> buildStagesRecursive(String baseJobId,
+                                                   List<StageDefinition<?, ?>> defs,
                                                    TemplateConfigProperties.Flow flowConfig,
                                                    FlowInlet<Object> nextInlet) {
-        
+
         FlowInlet<Object> currentChainHead = nextInlet;
-        
+
         for (int i = defs.size() - 1; i >= 0; i--) {
             StageDefinition<Object, Object> def = (StageDefinition<Object, Object>) defs.get(i);
             String stageJobId = baseJobId + ":" + i;
-            
+
             if (def.isFork()) {
                 List<FlowInlet<Object>> branchInlets = new ArrayList<>();
                 for (int b = 0; b < def.branchStages().size(); b++) {
@@ -152,12 +152,12 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                     String branchJobId = stageJobId + ":fork:" + b + "-" + branchName;
                     branchInlets.add(buildStagesRecursive(branchJobId, def.branchStages().get(b), flowConfig, null));
                 }
-                
+
                 final FlowInlet<Object> finalNext = currentChainHead;
                 currentChainHead = new FlowInlet<Object>() {
                     @Override
                     public void push(Object item) {
-                        log.info("Fork fanout triggered for jobId={}, branches={}", stageJobId, branchInlets.size());
+                        log.debug("Fork fanout triggered for jobId={}, branches={}", stageJobId, branchInlets.size());
                         for (FlowInlet<Object> head : branchInlets) {
                             head.push(item);
                         }
@@ -222,7 +222,7 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                         tracker.getCompletionFuture().thenRun(nextInletRef::markSourceFinished);
                     }
                 }
-                
+
                 pipelineTracker.addTracker(tracker);
                 launchers.add(launcher);
                 currentChainHead = inlet;

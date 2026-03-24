@@ -141,7 +141,7 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
         if (embeddedBatch != null) {
             embeddedBatch.addAll(outs);
         } else {
-            log.info("Forwarding batch from delegate={}, size={}, downstreams={}",
+            log.debug("Forwarding batch from delegate={}, size={}, downstreams={}",
                     delegate.getClass().getSimpleName(), outs.size(), downstreams.size());
             for (O out : outs) {
                 forwardDirectRaw(out);
