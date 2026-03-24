@@ -54,6 +54,7 @@ final class FlowLauncherFactory {
                                          );
 
         BackpressureManager backpressureManager = createBackpressureManager(jobId,
+                                                                            tracker,
                                                                             metricJobId,
                                                                             flow,
                                                                             registry,
@@ -107,6 +108,7 @@ final class FlowLauncherFactory {
     }
 
     private static BackpressureManager createBackpressureManager(String jobId,
+            ProgressTracker tracker,
             String metricJobId,
             TemplateConfigProperties.Flow flow,
             FlowResourceRegistry registry,
@@ -116,6 +118,7 @@ final class FlowLauncherFactory {
         DimensionContext baseCtx = DimensionContext.builder()
                                                    .jobId(jobId)
                                                    .metricJobId(metricJobId)
+                                                   .progressTracker(tracker)
                                                    .dimensionId(null)
                                                    .stopCheck(() -> false)
                                                    .permits(1)

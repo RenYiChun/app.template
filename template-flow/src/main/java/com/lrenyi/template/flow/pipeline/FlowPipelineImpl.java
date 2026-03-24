@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.pipeline;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -115,7 +116,16 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
             buildStagesRecursive(jobId, stageDefinitions, flowConfig, null);
             if (!launchers.isEmpty()) {
                 Collections.reverse(launchers);
-                Collections.reverse(pipelineTracker.getTrackers());
+                pipelineTracker.reversePipelineOrder();
+                CompletableFuture.allOf(
+                        launchers.stream()
+                                .map(l -> l.getTracker().getCompletionFuture())
+                                .toArray(CompletableFuture[]::new)
+                ).thenRun(() -> {
+                    for (FlowLauncher<?> l : launchers) {
+                        flowManager.scheduleUnregister(l.getJobId());
+                    }
+                });
             }
         } finally {
             initLock.unlock();
@@ -204,7 +214,8 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                     wrapper.addDownstream((obj) -> nextInletRef.push(obj));
                 }
 
-                DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager);
+                boolean isLeaf = (currentChainHead == null);
+                DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager, true);
                 String metricTag = stageMetricTag(stageJobId);
                 tracker.setMetricJobId(metricTag);
                 FlowLauncher<Object> launcher =
@@ -223,7 +234,7 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                     }
                 }
 
-                pipelineTracker.addTracker(tracker);
+                pipelineTracker.addTracker(tracker, isLeaf);
                 launchers.add(launcher);
                 currentChainHead = inlet;
             }

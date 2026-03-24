@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.pipeline;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,14 +20,29 @@ import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 public class PipelineProgressTracker implements ProgressTracker {
     private final String jobId;
     private final List<ProgressTracker> trackers = new CopyOnWriteArrayList<>();
+    /** 与 trackers 一一对应：该阶段是否为当前子链路的 Sink（无下游阶段）。Fork 下可有多个 true。 */
+    private final List<Boolean> leafStage = new CopyOnWriteArrayList<>();
     private volatile String metricJobId;
 
     public PipelineProgressTracker(String jobId) {
         this.jobId = jobId;
     }
 
-    public void addTracker(ProgressTracker tracker) {
+    public void addTracker(ProgressTracker tracker, boolean leaf) {
         this.trackers.add(tracker);
+        this.leafStage.add(leaf);
+    }
+
+    /**
+     * 与 {@link FlowPipelineImpl} 中 {@link Collections#reverse} 同步，保持阶段顺序与 launchers 一致。
+     */
+    void reversePipelineOrder() {
+        Collections.reverse(trackers);
+        Collections.reverse(leafStage);
+    }
+
+    List<ProgressTracker> getTrackers() {
+        return trackers;
     }
 
     @Override
@@ -55,18 +71,32 @@ public class PipelineProgressTracker implements ProgressTracker {
             return new FlowProgressSnapshot(jobId, 0, 0, 0, 0, 0, 0, System.currentTimeMillis(), 0);
         }
 
-        // CopyOnWriteArrayList 的读操作是无锁且线程安全的
         FlowProgressSnapshot first = trackers.get(0).getSnapshot();
-        FlowProgressSnapshot last = trackers.get(trackers.size() - 1).getSnapshot();
 
         long inStorage = 0;
         long activeConsumers = 0;
+        long aggregatedTerminated = 0;
+        long maxEndTime = 0;
+        boolean allEnded = true;
 
-        for (ProgressTracker tracker : trackers) {
+        for (int i = 0; i < trackers.size(); i++) {
+            ProgressTracker tracker = trackers.get(i);
             FlowProgressSnapshot snapshot = tracker.getSnapshot();
             inStorage += snapshot.inStorage();
             activeConsumers += snapshot.activeConsumers();
+            if (i < leafStage.size() && Boolean.TRUE.equals(leafStage.get(i))) {
+                aggregatedTerminated += snapshot.terminated();
+            }
+            long end = snapshot.endTimeMillis();
+            if (end == 0) {
+                allEnded = false;
+            }
+            maxEndTime = Math.max(maxEndTime, end);
         }
+        if (leafStage.size() != trackers.size()) {
+            aggregatedTerminated = trackers.get(trackers.size() - 1).getSnapshot().terminated();
+        }
+        long pipelineEnd = allEnded ? maxEndTime : 0L;
 
         return new FlowProgressSnapshot(
                 jobId,
@@ -75,11 +105,15 @@ public class PipelineProgressTracker implements ProgressTracker {
                 first.productionReleased(),
                 activeConsumers,
                 inStorage,
-                last.terminated(),
+                aggregatedTerminated,
                 first.startTimeMillis(),
-                last.endTimeMillis());
+                pipelineEnd);
     }
 
+    /**
+     * 更新管道级展示名并下发到各子阶段；Micrometer 清理与 Gauge/背压重绑由各 {@link DefaultProgressTracker#setMetricJobId} 统一处理。
+     * 若此前已有数据写入，旧 Counter 上的累计值会随清理丢失，宜在首次生产前调用。
+     */
     @Override
     public void setMetricJobId(String metricJobId) {
         this.metricJobId = metricJobId;
@@ -149,9 +183,5 @@ public class PipelineProgressTracker implements ProgressTracker {
                 .map(ProgressTracker::getCompletionFuture)
                 .toArray(CompletableFuture[]::new);
         return CompletableFuture.allOf(futures);
-    }
-
-    List<ProgressTracker> getTrackers() {
-        return trackers;
     }
 }
