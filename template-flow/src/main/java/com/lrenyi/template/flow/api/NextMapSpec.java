@@ -59,7 +59,7 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
         Function<T, R> cacheProducer,
         long consumeInterval,
         TimeUnit consumeIntervalUnit,
-        int storageCapacity) {
+        Integer storageCapacity) {
         return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
                 storageCapacity, null);
     }
@@ -70,10 +70,7 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
     public static <T, R> NextMapSpec<T, R> of(Class<T> storageElementType,
         Class<R> outputType,
         Function<T, R> cacheProducer,
-        long consumeInterval,
-        TimeUnit consumeIntervalUnit,
-        int storageCapacity,
-        int consumerThreads) {
+        long consumeInterval, TimeUnit consumeIntervalUnit, Integer storageCapacity, Integer consumerThreads) {
         return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
                 storageCapacity, consumerThreads);
     }
@@ -86,7 +83,7 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
         Function<T, R> cacheProducer,
         long consumeInterval,
         TimeUnit consumeIntervalUnit,
-        int consumerThreads) {
+        Integer consumerThreads) {
         return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
                 null, consumerThreads);
     }
