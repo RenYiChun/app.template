@@ -157,100 +157,105 @@ public class FlowLauncher<T> {
     }
 
     private void submitDepositTask(T data, ProgressTracker tracker, DimensionLease inFlightLease) {
-        // 在调用线程（生产方）申请生产并发席位，直接对调用方形成背压；
-        // 任务提交后在虚拟线程 finally 中释放，控制同时执行 deposit 逻辑的并发数。
-        DimensionLease producerLease;
-        try {
-            producerLease = backpressureManager.acquire(ProducerConcurrencyDimension.ID, () -> stopped);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            FlowExceptionHelper.handleException(jobId,
-                                                null,
-                                                e,
-                                                FlowPhase.STORAGE,
-                                                "producer_concurrency_acquire_interrupted"
-            );
-            tracker.onProductionReleased();
-            inFlightLease.close();
-            consumeOnBackpressureTimeout(data);
-            return;
-        } catch (TimeoutException e) {
-            FlowExceptionHelper.handleException(jobId,
-                                                null,
-                                                e,
-                                                FlowPhase.STORAGE,
-                                                "producer_concurrency_acquire_timeout",
-                                                getMetricJobId()
-            );
-            tracker.onProductionReleased();
-            inFlightLease.close();
-            consumeOnBackpressureTimeout(data);
-            return;
-        }
         FlowLauncher<?> launcher = this;
-        getProducerExecutor().execute(() -> {
-            try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
-                matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
-                if (stopped) {
-                    log.info("Deposit task skipped because job already stopped, {}",
-                            FlowLogHelper.formatJobContext(jobId, getMetricJobId()));
-                    @SuppressWarnings("unchecked") var handler =
-                        (FlowEgressHandler<T>) resourceContext.getEgressHandler();
-                    handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
-                    tracker.onTerminated(1);
-                    return;
-                }
-
-                long depositStartTime = System.currentTimeMillis();
-                DimensionLease storageLease;
-                try {
-                    storageLease = backpressureManager.acquire(StorageDimension.ID, () -> stopped);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    FlowExceptionHelper.handleException(jobId,
-                                                        null,
-                                                        e,
-                                                        FlowPhase.STORAGE,
-                                                        "storage_acquire_interrupted",
-                                                        getMetricJobId()
-                    );
-                    getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
-                    return;
-                } catch (TimeoutException e) {
-                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "storage_acquire_timeout",
-                            getMetricJobId());
-                    getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
-                    return;  // finally 会执行 onProductionReleased、inFlightLease.close、producerLease.close
-                }
-                ctx.setStorageLease(storageLease);
-                try {
-                    boolean deposited = getStorage().deposit(ctx);
-                    if (!deposited) {
-                        // 未入槽（已在 deposit 内部消费或无需存储），幂等关闭租约
-                        ctx.closeStorageLease();
+        try {
+            getProducerExecutor().execute(() -> {
+                DimensionLease producerLease = null;
+                try (FlowEntry<T> ctx = new FlowEntry<>(data, jobId)) {
+                    matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
+                    if (stopped) {
+                        log.info("Deposit task skipped because job already stopped, {}",
+                                FlowLogHelper.formatJobContext(jobId, getMetricJobId()));
+                        @SuppressWarnings("unchecked") var handler =
+                            (FlowEgressHandler<T>) resourceContext.getEgressHandler();
+                        handler.performSingleConsumed(ctx, EgressReason.SHUTDOWN);
+                        tracker.onTerminated(1);
+                        return;
                     }
-                } catch (Throwable t) {
-                    ctx.closeStorageLease();
-                    throw t;
-                }
-                long depositLatency = System.currentTimeMillis() - depositStartTime;
 
-                Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
-                     .tag(FlowMetricNames.TAG_JOB_ID, getMetricJobId())
-                     .register(registry())
-                     .record(depositLatency, TimeUnit.MILLISECONDS);
-            } catch (Throwable e) {
-                log.error("Deposit task failed, {}", FlowLogHelper.formatJobContext(jobId, getMetricJobId()), e);
-                FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed", getMetricJobId());
-            } finally {
-                tracker.onProductionReleased();
-                inFlightLease.close();
-                producerLease.close();
-                if (tracker.isProductionComplete() && !flowJoiner.needMatched()) {
-                    storage.triggerCompletionDrain();
+                    try {
+                        producerLease = backpressureManager.acquire(ProducerConcurrencyDimension.ID, () -> stopped);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        FlowExceptionHelper.handleException(jobId,
+                                                            null,
+                                                            e,
+                                                            FlowPhase.STORAGE,
+                                                            "producer_concurrency_acquire_interrupted",
+                                                            getMetricJobId()
+                        );
+                        getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
+                        return;
+                    } catch (TimeoutException e) {
+                        FlowExceptionHelper.handleException(jobId,
+                                                            null,
+                                                            e,
+                                                            FlowPhase.STORAGE,
+                                                            "producer_concurrency_acquire_timeout",
+                                                            getMetricJobId()
+                        );
+                        getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
+                        return;
+                    }
+
+                    long depositStartTime = System.currentTimeMillis();
+                    DimensionLease storageLease;
+                    try {
+                        storageLease = backpressureManager.acquire(StorageDimension.ID, () -> stopped);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        FlowExceptionHelper.handleException(jobId,
+                                                            null,
+                                                            e,
+                                                            FlowPhase.STORAGE,
+                                                            "storage_acquire_interrupted",
+                                                            getMetricJobId()
+                        );
+                        getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
+                        return;
+                    } catch (TimeoutException e) {
+                        FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "storage_acquire_timeout",
+                                getMetricJobId());
+                        getFinalizer().submitDataToConsumer(ctx, launcher, EgressReason.BACKPRESSURE_TIMEOUT);
+                        return;
+                    }
+                    ctx.setStorageLease(storageLease);
+                    try {
+                        boolean deposited = getStorage().deposit(ctx);
+                        if (!deposited) {
+                            // 未入槽（已在 deposit 内部消费或无需存储），幂等关闭租约
+                            ctx.closeStorageLease();
+                        }
+                    } catch (Throwable t) {
+                        ctx.closeStorageLease();
+                        throw t;
+                    }
+                    long depositLatency = System.currentTimeMillis() - depositStartTime;
+
+                    Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
+                         .tag(FlowMetricNames.TAG_JOB_ID, getMetricJobId())
+                         .register(registry())
+                         .record(depositLatency, TimeUnit.MILLISECONDS);
+                } catch (Throwable e) {
+                    log.error("Deposit task failed, {}", FlowLogHelper.formatJobContext(jobId, getMetricJobId()), e);
+                    FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_failed", getMetricJobId());
+                } finally {
+                    tracker.onProductionReleased();
+                    inFlightLease.close();
+                    if (producerLease != null) {
+                        producerLease.close();
+                    }
+                    if (tracker.isProductionComplete() && !flowJoiner.needMatched()) {
+                        storage.triggerCompletionDrain();
+                    }
                 }
-            }
-        });
+            });
+        } catch (RuntimeException e) {
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.STORAGE, "deposit_submit_failed", getMetricJobId());
+            tracker.onProductionReleased();
+            inFlightLease.close();
+            consumeOnBackpressureTimeout(data);
+        }
     }
 
     /**

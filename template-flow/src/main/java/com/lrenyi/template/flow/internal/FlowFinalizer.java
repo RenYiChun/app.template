@@ -94,13 +94,25 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        submitConsumer(launcher, 1, runnable, () -> {
+        Runnable onAcquireFailure = () -> {
             try (entry) {
                 egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
             }
             launcher.getTracker().onTerminated(1);
             leaseToClose.close();
-        });
+        };
+        try {
+            submitConsumer(launcher, 1, runnable, onAcquireFailure);
+        } catch (RuntimeException e) {
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.FINALIZATION,
+                                                "consumer_submit_failed",
+                                                launcher.getMetricJobId()
+            );
+            onAcquireFailure.run();
+        }
     }
 
     /**
@@ -237,13 +249,25 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        submitConsumer(launcher, 2, runnable, () -> {
+        Runnable onAcquireFailure = () -> {
             try (partner; entry) {
                 egressHandler.performSingleConsumed(partner, EgressReason.BACKPRESSURE_TIMEOUT);
                 egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
             }
             launcher.getTracker().onTerminated(2);
             leaseToClose.close();
-        });
+        };
+        try {
+            submitConsumer(launcher, 2, runnable, onAcquireFailure);
+        } catch (RuntimeException e) {
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.FINALIZATION,
+                                                "consumer_submit_failed",
+                                                launcher.getMetricJobId()
+            );
+            onAcquireFailure.run();
+        }
     }
 }
