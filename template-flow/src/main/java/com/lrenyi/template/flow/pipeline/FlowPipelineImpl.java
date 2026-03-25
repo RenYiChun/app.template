@@ -219,9 +219,11 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 String metricTag = stageMetricTag(stageJobId);
                 tracker.setMetricJobId(metricTag);
                 Integer storageOverride = def.storageCapacityOverride();
-                TemplateConfigProperties.Flow stageFlow = storageOverride != null
-                        ? FlowPipelineConfigOverlay.copyWithPerJobStorageCapacity(flowConfig, storageOverride)
-                        : flowConfig;
+                Integer consumerThreadsOverride = def.consumerThreadsOverride();
+                TemplateConfigProperties.Flow stageFlow = FlowPipelineConfigOverlay.copyWithPerJobOverrides(
+                        flowConfig,
+                        storageOverride,
+                        consumerThreadsOverride);
                 FlowLauncher<Object> launcher =
                         flowManager.createLauncher(stageJobId, metricTag, wrapper, tracker, stageFlow);
 
