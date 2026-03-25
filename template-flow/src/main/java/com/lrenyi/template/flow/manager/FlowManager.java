@@ -298,7 +298,7 @@ public class FlowManager implements ActiveLauncherLookup {
             log.info("Job [{}] 已从管理器中注销", FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()));
         }
     }
-    
+
     /**
      * 移除指定 Micrometer {@code jobId} 标签下的全部 per-job 指标（不含 {@link FlowResourceMetrics} 注册的 Gauges），
      * 用于展示名变更时清理旧序列或完整注销流程中的 Counter/Timer 部分。
@@ -506,7 +506,7 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public boolean isCompleted(String jobId) {
         ProgressTracker tracker = getProgressTracker(jobId);
-        return tracker != null && tracker.isCompleted(true);
+        return tracker != null && tracker.isCompleted(false);
     }
 
     @Override
