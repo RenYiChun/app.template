@@ -21,7 +21,8 @@ import io.micrometer.core.instrument.Timer;
 
 /**
  * 终端 Joiner。作为管道的最后一个阶段，执行最终的业务落库或收尾逻辑。
- * <p>存储类型说明同 {@link MapOperatorJoiner}（线性阶段与 {@link FlowStorageType#QUEUE} 的取舍）。</p>
+ * <p>内部创建的终端阶段默认统一使用 {@link FlowStorageType#QUEUE}，
+ * 保证数据尽快进入最终消费回调，而不是滞留在本地有界缓存中。</p>
  * <p>当 {@code limits.global.sink-consumer-threads &gt; 0} 时，在调用用户回调前获取全主机共享的 Sink 并发许可，
  * 阻塞策略与超时复用 {@link TemplateConfigProperties.Flow#getConsumerAcquireBlockingMode()} 与
  * {@link TemplateConfigProperties.Flow#getConsumerAcquireTimeoutMill()}。</p>
@@ -53,7 +54,7 @@ public class SinkJoiner<T> implements FlowJoiner<T> {
 
     @Override
     public FlowStorageType getStorageType() {
-        return FlowStorageType.LOCAL_BOUNDED;
+        return FlowStorageType.QUEUE;
     }
 
     @Override
