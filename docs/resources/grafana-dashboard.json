@@ -323,10 +323,10 @@
       },
       "gridPos": { "x": 0, "y": 3, "w": 4, "h": 4 },
       "id": 375,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Source未读完",
       "type": "stat",
-      "targets": [{ "expr": "sum(1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -343,10 +343,10 @@
       },
       "gridPos": { "x": 4, "y": 3, "w": 4, "h": 4 },
       "id": 376,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Storage未清空",
       "type": "stat",
-      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -363,10 +363,10 @@
       },
       "gridPos": { "x": 8, "y": 3, "w": 4, "h": 4 },
       "id": 377,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Consumer未释放",
       "type": "stat",
-      "targets": [{ "expr": "sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -383,10 +383,10 @@
       },
       "gridPos": { "x": 12, "y": 3, "w": 4, "h": 4 },
       "id": 378,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "生产未完成",
       "type": "stat",
-      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -403,10 +403,10 @@
       },
       "gridPos": { "x": 16, "y": 3, "w": 4, "h": 4 },
       "id": 379,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "待消费未清",
       "type": "stat",
-      "targets": [{ "expr": "sum(app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -423,10 +423,10 @@
       },
       "gridPos": { "x": 20, "y": 3, "w": 4, "h": 4 },
       "id": 380,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Push未完成",
       "type": "stat",
-      "targets": [{ "expr": "sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "(sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -778,4 +778,3 @@
   "uid": "app-template-metrics",
   "version": 2
 }
-
