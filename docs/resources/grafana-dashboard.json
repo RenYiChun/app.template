@@ -47,7 +47,7 @@
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
           },
-          "gridPos": { "x": 0, "y": 0, "w": 5, "h": 6 },
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 6 },
           "id": 360,
           "options": { "tooltip": { "mode": "multi" } },
           "title": "生产在途数（已 acquire 未 release 的 launch 数，上限/使用）",
@@ -64,7 +64,7 @@
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
           },
-          "gridPos": { "x": 5, "y": 0, "w": 5, "h": 6 },
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 6 },
           "id": 361,
           "options": { "tooltip": { "mode": "multi" } },
           "title": "生产线程数（deposit 任务并发，上限/使用）",
@@ -81,7 +81,7 @@
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
           },
-          "gridPos": { "x": 10, "y": 0, "w": 5, "h": 6 },
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 6 },
           "id": 362,
           "options": { "tooltip": { "mode": "multi" } },
           "title": "存储容量（缓存条目数，上限/使用）",
@@ -98,7 +98,7 @@
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
           },
-          "gridPos": { "x": 15, "y": 0, "w": 5, "h": 6 },
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 6 },
           "id": 363,
           "options": { "tooltip": { "mode": "multi" } },
           "title": "在途消费数（已离库未消费条数，上限/使用）",
@@ -115,7 +115,7 @@
             "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
             "overrides": []
           },
-          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 6 },
+          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 6 },
           "id": 364,
           "options": { "tooltip": { "mode": "multi" } },
           "title": "消费线程数（onSingleConsumed/onPairConsumed 并发，上限/使用）",
@@ -123,6 +123,23 @@
           "targets": [
             { "expr": "sum(app_template_flow_resources_consumer_threads_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
             { "expr": "sum(app_template_flow_resources_consumer_threads_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Sink 终端并发：全局 sink 回调共享信号量的配置上限与当前占用。使用接近上限表示末端写入成为 TPS 阀门。",
+          "fieldConfig": {
+            "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
+            "overrides": []
+          },
+          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 6 },
+          "id": 365,
+          "options": { "tooltip": { "mode": "multi" } },
+          "title": "Sink终端并发（上限/使用）",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
+            { "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
           ]
         },
         {
@@ -294,6 +311,25 @@
             { "expr": "sum(backpressure_manager_lease_active_global{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "活跃(global)", "refId": "A" },
             { "expr": "sum(backpressure_manager_lease_active_per_job{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "活跃(per-job)", "refId": "B" }
           ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Sink 终端许可：等待全局 sink 并发许可的 P99 耗时，以及因获取超时导致的失败次数/秒。两者升高通常表示末端写入已成为瓶颈。",
+          "fieldConfig": {
+            "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
+            "overrides": [
+              { "matcher": { "id": "byRegexp", "options": "超时.*" }, "properties": [{ "id": "unit", "value": "ops" }] }
+            ]
+          },
+          "gridPos": { "x": 8, "y": 26, "w": 16, "h": 6 },
+          "id": 315,
+          "options": { "tooltip": { "mode": "multi" } },
+          "title": "Sink终端许可（等待耗时P99/超时次数）",
+          "type": "timeseries",
+          "targets": [
+            { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_sink_concurrency_wait_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "等待耗时P99", "refId": "A" },
+            { "expr": "sum(rate(app_template_flow_sink_concurrency_acquire_timeout_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "超时次数", "refId": "B" }
+          ]
         }
       ]
     },
@@ -323,7 +359,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Source未读完",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -343,7 +379,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Storage未清空",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -363,7 +399,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Consumer未释放",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -383,7 +419,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "生产未完成",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -403,7 +439,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "待消费未清",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -423,7 +459,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "Push未完成",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },

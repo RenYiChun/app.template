@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class DefaultProgressTracker implements ProgressTracker {
+    private static final long COMPLETION_BLOCKED_SAME_STATE_LOG_INTERVAL_MILLIS = 60_000L;
     private final FlowManager flowManager;
     private final String jobId;
 
@@ -40,6 +41,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     // 使用 Lock 替代 synchronized，避免虚拟线程 Pinning 现象
     private final ReentrantLock finishLock = new ReentrantLock();
     private final AtomicLong lastCompletionBlockedLogMillis = new AtomicLong(0L);
+    private final AtomicLong lastCompletionBlockedReasonMask = new AtomicLong(-1L);
     /** 用于指标标签的 jobId（可读展示名），null 时使用 jobId */
     private volatile String metricJobId;
     /**
@@ -267,16 +269,31 @@ public class DefaultProgressTracker implements ProgressTracker {
 
     private void logCompletionBlocked(CompletionState state) {
         long now = System.currentTimeMillis();
-        long last = lastCompletionBlockedLogMillis.get();
-        if (now - last < 10_000L || !lastCompletionBlockedLogMillis.compareAndSet(last, now)) {
-            return;
-        }
         boolean waitingSourceFinished = !sourceFinished;
         boolean waitingStorageDrained = state.inStorage() > 0L;
         boolean waitingConsumerReleased = state.activeConsumers() > 0L;
         boolean waitingProductionReleased = state.inProduction() > 0L;
         boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
         boolean waitingInFlightPush = state.inFlightPush() > 0;
+        long reasonMask = completionBlockedReasonMask(waitingSourceFinished,
+                waitingStorageDrained,
+                waitingConsumerReleased,
+                waitingProductionReleased,
+                waitingPendingConsumer,
+                waitingInFlightPush);
+        long lastReasonMask = lastCompletionBlockedReasonMask.get();
+        if (reasonMask != lastReasonMask) {
+            if (!lastCompletionBlockedReasonMask.compareAndSet(lastReasonMask, reasonMask)) {
+                return;
+            }
+            lastCompletionBlockedLogMillis.set(now);
+        } else {
+            long last = lastCompletionBlockedLogMillis.get();
+            if (now - last < COMPLETION_BLOCKED_SAME_STATE_LOG_INTERVAL_MILLIS
+                    || !lastCompletionBlockedLogMillis.compareAndSet(last, now)) {
+                return;
+            }
+        }
         log.info("Job completion pending, {}, waitingSourceFinished={}, waitingStorageDrained={}, "
                          + "waitingConsumerReleased={}, waitingProductionReleased={}, waitingPendingConsumer={}, "
                          + "waitingInFlightPush={}, productionAcquired={}, productionReleased={}, terminated={}, "
@@ -297,6 +314,34 @@ public class DefaultProgressTracker implements ProgressTracker {
                  state.pendingConsumer(),
                  state.inFlightPush()
         );
+    }
+
+    private long completionBlockedReasonMask(boolean waitingSourceFinished,
+                                             boolean waitingStorageDrained,
+                                             boolean waitingConsumerReleased,
+                                             boolean waitingProductionReleased,
+                                             boolean waitingPendingConsumer,
+                                             boolean waitingInFlightPush) {
+        long mask = 0L;
+        if (waitingSourceFinished) {
+            mask |= 1L;
+        }
+        if (waitingStorageDrained) {
+            mask |= 1L << 1;
+        }
+        if (waitingConsumerReleased) {
+            mask |= 1L << 2;
+        }
+        if (waitingProductionReleased) {
+            mask |= 1L << 3;
+        }
+        if (waitingPendingConsumer) {
+            mask |= 1L << 4;
+        }
+        if (waitingInFlightPush) {
+            mask |= 1L << 5;
+        }
+        return mask;
     }
 
     /**
