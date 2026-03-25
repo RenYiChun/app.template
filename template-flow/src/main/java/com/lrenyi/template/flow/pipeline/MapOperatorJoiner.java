@@ -11,11 +11,8 @@ import com.lrenyi.template.flow.model.FlowStorageType;
  * 仅用于 {@link com.lrenyi.template.flow.api.FlowPipeline.Builder#nextMap(com.lrenyi.template.flow.api.NextMapSpec)}
  * 的线性映射占位 Joiner：
  * 业务映射在 {@code transformer} 中完成；本类提供唯一 {@link #joinKey}，避免固定 key 在存储层冲突。
- * <p>存储类型说明：线性阶段语义上更接近 FIFO（{@link FlowStorageType#QUEUE}），但当前
- * {@link com.lrenyi.template.flow.storage.QueueFlowStorage}
- * 主要依赖可配置的队列轮询出队（见 {@code app.template.flow.limits.per-job.queue-poll-interval-mill}，默认较大），入队后不会立即触发消费；
- * 若在此默认改为 {@code QUEUE}，易导致端到端延迟与完成判定异常。故仍使用 {@link FlowStorageType#LOCAL_BOUNDED}，每条唯一 key 单槽短驻留，
- * 与「逐条通过」一致。若将来队列实现支持入队即唤醒或默认轮询间隔足够小，可再评估改为 {@code QUEUE}。</p>
+ * <p>存储类型说明：线性阶段应尽快按 FIFO 出库，避免数据在本段 storage 中以 TTL 语义滞留，影响
+ * {@code in_flight_consumer_used}、consumer 使用率与端到端吞吐观测，因此默认使用 {@link FlowStorageType#QUEUE}。</p>
  *
  * @param <T> 输入元素类型
  */
@@ -39,7 +36,7 @@ public final class MapOperatorJoiner<T> implements FlowJoiner<T> {
 
     @Override
     public FlowStorageType getStorageType() {
-        return FlowStorageType.LOCAL_BOUNDED;
+        return FlowStorageType.QUEUE;
     }
 
     @Override
