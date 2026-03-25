@@ -330,7 +330,7 @@ public class TemplateConfigProperties implements InitializingBean {
              * 全主机 Sink 终端并发上限（sink-consumer-threads.global.limit），<=0 表示不限制。
              * 仅作用于管道终端 Sink 用户回调，与 consumer-threads 独立。
              */
-            private int sinkConsumerThreads = 500;
+            private int sinkConsumerThreads = 64;
             /** 驱逐协调线程数，默认单线程 */
             private int evictionCoordinatorThreads = 1;
             /** 驱逐扫描间隔（毫秒），0 表示使用 take() 阻塞等待，>0 表示 poll(timeout) 定期唤醒以检查关闭 */
