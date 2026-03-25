@@ -387,7 +387,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "待消费未清（pendingConsumer）：Job 完成判定条件之一，公式为 productionReleased - inStorage - activeConsumers - terminated。表示已离库但未终结的条目数（在消费队列或回调中，尚未调用 onConsumerReleased）。>0 表示阻塞。与在途消费数不同：后者为背压槽位占用数（in_flight_consumer_used），关系为 pendingConsumer = in_flight_consumer_used - activeConsumers。",
+      "description": "待消费未清（pendingConsumer）：Job 完成判定条件之一。指标口径与 FlowProgressSnapshot#getPendingConsumerCount() 一致，表示已离库但未终结的条目数（在消费队列或回调中，尚未调用 onConsumerReleased）。>0 表示阻塞。与在途消费数不同：后者为背压槽位占用数（in_flight_consumer_used），关系为 pendingConsumer = in_flight_consumer_used - activeConsumers。",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -403,7 +403,7 @@
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
       "title": "待消费未清",
       "type": "stat",
-      "targets": [{ "expr": "sum by (jobId) (clamp_min(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}, 0))", "legendFormat": "__auto", "refId": "A" }]
+      "targets": [{ "expr": "sum by (jobId) (app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "__auto", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -646,7 +646,7 @@
         { "expr": "sum by (jobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inStorage {{jobId}}", "refId": "A" },
         { "expr": "sum by (jobId) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "activeConsumers {{jobId}}", "refId": "B" },
         { "expr": "sum by (jobId) (app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inProduction {{jobId}}", "refId": "C" },
-        { "expr": "sum by (jobId) (clamp_min(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"} - on(jobId) app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}, 0))", "legendFormat": "pendingConsumer {{jobId}}", "refId": "D" },
+        { "expr": "sum by (jobId) (app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "pendingConsumer {{jobId}}", "refId": "D" },
         { "expr": "sum by (jobId) (1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "Source未读完 {{jobId}}", "refId": "E" },
         { "expr": "sum by (jobId) (app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inFlightPush {{jobId}}", "refId": "F" }
       ]

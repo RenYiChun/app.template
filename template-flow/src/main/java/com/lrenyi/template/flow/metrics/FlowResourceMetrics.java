@@ -137,7 +137,7 @@ public final class FlowResourceMetrics {
         String jobId = launcher.getJobId();
         String tagJobId = (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
         Tags tags = Tags.of(FlowMetricNames.TAG_JOB_ID, tagJobId);
-        List<Meter> meters = new ArrayList<>(10);
+        List<Meter> meters = new ArrayList<>(14);
         meters.add(Gauge.builder(FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT,
                                  launcher,
                                  FlowResourceMetrics::getInFlightProductionLimit
@@ -191,6 +191,11 @@ public final class FlowResourceMetrics {
                                  launcher,
                                  FlowResourceMetrics::getCompletionActiveConsumers
         ).tags(tags).description("活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定，与 in_flight_consumer_used 不同")
+         .register(meterRegistry));
+        meters.add(Gauge.builder(FlowMetricNames.COMPLETION_PENDING_CONSUMERS,
+                                 launcher,
+                                 FlowResourceMetrics::getCompletionPendingConsumers
+        ).tags(tags).description("待消费未清数量（pendingConsumer），用于完成判定")
          .register(meterRegistry));
         PER_JOB_METERS.put(launcher.getJobId(), meters);
     }
@@ -296,5 +301,9 @@ public final class FlowResourceMetrics {
 
     private static double getCompletionActiveConsumers(FlowLauncher<?> l) {
         return l.getTracker().getSnapshot().activeConsumers();
+    }
+
+    private static double getCompletionPendingConsumers(FlowLauncher<?> l) {
+        return l.getTracker().getSnapshot().getPendingConsumerCount();
     }
 }

@@ -107,6 +107,7 @@ Flow 指标前缀是 `app.template.flow.`，Prometheus 导出时 `.` 会变成 `
 | `app.template.flow.completion.source_finished` | `jobId` | source 是否已读完，`0/1` |
 | `app.template.flow.completion.in_flight_push` | `jobId` | 推送模式下尚未完成的 push 数量 |
 | `app.template.flow.completion.active_consumers` | `jobId` | 正在执行消费回调的活跃消费者数量 |
+| `app.template.flow.completion.pending_consumers` | `jobId` | 已离库但尚未终结的待消费未清数量 |
 
 ## 3. Flow 出口原因怎么看
 
