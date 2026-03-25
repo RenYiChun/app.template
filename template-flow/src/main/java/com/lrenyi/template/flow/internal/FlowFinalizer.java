@@ -94,54 +94,63 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        try {
-            submitConsumer(launcher, 1, runnable);
-        } catch (RuntimeException e) {
+        submitConsumer(launcher, 1, runnable, () -> {
+            try (entry) {
+                egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
+            }
+            launcher.getTracker().onTerminated(1);
             leaseToClose.close();
-            throw e;
-        }
+        });
     }
 
     /**
      * 将消费任务提交到消费执行器。通过 BackpressureManager 获取消费并发许可（ConsumerConcurrencyDimension），
      * 控制消费线程数与在途消费数据量。许可在调用线程 acquire，任务结束时在 finally 中 release。
      */
-    private void submitConsumer(FlowLauncher<?> launcher, int permits, Runnable task) {
+    private void submitConsumer(FlowLauncher<?> launcher, int permits, Runnable task, Runnable onAcquireFailure) {
         resourceRegistry.getGlobalPendingConsumerAdder().add(permits);
-        DimensionLease consumerLease = null;
         try {
-            consumerLease = launcher.getBackpressureManager()
-                    .acquire(ConsumerConcurrencyDimension.ID, launcher::isStopped, permits);
-            for (int i = 0; i < permits; i++) {
-                launcher.getTracker().onConsumerAcquired();
-            }
             String jobId = launcher.getJobId();
-            DimensionLease leaseToRelease = consumerLease;
             Runnable wrappedTask = () -> {
                 RuntimeException trackerFailure = null;
+                DimensionLease consumerLease = null;
                 try {
+                    try {
+                        consumerLease = launcher.getBackpressureManager()
+                                .acquire(ConsumerConcurrencyDimension.ID, launcher::isStopped, permits);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        onAcquireFailure.run();
+                        return;
+                    } catch (TimeoutException e) {
+                        onAcquireFailure.run();
+                        return;
+                    }
+                    for (int i = 0; i < permits; i++) {
+                        launcher.getTracker().onConsumerAcquired();
+                    }
                     task.run();
                 } finally {
-                    for (int i = 0; i < permits; i++) {
-                        try {
-                            launcher.getTracker().onConsumerReleased(jobId);
-                        } catch (RuntimeException ex) {
-                            if (trackerFailure == null) {
-                                trackerFailure = ex;
+                    if (consumerLease != null) {
+                        for (int i = 0; i < permits; i++) {
+                            try {
+                                launcher.getTracker().onConsumerReleased(jobId);
+                            } catch (RuntimeException ex) {
+                                if (trackerFailure == null) {
+                                    trackerFailure = ex;
+                                }
+                                FlowExceptionHelper.handleException(jobId,
+                                                                    null,
+                                                                    ex,
+                                                                    FlowPhase.FINALIZATION,
+                                                                    "consumer_release_callback_failed",
+                                                                    launcher.getMetricJobId()
+                                );
                             }
-                            FlowExceptionHelper.handleException(jobId,
-                                                                null,
-                                                                ex,
-                                                                FlowPhase.FINALIZATION,
-                                                                "consumer_release_callback_failed",
-                                                                launcher.getMetricJobId()
-                            );
                         }
+                        consumerLease.close();
                     }
                     resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
-                    if (leaseToRelease != null) {
-                        leaseToRelease.close();
-                    }
                     resourceRegistry.getFairLock().lock();
                     try {
                         resourceRegistry.getPermitReleased().signalAll();
@@ -155,19 +164,9 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 }
             };
             resourceRegistry.getFlowConsumerExecutor().execute(wrappedTask);
-        } catch (InterruptedException | TimeoutException | RuntimeException e) {
+        } catch (RuntimeException e) {
             resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
-            if (consumerLease != null) {
-                consumerLease.close();
-            }
-            if (e instanceof RuntimeException re) {
-                throw re;
-            }
-            if (e instanceof InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new com.lrenyi.template.flow.executor.ExecutorInterruptedException(ie);
-            }
-            throw new com.lrenyi.template.flow.executor.ExecutorAcquireTimeoutException((TimeoutException) e);
+            throw e;
         }
     }
 
@@ -238,11 +237,13 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 leaseToClose.close();
             }
         };
-        try {
-            submitConsumer(launcher, 2, runnable);
-        } catch (RuntimeException e) {
+        submitConsumer(launcher, 2, runnable, () -> {
+            try (partner; entry) {
+                egressHandler.performSingleConsumed(partner, EgressReason.BACKPRESSURE_TIMEOUT);
+                egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
+            }
+            launcher.getTracker().onTerminated(2);
             leaseToClose.close();
-            throw e;
-        }
+        });
     }
 }
