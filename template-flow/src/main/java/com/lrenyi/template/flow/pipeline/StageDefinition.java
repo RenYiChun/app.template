@@ -15,6 +15,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
  * @param dispatch       配对/单条下发策略（已内联含 transformer 语义）；fork 阶段为 null。
  * @param embeddedBatch  非 null 时在本阶段 Joiner 出口侧攒批后再 {@code push} 下游，不增加独立 aggregate Launcher
  * @param storageCapacityOverride 非 null 时覆盖本阶段 {@code limits.per-job.storage-capacity}，与运行时基底 flow 合并为独立快照
+ * @param consumerThreadsOverride 非 null 时覆盖本阶段 {@code limits.per-job.consumer-threads}，与运行时基底 flow 合并为独立快照
  */
 record StageDefinition<I, O>(
         FlowJoiner<I> joiner,
@@ -22,7 +23,8 @@ record StageDefinition<I, O>(
         List<String> branchNames,
         PipelineStageDispatch<I, O> dispatch,
         EmbeddedBatchSpec embeddedBatch,
-        Integer storageCapacityOverride) {
+        Integer storageCapacityOverride,
+        Integer consumerThreadsOverride) {
     /**
      * 判断当前阶段是否为分叉（扇出）阶段。
      */
