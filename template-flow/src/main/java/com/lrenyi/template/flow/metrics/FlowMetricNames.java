@@ -118,6 +118,11 @@ public final class FlowMetricNames {
      * 与 in_flight_consumer_used 不同：后者来自背压信号量（含排队中），前者仅统计已获取消费线程、回调执行中的条数。
      */
     public static final String COMPLETION_ACTIVE_CONSUMERS = PREFIX + ".completion.active_consumers";
+    /**
+     * 待消费未清数量（pendingConsumer），用于完成判定。
+     * 口径与 {@code FlowProgressSnapshot#getPendingConsumerCount()} 保持一致。
+     */
+    public static final String COMPLETION_PENDING_CONSUMERS = PREFIX + ".completion.pending_consumers";
 
     private FlowMetricNames() {}
 }

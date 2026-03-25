@@ -442,6 +442,10 @@ public class PipelineMetricsIntegrationTest {
         if (!Double.isNaN(sourceFinished)) {
             assertEquals(1.0, sourceFinished, 0.01);
         }
+        double pendingConsumers = gaugeValue(FlowMetricNames.COMPLETION_PENDING_CONSUMERS, stage0Tag);
+        if (!Double.isNaN(pendingConsumers)) {
+            assertEquals(0.0, pendingConsumers, 0.01);
+        }
     }
 
     @Test

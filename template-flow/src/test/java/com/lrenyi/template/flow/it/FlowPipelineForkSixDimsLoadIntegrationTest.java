@@ -370,6 +370,7 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
                 FlowMetricNames.COMPLETION_SOURCE_FINISHED,
                 FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH,
                 FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
+                FlowMetricNames.COMPLETION_PENDING_CONSUMERS,
         }) {
             appendGaugesForPipeline(metricName);
         }
@@ -470,6 +471,7 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         String[] zeroWhenDone = {
                 FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH,
                 FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
+                FlowMetricNames.COMPLETION_PENDING_CONSUMERS,
                 FlowMetricNames.RESOURCES_PER_JOB_STORAGE_USED,
                 FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_USED,
                 FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_USED,
