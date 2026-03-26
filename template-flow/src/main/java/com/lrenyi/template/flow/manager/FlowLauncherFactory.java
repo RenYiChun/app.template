@@ -71,7 +71,6 @@ final class FlowLauncherFactory {
                                                                  .storage(storage)
                                                                  .backpressureManager(backpressureManager)
                                                                  .producerExecutor(Executors.newThreadPerTaskExecutor(producerThreadFactory))
-                                                                 .jobConsumerSemaphore(semaphores.jobConsumer)
                                                                  .egressHandler(egressHandler)
                                                                  .finalizer(finalizer)
                                                                  .consumerPermitPair(permitPairs.consumer)

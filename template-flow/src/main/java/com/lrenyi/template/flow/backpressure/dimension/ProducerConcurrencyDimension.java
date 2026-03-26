@@ -2,6 +2,7 @@ package com.lrenyi.template.flow.backpressure.dimension;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.BackpressureTimeoutException;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
@@ -56,7 +57,14 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         Timer.Sample sample = metricsEnabled ? Timer.start(registry) : null;
         PermitPair.AcquireResult result;
         try {
-            result = pair.tryAcquireBothWithResult(permits);
+            boolean blockForever = fc == null || fc.getProducerBackpressureBlockingMode()
+                    == TemplateConfigProperties.Flow.BackpressureBlockingMode.BLOCK_FOREVER;
+            long timeoutMs = (fc != null) ? fc.getProducerBackpressureTimeoutMill() : 30_000L;
+            if (blockForever) {
+                result = pair.tryAcquireBothWithResult(permits);
+            } else {
+                result = pair.tryAcquireBothWithResult(permits, timeoutMs, TimeUnit.MILLISECONDS);
+            }
         } finally {
             if (metricsEnabled && sample != null) {
                 recordDuration(registry, metricJobId, pair, sample);
@@ -64,25 +72,13 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
         }
         if (result != PermitPair.AcquireResult.SUCCESS) {
             if (metricsEnabled) {
-                recordTimeout(registry, metricJobId, result);
-                if (result == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
-                    Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL)
-                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                           .register(registry)
-                           .increment();
-                } else {
-                    Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB)
-                           .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                           .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                           .register(registry)
-                           .increment();
-                }
+                recordBlockedAndTimeout(registry, metricJobId, result);
             }
             throw new BackpressureTimeoutException("producer-concurrency acquire failed for jobId=" + ctx.getJobId(),
                     result);
         }
     }
+
     @Override
     public void onBusinessRelease(DimensionContext ctx, int permits) {
         if (permits <= 0) {
@@ -136,6 +132,18 @@ public class ProducerConcurrencyDimension implements ResourceBackpressureDimensi
                    .register(registry)
                    .increment();
         }
+    }
+
+    private void recordBlockedAndTimeout(MeterRegistry registry, String metricJobId, PermitPair.AcquireResult result) {
+        recordTimeout(registry, metricJobId, result);
+        String metricName = result == PermitPair.AcquireResult.FAILED_ON_GLOBAL
+                ? BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL
+                : BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB;
+        Counter.builder(metricName)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+               .register(registry)
+               .increment();
     }
 
     private void recordDuration(MeterRegistry registry, String metricJobId, PermitPair pair, Timer.Sample sample) {

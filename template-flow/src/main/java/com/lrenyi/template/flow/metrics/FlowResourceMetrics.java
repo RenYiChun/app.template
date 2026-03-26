@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.function.ToDoubleFunction;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.flow.context.FlowResourceContext;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
