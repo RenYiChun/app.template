@@ -10,6 +10,7 @@ import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
 import com.lrenyi.template.flow.internal.RetryHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -53,6 +54,7 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(entry.getJobId(), progressTracker.getMetricJobId()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry)
@@ -63,6 +65,7 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(entry.getJobId(), progressTracker.getMetricJobId()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry)
@@ -119,6 +122,10 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     
     protected final FlowResourceRegistry resourceRegistry() {
         return resourceRegistry;
+    }
+
+    protected final ProgressTracker progressTracker() {
+        return progressTracker;
     }
     
     protected final MeterRegistry meterRegistry() {

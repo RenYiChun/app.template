@@ -22,6 +22,7 @@ import com.lrenyi.template.flow.health.FlowResourceHealthIndicator;
 import com.lrenyi.template.flow.health.HealthStatus;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowResourceMetrics;
+import com.lrenyi.template.flow.metrics.FlowTerminalMetrics;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -51,6 +52,7 @@ public class FlowManager implements ActiveLauncherLookup {
     private final TemplateConfigProperties.Flow globalConfig;
     private final FlowResourceRegistry resourceRegistry;
     private final MeterRegistry meterRegistry;
+    private final FlowTerminalMetrics terminalMetrics;
 
     private final Map<String, FlowLauncher<Object>> activeLaunchers = new ConcurrentHashMap<>();
     private final Map<String, ProgressTracker> completedTrackers = new ConcurrentHashMap<>();
@@ -86,6 +88,7 @@ public class FlowManager implements ActiveLauncherLookup {
         this.resourceRegistry = FlowResourceRegistry.getInstance(globalConfig, meterRegistry);
         this.resourceRegistry.setLauncherLookup(this);
         FlowExceptionHelper.setMeterRegistry(meterRegistry);
+        this.terminalMetrics = new FlowTerminalMetrics(meterRegistry, delayedUnregisterExecutor);
         log.info("FlowManager 启动");
     }
 
@@ -313,15 +316,6 @@ public class FlowManager implements ActiveLauncherLookup {
         removeJobMetrics(meterRegistry, "app.template.flow.completion.source_finished", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.completion.in_flight_push", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.completion.active_consumers", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire-wait-duration", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.producer-threads.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.in-flight.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.used", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.consumer-concurrency.limit", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.count", metricJobId);
-        removeJobMetrics(meterRegistry, "app.template.flow.limits.pending-consumer.limit", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.used", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.deposit.duration", metricJobId);
@@ -434,6 +428,9 @@ public class FlowManager implements ActiveLauncherLookup {
                 }
                 String metricJobId = resolveMetricJobId(jobId);
                 tracker.setMetricJobId(metricJobId);
+                terminalMetrics.markStageRunning(jobId, metricJobId, System.currentTimeMillis());
+                terminalMetrics.markJobRunning(extractRootJobId(jobId), extractDisplayName(jobId, metricJobId),
+                        System.currentTimeMillis());
 
                 FlowLauncher<T> launcher =
                     buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig);
@@ -541,5 +538,37 @@ public class FlowManager implements ActiveLauncherLookup {
         }
         unregister(jobId, expectedGeneration);
         return true;
+    }
+
+    public void markStageTerminal(String internalJobId,
+                                  String metricJobId,
+                                  String status,
+                                  String reason,
+                                  long startTimeMillis,
+                                  long endTimeMillis) {
+        terminalMetrics.markStageTerminal(internalJobId, metricJobId, status, reason, startTimeMillis, endTimeMillis);
+    }
+
+    public void markRootTerminal(String rootJobId,
+                                 String displayName,
+                                 String status,
+                                 String reason,
+                                 long startTimeMillis,
+                                 long endTimeMillis) {
+        terminalMetrics.markJobTerminal(rootJobId, displayName, status, reason, startTimeMillis, endTimeMillis);
+    }
+
+    private String extractRootJobId(String internalJobId) {
+        int idx = internalJobId.indexOf(':');
+        return idx >= 0 ? internalJobId.substring(0, idx) : internalJobId;
+    }
+
+    private String extractDisplayName(String internalJobId, String metricJobId) {
+        String rootJobId = extractRootJobId(internalJobId);
+        String suffix = internalJobId.startsWith(rootJobId) ? internalJobId.substring(rootJobId.length()) : "";
+        if (!suffix.isEmpty() && metricJobId != null && metricJobId.endsWith(suffix)) {
+            return metricJobId.substring(0, metricJobId.length() - suffix.length());
+        }
+        return metricJobId;
     }
 }

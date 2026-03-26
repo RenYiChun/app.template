@@ -9,7 +9,9 @@
       "pluginName": "Prometheus"
     }
   ],
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -18,690 +20,991 @@
   "liveNow": false,
   "panels": [
     {
-      "collapsed": true,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 200,
       "title": "应用概览",
       "type": "row",
-      "panels": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "HTTP 请求 QPS：每秒处理的 HTTP 请求总数，反映应用整体请求吞吐量。", "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 }, "id": 202, "options": { "tooltip": { "mode": "multi" } }, "title": "HTTP 请求 QPS（每秒请求数）", "type": "timeseries", "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{instance=~\"$instance\",job=\"$job\"}[1m]))", "refId": "A" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "HTTP 平均响应时间：所有请求的平均耗时（秒），用于评估接口整体响应速度。", "fieldConfig": { "defaults": { "unit": "s", "decimals": 3, "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 }, "id": 203, "options": { "tooltip": { "mode": "multi" } }, "title": "HTTP 平均响应时间（秒）", "type": "timeseries", "targets": [{ "expr": "sum(rate(http_server_requests_seconds_sum{instance=~\"$instance\",job=\"$job\"}[1m])) / sum(rate(http_server_requests_seconds_count{instance=~\"$instance\",job=\"$job\"}[1m]))", "refId": "A" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "HTTP 响应时间分位数：P99（99% 请求低于该值）、P95、P50（中位数），用于发现长尾延迟。", "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 }, "id": 210, "options": { "tooltip": { "mode": "multi" } }, "title": "HTTP 响应时间分位数（P99/P95/P50，秒）", "type": "timeseries", "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "P99", "refId": "A" }, { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "P95", "refId": "B" }, { "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "P50", "refId": "C" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "JVM 活跃线程数：当前存活的 Java 线程总数，用于监控线程泄漏或过高并发。", "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 }, "id": 206, "options": { "tooltip": { "mode": "multi" } }, "title": "JVM 活跃线程数", "type": "timeseries", "targets": [{ "expr": "jvm_threads_live_threads{instance=~\"$instance\",job=\"$job\"}", "refId": "A" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "CPU 使用率：系统整体 CPU 占用与当前 JVM 进程 CPU 占用（0–1 表示 0%–100%）。", "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 0, "y": 6, "w": 6, "h": 6 }, "id": 209, "options": { "tooltip": { "mode": "multi" } }, "title": "CPU 使用率（系统/进程）", "type": "timeseries", "targets": [{ "expr": "system_cpu_usage{instance=~\"$instance\",job=\"$job\"}", "legendFormat": "系统", "refId": "A" }, { "expr": "process_cpu_usage{instance=~\"$instance\",job=\"$job\"}", "legendFormat": "进程", "refId": "B" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "JVM 堆内存使用率：已用堆内存 / 最大堆内存，接近 1 时需关注 GC 或扩容。", "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 6, "y": 6, "w": 6, "h": 6 }, "id": 204, "options": { "tooltip": { "mode": "multi" } }, "title": "JVM 堆内存使用率（已用/最大）", "type": "timeseries", "targets": [{ "expr": "sum(jvm_memory_used_bytes{instance=~\"$instance\",job=\"$job\",area=\"heap\"}) / sum(jvm_memory_max_bytes{instance=~\"$instance\",job=\"$job\",area=\"heap\"})", "refId": "A" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "JVM 内存占用：按区域（heap 堆 / nonheap 非堆）展示已用与最大字节数，用于排查内存问题。", "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 }, "id": 208, "options": { "tooltip": { "mode": "multi" } }, "title": "JVM 内存占用（按区域：heap/nonheap）", "type": "timeseries", "targets": [{ "expr": "sum by (area) (jvm_memory_used_bytes{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "已用 {{area}}", "refId": "A" }, { "expr": "sum by (area) (jvm_memory_max_bytes{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "最大 {{area}}", "refId": "B" }] }
+      "description": "应用基础指标"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "应用整体请求吞吐量。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 6
+      },
+      "id": 202,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "HTTP 请求 QPS",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A"
+        }
       ]
     },
     {
-      "collapsed": true,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 1 },
-      "id": 120,
-      "title": "Flow 引擎概览（global）",
-      "type": "row",
-      "panels": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Source 输入速率：按 sourceType 统计每秒接收到的条目数，用于观察流水线入口压力。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
-          "id": 360,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "Source 输入速率（按 sourceType，条/秒）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{sourceType}}", "refId": "A" }
-          ]
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "当前存活的 Java 线程总数。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 6
+      },
+      "id": 203,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "JVM 活跃线程数",
+      "type": "timeseries",
+      "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "主吞吐：进入=获取生产许可，入库=完成 deposit，终结=完成 finalization。按流水线顺序观察各阶段吞吐是否失衡。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
-          "id": 361,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "主吞吐（进入/入库/终结，条/秒）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "进入", "refId": "A" },
-            { "expr": "sum(rate(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "入库", "refId": "B" },
-            { "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "终结", "refId": "C" }
-          ]
+          "expr": "jvm_threads_live_threads{instance=~\"$instance\",job=\"$job\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "已用堆内存 / 最大堆内存。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 6
+      },
+      "id": 204,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "JVM 堆内存使用率",
+      "type": "timeseries",
+      "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "生产在途资源：已 acquire 未 release 的生产 launch 数。使用接近上限表示入口背压开始生效。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 6 },
-          "id": 362,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "生产在途（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_in_flight_production_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_in_flight_production_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "生产线程资源：deposit 任务的全局并发线程。使用贴近上限时，生产侧线程已满载。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 16, "y": 0, "w": 4, "h": 6 },
-          "id": 363,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "生产线程（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_producer_threads_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_producer_threads_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "存储容量：Flow 中间缓冲区当前占用与配置上限。使用接近上限时，存储已成为瓶颈。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 20, "y": 0, "w": 4, "h": 6 },
-          "id": 364,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "存储容量（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "消费在途资源：已离库但尚未终结的槽位占用。它反映 finalizer 后半段压力，不等于 pendingConsumer。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 0, "y": 6, "w": 4, "h": 6 },
-          "id": 365,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "消费在途（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_in_flight_consumer_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "消费线程资源：onSingleConsumed/onPairConsumed 回调的全局并发线程。贴近上限表示终结线程已满载。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 4, "y": 6, "w": 4, "h": 6 },
-          "id": 301,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "消费线程（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_consumer_threads_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_consumer_threads_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Sink 终端并发：全局 sink 回调共享信号量的配置上限与当前占用。使用贴近上限说明出口正在限流。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 8, "y": 6, "w": 4, "h": 6 },
-          "id": 302,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "Sink 并发（global，上限/使用）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "上限", "refId": "A" },
-            { "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "使用", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "关键阶段耗时：Deposit 表示入库，Match 表示配对/消费前处理，Finalize 表示终结回调。用于按流水线顺序观察延迟放大点。",
-          "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 12, "y": 6, "w": 6, "h": 6 },
-          "id": 303,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "关键阶段耗时（Deposit/Match/Finalize P99）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Deposit P99", "refId": "A" },
-            { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Match P99", "refId": "B" },
-            { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "Finalize P99", "refId": "C" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Sink 终端等待：等待 sink 全局并发许可的 P99 耗时，以及获取超时次数/秒。用于定位末端写入拥塞。",
-          "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": "超时.*" }, "properties": [ { "id": "unit", "value": "ops" } ] } ] },
-          "gridPos": { "x": 18, "y": 6, "w": 6, "h": 6 },
-          "id": 311,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "Sink 等待与超时（P99/次每秒）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_sink_concurrency_wait_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\"}[1m])) by (le))", "legendFormat": "等待耗时P99", "refId": "A" },
-            { "expr": "sum(rate(app_template_flow_sink_concurrency_acquire_timeout_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "超时次数", "refId": "B" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Flow 错误（按阶段）：用于从生产、存储、消费、终结四个阶段看异常放大的位置。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
-          "gridPos": { "x": 0, "y": 12, "w": 6, "h": 6 },
-          "id": 314,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "Flow 错误（按阶段）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (phase) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{phase}}", "refId": "A" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "Flow 错误（按类型）：用于从 job_failed、deposit_failed、match_process_failed、onSingleConsumed_failed 等类型定位故障模式。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
-          "gridPos": { "x": 6, "y": 12, "w": 6, "h": 6 },
-          "id": 315,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "Flow 错误（按类型）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{errorType}}", "refId": "A" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "背压管理器获取结果：仅展示真正的 global 管理器指标，不混入 per-job。用于判断全局限流器是否成为主瓶颈。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 12, "y": 12, "w": 6, "h": 6 },
-          "id": 316,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "管理器获取结果（global）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "成功", "refId": "A" },
-            { "expr": "sum(rate(backpressure_manager_acquire_failed_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败(global)", "refId": "B" },
-            { "expr": "sum(rate(backpressure_manager_acquire_failed_other_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败(other)", "refId": "C" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "租约健康：活跃全局租约数，以及幂等 close 命中、泄漏检测的速率。后两者升高通常说明释放路径异常。",
-          "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": ".*命中.*|.*检测.*" }, "properties": [ { "id": "unit", "value": "ops" } ] } ] },
-          "gridPos": { "x": 18, "y": 12, "w": 6, "h": 6 },
-          "id": 317,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "租约健康（global）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(backpressure_manager_lease_active_global{instance=~\"$instance\",job=\"$job\"})", "legendFormat": "活跃租约", "refId": "A" },
-            { "expr": "sum(rate(backpressure_manager_release_idempotent_hit_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "幂等close命中", "refId": "B" },
-            { "expr": "sum(rate(backpressure_manager_release_leak_detected_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "泄漏检测", "refId": "C" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "生产阶段背压：覆盖 in-flight-production 与 producer-concurrency 两个生产相关 global 维度。按流水线入口观察尝试、阻塞、超时与获取耗时。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [ { "id": "unit", "value": "s" } ] } ] },
-          "gridPos": { "x": 0, "y": 18, "w": 6, "h": 6 },
-          "id": 350,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "生产阶段背压（global）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|producer-concurrency\"}[1m]))", "legendFormat": "尝试 {{dimensionId}}", "refId": "A" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|producer-concurrency\"}[1m]))", "legendFormat": "阻塞 {{dimensionId}}", "refId": "B" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|producer-concurrency\"}[1m]))", "legendFormat": "超时 {{dimensionId}}", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_global_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-production|producer-concurrency\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "存储阶段背压：仅展示 storage 这个全局维度，用于判断中间缓冲是否是主要卡点。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [ { "id": "unit", "value": "s" } ] } ] },
-          "gridPos": { "x": 6, "y": 18, "w": 6, "h": 6 },
-          "id": 351,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "存储阶段背压（global）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum(rate(backpressure_dimension_acquire_attempts_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试", "refId": "A" },
-            { "expr": "sum(rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞", "refId": "B" },
-            { "expr": "sum(rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_global_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=\"storage\"}[1m])) by (le))", "legendFormat": "获取耗时P99", "refId": "D" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "消费阶段背压：覆盖 in-flight-consumer 与 consumer-concurrency 两个消费相关 global 维度。用于观察 finalizer 末端压力。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [ { "id": "unit", "value": "s" } ] } ] },
-          "gridPos": { "x": 12, "y": 18, "w": 6, "h": 6 },
-          "id": 352,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "消费阶段背压（global）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_attempts_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-consumer|consumer-concurrency\"}[1m]))", "legendFormat": "尝试 {{dimensionId}}", "refId": "A" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-consumer|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞 {{dimensionId}}", "refId": "B" },
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-consumer|consumer-concurrency\"}[1m]))", "legendFormat": "超时 {{dimensionId}}", "refId": "C" },
-            { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_global_seconds_bucket{instance=~\"$instance\",job=\"$job\",dimensionId=~\"in-flight-consumer|consumer-concurrency\"}[1m])) by (le, dimensionId))", "legendFormat": "获取耗时P99 {{dimensionId}}", "refId": "D" }
-          ]
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "description": "全局背压释放：按维度统计 global 释放次数，用于配合 acquire 指标判断各维度是否存在长期持有。",
-          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
-          "gridPos": { "x": 18, "y": 18, "w": 6, "h": 6 },
-          "id": 313,
-          "options": { "tooltip": { "mode": "multi" } },
-          "title": "全局背压释放（按维度）",
-          "type": "timeseries",
-          "targets": [
-            { "expr": "sum by (dimensionId) (rate(backpressure_dimension_release_count_global_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{dimensionId}}", "refId": "A" }
-          ]
+          "expr": "sum(jvm_memory_used_bytes{instance=~\"$instance\",job=\"$job\",area=\"heap\"}) / sum(jvm_memory_max_bytes{instance=~\"$instance\",job=\"$job\",area=\"heap\"})",
+          "refId": "A"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 },
-      "id": 121,
-      "title": "Flow 引擎概览（per-job）",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 300,
+      "title": "Flow 全局概览",
       "type": "row",
-      "description": "选择具体 Job 时显示该 Job 的完成状态；选择 All 时为所有 Job 的求和。"
+      "description": "全局流量、存储与错误。"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成阻塞原因：0=满足，1=阻塞。红色表示该条件正在阻止 Job 结束。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 sourceType 统计每秒接收条数。",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": []
       },
-      "gridPos": { "x": 0, "y": 3, "w": 4, "h": 4 },
-      "id": 375,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "Source未读完",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 301,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Source 输入速率",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{sourceType}}"
+        }
+      ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成阻塞原因：0=满足，1=阻塞。与日志 inStorage 同源（storage.size()）。选 All 时 sum 会聚合所有 Job，常驻 Job（如全局数据存储任务）会贡献非零值；选具体 Job 时显示该 Job 的值。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "全局入口、入库、终结速率。",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": []
       },
-      "gridPos": { "x": 4, "y": 3, "w": 4, "h": 4 },
-      "id": 376,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "Storage未清空",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 302,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "主吞吐（进入/入库/终结）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "进入"
+        },
+        {
+          "expr": "sum(rate(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "入库"
+        },
+        {
+          "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "C",
+          "legendFormat": "终结"
+        }
+      ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成阻塞原因：0=满足，1=阻塞。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "全局 storage 使用量与上限。",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": []
       },
-      "gridPos": { "x": 8, "y": 3, "w": 4, "h": 4 },
-      "id": 377,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "Consumer未释放",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 303,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "全局 Storage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "A",
+          "legendFormat": "上限"
+        },
+        {
+          "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "B",
+          "legendFormat": "使用"
+        }
+      ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成阻塞原因：0=满足，1=阻塞。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 phase/errorType 观察错误。",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
         "overrides": []
       },
-      "gridPos": { "x": 12, "y": 3, "w": 4, "h": 4 },
-      "id": 378,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "生产未完成",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "待消费未清（pendingConsumer）：Job 完成判定条件之一。指标口径与 FlowProgressSnapshot#getPendingConsumerCount() 一致，表示已离库但未终结的条目数（在消费队列或回调中，尚未调用 onConsumerReleased）。>0 表示阻塞。与在途消费数不同：后者为背压槽位占用数（in_flight_consumer_used），关系为 pendingConsumer = in_flight_consumer_used - activeConsumers。",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
+      "gridPos": {
+        "x": 18,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 304,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Flow 错误率",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (phase) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{phase}}"
         },
-        "overrides": []
-      },
-      "gridPos": { "x": 16, "y": 3, "w": 4, "h": 4 },
-      "id": 379,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "待消费未清",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成阻塞原因：0=满足，1=阻塞。",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "mappings": [{ "type": "value", "options": { "0": { "text": "0", "color": "green" } } }],
-          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] },
-          "min": 0,
-          "max": 1
-        },
-        "overrides": []
-      },
-      "gridPos": { "x": 20, "y": 3, "w": 4, "h": 4 },
-      "id": 380,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["last"], "fields": "", "values": false }, "textMode": "value", "text": { "valueSize": 24, "titleSize": 12 } },
-      "title": "Push未完成",
-      "type": "stat",
-      "targets": [{ "expr": "(sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})) or on() vector(0)", "legendFormat": "__auto", "refId": "A", "instant": true }]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "生产在途数：已 acquire 未 release 的数据量。上限为配置值，使用为当前占用。使用接近上限表示生产端可能被限流。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 0, "y": 7, "w": 5, "h": 6 },
-      "id": 370,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "生产在途数（上限/使用）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "app_template_flow_resources_per_job_in_flight_production_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
+        {
+          "expr": "sum by (errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "{{errorType}}"
+        }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "生产线程数：deposit 任务的并发线程数。上限为配置值，使用为当前活跃数。使用接近上限表示生产端已满负荷。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
       },
-      "gridPos": { "x": 5, "y": 7, "w": 5, "h": 6 },
-      "id": 371,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "生产线程数（上限/使用）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "app_template_flow_resources_per_job_producer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_per_job_producer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "存储容量：Flow 缓存中的条目数。上限为配置值，使用为当前缓存条数。使用接近上限表示存储可能成为瓶颈。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 10, "y": 7, "w": 5, "h": 6 },
-      "id": 372,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "存储容量（上限/使用）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "在途消费数（in_flight_consumer_used）：InFlightConsumerDimension 信号量占用数，表示已离库、占用消费槽位但尚未终结的条目数（含排队等待消费线程 + 正在执行 onSingleConsumed/onPairConsumed 回调）。使用接近上限表示消费端可能被限流。与待消费未清（pendingConsumer）不同：后者为完成判定推导值，关系为 pendingConsumer = in_flight_consumer_used - activeConsumers。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 15, "y": 7, "w": 5, "h": 6 },
-      "id": 373,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "在途消费数（已离库未消费条数，上限/使用）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "app_template_flow_resources_per_job_in_flight_consumer_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_per_job_in_flight_consumer_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "消费线程数：onSingleConsumed/onPairConsumed 回调的并发线程数。使用接近上限表示消费端已满负荷。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 20, "y": 7, "w": 4, "h": 6 },
-      "id": 374,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "消费线程数（上限/使用）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "app_template_flow_resources_per_job_consumer_threads_limit{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "上限 {{jobId}}", "refId": "A" },
-        { "expr": "app_template_flow_resources_per_job_consumer_threads_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "使用 {{jobId}}", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Flow 吞吐量：进入速率=成功获取生产许可条数/秒（app_template_flow_production_acquired）；终结TPS=消费完成条数/秒。稳态下两者应基本相等。",
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 0, "y": 13, "w": 8, "h": 6 },
-      "id": 321,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Flow 吞吐量（数据量/秒）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "进入速率 {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "终结TPS {{jobId}}", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "许可获取TPS：每秒成功/失败次数，按 jobId 及 global/per-job/other 划分。失败增多表示资源紧张或配置过严。",
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 8, "y": 13, "w": 8, "h": 6 },
-      "id": 331,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "许可获取（成功/失败次数每秒）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "成功(global) {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_success_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "成功(per-job) {{jobId}}", "refId": "A2" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(global) {{jobId}}", "refId": "B" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(per-job) {{jobId}}", "refId": "B2" },
-        { "expr": "sum by (jobId) (rate(backpressure_manager_acquire_failed_other_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "失败(other) {{jobId}}", "refId": "B3" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "活跃租约数：当前持有 global/per-job 许可的租约数，按 jobId 分组。用于排查许可泄漏或长时间占用。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 16, "y": 13, "w": 8, "h": 6 },
-      "id": 334,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "活跃租约数（已持有未释放的许可数）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "backpressure_manager_lease_active_global{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "{{jobId}} (global)", "refId": "A" },
-        { "expr": "backpressure_manager_lease_active_per_job{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}", "legendFormat": "{{jobId}} (per-job)", "refId": "B" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压维度 in-flight-production / in-flight-consumer：尝试次数（每秒获取许可的尝试）、阻塞次数（因资源不足等待）、超时次数、获取耗时P99（秒）",
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": [
-          { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [{ "id": "unit", "value": "s" }] }
-        ]
-      },
-      "gridPos": { "x": 0, "y": 19, "w": 8, "h": 6 },
-      "id": 340,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "in-flight 维度（生产在途/消费在途：尝试、阻塞、超时、耗时）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}} {{dimensionId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}} {{dimensionId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}} {{dimensionId}}", "refId": "B2" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"in-flight-production|in-flight-consumer\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压维度 producer-concurrency / consumer-concurrency：尝试次数（每秒获取生产/消费线程许可的尝试）、阻塞次数（因资源不足等待）、超时次数、获取耗时P99（秒）",
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": [
-          { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [{ "id": "unit", "value": "s" }] }
-        ]
-      },
-      "gridPos": { "x": 8, "y": 19, "w": 8, "h": 6 },
-      "id": 341,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "producer/consumer 维度（生产/消费线程：尝试、阻塞、超时、耗时）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}} {{dimensionId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}} {{dimensionId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}} {{dimensionId}}", "refId": "B2" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m]))", "legendFormat": "超时次数 {{jobId}} {{dimensionId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=~\"producer-concurrency|consumer-concurrency\"}[1m])) by (le, jobId, dimensionId))", "legendFormat": "获取耗时P99 {{jobId}} {{dimensionId}}", "refId": "D" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "背压维度 storage：尝试次数（每秒获取存储许可的尝试）、阻塞次数（因存储满等待）、超时次数、获取耗时P99（秒）",
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": [
-          { "matcher": { "id": "byRegexp", "options": ".*耗时.*" }, "properties": [{ "id": "unit", "value": "s" }] }
-        ]
-      },
-      "gridPos": { "x": 16, "y": 19, "w": 8, "h": 6 },
-      "id": 342,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "storage 维度（存储许可：尝试、阻塞、超时、耗时）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_attempts_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "尝试次数(per-job) {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(global) {{jobId}}", "refId": "B" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_blocked_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "阻塞(per-job) {{jobId}}", "refId": "B2" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m]))", "legendFormat": "超时次数 {{jobId}}", "refId": "C" },
-        { "expr": "histogram_quantile(0.99, sum(rate(backpressure_dimension_acquire_duration_per_job_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\",dimensionId=\"storage\"}[1m])) by (le, jobId))", "legendFormat": "获取耗时P99 {{jobId}}", "refId": "D" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Job 完成判定原始值：用于判断 Job 是否可结束的 6 个指标。完成条件：sourceFinished=1 且其余均为 0。",
-      "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": []
-      },
-      "gridPos": { "x": 0, "y": 25, "w": 12, "h": 8 },
-      "id": 381,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Job 完成判定（原始值）",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "sum by (jobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inStorage {{jobId}}", "refId": "A" },
-        { "expr": "sum by (jobId) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "activeConsumers {{jobId}}", "refId": "B" },
-        { "expr": "sum by (jobId) (app_template_flow_resources_per_job_in_flight_production_used{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inProduction {{jobId}}", "refId": "C" },
-        { "expr": "sum by (jobId) (app_template_flow_completion_pending_consumers{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "pendingConsumer {{jobId}}", "refId": "D" },
-        { "expr": "sum by (jobId) (1 - app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "Source未读完 {{jobId}}", "refId": "E" },
-        { "expr": "sum by (jobId) (app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"})", "legendFormat": "inFlightPush {{jobId}}", "refId": "F" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Flow 各阶段耗时：Deposit（入库）、Match（配对）、Finalize（终结）的 P99 延迟（秒），按 jobId 分组。超时曲线为背压获取超时次数/秒。",
-      "fieldConfig": {
-        "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } },
-        "overrides": [
-          { "matcher": { "id": "byRegexp", "options": "超时.*" }, "properties": [{ "id": "unit", "value": "ops" }] }
-        ]
-      },
-      "gridPos": { "x": 12, "y": 25, "w": 12, "h": 8 },
-      "id": 335,
-      "options": { "tooltip": { "mode": "multi" } },
-      "title": "Flow 各阶段耗时（Deposit/Match/Finalize P99）及超时",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Deposit P99 {{jobId}}", "refId": "A" },
-        { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Match P99 {{jobId}}", "refId": "B" },
-        { "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m])) by (le, jobId))", "legendFormat": "Finalize P99 {{jobId}}", "refId": "C" },
-        { "expr": "sum by (jobId, dimensionId) (rate(backpressure_dimension_acquire_timeout_global_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]) + rate(backpressure_dimension_acquire_timeout_per_job_total{instance=~\"$instance\",job=\"$job\",jobId=~\"$jobId\"}[1m]))", "legendFormat": "超时 {{jobId}} {{dimensionId}}", "refId": "D" },
-        { "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "Source {{sourceType}}", "refId": "E" }
-      ]
-    },
-    {
-      "collapsed": true,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
-      "id": 101,
-      "title": "HTTP 认证与 OAuth2 指标",
+      "id": 900,
+      "title": "Flow 根任务总览",
       "type": "row",
-      "panels": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "HTTP 认证失败：每秒认证失败的请求数，按 reason 分类（如 invalid_token、missing_header、expired 等）。", "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] }, "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 }, "id": 11, "options": { "tooltip": { "mode": "multi" } }, "title": "HTTP 认证失败（按原因：invalid_token/missing_header 等）", "type": "timeseries", "targets": [{ "expr": "sum by (reason) (rate(app_template_http_auth_failure_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{reason}}", "refId": "A" }] },
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "OAuth2 Token 签发与失败：每秒成功签发的 Token 数（按 grantType）与失败数（按 errorType），用于监控 OAuth2 授权服务健康。", "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 }, "id": 12, "options": { "tooltip": { "mode": "multi" } }, "title": "OAuth2 Token 签发与失败（按 grantType/errorType）", "type": "timeseries", "targets": [{ "expr": "sum by (grantType) (rate(app_template_oauth2_token_issued_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "签发 {{grantType}}", "refId": "A" }, { "expr": "sum by (errorType) (rate(app_template_oauth2_token_failed_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "失败 {{errorType}}", "refId": "B" }] }
+      "description": "根任务视角：先看 rootJobId 的终态、吞吐、错误和总 backlog。"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "最近 7 天根任务终态。",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 7
+      },
+      "id": 901,
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [],
+          "fields": ""
+        }
+      },
+      "title": "根任务状态",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "max by (rootJobId, displayName, status) (app_template_flow_job_status{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"} > 0)",
+          "refId": "A",
+          "legendFormat": "{{displayName}} {{rootJobId}} {{status}}",
+          "instant": true
+        }
       ]
     },
     {
-      "collapsed": true,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
-      "id": 102,
-      "title": "数据源指标",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "最近 7 天根任务结束原因。",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 15,
+        "w": 12,
+        "h": 7
+      },
+      "id": 902,
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [],
+          "fields": ""
+        }
+      },
+      "title": "根任务结束原因",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "max by (rootJobId, displayName, reason) (app_template_flow_job_end_reason{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"})",
+          "refId": "A",
+          "legendFormat": "{{displayName}} {{rootJobId}} {{reason}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 rootJobId 聚合进入速率与终结 TPS。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 8,
+        "h": 6
+      },
+      "id": 903,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "根任务吞吐（进入/终结）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (displayName, rootJobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "进入 {{displayName}}"
+        },
+        {
+          "expr": "sum by (displayName, rootJobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "终结 {{displayName}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 rootJobId 聚合错误率。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 22,
+        "w": 8,
+        "h": 6
+      },
+      "id": 904,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "根任务错误率",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (displayName, rootJobId, errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{displayName}} {{errorType}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 rootJobId 聚合所有 stage backlog。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 8,
+        "h": 6
+      },
+      "id": 905,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "根任务总 Storage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (displayName, rootJobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"})",
+          "refId": "A",
+          "legendFormat": "{{displayName}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 910,
+      "title": "Flow 阶段下钻",
       "type": "row",
-      "panels": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "description": "数据源接收速率：各数据源（Kafka、NATS、分页 API 等）每秒接收的条目数，按 sourceType 分组。", "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] }, "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 }, "id": 14, "options": { "tooltip": { "mode": "multi" } }, "title": "数据源接收速率（按 sourceType，条/秒）", "type": "timeseries", "targets": [{ "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))", "legendFormat": "{{sourceType}}", "refId": "A" }] }
+      "description": "阶段视角：按 rootJobId + stageKey 查看状态、TPS、storage、activeConsumers 和完成水位。"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "阶段终态与运行态。",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 7
+      },
+      "id": 911,
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [],
+          "fields": ""
+        }
+      },
+      "title": "阶段状态",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "max by (rootJobId, displayName, stageKey, stageName, status) (app_template_flow_stage_status{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"} > 0)",
+          "refId": "A",
+          "legendFormat": "{{stageKey}} {{stageName}} {{status}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "阶段结束原因。",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 7
+      },
+      "id": 912,
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [],
+          "fields": ""
+        }
+      },
+      "title": "阶段结束原因",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "max by (rootJobId, displayName, stageKey, stageName, reason) (app_template_flow_stage_end_reason{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "refId": "A",
+          "legendFormat": "{{stageKey}} {{stageName}} {{reason}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按阶段查看进入与终结 TPS。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "id": 913,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "阶段 TPS",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (stageKey, stageName) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "进入 {{stageKey}} {{stageName}}"
+        },
+        {
+          "expr": "sum by (stageKey, stageName) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "终结 {{stageKey}} {{stageName}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "阶段 backlog 与真实活跃消费数。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "id": 914,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "阶段 Storage / ActiveConsumers",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (stageKey, stageName) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "refId": "A",
+          "legendFormat": "storage {{stageKey}} {{stageName}}"
+        },
+        {
+          "expr": "sum by (stageKey, stageName) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "refId": "B",
+          "legendFormat": "active {{stageKey}} {{stageName}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Deposit / Match / Finalize 的 P99。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 36,
+        "w": 8,
+        "h": 6
+      },
+      "id": 915,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "阶段耗时（P99）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "refId": "A",
+          "legendFormat": "Deposit {{stageKey}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "refId": "B",
+          "legendFormat": "Match {{stageKey}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "refId": "C",
+          "legendFormat": "Finalize {{stageKey}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "原始完成水位：1=source 已读完，0=未读完。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 6,
+        "h": 4
+      },
+      "id": 916,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "title": "SourceFinished",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(sum(app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "原始完成水位：当前阶段 storage 使用量。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 42,
+        "w": 6,
+        "h": 4
+      },
+      "id": 917,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "title": "StorageUsed",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "原始完成水位：当前阶段活跃消费数。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 6,
+        "h": 4
+      },
+      "id": 918,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "title": "ActiveConsumers",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "原始完成水位：仅 push 模式有意义。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 42,
+        "w": 6,
+        "h": 4
+      },
+      "id": 919,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "title": "InFlightPush",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "instant": true
+        }
       ]
     }
   ],
   "refresh": "30s",
   "schemaVersion": 37,
   "style": "dark",
-  "tags": ["app-template", "monitoring"],
+  "tags": [
+    "app-template",
+    "monitoring",
+    "flow"
+  ],
   "templating": {
     "list": [
       {
@@ -719,15 +1022,25 @@
         "type": "datasource"
       },
       {
-        "current": { "selected": true, "text": "gopr-audit", "value": "gopr-audit" },
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "current": {
+          "selected": true,
+          "text": "gopr-audit",
+          "value": "gopr-audit"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
         "definition": "label_values(up, job)",
         "hide": 0,
         "includeAll": false,
         "label": "Job",
         "name": "job",
         "options": [],
-        "query": { "query": "label_values(up, job)", "refId": "StandardVariableQuery" },
+        "query": {
+          "query": "label_values(up, job)",
+          "refId": "StandardVariableQuery"
+        },
         "refresh": 1,
         "skipUrlSync": false,
         "sort": 1,
@@ -735,8 +1048,19 @@
       },
       {
         "allValue": ".*",
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
         "definition": "label_values(up{job=\"$job\"}, instance)",
         "hide": 0,
         "includeAll": true,
@@ -744,7 +1068,10 @@
         "multi": true,
         "name": "instance",
         "options": [],
-        "query": { "query": "label_values(up{job=\"$job\"}, instance)", "refId": "StandardVariableQuery" },
+        "query": {
+          "query": "label_values(up{job=\"$job\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -753,16 +1080,62 @@
       },
       {
         "allValue": ".*",
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "definition": "label_values(app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\"}, jobId)",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(app_template_flow_job_status{instance=~\"$instance\",job=\"$job\"}, rootJobId)",
         "hide": 0,
         "includeAll": true,
-        "label": "Job ID",
-        "multi": true,
-        "name": "jobId",
+        "label": "Root Job",
+        "multi": false,
+        "name": "rootJobId",
         "options": [],
-        "query": { "query": "label_values(app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\"}, jobId)", "refId": "StandardVariableQuery" },
+        "query": {
+          "query": "label_values(app_template_flow_job_status{instance=~\"$instance\",job=\"$job\"}, rootJobId)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(app_template_flow_stage_status{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}, stageKey)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Stage Key",
+        "multi": false,
+        "name": "stageKey",
+        "options": [],
+        "query": {
+          "query": "label_values(app_template_flow_stage_status{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}, stageKey)",
+          "refId": "StandardVariableQuery"
+        },
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -771,10 +1144,13 @@
       }
     ]
   },
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "",
   "title": "App Template 监控仪表板",
   "uid": "app-template-metrics",
-  "version": 2
+  "version": 3
 }

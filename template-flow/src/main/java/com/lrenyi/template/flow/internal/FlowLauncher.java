@@ -20,6 +20,7 @@ import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -110,6 +111,7 @@ public class FlowLauncher<T> {
     public void launch(T data) {
         if (stopped) {
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
@@ -142,6 +144,7 @@ public class FlowLauncher<T> {
             tracker.onProductionReleased();
             inFlightLease.close();
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
@@ -244,7 +247,7 @@ public class FlowLauncher<T> {
             long depositLatency = System.currentTimeMillis() - depositStartTime;
 
             Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
-                 .tag(FlowMetricNames.TAG_JOB_ID, getMetricJobId())
+                 .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
                  .register(registry())
                  .record(depositLatency, TimeUnit.MILLISECONDS);
         } catch (Throwable e) {
