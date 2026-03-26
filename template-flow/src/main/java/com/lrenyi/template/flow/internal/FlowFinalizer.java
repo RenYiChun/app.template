@@ -118,67 +118,119 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
     /**
      * 将消费任务提交到消费执行器。通过 BackpressureManager 获取消费并发许可（ConsumerConcurrencyDimension），
      * 控制消费线程数与在途消费数据量。许可在调用线程 acquire，任务结束时在 finally 中 release。
+     * 这样 storage 成为唯一 backlog，不再通过大量挂起的异步 consumer 任务承载等待态。
      */
     private void submitConsumer(FlowLauncher<?> launcher, int permits, Runnable task, Runnable onAcquireFailure) {
-        resourceRegistry.getGlobalPendingConsumerAdder().add(permits);
+        String jobId = launcher.getJobId();
+        DimensionLease consumerLease;
         try {
-            String jobId = launcher.getJobId();
-            Runnable wrappedTask = () -> {
-                RuntimeException trackerFailure = null;
-                DimensionLease consumerLease = null;
-                try {
+            consumerLease = launcher.getBackpressureManager()
+                    .acquire(ConsumerConcurrencyDimension.ID, launcher::isStopped, permits);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            onAcquireFailure.run();
+            return;
+        } catch (TimeoutException e) {
+            onAcquireFailure.run();
+            return;
+        }
+
+        int acquiredCount = 0;
+        try {
+            for (int i = 0; i < permits; i++) {
+                launcher.getTracker().onConsumerAcquired();
+                acquiredCount++;
+            }
+        } catch (RuntimeException e) {
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.FINALIZATION,
+                                                "consumer_acquire_callback_failed",
+                                                launcher.getMetricJobId()
+            );
+            releaseConsumerState(launcher, consumerLease, acquiredCount);
+            onAcquireFailure.run();
+            return;
+        }
+
+        Runnable wrappedTask = () -> {
+            RuntimeException trackerFailure = null;
+            try {
+                task.run();
+            } finally {
+                for (int i = 0; i < permits; i++) {
                     try {
-                        consumerLease = launcher.getBackpressureManager()
-                                .acquire(ConsumerConcurrencyDimension.ID, launcher::isStopped, permits);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        onAcquireFailure.run();
-                        return;
-                    } catch (TimeoutException e) {
-                        onAcquireFailure.run();
-                        return;
-                    }
-                    for (int i = 0; i < permits; i++) {
-                        launcher.getTracker().onConsumerAcquired();
-                    }
-                    task.run();
-                } finally {
-                    if (consumerLease != null) {
-                        for (int i = 0; i < permits; i++) {
-                            try {
-                                launcher.getTracker().onConsumerReleased(jobId);
-                            } catch (RuntimeException ex) {
-                                if (trackerFailure == null) {
-                                    trackerFailure = ex;
-                                }
-                                FlowExceptionHelper.handleException(jobId,
-                                                                    null,
-                                                                    ex,
-                                                                    FlowPhase.FINALIZATION,
-                                                                    "consumer_release_callback_failed",
-                                                                    launcher.getMetricJobId()
-                                );
-                            }
+                        launcher.getTracker().onConsumerReleased(jobId);
+                    } catch (RuntimeException ex) {
+                        if (trackerFailure == null) {
+                            trackerFailure = ex;
                         }
-                        consumerLease.close();
-                    }
-                    resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
-                    resourceRegistry.getFairLock().lock();
-                    try {
-                        resourceRegistry.getPermitReleased().signalAll();
-                    } finally {
-                        resourceRegistry.getFairLock().unlock();
-                    }
-                    if (trackerFailure != null) {
-                        log.warn("Tracker callback failed after consumer completion, {}",
-                                FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()), trackerFailure);
+                        FlowExceptionHelper.handleException(jobId,
+                                                            null,
+                                                            ex,
+                                                            FlowPhase.FINALIZATION,
+                                                            "consumer_release_callback_failed",
+                                                            launcher.getMetricJobId()
+                        );
                     }
                 }
-            };
+                consumerLease.close();
+                signalPermitReleased();
+                if (trackerFailure != null) {
+                    log.warn("Tracker callback failed after consumer completion, {}",
+                            FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()), trackerFailure);
+                }
+            }
+        };
+
+        try {
             resourceRegistry.getFlowConsumerExecutor().execute(wrappedTask);
         } catch (RuntimeException e) {
-            resourceRegistry.getGlobalPendingConsumerAdder().add(-permits);
-            throw e;
+            FlowExceptionHelper.handleException(jobId,
+                                                null,
+                                                e,
+                                                FlowPhase.FINALIZATION,
+                                                "consumer_submit_failed",
+                                                launcher.getMetricJobId()
+            );
+            wrappedTask.run();
+        }
+    }
+
+    private void releaseConsumerState(FlowLauncher<?> launcher, DimensionLease consumerLease, int acquiredCount) {
+        String jobId = launcher.getJobId();
+        RuntimeException trackerFailure = null;
+        for (int i = 0; i < acquiredCount; i++) {
+            try {
+                launcher.getTracker().onConsumerReleased(jobId);
+            } catch (RuntimeException ex) {
+                if (trackerFailure == null) {
+                    trackerFailure = ex;
+                }
+                FlowExceptionHelper.handleException(jobId,
+                                                    null,
+                                                    ex,
+                                                    FlowPhase.FINALIZATION,
+                                                    "consumer_release_callback_failed",
+                                                    launcher.getMetricJobId()
+                );
+            }
+        }
+        consumerLease.close();
+        signalPermitReleased();
+        if (trackerFailure != null) {
+            log.warn("Tracker callback failed while rolling back consumer state, {}",
+                    FlowLogHelper.formatJobContext(jobId, launcher.getMetricJobId()), trackerFailure);
+        }
+    }
+
+    private void signalPermitReleased() {
+        resourceRegistry.getFairLock().lock();
+        try {
+            resourceRegistry.getPermitReleased().signalAll();
+        } finally {
+            resourceRegistry.getFairLock().unlock();
         }
     }
 
