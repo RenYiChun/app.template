@@ -181,10 +181,6 @@ public class TemplateConfigProperties implements InitializingBean {
 
     private static Flow.@NonNull PerJob getJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = judgmentValidate(limits, global);
-        if (perJob.getInFlightProduction() <= 0) {
-            throw new IllegalArgumentException(
-                    "flow.limits.per-job.in-flight-production 必须 > 0，当前值: " + perJob.getInFlightProduction());
-        }
         if (perJob.getStorageCapacity() <= 0) {
             throw new IllegalArgumentException(
                     "flow.limits.per-job.storage-capacity 必须 > 0，当前值: " + perJob.getStorageCapacity());
@@ -311,8 +307,6 @@ public class TemplateConfigProperties implements InitializingBean {
             private boolean fairScheduling = true;
             /** 全主机生产线程数上限（producer-threads.global.limit），<=0 表示不限制 */
             private int producerThreads = 0;
-            /** 全主机生产在途数据条数上限（in-flight.global.limit），<=0 表示不限制 */
-            private int inFlightProduction = 0;
             /** 全主机存储条数上限（storage-capacity.global.limit），<=0 表示不限制 */
             private int storageCapacity = 0;
             /** 全主机关联消费线程数上限（consumer-threads.global.limit），<=0 表示不限制 */
@@ -333,8 +327,6 @@ public class TemplateConfigProperties implements InitializingBean {
         public static class PerJob {
             /** 每 Job 生产线程数（必须 >0） */
             private int producerThreads = 40;
-            /** 每 Job 生产在途数据量（必须 >0） */
-            private int inFlightProduction = 4000;
             /** 每 Job 关联消费线程数（必须 >0） */
             private int consumerThreads = 1000;
             /** 每 Job 存储条数上限（必须 >0，适用于所有存储类型） */

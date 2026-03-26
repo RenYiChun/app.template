@@ -50,9 +50,6 @@ public final class DimensionContext {
 
     // ─── 各维度使用的资源句柄（不需要的为 null）─────────────────────────────────
 
-    /** 在途生产许可对（in-flight-production 维度使用） */
-    private final PermitPair inFlightPermitPair;
-
     /** 生产线程许可对（producer-concurrency 维度使用） */
     private final PermitPair producerPermitPair;
 

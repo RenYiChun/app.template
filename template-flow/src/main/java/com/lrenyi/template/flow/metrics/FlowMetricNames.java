@@ -10,7 +10,7 @@ public final class FlowMetricNames {
     public static final String PREFIX = "app.template.flow";
 
     // ==================== Counters ====================
-    /** 生产许可获取累计数。成功获取 in-flight-production 许可时 +1，即进入管道的条数。{@code rate(production_acquired[1m])} 即进入速率（条/秒） */
+    /** 生产许可获取累计数。数据进入框架生产链路时 +1，{@code rate(production_acquired[1m])} 即进入速率（条/秒）。 */
     public static final String PRODUCTION_ACQUIRED = PREFIX + ".production_acquired";
     /** 物理终结累计数。数据彻底离场、信号量释放时 +1。{@code rate(terminated[1m])} 即 TPS */
     public static final String TERMINATED = PREFIX + ".terminated";
@@ -51,10 +51,6 @@ public final class FlowMetricNames {
     public static final String TAG_STAGE_NAME = "stageName";
     /** 根任务展示名。 */
     public static final String TAG_DISPLAY_NAME = "displayName";
-    /** 终态状态标签。 */
-    public static final String TAG_STATUS = "status";
-    /** 终态原因标签。 */
-    public static final String TAG_REASON = "reason";
     /** 错误类型。如 job_failed / deposit_failed / onConsume_failed 等 */
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
@@ -79,6 +75,9 @@ public final class FlowMetricNames {
     public static final String RESOURCES_PER_JOB_STORAGE_LIMIT = PREFIX + ".resources.per_job.storage.limit";
     /** Per-job 存储容量当前使用 */
     public static final String RESOURCES_PER_JOB_STORAGE_USED = PREFIX + ".resources.per_job.storage.used";
+    /** Per-job 活跃消费上限 */
+    public static final String RESOURCES_PER_JOB_ACTIVE_CONSUMERS_LIMIT =
+            PREFIX + ".resources.per_job.active_consumers.limit";
 
     // ==================== Job 完成判定 Gauges（per-job） ====================
     /** Source 是否已读完（0/1），用于完成判定。 */
@@ -87,29 +86,20 @@ public final class FlowMetricNames {
     public static final String COMPLETION_IN_FLIGHT_PUSH = PREFIX + ".completion.in_flight_push";
     /**
      * 活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定。
-     * 与 in_flight_consumer_used 不同：后者来自背压信号量（含排队中），前者仅统计已获取消费线程、回调执行中的条数。
+     * 该值仅统计已拿到消费许可、正在执行回调的条数，不等同于任意背压信号量占用。
      */
     public static final String COMPLETION_ACTIVE_CONSUMERS = PREFIX + ".completion.active_consumers";
-    /** 根任务终态（running/succeeded/failed/cancelled） */
-    public static final String JOB_STATUS = PREFIX + ".job.status";
     /** 根任务启动时间（秒） */
     public static final String JOB_START_TIME_SECONDS = PREFIX + ".job.start_time_seconds";
     /** 根任务结束时间（秒） */
     public static final String JOB_END_TIME_SECONDS = PREFIX + ".job.end_time_seconds";
     /** 根任务持续时间（秒） */
     public static final String JOB_DURATION_SECONDS = PREFIX + ".job.duration_seconds";
-    /** 根任务结束原因（gauge=1，reason 为标签） */
-    public static final String JOB_END_REASON = PREFIX + ".job.end_reason";
-    /** 阶段终态（running/succeeded/failed/cancelled） */
-    public static final String STAGE_STATUS = PREFIX + ".stage.status";
     /** 阶段启动时间（秒） */
     public static final String STAGE_START_TIME_SECONDS = PREFIX + ".stage.start_time_seconds";
     /** 阶段结束时间（秒） */
     public static final String STAGE_END_TIME_SECONDS = PREFIX + ".stage.end_time_seconds";
     /** 阶段持续时间（秒） */
     public static final String STAGE_DURATION_SECONDS = PREFIX + ".stage.duration_seconds";
-    /** 阶段结束原因（gauge=1，reason 为标签） */
-    public static final String STAGE_END_REASON = PREFIX + ".stage.end_reason";
-
     private FlowMetricNames() {}
 }

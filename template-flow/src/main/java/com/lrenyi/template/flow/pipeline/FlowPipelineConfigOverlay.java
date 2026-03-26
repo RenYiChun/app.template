@@ -58,7 +58,6 @@ public final class FlowPipelineConfigOverlay {
         TemplateConfigProperties.Flow.Global ng = new TemplateConfigProperties.Flow.Global();
         ng.setFairScheduling(g.isFairScheduling());
         ng.setProducerThreads(g.getProducerThreads());
-        ng.setInFlightProduction(g.getInFlightProduction());
         ng.setStorageCapacity(g.getStorageCapacity());
         ng.setConsumerThreads(g.getConsumerThreads());
         ng.setSinkConsumerThreads(g.getSinkConsumerThreads());
@@ -73,7 +72,6 @@ public final class FlowPipelineConfigOverlay {
             Integer consumerThreads) {
         TemplateConfigProperties.Flow.PerJob np = new TemplateConfigProperties.Flow.PerJob();
         np.setProducerThreads(p.getProducerThreads());
-        np.setInFlightProduction(p.getInFlightProduction());
         np.setConsumerThreads(consumerThreads != null ? consumerThreads : p.getConsumerThreads());
         np.setStorageCapacity(storageCapacity != null ? storageCapacity : p.getStorageCapacity());
         np.setQueuePollIntervalMill(p.getQueuePollIntervalMill());

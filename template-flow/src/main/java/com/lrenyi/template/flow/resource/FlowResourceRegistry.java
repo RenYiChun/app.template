@@ -54,7 +54,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     private final TemplateConfigProperties.Flow flowConfig;
     private final Semaphore globalSemaphore;
-    private final Semaphore globalInFlightSemaphore;
     private final Semaphore globalStorageSemaphore;
     private final Semaphore globalProducerThreadsSemaphore;
     /** 全主机 Sink 终端并发（limits.global.sink-consumer-threads），<=0 时为 null */
@@ -90,9 +89,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int concurrencyLimit = global.getConsumerThreads();
         this.globalSemaphore = concurrencyLimit > 0 ? new Semaphore(concurrencyLimit, fair) : null;
         log.info("FlowResourceRegistry 启动：全局消费并发限制={}（<=0 时禁用）", concurrencyLimit);
-        
-        int globalInFlight = global.getInFlightProduction();
-        this.globalInFlightSemaphore = globalInFlight > 0 ? new Semaphore(globalInFlight, fair) : null;
         
         int globalStorage = global.getStorageCapacity();
         this.globalStorageSemaphore = globalStorage > 0 ? new Semaphore(globalStorage, fair) : null;
@@ -159,7 +155,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         TemplateConfigProperties.Flow.Global global = config.getLimits().getGlobal();
         return String.join("|",
                 String.valueOf(global.getConsumerThreads()),
-                String.valueOf(global.getInFlightProduction()),
                 String.valueOf(global.getStorageCapacity()),
                 String.valueOf(global.getProducerThreads()),
                 String.valueOf(global.getSinkConsumerThreads()),

@@ -117,7 +117,6 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
         TemplateConfigProperties.Flow.Global g = flow.getLimits().getGlobal();
         g.setProducerThreads(0);
-        g.setInFlightProduction(0);
         g.setStorageCapacity(0);
         g.setConsumerThreads(0);
         g.setSinkConsumerThreads(0);
@@ -125,7 +124,6 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         TemplateConfigProperties.Flow.PerJob p = flow.getLimits().getPerJob();
         p.setProducerThreads(16);
         p.setConsumerThreads(256);
-        p.setInFlightProduction(16_000);
         p.setStorageCapacity(200_000);
         p.setQueuePollIntervalMill(2000);
         p.setEvictionCoordinatorThreads(1);
@@ -136,7 +134,7 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
     }
 
     /**
-     * 大数据量时提高 per-job 存储与在途上限，避免六路扇出 + 多段驻留时 200k 默认容量导致尾批丢失或完成竞态。
+     * 大数据量时提高 per-job 存储上限，避免六路扇出 + 多段驻留时 200k 默认容量导致尾批丢失或完成竞态。
      */
     private static void scalePerJobForVolume(TemplateConfigProperties.Flow flow, int n) {
         if (n <= 100_000) {
@@ -144,9 +142,7 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         }
         TemplateConfigProperties.Flow.PerJob p = flow.getLimits().getPerJob();
         int storageCap = (int) Math.min(10_000_000L, Math.max(2_000_000L, (long) n * 6L));
-        int inFlightCap = (int) Math.min(4_000_000L, Math.max(64_000L, (long) n * 2L));
         p.setStorageCapacity(storageCap);
-        p.setInFlightProduction(inFlightCap);
     }
 
     private static long sumSinkItems(AtomicLong[] sinkItemsPerDim) {

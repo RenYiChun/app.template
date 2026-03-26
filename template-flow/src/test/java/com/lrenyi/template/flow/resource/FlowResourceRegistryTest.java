@@ -73,13 +73,13 @@ class FlowResourceRegistryTest {
     void getInstanceDifferentGlobalLimitRecreatesInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(8);
-        config.getLimits().getGlobal().setInFlightProduction(16);
+        config.getLimits().getGlobal().setProducerThreads(16);
 
         FlowResourceRegistry first = FlowResourceRegistry.getInstance(config, new SimpleMeterRegistry());
 
         TemplateConfigProperties.Flow changed = new TemplateConfigProperties.Flow();
         changed.getLimits().getGlobal().setConsumerThreads(8);
-        changed.getLimits().getGlobal().setInFlightProduction(32);
+        changed.getLimits().getGlobal().setProducerThreads(32);
 
         FlowResourceRegistry second = FlowResourceRegistry.getInstance(changed, new SimpleMeterRegistry());
 

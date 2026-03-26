@@ -80,11 +80,6 @@ public class FlowResourceContext {
     private final PermitPair consumerPermitPair;
 
     /**
-     * 在途生产许可对；为 null 表示未启用在途限制。
-     */
-    private final PermitPair inFlightPermitPair;
-
-    /**
      * 生产线程许可对（全局+每 Job）；为 null 表示仅用 per-job 信号量。
      */
     private final PermitPair producerPermitPair;

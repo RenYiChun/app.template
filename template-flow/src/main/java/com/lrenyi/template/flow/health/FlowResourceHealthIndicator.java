@@ -74,12 +74,14 @@ public class FlowResourceHealthIndicator implements FlowHealthIndicator {
         details.put("resourceRegistryInitialized", resourceRegistry.isInitialized());
         details.put("resourceRegistryShutdown", resourceRegistry.isShutdown());
         
-        // 信号量使用情况（global<=0 时禁用，effectiveLimit 为 Integer.MAX_VALUE）
+        // 全局消费许可使用情况（global<=0 时视为未启用全局保护）
         int globalLimit = resourceRegistry.getFlowConfig().getLimits().getGlobal().getConsumerThreads();
-        int effectiveLimit = globalLimit > 0 ? globalLimit : Integer.MAX_VALUE;
-        int available = resourceRegistry.getGlobalSemaphore().availablePermits();
-        int used = effectiveLimit - available;
-        double usage = effectiveLimit < Integer.MAX_VALUE ? (double) used / effectiveLimit : 0.0;
+        int effectiveLimit = globalLimit > 0 ? globalLimit : 0;
+        int available = resourceRegistry.getGlobalSemaphore() != null
+                ? resourceRegistry.getGlobalSemaphore().availablePermits()
+                : 0;
+        int used = effectiveLimit > 0 ? Math.max(0, effectiveLimit - available) : 0;
+        double usage = effectiveLimit > 0 ? (double) used / effectiveLimit : 0.0;
         details.put("consumerThreadsLimit", effectiveLimit);
         details.put("consumerThreadsAvailable", available);
         details.put("consumerThreadsUsed", used);

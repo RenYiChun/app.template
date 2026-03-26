@@ -10,8 +10,6 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.backpressure.DimensionLease;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
-import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowResourceContext;
@@ -116,30 +114,10 @@ public class FlowLauncher<T> {
             return;
         }
 
-        DimensionLease inFlightLease;
-        try {
-            inFlightLease = backpressureManager.acquire(InFlightProductionDimension.ID, () -> stopped);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_interrupted",
-                    getMetricJobId());
-            tracker.onProductionAcquired();
-            tracker.onProductionReleased();
-            consumeOnBackpressureTimeout(data);
-            return;
-        } catch (TimeoutException e) {
-            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "inFlight_acquire_timeout",
-                    getMetricJobId());
-            tracker.onProductionAcquired();
-            tracker.onProductionReleased();
-            consumeOnBackpressureTimeout(data);
-            return;
-        }
         tracker.onProductionAcquired();
 
         if (stopped) {
             tracker.onProductionReleased();
-            inFlightLease.close();
             Counter.builder(FlowMetricNames.ERRORS)
                    .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
@@ -149,15 +127,14 @@ public class FlowLauncher<T> {
             return;
         }
 
-        depositNow(data, inFlightLease);
+        depositNow(data);
     }
 
     private MeterRegistry registry() {
         return flowManager.getMeterRegistry();
     }
 
-    private void depositNow(T data, DimensionLease inFlightLease) {
-        DimensionLease producerLease = null;
+    private void depositNow(T data) {
         FlowEntry<T> ctx = new FlowEntry<>(data, jobId);
         try {
             matchRetryCoordinator.initRetryRemainingIfNecessary(ctx);
@@ -175,34 +152,6 @@ public class FlowLauncher<T> {
                 tracker.onTerminated(1);
                 return;
             }
-
-            try {
-                producerLease = backpressureManager.acquire(ProducerConcurrencyDimension.ID, () -> stopped);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(jobId,
-                                                    null,
-                                                    e,
-                                                    FlowPhase.STORAGE,
-                                                    "producer_concurrency_acquire_interrupted",
-                                                    getMetricJobId()
-                );
-                getFinalizer().submitDataToConsumer(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
-                ctx = null;
-                return;
-            } catch (TimeoutException e) {
-                FlowExceptionHelper.handleException(jobId,
-                                                    null,
-                                                    e,
-                                                    FlowPhase.STORAGE,
-                                                    "producer_concurrency_acquire_timeout",
-                                                    getMetricJobId()
-                );
-                getFinalizer().submitDataToConsumer(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
-                ctx = null;
-                return;
-            }
-
             long depositStartTime = System.currentTimeMillis();
             DimensionLease storageLease;
             try {
@@ -255,10 +204,6 @@ public class FlowLauncher<T> {
                 ctx.close();
             }
             tracker.onProductionReleased();
-            inFlightLease.close();
-            if (producerLease != null) {
-                producerLease.close();
-            }
             if (tracker.isProductionComplete() && !flowJoiner.needMatched()) {
                 storage.triggerCompletionDrain();
             }

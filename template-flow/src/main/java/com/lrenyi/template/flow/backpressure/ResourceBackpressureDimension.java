@@ -14,7 +14,7 @@ import java.util.concurrent.TimeoutException;
  */
 public interface ResourceBackpressureDimension {
     
-    /** 维度唯一标识，如 {@code "storage"}、{@code "in-flight-production"}。 */
+    /** 维度唯一标识，如 {@code "storage"}、{@code "producer-concurrency"}。 */
     String id();
     
     /** 优先级：同 ID 多个实现时，选 order 最小者执行。 */

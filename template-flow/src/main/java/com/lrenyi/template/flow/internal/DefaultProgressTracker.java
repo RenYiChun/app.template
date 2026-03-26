@@ -260,12 +260,8 @@ public class DefaultProgressTracker implements ProgressTracker {
                          lockedState.inFlightPush(),
                          stopped
                 );
-                String status = stopped ? "cancelled" : "succeeded";
-                String reason = stopped ? "stopped" : "completed";
                 flowManager.markStageTerminal(jobId,
                                               getMetricJobId(),
-                                              status,
-                                              reason,
                                               startTimeMillis,
                                               endTimeMillis.get());
                 if (!stopped && !deferMetricsUnregister) {
