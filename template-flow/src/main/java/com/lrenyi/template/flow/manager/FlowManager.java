@@ -542,20 +542,16 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public void markStageTerminal(String internalJobId,
                                   String metricJobId,
-                                  String status,
-                                  String reason,
                                   long startTimeMillis,
                                   long endTimeMillis) {
-        terminalMetrics.markStageTerminal(internalJobId, metricJobId, status, reason, startTimeMillis, endTimeMillis);
+        terminalMetrics.markStageTerminal(internalJobId, metricJobId, startTimeMillis, endTimeMillis);
     }
 
     public void markRootTerminal(String rootJobId,
                                  String displayName,
-                                 String status,
-                                 String reason,
                                  long startTimeMillis,
                                  long endTimeMillis) {
-        terminalMetrics.markJobTerminal(rootJobId, displayName, status, reason, startTimeMillis, endTimeMillis);
+        terminalMetrics.markJobTerminal(rootJobId, displayName, startTimeMillis, endTimeMillis);
     }
 
     private String extractRootJobId(String internalJobId) {

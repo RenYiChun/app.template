@@ -50,7 +50,6 @@ public class PipelineMetricsIntegrationTest {
         config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(16);
         config.getLimits().getGlobal().setProducerThreads(8);
-        config.getLimits().getGlobal().setInFlightProduction(50);
         config.getLimits().getGlobal().setStorageCapacity(500);
 
         flowManager = FlowManager.getInstance(config, meterRegistry);

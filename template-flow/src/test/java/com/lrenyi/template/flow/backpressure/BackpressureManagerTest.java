@@ -5,7 +5,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
+import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,10 +105,10 @@ class BackpressureManagerTest {
     }
 
     @Test
-    void dimAcquireBlockedAndTimeoutWhenInFlightProductionBlocksThenTimesOut() throws Exception {
-        String jobId = "job-inflight-block-timeout";
+    void dimAcquireBlockedAndTimeoutWhenProducerConcurrencyBlocksThenTimesOut() throws Exception {
+        String jobId = "job-producer-block-timeout";
         TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
-        flow.getLimits().getGlobal().setInFlightProduction(10);
+        flow.getLimits().getGlobal().setProducerThreads(10);
         flow.setProducerBackpressureBlockingMode(
                 TemplateConfigProperties.Flow.BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
         flow.setProducerBackpressureTimeoutMill(50);
@@ -128,17 +128,17 @@ class BackpressureManagerTest {
                                               .stopCheck(() -> false)
                                               .meterRegistry(meterRegistry)
                                               .flowConfig(flow)
-                                              .inFlightPermitPair(PermitPair.of(null, neverAcquire))
+                                              .producerPermitPair(PermitPair.of(null, neverAcquire))
                                               .build();
         BackpressureManager manager = new BackpressureManager(ctx, meterRegistry);
 
-        assertThrows(Exception.class, () -> manager.acquire(InFlightProductionDimension.ID, () -> false));
+        assertThrows(Exception.class, () -> manager.acquire(ProducerConcurrencyDimension.ID, () -> false));
 
         assertTrue(getCounter(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB, jobId,
-                        InFlightProductionDimension.ID) >= 1,
+                        ProducerConcurrencyDimension.ID) >= 1,
                 "DIM_ACQUIRE_BLOCKED_PER_JOB 应在 per-job 阻塞后超时时增加");
         assertTrue(getCounter(BackpressureMetricNames.DIM_ACQUIRE_TIMEOUT_PER_JOB, jobId,
-                        InFlightProductionDimension.ID) >= 1,
+                        ProducerConcurrencyDimension.ID) >= 1,
                 "DIM_ACQUIRE_TIMEOUT_PER_JOB 应在 per-job 超时时增加");
     }
 

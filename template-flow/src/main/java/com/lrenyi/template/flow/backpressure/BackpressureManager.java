@@ -15,7 +15,6 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
 import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -93,7 +92,6 @@ public class BackpressureManager {
             return 0;
         }
         return switch (dimensionId) {
-            case InFlightProductionDimension.ID -> perJob.getInFlightProduction();
             case StorageDimension.ID -> perJob.getStorageCapacity();
             case ProducerConcurrencyDimension.ID -> perJob.getProducerThreads();
             case ConsumerConcurrencyDimension.ID -> perJob.getConsumerThreads();
@@ -268,7 +266,6 @@ public class BackpressureManager {
 
     private PermitPair getPermitPairForDimension(String dimensionId) {
         return switch (dimensionId) {
-            case InFlightProductionDimension.ID -> baseCtx.getInFlightPermitPair();
             case StorageDimension.ID -> baseCtx.getStoragePermitPair();
             case ProducerConcurrencyDimension.ID -> baseCtx.getProducerPermitPair();
             case ConsumerConcurrencyDimension.ID -> baseCtx.getConsumerPermitPair();
@@ -282,7 +279,6 @@ public class BackpressureManager {
             return 0;
         }
         return switch (dimensionId) {
-            case InFlightProductionDimension.ID -> global.getInFlightProduction();
             case StorageDimension.ID -> global.getStorageCapacity();
             case ProducerConcurrencyDimension.ID -> global.getProducerThreads();
             case ConsumerConcurrencyDimension.ID -> global.getConsumerThreads();
@@ -312,7 +308,6 @@ public class BackpressureManager {
                                .meterRegistry(baseCtx.getMeterRegistry())
                                .flowConfig(baseCtx.getFlowConfig())
                                .resourceRegistry(baseCtx.getResourceRegistry())
-                               .inFlightPermitPair(baseCtx.getInFlightPermitPair())
                                .producerPermitPair(baseCtx.getProducerPermitPair())
                                .consumerPermitPair(baseCtx.getConsumerPermitPair())
                                .storagePermitPair(baseCtx.getStoragePermitPair())

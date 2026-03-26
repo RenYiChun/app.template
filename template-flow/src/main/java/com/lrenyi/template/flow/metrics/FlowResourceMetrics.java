@@ -91,6 +91,11 @@ public final class FlowResourceMetrics {
                                  FlowResourceMetrics::getStorageUsed
                         ).tags(tags).description("存储容量当前使用（per-job）")
                         .register(meterRegistry));
+        meters.add(Gauge.builder(FlowMetricNames.RESOURCES_PER_JOB_ACTIVE_CONSUMERS_LIMIT,
+                                 launcher,
+                                 FlowResourceMetrics::getActiveConsumersLimit
+                        ).tags(tags).description("活跃消费数上限（per-job）")
+                        .register(meterRegistry));
         meters.add(Gauge.builder(FlowMetricNames.COMPLETION_SOURCE_FINISHED,
                                  launcher,
                                  FlowResourceMetrics::getCompletionSourceFinished
@@ -102,7 +107,7 @@ public final class FlowResourceMetrics {
         meters.add(Gauge.builder(FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
                                  launcher,
                                  FlowResourceMetrics::getCompletionActiveConsumers
-        ).tags(tags).description("活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定，与 in_flight_consumer_used 不同")
+        ).tags(tags).description("活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定")
          .register(meterRegistry));
         PER_JOB_METERS.put(launcher.getJobId(), meters);
     }
@@ -139,6 +144,10 @@ public final class FlowResourceMetrics {
     private static double getStorageUsed(FlowLauncher<?> l) {
         FlowStorage<?> storage = l.getStorage();
         return storage != null ? storage.size() : 0;
+    }
+
+    private static double getActiveConsumersLimit(FlowLauncher<?> l) {
+        return l.getFlow().getLimits().getPerJob().getConsumerThreads();
     }
 
     private static double getCompletionSourceFinished(FlowLauncher<?> l) {

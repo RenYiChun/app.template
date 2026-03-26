@@ -10,7 +10,6 @@ import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
 import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.engine.FlowJoinerEngine;
@@ -67,7 +66,6 @@ class FlowAndBackpressureMetricsIntegrationTest {
         TemplateConfigProperties.Flow globalConfig = new TemplateConfigProperties.Flow();
         globalConfig.getLimits().getGlobal().setConsumerThreads(333);
         globalConfig.getLimits().getGlobal().setProducerThreads(5);
-        globalConfig.getLimits().getGlobal().setInFlightProduction(10);
         globalConfig.getLimits().getGlobal().setStorageCapacity(1000);
         manager = FlowManager.getInstance(globalConfig, meterRegistry);
         engine = new FlowJoinerEngine(manager);
@@ -75,12 +73,10 @@ class FlowAndBackpressureMetricsIntegrationTest {
         flowConfig = new TemplateConfigProperties.Flow();
         flowConfig.getLimits().getGlobal().setConsumerThreads(333);
         flowConfig.getLimits().getGlobal().setProducerThreads(5);
-        flowConfig.getLimits().getGlobal().setInFlightProduction(10);
         flowConfig.getLimits().getGlobal().setStorageCapacity(1000);
         flowConfig.getLimits().getPerJob().setProducerThreads(5);
         flowConfig.getLimits().getPerJob().setStorageCapacity(100);
         flowConfig.getLimits().getPerJob().setConsumerThreads(5);
-        flowConfig.getLimits().getPerJob().setInFlightProduction(10);
     }
 
     @AfterEach
@@ -361,24 +357,6 @@ class FlowAndBackpressureMetricsIntegrationTest {
                     ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
             assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
                     ProducerConcurrencyDimension.ID) >= 1, "producer-concurrency DIM_RELEASE_COUNT_PER_JOB 应有记录");
-        }
-
-        @Test
-        void inFlightProductionDimensionMetricsRecordAcquireAndRelease() throws Exception {
-            String jobId = "job-bp-inflight-prod";
-            var joiner = new com.lrenyi.template.flow.OverwriteJoiner();
-            var inlet = engine.startPush(jobId, joiner, flowConfig);
-            inlet.push(new PairItem("ip1", "v1", null));
-            inlet.push(new PairItem("ip2", "v2", null));
-            inlet.markSourceFinished();
-            awaitCompleted(inlet::isCompleted, 10_000);
-
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
-            assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
-            assertTrue(getBackpressureCounter(BackpressureMetricNames.DIM_RELEASE_COUNT_PER_JOB, jobId,
-                    InFlightProductionDimension.ID) >= 1, "in-flight-production DIM_RELEASE_COUNT_PER_JOB 应有记录");
         }
 
         @Test

@@ -75,7 +75,6 @@ final class FlowLauncherFactory {
                                                                  .egressHandler(egressHandler)
                                                                  .finalizer(finalizer)
                                                                  .consumerPermitPair(permitPairs.consumer)
-                                                                 .inFlightPermitPair(permitPairs.inFlight)
                                                                  .producerPermitPair(permitPairs.producer)
                                                                  .build();
 
@@ -85,7 +84,6 @@ final class FlowLauncherFactory {
     private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {
         int consumerLimit = perJob.getConsumerThreads();
         return new PerJobSemaphores(new Semaphore(perJob.getProducerThreads(), fair),
-                                    new Semaphore(perJob.getInFlightProduction(), fair),
                                     consumerLimit > 0 ? new Semaphore(consumerLimit, fair) : null,
                                     new Semaphore(perJob.getStorageCapacity(), fair)
         );
@@ -93,7 +91,6 @@ final class FlowLauncherFactory {
 
     private static PermitPairs createPermitPairs(FlowResourceRegistry registry, PerJobSemaphores semaphores) {
         return new PermitPairs(PermitPair.of(registry.getGlobalSemaphore(), semaphores.jobConsumer),
-                               PermitPair.of(registry.getGlobalInFlightSemaphore(), semaphores.inFlightProduction),
                                PermitPair.of(registry.getGlobalProducerThreadsSemaphore(), semaphores.jobProducer),
                                PermitPair.of(registry.getGlobalStorageSemaphore(), semaphores.perJobStorage)
         );
@@ -117,7 +114,6 @@ final class FlowLauncherFactory {
                                                    .meterRegistry(meterRegistry)
                                                    .flowConfig(flow)
                                                    .resourceRegistry(registry)
-                                                   .inFlightPermitPair(pairs.inFlight)
                                                    .producerPermitPair(pairs.producer)
                                                    .consumerPermitPair(pairs.consumer)
                                                    .storagePermitPair(pairs.storage)
@@ -129,12 +125,10 @@ final class FlowLauncherFactory {
 
     //@formatter:off
     private record PerJobSemaphores(Semaphore jobProducer,
-                                    Semaphore inFlightProduction,
                                     Semaphore jobConsumer,
                                     Semaphore perJobStorage) {}
 
     private record PermitPairs(PermitPair consumer,
-                               PermitPair inFlight,
                                PermitPair producer,
                                PermitPair storage) {}
     //@formatter:on

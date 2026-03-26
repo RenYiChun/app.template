@@ -1,4 +1,3 @@
 com.lrenyi.template.flow.backpressure.dimension.StorageDimension
-com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension
 com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension
 com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension

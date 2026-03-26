@@ -24,7 +24,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                                FlowEgressHandler<T> egressHandler, FlowJoiner<T> joiner) {
 
     /**
-     * 将数据提交至消费端，通过 BackpressureManager 获取 in-flight-consumer 槽位租约。
+     * 将数据提交至消费端，通过 BackpressureManager 获取消费并发许可租约。
      * 租约在消费任务完成后由 close() 释放。
      *
      * @param entry   待消费条目
@@ -207,7 +207,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
 
     /**
      * 将配对数据提交至消费端。partner 与 entry 具有相同 joinKey，由 joiner.isMatched 判定是否配对成功。
-     * 占用 2 个 in-flight-consumer 槽位，消费并发许可为 2。
+     * 占用 2 个消费并发许可。
      */
     public void submitPairDataToConsumer(FlowEntry<T> partner, FlowEntry<T> entry, FlowLauncher<?> launcher) {
         partner.closeStorageLease();

@@ -12,7 +12,7 @@ import com.lrenyi.template.flow.model.FlowStorageType;
  * 的线性映射占位 Joiner：
  * 业务映射在 {@code transformer} 中完成；本类提供唯一 {@link #joinKey}，避免固定 key 在存储层冲突。
  * <p>存储类型说明：线性阶段应尽快按 FIFO 出库，避免数据在本段 storage 中以 TTL 语义滞留，影响
- * {@code in_flight_consumer_used}、consumer 使用率与端到端吞吐观测，因此默认使用 {@link FlowStorageType#QUEUE}。</p>
+ * 消费许可占用、完成判定与端到端吞吐观测，因此默认使用 {@link FlowStorageType#QUEUE}。</p>
  *
  * @param <T> 输入元素类型
  */
