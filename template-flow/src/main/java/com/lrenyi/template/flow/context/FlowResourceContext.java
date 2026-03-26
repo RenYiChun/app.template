@@ -27,7 +27,6 @@ import lombok.Getter;
  * - 公平锁机制
  * - 缓存管理器
  * - Job级资源：
- * - Job生产者信号量
  * - 缓存存储
  * - 背压控制器
  */
@@ -38,31 +37,26 @@ public class FlowResourceContext {
      * 全局资源注册表引用
      */
     private final FlowResourceRegistry resourceRegistry;
-    
+
     /**
      * FlowManager 引用（用于Job状态查询等）
      */
     private final FlowManager flowManager;
-    
+
     /**
      * Job级资源：缓存存储
      */
     private final FlowStorage<?> storage;
-    
+
     /**
      * Job级资源：背压管理器
      */
     private final BackpressureManager backpressureManager;
-    
+
     /**
      * Job级资源：生产者执行器（信号量受控）
      */
     private final ExecutorService producerExecutor;
-    
-    /**
-     * 每 Job 消费并发信号量：限制该 Job 同时持有的消费许可数
-     */
-    private final Semaphore jobConsumerSemaphore;
 
     /**
      * 统一出口记账：供 FlowLauncher 在 stopped 等场景调用 performSingleConsumed
@@ -85,42 +79,42 @@ public class FlowResourceContext {
     private final PermitPair producerPermitPair;
 
     // ========== 全局资源访问便捷方法 ==========
-    
+
     /**
      * 获取全局并发信号量
      */
     public Semaphore getGlobalSemaphore() {
         return resourceRegistry.getGlobalSemaphore();
     }
-    
+
     /**
      * 获取流消费执行器
      */
     public ExecutorService getFlowConsumerExecutor() {
         return resourceRegistry.getFlowConsumerExecutor();
     }
-    
+
     /**
      * 获取存储出口执行器
      */
     public ScheduledExecutorService getStorageEgressExecutor() {
         return resourceRegistry.getStorageEgressExecutor();
     }
-    
+
     /**
      * 获取公平锁
      */
     public Lock getFairLock() {
         return resourceRegistry.getFairLock();
     }
-    
+
     /**
      * 获取许可释放条件变量
      */
     public Condition getPermitReleased() {
         return resourceRegistry.getPermitReleased();
     }
-    
+
     /**
      * 获取缓存管理器
      */

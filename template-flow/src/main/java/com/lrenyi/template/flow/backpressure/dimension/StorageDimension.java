@@ -2,6 +2,7 @@ package com.lrenyi.template.flow.backpressure.dimension;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.backpressure.BackpressureMetricNames;
 import com.lrenyi.template.flow.backpressure.BackpressureTimeoutException;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
@@ -53,31 +54,26 @@ public class StorageDimension implements ResourceBackpressureDimension {
             recordAttempts(registry, metricJobId, pair);
         }
         Timer.Sample sample = metricsEnabled ? Timer.start(registry) : null;
+        PermitPair.AcquireResult result;
         try {
-            PermitPair.AcquireResult result = pair.tryAcquireBothWithResult(permits);
-            if (result != PermitPair.AcquireResult.SUCCESS) {
-                if (metricsEnabled) {
-                    recordTimeout(registry, metricJobId, result);
-                    if (result == PermitPair.AcquireResult.FAILED_ON_GLOBAL) {
-                        Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL)
-                               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                               .register(registry)
-                               .increment();
-                    } else {
-                        Counter.builder(BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB)
-                               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
-                               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
-                               .register(registry)
-                               .increment();
-                    }
-                }
-                throw new BackpressureTimeoutException("storage acquire failed for jobId=" + ctx.getJobId(), result);
+            boolean blockForever = fc == null || fc.getProducerBackpressureBlockingMode()
+                    == TemplateConfigProperties.Flow.BackpressureBlockingMode.BLOCK_FOREVER;
+            long timeoutMs = (fc != null) ? fc.getProducerBackpressureTimeoutMill() : 30_000L;
+            if (blockForever) {
+                result = pair.tryAcquireBothWithResult(permits);
+            } else {
+                result = pair.tryAcquireBothWithResult(permits, timeoutMs, TimeUnit.MILLISECONDS);
             }
         } finally {
             if (metricsEnabled && sample != null) {
                 recordDuration(registry, metricJobId, pair, sample);
             }
+        }
+        if (result != PermitPair.AcquireResult.SUCCESS) {
+            if (metricsEnabled) {
+                recordBlockedAndTimeout(registry, metricJobId, result);
+            }
+            throw new BackpressureTimeoutException("storage acquire failed for jobId=" + ctx.getJobId(), result);
         }
     }
 
@@ -112,6 +108,18 @@ public class StorageDimension implements ResourceBackpressureDimension {
                    .register(registry)
                    .increment();
         }
+    }
+
+    private void recordBlockedAndTimeout(MeterRegistry registry, String metricJobId, PermitPair.AcquireResult result) {
+        recordTimeout(registry, metricJobId, result);
+        String metricName = result == PermitPair.AcquireResult.FAILED_ON_GLOBAL
+                ? BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_GLOBAL
+                : BackpressureMetricNames.DIM_ACQUIRE_BLOCKED_PER_JOB;
+        Counter.builder(metricName)
+               .tag(BackpressureMetricNames.TAG_JOB_ID, metricJobId)
+               .tag(BackpressureMetricNames.TAG_DIMENSION_ID, ID)
+               .register(registry)
+               .increment();
     }
 
     private void recordDuration(MeterRegistry registry, String metricJobId, PermitPair pair, Timer.Sample sample) {
