@@ -2,8 +2,6 @@ package com.lrenyi.template.flow.storage;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -13,6 +11,7 @@ import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.model.PreRetryResult;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
@@ -31,7 +30,8 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
     private final BlockingQueue<FlowEntry<T>> queue;
     private final long maxCacheSize;
     private final AtomicBoolean stopped = new AtomicBoolean(false);
-    private ScheduledFuture<?> scheduledFuture;
+    private final long drainIntervalMs;
+    private final Thread drainThread;
     
     public QueueFlowStorage(int capacity,
             FlowJoiner<T> joiner,
@@ -42,15 +42,10 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         super(joiner, finalizer, progressTracker, meterRegistry, egressHandler);
         this.queue = new LinkedBlockingQueue<>(capacity);
         this.maxCacheSize = capacity;
-        
-        ScheduledExecutorService egressExecutor = resourceRegistry().getStorageEgressExecutor();
-        if (egressExecutor != null && drainIntervalMs > 0) {
-            this.scheduledFuture = egressExecutor.scheduleWithFixedDelay(this::drainLoop,
-                                                                         drainIntervalMs,
-                                                                         drainIntervalMs,
-                                                                         TimeUnit.MILLISECONDS
-            );
-        }
+        this.drainIntervalMs = drainIntervalMs > 0 ? drainIntervalMs : 10L;
+        this.drainThread = Thread.ofVirtual()
+                                 .name(FlowConstants.THREAD_NAME_PREFIX_STORAGE_EGRESS, 0)
+                                 .start(this::drainLoop);
     }
     
     private void drainLoop() {
@@ -64,33 +59,58 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                    .increment();
             return;
         }
-        FlowEntry<T> entry;
-        while (!stopped.get() && (entry = queue.poll()) != null) {
+        while (!stopped.get()) {
             try {
-                entry.closeStorageLease();
-                FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-                String key = joiner().joinKey(entry.getData());
-                if (launcher == null) {
-                    handleEgress(key, entry, EgressReason.SHUTDOWN, true);
+                FlowEntry<T> first = queue.poll(drainIntervalMs, TimeUnit.MILLISECONDS);
+                if (first == null) {
                     continue;
                 }
-                handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
+                drainEntry(first, launcherLookup);
+                FlowEntry<T> entry;
+                while (!stopped.get() && (entry = queue.poll()) != null) {
+                    drainEntry(entry, launcherLookup);
+                }
+            } catch (InterruptedException e) {
+                if (stopped.get()) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             } catch (Throwable t) {
                 Counter.builder(FlowMetricNames.ERRORS)
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
                        .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                        .register(meterRegistry())
                        .increment();
-                FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
-                log.error("Queue drain failed for job {}",
-                        FlowLogHelper.formatJobContext(entry.getJobId(),
-                                launcherForLog != null ? launcherForLog.getMetricJobId() : null), t);
-                try {
-                    String key = joiner().joinKey(entry.getData());
-                    handleEgress(key, entry, EgressReason.SHUTDOWN, true);
-                } catch (Throwable ignored) {
-                    entry.close();
-                }
+                log.error("Queue drain loop failed", t);
+            }
+        }
+    }
+
+    private void drainEntry(FlowEntry<T> entry, ActiveLauncherLookup launcherLookup) {
+        try {
+            entry.closeStorageLease();
+            FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+            String key = joiner().joinKey(entry.getData());
+            if (launcher == null) {
+                handleEgress(key, entry, EgressReason.SHUTDOWN, true);
+                return;
+            }
+            handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
+        } catch (Throwable t) {
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
+                   .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                   .register(meterRegistry())
+                   .increment();
+            FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
+            log.error("Queue drain failed for job {}",
+                    FlowLogHelper.formatJobContext(entry.getJobId(),
+                            launcherForLog != null ? launcherForLog.getMetricJobId() : null), t);
+            try {
+                String key = joiner().joinKey(entry.getData());
+                handleEgress(key, entry, EgressReason.SHUTDOWN, true);
+            } catch (Throwable ignored) {
+                entry.close();
             }
         }
     }
@@ -137,8 +157,8 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
     @Override
     public void shutdown() {
         stopped.set(true);
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel(false);
+        if (drainThread != null) {
+            drainThread.interrupt();
         }
         FlowEntry<T> remaining;
         while ((remaining = queue.poll()) != null) {
