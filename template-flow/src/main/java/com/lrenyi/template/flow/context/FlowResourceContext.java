@@ -45,11 +45,6 @@ public class FlowResourceContext {
     private final FlowManager flowManager;
     
     /**
-     * Job级资源：Job生产者信号量
-     */
-    private final Semaphore jobProducerSemaphore;
-    
-    /**
      * Job级资源：缓存存储
      */
     private final FlowStorage<?> storage;
@@ -65,20 +60,9 @@ public class FlowResourceContext {
     private final ExecutorService producerExecutor;
     
     /**
-     * 在途生产信号量：限制同时「已 acquire 未 release」的 launch 数，封顶 Wait(Q)，达限时 launch() 入口阻塞从而背压到上层
-     */
-    private final Semaphore inFlightProductionSemaphore;
-    
-    /**
      * 每 Job 消费并发信号量：限制该 Job 同时持有的消费许可数
      */
     private final Semaphore jobConsumerSemaphore;
-
-    /**
-     * 每 Job 等待消费许可槽位：提交 finalizer 前 acquire，任务完成时 release，严格将「已离库未终结」条数限制在 limit 内。
-     * 为 null 表示未配置上限（effectivePendingConsumer<=0）。
-     */
-    private final Semaphore pendingConsumerSlotSemaphore;
 
     /**
      * 统一出口记账：供 FlowLauncher 在 stopped 等场景调用 performSingleConsumed
@@ -147,12 +131,5 @@ public class FlowResourceContext {
      */
     public FlowCacheManager getCacheManager() {
         return resourceRegistry.getCacheManager();
-    }
-
-    /**
-     * 获取等待消费槽位信号量；提交 finalizer 前 acquire(1)，任务完成时 release(1)，保证 pending 不超过 limit。
-     */
-    public Semaphore getPendingConsumerSlotSemaphore() {
-        return pendingConsumerSlotSemaphore;
     }
 }

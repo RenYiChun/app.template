@@ -15,7 +15,6 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.backpressure.dimension.InFlightProductionDimension;
 import com.lrenyi.template.flow.backpressure.dimension.ProducerConcurrencyDimension;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
@@ -97,9 +96,6 @@ public class BackpressureManager {
             case InFlightProductionDimension.ID -> perJob.getInFlightProduction();
             case StorageDimension.ID -> perJob.getStorageCapacity();
             case ProducerConcurrencyDimension.ID -> perJob.getProducerThreads();
-            case InFlightConsumerDimension.ID -> perJob.getInFlightConsumer() > 0
-                    ? perJob.getInFlightConsumer()
-                    : perJob.getConsumerThreads();
             case ConsumerConcurrencyDimension.ID -> perJob.getConsumerThreads();
             default -> 0;
         };
@@ -275,7 +271,6 @@ public class BackpressureManager {
             case InFlightProductionDimension.ID -> baseCtx.getInFlightPermitPair();
             case StorageDimension.ID -> baseCtx.getStoragePermitPair();
             case ProducerConcurrencyDimension.ID -> baseCtx.getProducerPermitPair();
-            case InFlightConsumerDimension.ID -> baseCtx.getInFlightConsumerPermitPair();
             case ConsumerConcurrencyDimension.ID -> baseCtx.getConsumerPermitPair();
             default -> null;
         };
@@ -290,7 +285,6 @@ public class BackpressureManager {
             case InFlightProductionDimension.ID -> global.getInFlightProduction();
             case StorageDimension.ID -> global.getStorageCapacity();
             case ProducerConcurrencyDimension.ID -> global.getProducerThreads();
-            case InFlightConsumerDimension.ID -> global.getInFlightConsumer();
             case ConsumerConcurrencyDimension.ID -> global.getConsumerThreads();
             default -> 0;
         };
@@ -302,8 +296,7 @@ public class BackpressureManager {
             return 30_000L;
         }
         return switch (dimensionId) {
-            case ConsumerConcurrencyDimension.ID, InFlightConsumerDimension.ID ->
-                    flow.getConsumerAcquireTimeoutMill();
+            case ConsumerConcurrencyDimension.ID -> flow.getConsumerAcquireTimeoutMill();
             default -> flow.getProducerBackpressureTimeoutMill();
         };
     }
@@ -322,7 +315,6 @@ public class BackpressureManager {
                                .inFlightPermitPair(baseCtx.getInFlightPermitPair())
                                .producerPermitPair(baseCtx.getProducerPermitPair())
                                .consumerPermitPair(baseCtx.getConsumerPermitPair())
-                               .inFlightConsumerPermitPair(baseCtx.getInFlightConsumerPermitPair())
                                .storagePermitPair(baseCtx.getStoragePermitPair())
                                .globalConsumerLimit(baseCtx.getGlobalConsumerLimit())
                                .build();

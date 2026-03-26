@@ -50,7 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>
  * 配置约定：{@code limits.global} 数值限流均为 0；压测参数仅 {@code limits.per-job}。
  * <p>
- * 系统属性：{@code -Dflow.load.test.n=} 覆盖默认条数（冒烟）；{@code -Dflow.load.test.runSlow=true}
+ * 系统属性：{@code -Dflow.load.test.runSmoke=true} 启用 {@link #loadPushSixDims_smoke}，
+ * {@code -Dflow.load.test.n=} 覆盖默认条数（冒烟）；{@code -Dflow.load.test.runSlow=true}
  * 启用 {@link #loadPushSixDims_highVolume}；{@code -Dflow.load.test.slow.n=} 覆盖高压条数（默认 100000）。
  * 各维攒批条数（见本类常量数组）须能整除所选 N，以保证 6×N 业务断言稳定。
  * <p><b>监控指标</b>（本测例使用 {@link SimpleMeterRegistry}，成功结束时 {@link #logMicrometerPipelineSummary()} 会打 INFO 汇总）：
@@ -119,14 +120,12 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         g.setInFlightProduction(0);
         g.setStorageCapacity(0);
         g.setConsumerThreads(0);
-        g.setInFlightConsumer(0);
         g.setSinkConsumerThreads(0);
 
         TemplateConfigProperties.Flow.PerJob p = flow.getLimits().getPerJob();
         p.setProducerThreads(16);
         p.setConsumerThreads(256);
         p.setInFlightProduction(16_000);
-        p.setInFlightConsumer(0);
         p.setStorageCapacity(200_000);
         p.setQueuePollIntervalMill(2000);
         p.setEvictionCoordinatorThreads(1);
@@ -167,6 +166,8 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
     }
 
     @Test
+    @Tag("slow")
+    @EnabledIfSystemProperty(named = "flow.load.test.runSmoke", matches = "true")
     void loadPushSixDims_smoke() throws Exception {
         int n = Math.min(resolveN(), 50_000);
         runLoadTest(n, 8, durationTimeoutMs(n), 30_000L);

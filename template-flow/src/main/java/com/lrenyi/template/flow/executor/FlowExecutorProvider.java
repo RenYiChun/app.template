@@ -23,5 +23,4 @@ public interface FlowExecutorProvider {
      */
     ExecutorService getCacheRemovalExecutor();
     
-    ExecutorService getFlowProducerExecutor();
 }

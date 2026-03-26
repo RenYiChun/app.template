@@ -16,8 +16,6 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
     private final ExecutorService flowConsumerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     private final ExecutorService cacheRemovalExecutor;
-    private final ExecutorService flowProducerExecutor;
-
     /**
      * @param removalSubmissionLimit  用于限制 Caffeine 驱逐回调的并发数
      */
@@ -25,11 +23,6 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
         // 消费并发由 FlowFinalizer 通过 BackpressureManager 控制；使用 newThreadPerTaskExecutor 以支持自定义线程名
         this.flowConsumerExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual()
                                                                                     .name(FlowConstants.THREAD_NAME_PREFIX_CONSUMER,
-                                                                                          0
-                                                                                    )
-                                                                                    .factory());
-        this.flowProducerExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual()
-                                                                                    .name(FlowConstants.THREAD_NAME_PREFIX_PRODUCER,
                                                                                           0
                                                                                     )
                                                                                     .factory());
@@ -67,8 +60,4 @@ public class DefaultFlowExecutorProvider implements FlowExecutorProvider {
         return cacheRemovalExecutor;
     }
 
-    @Override
-    public ExecutorService getFlowProducerExecutor() {
-        return flowProducerExecutor;
-    }
 }

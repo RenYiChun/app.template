@@ -7,6 +7,8 @@ import com.lrenyi.template.core.TemplateConfigProperties.Flow.BackpressureBlocki
 import com.lrenyi.template.flow.PairItem;
 import com.lrenyi.template.flow.QueueJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.backpressure.DimensionLease;
+import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
@@ -20,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowResourceRegistryTest {
@@ -66,7 +67,6 @@ class FlowResourceRegistryTest {
         registry.shutdown();
         assertTrue(registry.isShutdown());
         assertTrue(registry.getFlowConsumerExecutor().isShutdown());
-        assertTrue(registry.getFlowProducerExecutor().isShutdown());
     }
 
     @Test
@@ -88,12 +88,10 @@ class FlowResourceRegistryTest {
     }
 
     @Test
-    void submitConsumerToGlobalAcquireFailureShouldRollbackPendingCounter() throws InterruptedException {
+    void submitConsumerToGlobalAcquireFailureShouldNotLeakPendingCounterOrConsumerSlot() throws Exception {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(1);
-        config.getLimits().getGlobal().setInFlightConsumer(4);
         config.getLimits().getPerJob().setConsumerThreads(1);
-        config.getLimits().getPerJob().setInFlightConsumer(4);
         config.setConsumerAcquireBlockingMode(BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
         config.setConsumerAcquireTimeoutMill(500);
 
@@ -101,35 +99,29 @@ class FlowResourceRegistryTest {
         FlowResourceRegistry registry = flowManager.getResourceRegistry();
         String jobId = "job-acquire-fail";
         QueueJoiner joiner = new QueueJoiner();
-        CountDownLatch acquiredLatch = new CountDownLatch(1);
-        BlockingTracker blockingTracker = new BlockingTracker(acquiredLatch);
-        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(joiner, blockingTracker,
+        NoopTracker tracker = new NoopTracker();
+        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(joiner, tracker,
                 flowManager.getMeterRegistry());
         FlowFinalizer<PairItem> finalizer = new FlowFinalizer<>(registry,
                 flowManager.getMeterRegistry(),
                 blockingHandler,
                 joiner);
 
-        var launcher = flowManager.createLauncher(jobId, joiner, blockingTracker, config);
-        FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
-        FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
-
-        finalizer.submitDataToConsumer(entry1, launcher, null);
-        assertTrue(acquiredLatch.await(2, TimeUnit.SECONDS), "First task should acquire and block");
-        Thread.sleep(300);
-
-        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher, null));
-        assertEquals(1L, registry.getGlobalPendingConsumerAdder().sum(),
-                "Second's increment was rolled back; first task still holds 1 until it completes");
+        var launcher = flowManager.createLauncher(jobId, joiner, tracker, config);
+        FlowEntry<PairItem> entry = new FlowEntry<>(new PairItem("1"), jobId);
+        try (DimensionLease ignored = launcher.getBackpressureManager()
+                .acquire(ConsumerConcurrencyDimension.ID, null, 1)) {
+            finalizer.submitDataToConsumer(entry, launcher, null);
+        }
+        assertEquals(1, registry.getGlobalSemaphore().availablePermits(),
+                "消费超时后，不应泄漏全局 consumerConcurrency 槽位");
     }
 
     @Test
-    void submitConsumerFailureShouldReleaseInFlightConsumerSlot() throws InterruptedException {
+    void submitConsumerFailureShouldReleaseInFlightConsumerSlot() throws Exception {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(1);
-        config.getLimits().getGlobal().setInFlightConsumer(4);
         config.getLimits().getPerJob().setConsumerThreads(1);
-        config.getLimits().getPerJob().setInFlightConsumer(4);
         config.setConsumerAcquireBlockingMode(BackpressureBlockingMode.BLOCK_WITH_TIMEOUT);
         config.setConsumerAcquireTimeoutMill(500);
 
@@ -137,41 +129,33 @@ class FlowResourceRegistryTest {
         FlowResourceRegistry registry = flowManager.getResourceRegistry();
         String jobId = "job-slot-rollback";
         QueueJoiner joiner = new QueueJoiner();
-        CountDownLatch startedLatch = new CountDownLatch(1);
-        CountDownLatch releaseLatch = new CountDownLatch(1);
-        BlockingJoiner blockingJoiner = new BlockingJoiner(startedLatch, releaseLatch);
         NoopTracker tracker = new NoopTracker();
-        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(blockingJoiner,
+        FlowEgressHandler<PairItem> blockingHandler = new FlowEgressHandler<>(joiner,
                                                                               tracker,
                                                                               flowManager.getMeterRegistry());
         FlowFinalizer<PairItem> finalizer = new FlowFinalizer<>(registry,
                                                                 flowManager.getMeterRegistry(),
                                                                 blockingHandler,
-                                                                blockingJoiner);
+                                                                joiner);
 
-        var launcher = flowManager.createLauncher(jobId, blockingJoiner, tracker, config);
-        FlowEntry<PairItem> entry1 = new FlowEntry<>(new PairItem("1"), jobId);
-        FlowEntry<PairItem> entry2 = new FlowEntry<>(new PairItem("2"), jobId);
+        var launcher = flowManager.createLauncher(jobId, joiner, tracker, config);
+        FlowEntry<PairItem> entry = new FlowEntry<>(new PairItem("2"), jobId);
 
-        finalizer.submitDataToConsumer(entry1, launcher, null);
-        assertTrue(startedLatch.await(2, TimeUnit.SECONDS), "First task should hold the consumer slot");
-        assertEquals(3, registry.getGlobalInFlightConsumerSemaphore().availablePermits(),
-                     "First task should occupy exactly one in-flight-consumer slot");
-
-        assertThrows(RuntimeException.class, () -> finalizer.submitDataToConsumer(entry2, launcher, null));
-        assertEquals(3, registry.getGlobalInFlightConsumerSemaphore().availablePermits(),
-                     "Failed second submission must roll back the extra in-flight-consumer slot");
-
-        releaseLatch.countDown();
+        try (DimensionLease ignored = launcher.getBackpressureManager()
+                .acquire(ConsumerConcurrencyDimension.ID, null, 1)) {
+            assertEquals(0, registry.getGlobalSemaphore().availablePermits(),
+                    "仅占用 consumerConcurrency 时，全局 consumer 槽位应被占满");
+            finalizer.submitDataToConsumer(entry, launcher, null);
+        }
+        assertEquals(1, registry.getGlobalSemaphore().availablePermits(),
+                "提交超时回滚后，全局 consumer 槽位必须完全释放");
     }
 
     @Test
     void trackerReleaseFailureShouldStillRollbackPendingCounterAndSlots() throws InterruptedException {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(1);
-        config.getLimits().getGlobal().setInFlightConsumer(4);
         config.getLimits().getPerJob().setConsumerThreads(1);
-        config.getLimits().getPerJob().setInFlightConsumer(4);
 
         FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
         FlowResourceRegistry registry = flowManager.getResourceRegistry();
@@ -190,67 +174,7 @@ class FlowResourceRegistryTest {
 
         assertTrue(releasedLatch.await(2, TimeUnit.SECONDS), "Tracker release callback should be invoked");
         Thread.sleep(200);
-        assertEquals(0L, registry.getGlobalPendingConsumerAdder().sum());
-        assertEquals(4, registry.getGlobalInFlightConsumerSemaphore().availablePermits());
-    }
-
-    private static final class BlockingTracker implements ProgressTracker {
-        private final CountDownLatch acquiredLatch;
-        private final CountDownLatch blockLatch = new CountDownLatch(1);
-
-        BlockingTracker(CountDownLatch acquiredLatch) {
-            this.acquiredLatch = acquiredLatch;
-        }
-
-        @Override
-        public void onConsumerAcquired() {
-        }
-
-        @Override
-        public void onConsumerReleased(String jobId) {
-            acquiredLatch.countDown();
-            try {
-                blockLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public void onTerminated(int count) {
-        }
-
-        @Override
-        public void onProductionAcquired() {
-        }
-
-        @Override
-        public void onProductionReleased() {
-        }
-
-        @Override
-        public FlowProgressSnapshot getSnapshot() {
-            return FlowProgressSnapshot.builder().build();
-        }
-
-        @Override
-        public void setTotalExpected(String jobId, long total) {
-        }
-
-        @Override
-        public void markSourceFinished(String jobId, boolean status) {
-        }
-
-        @Override
-        public boolean isCompleted(boolean status) {
-            return false;
-        }
-
-        @Override
-        public boolean isCompletionConditionMet() {
-            return false;
-        }
+        assertEquals(1, registry.getGlobalSemaphore().availablePermits());
     }
 
     private static class NoopTracker implements ProgressTracker {
@@ -312,24 +236,4 @@ class FlowResourceRegistryTest {
         }
     }
 
-    private static final class BlockingJoiner extends QueueJoiner {
-        private final CountDownLatch startedLatch;
-        private final CountDownLatch releaseLatch;
-
-        private BlockingJoiner(CountDownLatch startedLatch, CountDownLatch releaseLatch) {
-            this.startedLatch = startedLatch;
-            this.releaseLatch = releaseLatch;
-        }
-
-        @Override
-        public void onSingleConsumed(PairItem item, String jobId, com.lrenyi.template.flow.model.EgressReason reason) {
-            startedLatch.countDown();
-            try {
-                releaseLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-        }
-    }
 }

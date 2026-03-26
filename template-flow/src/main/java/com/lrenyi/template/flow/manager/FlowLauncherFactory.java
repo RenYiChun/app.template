@@ -68,13 +68,10 @@ final class FlowLauncherFactory {
         FlowResourceContext resourceContext = FlowResourceContext.builder()
                                                                  .resourceRegistry(registry)
                                                                  .flowManager(flowManager)
-                                                                 .jobProducerSemaphore(semaphores.jobProducer)
                                                                  .storage(storage)
                                                                  .backpressureManager(backpressureManager)
                                                                  .producerExecutor(Executors.newThreadPerTaskExecutor(producerThreadFactory))
-                                                                 .inFlightProductionSemaphore(semaphores.inFlightProduction)
                                                                  .jobConsumerSemaphore(semaphores.jobConsumer)
-                                                                 .pendingConsumerSlotSemaphore(semaphores.pendingConsumerSlot)
                                                                  .egressHandler(egressHandler)
                                                                  .finalizer(finalizer)
                                                                  .consumerPermitPair(permitPairs.consumer)
@@ -87,11 +84,9 @@ final class FlowLauncherFactory {
 
     private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {
         int consumerLimit = perJob.getConsumerThreads();
-        int effectivePending = perJob.getEffectivePendingConsumer();
         return new PerJobSemaphores(new Semaphore(perJob.getProducerThreads(), fair),
                                     new Semaphore(perJob.getInFlightProduction(), fair),
                                     consumerLimit > 0 ? new Semaphore(consumerLimit, fair) : null,
-                                    effectivePending > 0 ? new Semaphore(effectivePending, fair) : null,
                                     new Semaphore(perJob.getStorageCapacity(), fair)
         );
     }
@@ -100,10 +95,7 @@ final class FlowLauncherFactory {
         return new PermitPairs(PermitPair.of(registry.getGlobalSemaphore(), semaphores.jobConsumer),
                                PermitPair.of(registry.getGlobalInFlightSemaphore(), semaphores.inFlightProduction),
                                PermitPair.of(registry.getGlobalProducerThreadsSemaphore(), semaphores.jobProducer),
-                               PermitPair.of(registry.getGlobalStorageSemaphore(), semaphores.perJobStorage),
-                               PermitPair.of(registry.getGlobalInFlightConsumerSemaphore(),
-                                             semaphores.pendingConsumerSlot
-                               )
+                               PermitPair.of(registry.getGlobalStorageSemaphore(), semaphores.perJobStorage)
         );
     }
 
@@ -128,7 +120,6 @@ final class FlowLauncherFactory {
                                                    .inFlightPermitPair(pairs.inFlight)
                                                    .producerPermitPair(pairs.producer)
                                                    .consumerPermitPair(pairs.consumer)
-                                                   .inFlightConsumerPermitPair(pairs.inFlightConsumer)
                                                    .storagePermitPair(pairs.storage)
                                                    .globalConsumerLimit(globalConsumerLimit)
                                                    .build();
@@ -140,13 +131,11 @@ final class FlowLauncherFactory {
     private record PerJobSemaphores(Semaphore jobProducer,
                                     Semaphore inFlightProduction,
                                     Semaphore jobConsumer,
-                                    Semaphore pendingConsumerSlot,
                                     Semaphore perJobStorage) {}
 
     private record PermitPairs(PermitPair consumer,
                                PermitPair inFlight,
                                PermitPair producer,
-                               PermitPair storage,
-                               PermitPair inFlightConsumer) {}
+                               PermitPair storage) {}
     //@formatter:on
 }

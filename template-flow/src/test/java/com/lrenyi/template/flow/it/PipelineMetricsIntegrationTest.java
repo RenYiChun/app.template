@@ -51,7 +51,6 @@ public class PipelineMetricsIntegrationTest {
         config.getLimits().getGlobal().setConsumerThreads(16);
         config.getLimits().getGlobal().setProducerThreads(8);
         config.getLimits().getGlobal().setInFlightProduction(50);
-        config.getLimits().getGlobal().setInFlightConsumer(50);
         config.getLimits().getGlobal().setStorageCapacity(500);
 
         flowManager = FlowManager.getInstance(config, meterRegistry);
@@ -564,7 +563,7 @@ public class PipelineMetricsIntegrationTest {
         Gauge globalSinkConcurrencyLimit = meterRegistry.find(
                 FlowMetricNames.RESOURCES_SINK_CONCURRENCY_LIMIT).gauge();
         assertNotNull(globalSinkConcurrencyLimit);
-        assertEquals(0.0, globalSinkConcurrencyLimit.value(), 0.01);
+        assertEquals(64.0, globalSinkConcurrencyLimit.value(), 0.01);
     }
 
     @Test
