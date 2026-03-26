@@ -366,11 +366,9 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         }
         for (String metricName : new String[] {
                 FlowMetricNames.RESOURCES_PER_JOB_STORAGE_USED,
-                FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_USED,
                 FlowMetricNames.COMPLETION_SOURCE_FINISHED,
                 FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH,
                 FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
-                FlowMetricNames.COMPLETION_PENDING_CONSUMERS,
         }) {
             appendGaugesForPipeline(metricName);
         }
@@ -400,8 +398,8 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
 
     /**
      * 与 {@link com.lrenyi.template.flow.internal.DefaultProgressTracker} 完成条件对齐：
-     * {@code sourceFinished}、{@code inStorage}、{@code activeConsumers}、{@code inProduction}、
-     * {@code pendingConsumer}、首段 {@code inFlightPush}；并校验对应 Micrometer Gauge（{@link FlowMetricNames#COMPLETION_SOURCE_FINISHED} 等）
+     * {@code sourceFinished}、{@code inStorage}、{@code activeConsumers}、首段 {@code inFlightPush}；
+     * 并校验对应 Micrometer Gauge（{@link FlowMetricNames#COMPLETION_SOURCE_FINISHED} 等）
      * 与 per-job 资源 used 类 Gauge 应为终态（源已结束、余量为 0）。
      */
     private void assertPipelineMetricsHealthy(int n, ProgressTracker pipelineTracker, FlowManager fm) {
@@ -471,12 +469,7 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         String[] zeroWhenDone = {
                 FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH,
                 FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS,
-                FlowMetricNames.COMPLETION_PENDING_CONSUMERS,
                 FlowMetricNames.RESOURCES_PER_JOB_STORAGE_USED,
-                FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_USED,
-                FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_USED,
-                FlowMetricNames.RESOURCES_PER_JOB_PRODUCER_THREADS_USED,
-                FlowMetricNames.RESOURCES_PER_JOB_CONSUMER_THREADS_USED,
         };
         for (String metricName : zeroWhenDone) {
             for (Meter m : meterRegistry.find(metricName).meters()) {

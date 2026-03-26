@@ -442,9 +442,17 @@ public class PipelineMetricsIntegrationTest {
         if (!Double.isNaN(sourceFinished)) {
             assertEquals(1.0, sourceFinished, 0.01);
         }
-        double pendingConsumers = gaugeValue(FlowMetricNames.COMPLETION_PENDING_CONSUMERS, stage0Tag);
-        if (!Double.isNaN(pendingConsumers)) {
-            assertEquals(0.0, pendingConsumers, 0.01);
+        double activeConsumers = gaugeValue(FlowMetricNames.COMPLETION_ACTIVE_CONSUMERS, stage0Tag);
+        if (!Double.isNaN(activeConsumers)) {
+            assertEquals(0.0, activeConsumers, 0.01);
+        }
+        double storageUsed = gaugeValue(FlowMetricNames.RESOURCES_PER_JOB_STORAGE_USED, stage0Tag);
+        if (!Double.isNaN(storageUsed)) {
+            assertEquals(0.0, storageUsed, 0.01);
+        }
+        double inFlightPush = gaugeValue(FlowMetricNames.COMPLETION_IN_FLIGHT_PUSH, stage0Tag);
+        if (!Double.isNaN(inFlightPush)) {
+            assertEquals(0.0, inFlightPush, 0.01);
         }
     }
 
@@ -466,8 +474,8 @@ public class PipelineMetricsIntegrationTest {
 
         String stage0New = newName + ":0";
         String stage1New = newName + ":1";
-        double g0 = gaugeValue(FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT, stage0New);
-        double g1 = gaugeValue(FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT, stage1New);
+        double g0 = gaugeValue(FlowMetricNames.RESOURCES_PER_JOB_STORAGE_LIMIT, stage0New);
+        double g1 = gaugeValue(FlowMetricNames.RESOURCES_PER_JOB_STORAGE_LIMIT, stage1New);
         assertTrue(!Double.isNaN(g0), "展示名变更后阶段0应有 per-job limit Gauge");
         assertTrue(!Double.isNaN(g1), "展示名变更后 Sink 阶段应有 per-job limit Gauge");
 
@@ -533,7 +541,7 @@ public class PipelineMetricsIntegrationTest {
         FlowInlet<Integer> inlet = pipeline.startPush(config);
 
         List<Meter> stage0LimitMeters = meterRegistry.find(
-                        FlowMetricNames.RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT)
+                        FlowMetricNames.RESOURCES_PER_JOB_STORAGE_LIMIT)
                 .meters().stream().toList();
 
         assertTrue(stage0LimitMeters.size() >= 2);
@@ -548,28 +556,23 @@ public class PipelineMetricsIntegrationTest {
 
     @Test
     public void testGlobalResourceGauges_registeredWithoutJobIdTag() {
-        Gauge globalInFlightLimit = meterRegistry.find(
-                FlowMetricNames.RESOURCES_IN_FLIGHT_PRODUCTION_LIMIT).gauge();
-        assertNotNull(globalInFlightLimit);
-        assertEquals(50.0, globalInFlightLimit.value(), 0.01);
-
         Gauge globalStorageLimit = meterRegistry.find(
                 FlowMetricNames.RESOURCES_STORAGE_LIMIT).gauge();
         assertNotNull(globalStorageLimit);
         assertEquals(500.0, globalStorageLimit.value(), 0.01);
 
-        Gauge globalConsumerThreadsLimit = meterRegistry.find(
-                FlowMetricNames.RESOURCES_CONSUMER_THREADS_LIMIT).gauge();
-        assertNotNull(globalConsumerThreadsLimit);
-        assertEquals(16.0, globalConsumerThreadsLimit.value(), 0.01);
+        Gauge globalSinkConcurrencyLimit = meterRegistry.find(
+                FlowMetricNames.RESOURCES_SINK_CONCURRENCY_LIMIT).gauge();
+        assertNotNull(globalSinkConcurrencyLimit);
+        assertEquals(0.0, globalSinkConcurrencyLimit.value(), 0.01);
     }
 
     @Test
     public void testGlobalResourceUsed_returnsZeroWhenNoJobsRunning() {
-        Gauge globalInFlightUsed = meterRegistry.find(
-                FlowMetricNames.RESOURCES_IN_FLIGHT_PRODUCTION_USED).gauge();
-        assertNotNull(globalInFlightUsed);
-        assertEquals(0.0, globalInFlightUsed.value(), 0.01);
+        Gauge globalStorageUsed = meterRegistry.find(
+                FlowMetricNames.RESOURCES_STORAGE_USED).gauge();
+        assertNotNull(globalStorageUsed);
+        assertEquals(0.0, globalStorageUsed.value(), 0.01);
     }
 
     @Test
