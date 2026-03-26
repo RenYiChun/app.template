@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowInlet;
@@ -27,6 +29,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Slf4j
 public class FlowPipelineIntegrationTest {
+
+    @BeforeEach
+    void resetFlowManagerBeforeEach() {
+        FlowManager.reset();
+    }
+
+    @AfterEach
+    void resetFlowManagerAfterEach() {
+        FlowManager.reset();
+    }
+
+    private void awaitUntil(String message, long timeoutMs, java.util.function.BooleanSupplier condition)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100);
+        }
+        assertTrue(condition.getAsBoolean(), message);
+    }
 
     @Test
     public void testComplexPipeline() throws Exception {
@@ -61,16 +82,10 @@ public class FlowPipelineIntegrationTest {
         log.info("Starting pipeline execution...");
         pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
 
-        // 等待整个管道完成（最后一阶段完成）
-        long start = System.currentTimeMillis();
-        while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
-            Thread.sleep(100);
-        }
+        awaitUntil("分支 A/B 应在时限内完成消费", 15_000L,
+                () -> sinkCountA.get() == 50 && sinkCountB.get() == 50 && pipeline.getProgressTracker().isCompleted(true));
 
         boolean completed = pipeline.getProgressTracker().isCompleted(true);
-        var snapshot = pipeline.getProgressTracker().getSnapshot();
-        log.info("Pipeline completed: {}, progress: {}", completed, snapshot);
-
         assertEquals(50, sinkCountA.get(), "分支 A 应收到 50 个偶数");
         assertEquals(50, sinkCountB.get(), "分支 B 应收到 50 个偶数（通过聚合阶段）");
         assertTrue(completed, "管道应当在 10 秒内完成");
@@ -109,11 +124,8 @@ public class FlowPipelineIntegrationTest {
 
         pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
 
-        long start = System.currentTimeMillis();
-        while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
-            Thread.sleep(100);
-        }
-
+        awaitUntil("内嵌攒批 nextMap 应在时限内完成消费", 15_000L,
+                () -> sinkCountB.get() == 50 && pipeline.getProgressTracker().isCompleted(true));
         assertEquals(50, sinkCountB.get(), "内嵌攒批应收到 50 条偶数（与独立 aggregate 段等价）");
         assertTrue(pipeline.getProgressTracker().isCompleted(true), "管道应当在 10 秒内完成");
     }
@@ -145,11 +157,8 @@ public class FlowPipelineIntegrationTest {
 
         pipeline.run(FlowSourceAdapters.fromIterator(data.iterator(), null), config);
 
-        long start = System.currentTimeMillis();
-        while (!pipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 10000) {
-            Thread.sleep(100);
-        }
-
+        awaitUntil("内嵌攒批 nextStage 应在时限内完成消费", 15_000L,
+                () -> sinkCountB.get() == 50 && pipeline.getProgressTracker().isCompleted(true));
         assertEquals(50, sinkCountB.get(), "nextStage 内嵌攒批应收到 50 条偶数");
         assertTrue(pipeline.getProgressTracker().isCompleted(true), "管道应当在 10 秒内完成");
     }
@@ -191,11 +200,8 @@ public class FlowPipelineIntegrationTest {
 
         firstPipeline.run(FlowSourceAdapters.fromIterator(List.of(1, 2, 3).iterator(), null), config);
 
-        long start = System.currentTimeMillis();
-        while (!firstPipeline.getProgressTracker().isCompleted(true) && System.currentTimeMillis() - start < 5000) {
-            Thread.sleep(50);
-        }
-
+        awaitUntil("已构建 pipeline 应在时限内完成消费", 10_000L,
+                () -> sinkCount.get() == 3 && firstPipeline.getProgressTracker().isCompleted(true));
         assertEquals(3, sinkCount.get(), "已构建 pipeline 不应被 builder 后续追加的阶段污染");
     }
 

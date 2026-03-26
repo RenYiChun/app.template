@@ -218,8 +218,10 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     /**
-     * 核心判定逻辑：Source 已停止，且 storage / activeConsumers / inFlightPush 收敛。
-     * 当前框架语义下，storage 是唯一 backlog；inProduction / pendingConsumer 不再参与完成判定。
+     * 核心判定逻辑：Source 已停止，且 storage / activeConsumers / inFlightPush 收敛，
+     * 同时所有已 released 数据都已 terminated。
+     * 当前框架语义下，inProduction / pendingConsumer 不再参与完成判定，但 terminated 仍需追平 released，
+     * 否则会出现最后一条尚未真正终结、下游却被提前 markSourceFinished 的早收敛问题。
      */
     private void checkCompletion(boolean showStatus) {
         FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
@@ -281,11 +283,12 @@ public class DefaultProgressTracker implements ProgressTracker {
         boolean waitingSourceFinished = !sourceFinished;
         boolean waitingStorageDrained = state.inStorage() > 0L;
         boolean waitingConsumerReleased = state.activeConsumers() > 0L;
+        boolean waitingProductionReleased = state.terminated() < state.released();
         boolean waitingInFlightPush = state.inFlightPush() > 0;
         long reasonMask = completionBlockedReasonMask(waitingSourceFinished,
                 waitingStorageDrained,
                 waitingConsumerReleased,
-                false,
+                waitingProductionReleased,
                 false,
                 waitingInFlightPush);
         long lastReasonMask = lastCompletionBlockedReasonMask.get();
@@ -309,7 +312,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                  waitingSourceFinished,
                  waitingStorageDrained,
                  waitingConsumerReleased,
-                 false,
+                 waitingProductionReleased,
                  false,
                  waitingInFlightPush,
                  state.acquired(),
@@ -365,7 +368,11 @@ public class DefaultProgressTracker implements ProgressTracker {
         long inProduction = s.getInProductionCount();
         long pendingConsumer = s.getPendingConsumerCount();
         boolean completionConditionMet =
-                sourceFinished && s.inStorage() <= 0L && s.activeConsumers() <= 0L && inFlightPush == 0;
+                sourceFinished
+                        && s.inStorage() <= 0L
+                        && s.activeConsumers() <= 0L
+                        && s.terminated() >= s.productionReleased()
+                        && inFlightPush == 0;
         return new CompletionState(s.productionAcquired(),
                                    s.productionReleased(),
                                    s.terminated(),

@@ -61,7 +61,6 @@ public final class FlowPipelineConfigOverlay {
         ng.setInFlightProduction(g.getInFlightProduction());
         ng.setStorageCapacity(g.getStorageCapacity());
         ng.setConsumerThreads(g.getConsumerThreads());
-        ng.setInFlightConsumer(g.getInFlightConsumer());
         ng.setSinkConsumerThreads(g.getSinkConsumerThreads());
         ng.setEvictionCoordinatorThreads(g.getEvictionCoordinatorThreads());
         ng.setEvictionScanIntervalMill(g.getEvictionScanIntervalMill());
@@ -76,12 +75,10 @@ public final class FlowPipelineConfigOverlay {
         np.setProducerThreads(p.getProducerThreads());
         np.setInFlightProduction(p.getInFlightProduction());
         np.setConsumerThreads(consumerThreads != null ? consumerThreads : p.getConsumerThreads());
-        np.setInFlightConsumer(p.getInFlightConsumer());
         np.setStorageCapacity(storageCapacity != null ? storageCapacity : p.getStorageCapacity());
         np.setQueuePollIntervalMill(p.getQueuePollIntervalMill());
         np.setEvictionCoordinatorThreads(p.getEvictionCoordinatorThreads());
         np.setEvictionScanIntervalMill(p.getEvictionScanIntervalMill());
-        np.setStrictPendingConsumerSlot(p.isStrictPendingConsumerSlot());
         np.setKeyedCache(copyKeyedCache(p.getKeyedCache()));
         return np;
     }

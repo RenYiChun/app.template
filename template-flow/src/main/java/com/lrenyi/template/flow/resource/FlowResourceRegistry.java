@@ -57,13 +57,10 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     private final Semaphore globalInFlightSemaphore;
     private final Semaphore globalStorageSemaphore;
     private final Semaphore globalProducerThreadsSemaphore;
-    private final Semaphore globalInFlightConsumerSemaphore;
     /** 全主机 Sink 终端并发（limits.global.sink-consumer-threads），<=0 时为 null */
     private final Semaphore globalSinkSemaphore;
-    private final LongAdder globalPendingConsumerAdder;
     private final FlowExecutorProvider executorProvider;
     private final ExecutorService flowConsumerExecutor;
-    private final ExecutorService flowProducerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     private final ExecutorService cacheRemovalExecutor;
     private final Lock fairLock;
@@ -103,20 +100,13 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         int globalProducerThreads = global.getProducerThreads();
         this.globalProducerThreadsSemaphore =
                 globalProducerThreads > 0 ? new Semaphore(globalProducerThreads, fair) : null;
-        
-        int globalInFlightConsumer = global.getInFlightConsumer();
-        this.globalInFlightConsumerSemaphore =
-                globalInFlightConsumer > 0 ? new Semaphore(globalInFlightConsumer, fair) : null;
-        
+
         int sinkGlobal = global.getSinkConsumerThreads();
         this.globalSinkSemaphore = sinkGlobal > 0 ? new Semaphore(sinkGlobal, fair) : null;
         log.info("FlowResourceRegistry 启动：全局 Sink 并发限制={}（<=0 时禁用）", sinkGlobal);
-        
-        this.globalPendingConsumerAdder = new LongAdder();
-        
+
         this.executorProvider = new DefaultFlowExecutorProvider(concurrencyLimit);
         this.flowConsumerExecutor = executorProvider.getFlowConsumerExecutor();
-        this.flowProducerExecutor = executorProvider.getFlowProducerExecutor();
         this.storageEgressExecutor = executorProvider.getStorageEgressExecutor();
         this.cacheRemovalExecutor = executorProvider.getCacheRemovalExecutor();
         
@@ -172,7 +162,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                 String.valueOf(global.getInFlightProduction()),
                 String.valueOf(global.getStorageCapacity()),
                 String.valueOf(global.getProducerThreads()),
-                String.valueOf(global.getInFlightConsumer()),
                 String.valueOf(global.getSinkConsumerThreads()),
                 String.valueOf(global.isFairScheduling()));
     }
@@ -268,7 +257,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         shutdownExecutorSafely("缓存移除执行器", cacheRemovalExecutor, errors);
         shutdownExecutorSafely("存储出口执行器", storageEgressExecutor, errors);
         shutdownExecutorSafely("流消费执行器", flowConsumerExecutor, errors);
-        shutdownExecutorSafely("流生产执行器", flowProducerExecutor, errors);
         
         shutdown.set(true);
         

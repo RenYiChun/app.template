@@ -1,7 +1,6 @@
 package com.lrenyi.template.flow.internal;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,7 +44,6 @@ public class FlowLauncher<T> {
     private final FlowStorage<T> storage;
     private final FlowManager flowManager;
     private final FlowJoiner<T> flowJoiner;
-    private final Semaphore jobProducerSemaphore;
     private final TemplateConfigProperties.Flow flow;
     private final BackpressureManager backpressureManager;
     private final FlowResourceContext resourceContext;
@@ -73,7 +71,6 @@ public class FlowLauncher<T> {
         this.resourceContext = resourceContext;
         this.flow = flow;
         this.tracker = tracker;
-        this.jobProducerSemaphore = resourceContext.getJobProducerSemaphore();
         this.storage = (FlowStorage<T>) resourceContext.getStorage();
         this.backpressureManager = resourceContext.getBackpressureManager();
         this.matchRetryCoordinator = new MatchRetryCoordinator<>(jobId,

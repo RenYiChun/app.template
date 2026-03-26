@@ -6,7 +6,6 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.backpressure.DimensionLease;
 import com.lrenyi.template.flow.backpressure.dimension.ConsumerConcurrencyDimension;
-import com.lrenyi.template.flow.backpressure.dimension.InFlightConsumerDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
@@ -35,34 +34,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
     public void submitDataToConsumer(FlowEntry<T> entry, FlowLauncher<?> launcher, EgressReason reason) {
         String jobId = entry.getJobId();
         long startTime = System.currentTimeMillis();
-        TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
-        boolean strictPending = perJob.isStrictPendingConsumerSlot();
-
-        DimensionLease slotLease;
-        try {
-            slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null);
-        } catch (TimeoutException e) {
-            if (strictPending) {
-                try (entry) {
-                    egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
-                }
-                launcher.getTracker().onTerminated(1);
-                return;
-            }
-            slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            FlowExceptionHelper.handleException(jobId,
-                                                null,
-                                                e,
-                                                FlowPhase.FINALIZATION,
-                                                "pending_slot_acquire_interrupted"
-            );
-            return;
-        }
-
         final EgressReason finalReason = reason != null ? reason : EgressReason.SINGLE_CONSUMED;
-        final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {
                 boolean didFinalize = false;
@@ -92,7 +64,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     }
                 }
             } finally {
-                leaseToClose.close();
             }
         };
         Runnable onAcquireFailure = () -> {
@@ -100,7 +71,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
             }
             launcher.getTracker().onTerminated(1);
-            leaseToClose.close();
         };
         try {
             submitConsumer(launcher, 1, runnable, onAcquireFailure);
@@ -243,35 +213,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
         partner.closeStorageLease();
         String jobId = entry.getJobId();
         long matchStartTime = System.currentTimeMillis();
-        TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
-        boolean strictPending = perJob.isStrictPendingConsumerSlot();
-
-        DimensionLease slotLease;
-        try {
-            slotLease = launcher.getBackpressureManager().acquire(InFlightConsumerDimension.ID, null, 2);
-        } catch (TimeoutException e) {
-            if (strictPending) {
-                try (partner; entry) {
-                    egressHandler.performSingleConsumed(partner, EgressReason.REJECT);
-                    egressHandler.performSingleConsumed(entry, EgressReason.REJECT);
-                }
-                launcher.getTracker().onTerminated(2);
-                return;
-            }
-            slotLease = DimensionLease.noop(InFlightConsumerDimension.ID);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            FlowExceptionHelper.handleException(jobId,
-                                                null,
-                                                e,
-                                                FlowPhase.FINALIZATION,
-                                                "pending_slot_acquire_interrupted",
-                                                launcher.getMetricJobId()
-            );
-            return;
-        }
-
-        final DimensionLease leaseToClose = slotLease;
         Runnable runnable = () -> {
             try {
                 try (partner; entry) {
@@ -300,7 +241,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                            .increment();
                 }
             } finally {
-                leaseToClose.close();
             }
         };
         Runnable onAcquireFailure = () -> {
@@ -309,7 +249,6 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                 egressHandler.performSingleConsumed(entry, EgressReason.BACKPRESSURE_TIMEOUT);
             }
             launcher.getTracker().onTerminated(2);
-            leaseToClose.close();
         };
         try {
             submitConsumer(launcher, 2, runnable, onAcquireFailure);

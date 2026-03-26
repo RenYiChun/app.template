@@ -172,13 +172,6 @@ public class TemplateConfigProperties implements InitializingBean {
 
     private static Flow.@NonNull KeyedCache judgmentConfig(Flow.PerJob perJob) {
         Flow.KeyedCache keyedCache = perJob.getKeyedCache();
-        int effectivePending = perJob.getEffectivePendingConsumer();
-        if (effectivePending <= 0) {
-            throw new IllegalArgumentException(
-                    "flow.limits.per-job.in-flight-consumer 或 flow.limits.per-job.consumer-threads 必须 > 0，"
-                            + "当前 in-flight-consumer=" + perJob.getInFlightConsumer() + ", consumer-threads="
-                            + perJob.getConsumerThreads());
-        }
         if (keyedCache.getCacheTtlMill() <= 0) {
             throw new IllegalArgumentException(
                     "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + keyedCache.getCacheTtlMill());
@@ -324,8 +317,6 @@ public class TemplateConfigProperties implements InitializingBean {
             private int storageCapacity = 0;
             /** 全主机关联消费线程数上限（consumer-threads.global.limit），<=0 表示不限制 */
             private int consumerThreads = 0;
-            /** 全主机已离库未终结条数上限（in-flight-consumer.global.limit），<=0 表示不限制 */
-            private int inFlightConsumer = 0;
             /**
              * 全主机 Sink 终端并发上限（sink-consumer-threads.global.limit），<=0 表示不限制。
              * 仅作用于管道终端 Sink 用户回调，与 consumer-threads 独立。
@@ -346,8 +337,6 @@ public class TemplateConfigProperties implements InitializingBean {
             private int inFlightProduction = 4000;
             /** 每 Job 关联消费线程数（必须 >0） */
             private int consumerThreads = 1000;
-            /** 每 Job 已离库未终结条数上限（>0 显式值，0 表示使用 per-job.consumer-threads） */
-            private int inFlightConsumer = 0;
             /** 每 Job 存储条数上限（必须 >0，适用于所有存储类型） */
             private int storageCapacity = 40000;
             /** 每 Job Queue 轮询间隔（毫秒，必须 >0） */
@@ -356,17 +345,9 @@ public class TemplateConfigProperties implements InitializingBean {
             private int evictionCoordinatorThreads = 0;
             /** 每 Job 驱逐扫描间隔（毫秒），0 表示使用 global.eviction-scan-interval-mill（仅非 DelayQueue 实现时生效） */
             private long evictionScanIntervalMill = 0;
-            /** pending slot 获取超时时是否仍“提交 anyway” */
-            private boolean strictPendingConsumerSlot = true;
-
             /** 带 key 的缓存：多值、超时与驱逐等统一在此配置（app.template.flow.limits.per-job.keyed-cache.*） */
             @NestedConfigurationProperty
             private KeyedCache keyedCache = new KeyedCache();
-
-            /** 有效背压阈值：inFlightConsumer>0 时取该值，否则取 per-job.consumer-threads */
-            public int getEffectivePendingConsumer() {
-                return inFlightConsumer > 0 ? inFlightConsumer : consumerThreads;
-            }
 
             /** 有效驱逐协调线程数：per-job > 0 时取 per-job，否则取 global。 */
             public int getEffectiveEvictionCoordinatorThreads(Flow.Global global) {

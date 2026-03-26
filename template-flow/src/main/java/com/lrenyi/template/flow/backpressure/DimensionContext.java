@@ -59,9 +59,6 @@ public final class DimensionContext {
     /** 消费线程许可对（consumer-concurrency 维度使用） */
     private final PermitPair consumerPermitPair;
 
-    /** 在途消费许可对（in-flight-consumer 维度使用） */
-    private final PermitPair inFlightConsumerPermitPair;
-
     /** 存储许可对（storage 维度使用） */
     private final PermitPair storagePermitPair;
 
