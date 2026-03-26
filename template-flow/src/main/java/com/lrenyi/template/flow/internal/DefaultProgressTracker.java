@@ -10,6 +10,7 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.metrics.FlowResourceMetrics;
 import com.lrenyi.template.flow.storage.FlowStorage;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -102,9 +103,9 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     private void incrementCounter(String name) {
-        String tagJobId = (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+        FlowMetricTags metricTags = FlowMetricTags.resolve(jobId, getMetricJobId());
         Counter.builder(name)
-               .tag(FlowMetricNames.TAG_JOB_ID, tagJobId)
+               .tags(metricTags.toTags())
                .register(flowManager.getMeterRegistry())
                .increment();
     }
@@ -217,8 +218,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     /**
-     * 核心判定逻辑：Source 已停止，且生产/存储/消费均已收敛。
-     * 完成条件：sourceFinished && inStorage==0 && activeConsumers==0 && inProduction<=0 && pendingConsumer<=0 && inFlightPush==0。
+     * 核心判定逻辑：Source 已停止，且 storage / activeConsumers / inFlightPush 收敛。
+     * 当前框架语义下，storage 是唯一 backlog；inProduction / pendingConsumer 不再参与完成判定。
      */
     private void checkCompletion(boolean showStatus) {
         FlowLauncher<Object> activeLauncher = flowManager.getActiveLauncher(jobId);
@@ -257,6 +258,14 @@ public class DefaultProgressTracker implements ProgressTracker {
                          lockedState.inFlightPush(),
                          stopped
                 );
+                String status = stopped ? "cancelled" : "succeeded";
+                String reason = stopped ? "stopped" : "completed";
+                flowManager.markStageTerminal(jobId,
+                                              getMetricJobId(),
+                                              status,
+                                              reason,
+                                              startTimeMillis,
+                                              endTimeMillis.get());
                 if (!stopped && !deferMetricsUnregister) {
                     flowManager.scheduleUnregister(jobId);
                 }
@@ -272,14 +281,12 @@ public class DefaultProgressTracker implements ProgressTracker {
         boolean waitingSourceFinished = !sourceFinished;
         boolean waitingStorageDrained = state.inStorage() > 0L;
         boolean waitingConsumerReleased = state.activeConsumers() > 0L;
-        boolean waitingProductionReleased = state.inProduction() > 0L;
-        boolean waitingPendingConsumer = state.pendingConsumer() > 0L;
         boolean waitingInFlightPush = state.inFlightPush() > 0;
         long reasonMask = completionBlockedReasonMask(waitingSourceFinished,
                 waitingStorageDrained,
                 waitingConsumerReleased,
-                waitingProductionReleased,
-                waitingPendingConsumer,
+                false,
+                false,
                 waitingInFlightPush);
         long lastReasonMask = lastCompletionBlockedReasonMask.get();
         if (reasonMask != lastReasonMask) {
@@ -302,8 +309,8 @@ public class DefaultProgressTracker implements ProgressTracker {
                  waitingSourceFinished,
                  waitingStorageDrained,
                  waitingConsumerReleased,
-                 waitingProductionReleased,
-                 waitingPendingConsumer,
+                 false,
+                 false,
                  waitingInFlightPush,
                  state.acquired(),
                  state.released(),
@@ -358,8 +365,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         long inProduction = s.getInProductionCount();
         long pendingConsumer = s.getPendingConsumerCount();
         boolean completionConditionMet =
-                sourceFinished && s.inStorage() <= 0L && s.activeConsumers() <= 0L && inProduction <= 0L
-                        && pendingConsumer == 0L && inFlightPush == 0;
+                sourceFinished && s.inStorage() <= 0L && s.activeConsumers() <= 0L && inFlightPush == 0;
         return new CompletionState(s.productionAcquired(),
                                    s.productionReleased(),
                                    s.terminated(),

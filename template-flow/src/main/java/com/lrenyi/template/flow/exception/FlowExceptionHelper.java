@@ -5,6 +5,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -109,7 +110,9 @@ public class FlowExceptionHelper {
         }
         MeterRegistry registry = meterRegistryRef.get();
         if (registry != null && errorType != null) {
+            FlowMetricTags metricTags = FlowMetricTags.resolve(jobId, displayName);
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(metricTags.toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, errorType)
                    .tag(FlowMetricNames.TAG_PHASE, phase.name())
                    .register(registry)

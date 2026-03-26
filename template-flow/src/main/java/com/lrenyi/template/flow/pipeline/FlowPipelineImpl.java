@@ -122,6 +122,15 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                                 .map(l -> l.getTracker().getCompletionFuture())
                                 .toArray(CompletableFuture[]::new)
                 ).thenRun(() -> {
+                    long startMillis = pipelineTracker.getSnapshot().startTimeMillis();
+                    long endMillis = System.currentTimeMillis();
+                    boolean cancelled = launchers.stream().anyMatch(FlowLauncher::isStopped);
+                    flowManager.markRootTerminal(jobId,
+                                                 pipelineTracker.getMetricJobId(),
+                                                 cancelled ? "cancelled" : "succeeded",
+                                                 cancelled ? "stopped" : "completed",
+                                                 startMillis,
+                                                 endMillis);
                     for (FlowLauncher<?> l : launchers) {
                         flowManager.scheduleUnregister(l.getJobId());
                     }

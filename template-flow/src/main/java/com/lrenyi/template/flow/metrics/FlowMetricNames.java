@@ -43,32 +43,28 @@ public final class FlowMetricNames {
     // ==================== Tags ====================
     /** 任务标识。注意高基数风险，仅在任务数可控时使用 */
     public static final String TAG_JOB_ID = "jobId";
+    /** 根任务标识，用于跨阶段聚合与 7 天历史回看。 */
+    public static final String TAG_ROOT_JOB_ID = "rootJobId";
+    /** 阶段路径键，如 0 / 3/fork/7/0。 */
+    public static final String TAG_STAGE_KEY = "stageKey";
+    /** 阶段名称，用于人类可读展示。 */
+    public static final String TAG_STAGE_NAME = "stageName";
+    /** 根任务展示名。 */
+    public static final String TAG_DISPLAY_NAME = "displayName";
+    /** 终态状态标签。 */
+    public static final String TAG_STATUS = "status";
+    /** 终态原因标签。 */
+    public static final String TAG_REASON = "reason";
     /** 错误类型。如 job_failed / deposit_failed / onConsume_failed 等 */
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
     public static final String TAG_PHASE = "phase";
 
     // ==================== 资源限制/使用量 Gauges ====================
-    /** 生产在途数量限制上限（Gauge） */
-    public static final String RESOURCES_IN_FLIGHT_PRODUCTION_LIMIT = PREFIX + ".resources.in_flight_production.limit";
-    /** 生产在途数量当前使用（Gauge） */
-    public static final String RESOURCES_IN_FLIGHT_PRODUCTION_USED = PREFIX + ".resources.in_flight_production.used";
-    /** 生产线程数限制上限（Gauge） */
-    public static final String RESOURCES_PRODUCER_THREADS_LIMIT = PREFIX + ".resources.producer_threads.limit";
-    /** 生产线程数当前使用（Gauge） */
-    public static final String RESOURCES_PRODUCER_THREADS_USED = PREFIX + ".resources.producer_threads.used";
     /** 存储容量限制上限（Gauge） */
     public static final String RESOURCES_STORAGE_LIMIT = PREFIX + ".resources.storage.limit";
     /** 存储容量当前使用（Gauge） */
     public static final String RESOURCES_STORAGE_USED = PREFIX + ".resources.storage.used";
-    /** 在途消费数量限制上限（Gauge） */
-    public static final String RESOURCES_IN_FLIGHT_CONSUMER_LIMIT = PREFIX + ".resources.in_flight_consumer.limit";
-    /** 在途消费数量当前使用（Gauge） */
-    public static final String RESOURCES_IN_FLIGHT_CONSUMER_USED = PREFIX + ".resources.in_flight_consumer.used";
-    /** 消费线程数限制上限（Gauge） */
-    public static final String RESOURCES_CONSUMER_THREADS_LIMIT = PREFIX + ".resources.consumer_threads.limit";
-    /** 消费线程数当前使用（Gauge） */
-    public static final String RESOURCES_CONSUMER_THREADS_USED = PREFIX + ".resources.consumer_threads.used";
     /** Sink 终端全局并发限制上限（Gauge） */
     public static final String RESOURCES_SINK_CONCURRENCY_LIMIT = PREFIX + ".resources.sink_concurrency.limit";
     /** Sink 终端全局并发当前占用（Gauge） */
@@ -79,34 +75,10 @@ public final class FlowMetricNames {
     public static final String SINK_CONCURRENCY_ACQUIRE_TIMEOUT = PREFIX + ".sink_concurrency.acquire.timeout";
 
     // ==================== Per-job 资源指标（与全局区分，避免同名冲突） ====================
-    /** Per-job 生产在途数量限制上限 */
-    public static final String RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_LIMIT =
-        PREFIX + ".resources.per_job.in_flight_production.limit";
-    /** Per-job 生产在途数量当前使用 */
-    public static final String RESOURCES_PER_JOB_IN_FLIGHT_PRODUCTION_USED =
-        PREFIX + ".resources.per_job.in_flight_production.used";
-    /** Per-job 生产线程数限制上限 */
-    public static final String RESOURCES_PER_JOB_PRODUCER_THREADS_LIMIT =
-        PREFIX + ".resources.per_job.producer_threads.limit";
-    /** Per-job 生产线程数当前使用 */
-    public static final String RESOURCES_PER_JOB_PRODUCER_THREADS_USED =
-        PREFIX + ".resources.per_job.producer_threads.used";
     /** Per-job 存储容量限制上限 */
     public static final String RESOURCES_PER_JOB_STORAGE_LIMIT = PREFIX + ".resources.per_job.storage.limit";
     /** Per-job 存储容量当前使用 */
     public static final String RESOURCES_PER_JOB_STORAGE_USED = PREFIX + ".resources.per_job.storage.used";
-    /** Per-job 在途消费数量限制上限 */
-    public static final String RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_LIMIT =
-        PREFIX + ".resources.per_job.in_flight_consumer.limit";
-    /** Per-job 在途消费数量当前使用 */
-    public static final String RESOURCES_PER_JOB_IN_FLIGHT_CONSUMER_USED =
-        PREFIX + ".resources.per_job.in_flight_consumer.used";
-    /** Per-job 消费线程数限制上限 */
-    public static final String RESOURCES_PER_JOB_CONSUMER_THREADS_LIMIT =
-        PREFIX + ".resources.per_job.consumer_threads.limit";
-    /** Per-job 消费线程数当前使用 */
-    public static final String RESOURCES_PER_JOB_CONSUMER_THREADS_USED =
-        PREFIX + ".resources.per_job.consumer_threads.used";
 
     // ==================== Job 完成判定 Gauges（per-job） ====================
     /** Source 是否已读完（0/1），用于完成判定。 */
@@ -118,11 +90,26 @@ public final class FlowMetricNames {
      * 与 in_flight_consumer_used 不同：后者来自背压信号量（含排队中），前者仅统计已获取消费线程、回调执行中的条数。
      */
     public static final String COMPLETION_ACTIVE_CONSUMERS = PREFIX + ".completion.active_consumers";
-    /**
-     * 待消费未清数量（pendingConsumer），用于完成判定。
-     * 口径与 {@code FlowProgressSnapshot#getPendingConsumerCount()} 保持一致。
-     */
-    public static final String COMPLETION_PENDING_CONSUMERS = PREFIX + ".completion.pending_consumers";
+    /** 根任务终态（running/succeeded/failed/cancelled） */
+    public static final String JOB_STATUS = PREFIX + ".job.status";
+    /** 根任务启动时间（秒） */
+    public static final String JOB_START_TIME_SECONDS = PREFIX + ".job.start_time_seconds";
+    /** 根任务结束时间（秒） */
+    public static final String JOB_END_TIME_SECONDS = PREFIX + ".job.end_time_seconds";
+    /** 根任务持续时间（秒） */
+    public static final String JOB_DURATION_SECONDS = PREFIX + ".job.duration_seconds";
+    /** 根任务结束原因（gauge=1，reason 为标签） */
+    public static final String JOB_END_REASON = PREFIX + ".job.end_reason";
+    /** 阶段终态（running/succeeded/failed/cancelled） */
+    public static final String STAGE_STATUS = PREFIX + ".stage.status";
+    /** 阶段启动时间（秒） */
+    public static final String STAGE_START_TIME_SECONDS = PREFIX + ".stage.start_time_seconds";
+    /** 阶段结束时间（秒） */
+    public static final String STAGE_END_TIME_SECONDS = PREFIX + ".stage.end_time_seconds";
+    /** 阶段持续时间（秒） */
+    public static final String STAGE_DURATION_SECONDS = PREFIX + ".stage.duration_seconds";
+    /** 阶段结束原因（gauge=1，reason 为标签） */
+    public static final String STAGE_END_REASON = PREFIX + ".stage.end_reason";
 
     private FlowMetricNames() {}
 }

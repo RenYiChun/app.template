@@ -22,6 +22,7 @@ import com.lrenyi.template.flow.internal.FlowInletImpl;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
@@ -205,6 +206,7 @@ public class FlowJoinerEngine {
             if (launcher.isStopped()) {
                 launcher.getTracker().onProductionReleased();
                 Counter.builder(FlowMetricNames.ERRORS)
+                       .tags(FlowMetricTags.resolve(launcher.getJobId(), launcher.getMetricJobId()).toTags())
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                        .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())

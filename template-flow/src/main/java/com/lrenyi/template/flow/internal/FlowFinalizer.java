@@ -11,6 +11,7 @@ import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -85,7 +86,7 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     if (didFinalize) {
                         long latency = System.currentTimeMillis() - startTime;
                         Timer.builder(FlowMetricNames.FINALIZE_DURATION)
-                             .tag(FlowMetricNames.TAG_JOB_ID, launcher.getMetricJobId())
+                             .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
                              .register(meterRegistry)
                              .record(latency, java.util.concurrent.TimeUnit.MILLISECONDS);
                     }
@@ -285,13 +286,14 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     }
                     long matchLatency = System.currentTimeMillis() - matchStartTime;
                     Timer.builder(FlowMetricNames.MATCH_DURATION)
-                         .tag(FlowMetricNames.TAG_JOB_ID, launcher.getMetricJobId())
+                         .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
                          .register(meterRegistry)
                          .record(matchLatency, TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
                     FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "match_process_failed",
                             launcher.getMetricJobId());
                     Counter.builder(FlowMetricNames.ERRORS)
+                           .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
                            .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
                            .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
                            .register(meterRegistry)
