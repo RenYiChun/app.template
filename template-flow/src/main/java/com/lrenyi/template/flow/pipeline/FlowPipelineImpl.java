@@ -222,6 +222,7 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
 
                 boolean isLeaf = (currentChainHead == null);
                 DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager, true);
+                tracker.setStageDisplayName(def.displayNameOverride());
                 String metricTag = stageMetricTag(stageJobId);
                 tracker.setMetricJobId(metricTag);
                 Integer storageOverride = def.storageCapacityOverride();

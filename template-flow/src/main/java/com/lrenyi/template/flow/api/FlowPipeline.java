@@ -76,7 +76,7 @@ public interface FlowPipeline<I> {
         /**
          * 线性映射阶段：语义上仍是 <b>一整段 FlowLauncher</b>（见 {@link Builder} 接口说明），内部使用占位
          * {@link com.lrenyi.template.flow.pipeline.MapOperatorJoiner}，每条入站使用独立 {@code joinKey}，避免与
-         * 引擎「按 key 驻留」语义冲突；{@link NextMapSpec#cacheProducer()} 仅在消费侧把单条转为下游类型，返回 null 时过滤该条。
+         * 引擎「按 key 驻留」语义冲突；{@link NextMapSpec#getCacheProducer()} 仅在消费侧把单条转为下游类型，返回 null 时过滤该条。
          *
          * @param spec 映射段配置（驻留类型、下游类型、映射、消费节拍等）；后续扩展字段见 {@link NextMapSpec}
          */
@@ -94,7 +94,7 @@ public interface FlowPipeline<I> {
          * 添加一个常规处理阶段（不改变数据类型）。
          */
         default Builder<T> nextStage(FlowJoiner<T> joiner) {
-            return nextStage(NextStageSpec.of(joiner.getDataType(), joiner, List::of));
+            return nextStage(NextStageSpec.<T, T>builder(joiner.getDataType(), joiner, List::of).build());
         }
 
         /**

@@ -425,14 +425,14 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (displayName, rootJobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
               "refId": "A",
-              "legendFormat": "进入 {{displayName}}"
+              "legendFormat": "进入 {{rootJobDisplayName}}"
             },
             {
-              "expr": "sum by (displayName, rootJobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
               "refId": "B",
-              "legendFormat": "终结 {{displayName}}"
+              "legendFormat": "终结 {{rootJobDisplayName}}"
             }
           ]
         },
@@ -469,9 +469,9 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (displayName, rootJobId, errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId, errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
               "refId": "A",
-              "legendFormat": "{{displayName}} {{errorType}}"
+              "legendFormat": "{{rootJobDisplayName}} {{errorType}}"
             }
           ]
         },
@@ -508,9 +508,9 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (displayName, rootJobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"})",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"})",
               "refId": "A",
-              "legendFormat": "{{displayName}}"
+              "legendFormat": "{{rootJobDisplayName}}"
             }
           ]
         }
@@ -562,14 +562,14 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageName) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
           "refId": "A",
-          "legendFormat": "进入 {{stageKey}} {{stageName}}"
+          "legendFormat": "进入 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageName) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
           "refId": "B",
-          "legendFormat": "终结 {{stageKey}} {{stageName}}"
+          "legendFormat": "终结 {{stageDisplayName}}"
         }
       ]
     },
@@ -606,14 +606,14 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageName) (app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
           "refId": "A",
-          "legendFormat": "上限 {{stageKey}}"
+          "legendFormat": "上限 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageName) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
           "refId": "B",
-          "legendFormat": "使用 {{stageKey}}"
+          "legendFormat": "使用 {{stageDisplayName}}"
         }
       ]
     },
@@ -650,14 +650,14 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageName) (app_template_flow_resources_per_job_active_consumers_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_active_consumers_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
           "refId": "A",
-          "legendFormat": "上限 {{stageKey}}"
+          "legendFormat": "上限 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageName) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
           "refId": "B",
-          "legendFormat": "使用 {{stageKey}}"
+          "legendFormat": "使用 {{stageDisplayName}}"
         }
       ]
     },
@@ -694,19 +694,19 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "A",
-          "legendFormat": "Deposit {{stageKey}}"
+          "legendFormat": "Deposit {{stageDisplayName}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "B",
-          "legendFormat": "Match {{stageKey}}"
+          "legendFormat": "Match {{stageDisplayName}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "C",
-          "legendFormat": "Finalize {{stageKey}}"
+          "legendFormat": "Finalize {{stageDisplayName}}"
         }
       ]
     },
@@ -715,7 +715,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "原始完成水位：1=source 已读完，0=未读完。",
+      "description": "未完成阶段数：总阶段数减去已 source finished 的阶段数。",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -757,11 +757,11 @@
         },
         "textMode": "value"
       },
-      "title": "SourceFinished",
+      "title": "SourceUnfinished",
       "type": "stat",
       "targets": [
         {
-          "expr": "(sum(app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "expr": "clamp_min((((count(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)) - ((sum(app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0))), 0)",
           "refId": "A",
           "legendFormat": "__auto",
           "instant": true

@@ -46,70 +46,72 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     @Override
     public <R> FlowPipeline.Builder<R> nextStage(NextStageSpec<T, R> spec) {
         Objects.requireNonNull(spec, "spec");
-        return nextStageInternal(spec.outputClass(), spec.joiner(), spec.transformer(), spec.pairOutput(), null,
-                spec.storageCapacity(), null);
+        return nextStageInternal(spec.getOutputClass(), spec.getJoiner(), spec.getTransformer(), spec.getPairOutput(),
+                null, spec.getStorageCapacity(), null, spec.getDisplayName());
     }
 
     @Override
     public <R> FlowPipeline.Builder<List<R>> nextStage(NextStageSpec<T, R> spec, EmbeddedBatchSpec batchSpec) {
         Objects.requireNonNull(spec, "spec");
         Objects.requireNonNull(batchSpec, "batchSpec");
-        if (!spec.joiner().getDataType().equals(currentClass)) {
+        if (!spec.getJoiner().getDataType().equals(currentClass)) {
             throw new IllegalArgumentException(
                     "joiner data type must match current stage type: expected " + currentClass.getName()
-                            + ", got " + spec.joiner().getDataType().getName());
+                            + ", got " + spec.getJoiner().getDataType().getName());
         }
         PipelineStageDispatch<T, R> dispatch =
-                PipelineDispatchFactories.create(spec.joiner(), spec.transformer(), spec.pairOutput());
-        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) spec.joiner(),
+                PipelineDispatchFactories.create(spec.getJoiner(), spec.getTransformer(), spec.getPairOutput());
+        stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) spec.getJoiner(),
                 null,
                 null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 batchSpec,
-                spec.storageCapacity(),
-                null));
+                spec.getStorageCapacity(),
+                null,
+                spec.getDisplayName()));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
     @Override
     public <R> FlowPipeline.Builder<R> nextMap(NextMapSpec<T, R> spec) {
         Objects.requireNonNull(spec, "spec");
-        if (!spec.storageElementType().equals(currentClass)) {
+        if (!spec.getStorageElementType().equals(currentClass)) {
             throw new IllegalArgumentException(
                     "storageElementType must match current stage type: expected " + currentClass.getName()
-                            + ", got " + spec.storageElementType().getName());
+                            + ", got " + spec.getStorageElementType().getName());
         }
-        long millis = spec.consumeIntervalUnit().toMillis(spec.consumeInterval());
+        long millis = spec.getConsumeIntervalUnit().toMillis(spec.getConsumeInterval());
         MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
         Function<T, List<R>> tf = t -> {
-            R r = spec.cacheProducer().apply(t);
+            R r = spec.getCacheProducer().apply(t);
             if (r == null) {
                 return List.of();
             }
             return List.of(r);
         };
-        return nextStageInternal(spec.outputType(),
+        return nextStageInternal(spec.getOutputType(),
                 joiner,
                 tf,
                 null,
                 null,
-                spec.storageCapacity(),
-                spec.consumerThreads());
+                spec.getStorageCapacity(),
+                spec.getConsumerThreads(),
+                spec.getDisplayName());
     }
 
     @Override
     public <R> FlowPipeline.Builder<List<R>> nextMap(NextMapSpec<T, R> spec, EmbeddedBatchSpec batchSpec) {
         Objects.requireNonNull(spec, "spec");
         Objects.requireNonNull(batchSpec, "batchSpec");
-        if (!spec.storageElementType().equals(currentClass)) {
+        if (!spec.getStorageElementType().equals(currentClass)) {
             throw new IllegalArgumentException(
                     "storageElementType must match current stage type: expected " + currentClass.getName()
-                            + ", got " + spec.storageElementType().getName());
+                            + ", got " + spec.getStorageElementType().getName());
         }
-        long millis = spec.consumeIntervalUnit().toMillis(spec.consumeInterval());
+        long millis = spec.getConsumeIntervalUnit().toMillis(spec.getConsumeInterval());
         MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
         Function<T, List<R>> tf = t -> {
-            R r = spec.cacheProducer().apply(t);
+            R r = spec.getCacheProducer().apply(t);
             if (r == null) {
                 return List.of();
             }
@@ -121,8 +123,9 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 null,
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 batchSpec,
-                spec.storageCapacity(),
-                spec.consumerThreads()));
+                spec.getStorageCapacity(),
+                spec.getConsumerThreads(),
+                spec.getDisplayName()));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -133,7 +136,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                                                           BiFunction<T, T, List<R>> explicitPairOutput,
                                                           EmbeddedBatchSpec embeddedBatch,
                                                           Integer storageCapacityOverride,
-                                                          Integer consumerThreadsOverride) {
+                                                          Integer consumerThreadsOverride,
+                                                          String displayNameOverride) {
         Function<T, List<R>> tf = transformer != null ? transformer : t -> List.of((R) t);
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, explicitPairOutput);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) joiner,
@@ -142,7 +146,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 (PipelineStageDispatch<Object, Object>) (Object) dispatch,
                 embeddedBatch,
                 storageCapacityOverride,
-                consumerThreadsOverride));
+                consumerThreadsOverride,
+                displayNameOverride));
         return new FlowPipelineBuilderImpl<>(jobId, outputClass, flowManager, stages);
     }
 
@@ -167,7 +172,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
             branchStages.add(subBuilder.stages);
             branchNames.add(branchSpec.name());
         }
-        stages.add(new StageDefinition<Object, Object>(null, branchStages, branchNames, null, null, null, null));
+        stages.add(new StageDefinition<Object, Object>(null, branchStages, branchNames, null, null, null, null, null));
         return build();
     }
 
@@ -179,7 +184,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         Function<Object, List<Object>> identity = List::of;
         PipelineStageDispatch<Object, Object> dispatch = PipelineDispatchFactories.create((FlowJoiner<Object>) aggregator, identity, null);
         stages.add(new StageDefinition<Object, Object>((FlowJoiner<Object>) aggregator, null, null, dispatch, null,
-                storageCapacity, null));
+                storageCapacity, null, null));
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<T>>) (Class<?>) List.class, flowManager, stages);
     }
 
@@ -197,6 +202,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 dispatch,
                 null,
                 storageCapacity,
+                null,
                 null));
         return build();
     }

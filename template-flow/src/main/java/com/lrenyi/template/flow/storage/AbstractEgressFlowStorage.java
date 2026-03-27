@@ -54,7 +54,9 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             Counter.builder(FlowMetricNames.ERRORS)
-                   .tags(FlowMetricTags.resolve(entry.getJobId(), progressTracker.getMetricJobId()).toTags())
+                   .tags(FlowMetricTags.resolve(entry.getJobId(),
+                           progressTracker.getMetricJobId(),
+                           progressTracker.getStageDisplayName()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry)
@@ -65,7 +67,9 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         if (launcher == null) {
             Counter.builder(FlowMetricNames.ERRORS)
-                   .tags(FlowMetricTags.resolve(entry.getJobId(), progressTracker.getMetricJobId()).toTags())
+                   .tags(FlowMetricTags.resolve(entry.getJobId(),
+                           progressTracker.getMetricJobId(),
+                           progressTracker.getStageDisplayName()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry)

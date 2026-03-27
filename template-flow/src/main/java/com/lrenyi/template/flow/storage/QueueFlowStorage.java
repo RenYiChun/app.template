@@ -54,7 +54,9 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
         if (launcherLookup == null) {
             log.warn("LauncherLookup not available for drainLoop");
             Counter.builder(FlowMetricNames.ERRORS)
-                   .tags(FlowMetricTags.resolve("queue-drain", progressTracker().getMetricJobId()).toTags())
+                   .tags(FlowMetricTags.resolve("queue-drain",
+                           progressTracker().getMetricJobId(),
+                           progressTracker().getStageDisplayName()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry())
@@ -79,7 +81,9 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
                 }
             } catch (Throwable t) {
                 Counter.builder(FlowMetricNames.ERRORS)
-                       .tags(FlowMetricTags.resolve("queue-drain", progressTracker().getMetricJobId()).toTags())
+                       .tags(FlowMetricTags.resolve("queue-drain",
+                               progressTracker().getMetricJobId(),
+                               progressTracker().getStageDisplayName()).toTags())
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
                        .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                        .register(meterRegistry())
@@ -100,16 +104,17 @@ public class QueueFlowStorage<T> extends AbstractEgressFlowStorage<T> implements
             }
             handleEgress(key, entry, EgressReason.SINGLE_CONSUMED, false);
         } catch (Throwable t) {
+            FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
             Counter.builder(FlowMetricNames.ERRORS)
                    .tags(FlowMetricTags.resolve(entry.getJobId(),
-                           launcherLookup.getActiveLauncher(entry.getJobId()) != null
-                                   ? launcherLookup.getActiveLauncher(entry.getJobId()).getMetricJobId()
-                                   : progressTracker().getMetricJobId()).toTags())
+                           launcherForLog != null ? launcherForLog.getMetricJobId() : progressTracker().getMetricJobId(),
+                           launcherForLog != null
+                                   ? launcherForLog.getTracker().getStageDisplayName()
+                                   : progressTracker().getStageDisplayName()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "queue_drain_failed")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry())
                    .increment();
-            FlowLauncher<Object> launcherForLog = launcherLookup.getActiveLauncher(entry.getJobId());
             log.error("Queue drain failed for job {}",
                     FlowLogHelper.formatJobContext(entry.getJobId(),
                             launcherForLog != null ? launcherForLog.getMetricJobId() : null), t);

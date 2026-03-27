@@ -45,6 +45,8 @@ public class DefaultProgressTracker implements ProgressTracker {
     private final AtomicLong lastCompletionBlockedReasonMask = new AtomicLong(-1L);
     /** 用于指标标签的 jobId（可读展示名），null 时使用 jobId */
     private volatile String metricJobId;
+    /** 用于指标标签的阶段显示名，null 时走默认阶段名推导。 */
+    private volatile String stageDisplayName;
     /**
      * 为 true 时完成时不调用 {@link FlowManager#scheduleUnregister(String)}，由管道在全部子阶段完成后再统一注销指标。
      */
@@ -103,7 +105,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     private void incrementCounter(String name) {
-        FlowMetricTags metricTags = FlowMetricTags.resolve(jobId, getMetricJobId());
+        FlowMetricTags metricTags = FlowMetricTags.resolve(jobId, getMetricJobId(), getStageDisplayName());
         Counter.builder(name)
                .tags(metricTags.toTags())
                .register(flowManager.getMeterRegistry())
@@ -152,6 +154,16 @@ public class DefaultProgressTracker implements ProgressTracker {
     @Override
     public String getMetricJobId() {
         return (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+    }
+
+    @Override
+    public void setStageDisplayName(String stageDisplayName) {
+        this.stageDisplayName = stageDisplayName;
+    }
+
+    @Override
+    public String getStageDisplayName() {
+        return stageDisplayName;
     }
 
     /**
@@ -262,6 +274,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                 );
                 flowManager.markStageTerminal(jobId,
                                               getMetricJobId(),
+                                              getStageDisplayName(),
                                               startTimeMillis,
                                               endTimeMillis.get());
                 if (!stopped && !deferMetricsUnregister) {

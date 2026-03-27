@@ -12,48 +12,90 @@ import java.util.function.Function;
  *
  * @param <T> 本段输入（当前管道阶段元素类型）
  * @param <R> 本段产出、亦即下游阶段元素类型
- * @param pairOutput 在 {@code onPairConsumed} 之后向下游的产出；为 {@code null} 时表示未注入，沿用引擎兼容行为
- * @param storageCapacity 非 null 时为本阶段单独设置 {@code limits.per-job.storage-capacity}（条数上限，必须 {@code > 0}）
  */
-public record NextStageSpec<T, R>(Class<R> outputClass, FlowJoiner<T> joiner, Function<T, List<R>> transformer,
-                                  BiFunction<T, T, List<R>> pairOutput, Integer storageCapacity) {
+public final class NextStageSpec<T, R> {
+    private final Class<R> outputClass;
+    private final FlowJoiner<T> joiner;
+    private final Function<T, List<R>> transformer;
+    private final BiFunction<T, T, List<R>> pairOutput;
+    private final Integer storageCapacity;
+    private final String displayName;
 
-    public NextStageSpec {
-        Objects.requireNonNull(outputClass, "outputClass");
-        Objects.requireNonNull(joiner, "joiner");
-        Objects.requireNonNull(transformer, "transformer");
+    private NextStageSpec(Builder<T, R> builder) {
+        this.outputClass = Objects.requireNonNull(builder.outputClass, "outputClass");
+        this.joiner = Objects.requireNonNull(builder.joiner, "joiner");
+        this.transformer = Objects.requireNonNull(builder.transformer, "transformer");
+        this.pairOutput = builder.pairOutput;
+        this.storageCapacity = builder.storageCapacity;
+        this.displayName = builder.displayName;
         if (storageCapacity != null && storageCapacity <= 0) {
             throw new IllegalArgumentException("storageCapacity must be > 0 when set, got " + storageCapacity);
         }
     }
 
-    /**
-     * 无配对产出覆盖（等价于原三参数 {@code nextStage}）。
-     */
-    public static <T, R> NextStageSpec<T, R> of(Class<R> outputClass,
-        FlowJoiner<T> joiner,
-        Function<T, List<R>> transformer) {
-        return new NextStageSpec<>(outputClass, joiner, transformer, null, null);
+    public static <T, R> Builder<T, R> builder(Class<R> outputClass,
+                                               FlowJoiner<T> joiner,
+                                               Function<T, List<R>> transformer) {
+        return new Builder<>(outputClass, joiner, transformer);
     }
 
-    /**
-     * 含「配对消费后」向下游的显式产出（等价于原四参数 {@code nextStage}）。
-     */
-    public static <T, R> NextStageSpec<T, R> of(Class<R> outputClass,
-        FlowJoiner<T> joiner,
-        Function<T, List<R>> transformer,
-        BiFunction<T, T, List<R>> pairOutput) {
-        return new NextStageSpec<>(outputClass, joiner, transformer, pairOutput, null);
+    public Class<R> getOutputClass() {
+        return outputClass;
     }
 
-    /**
-     * 含本阶段存储条数上限覆盖（覆盖 {@code limits.per-job.storage-capacity}）。
-     */
-    public static <T, R> NextStageSpec<T, R> of(Class<R> outputClass,
-        FlowJoiner<T> joiner,
-        Function<T, List<R>> transformer,
-        BiFunction<T, T, List<R>> pairOutput,
-        int storageCapacity) {
-        return new NextStageSpec<>(outputClass, joiner, transformer, pairOutput, storageCapacity);
+    public FlowJoiner<T> getJoiner() {
+        return joiner;
+    }
+
+    public Function<T, List<R>> getTransformer() {
+        return transformer;
+    }
+
+    public BiFunction<T, T, List<R>> getPairOutput() {
+        return pairOutput;
+    }
+
+    public Integer getStorageCapacity() {
+        return storageCapacity;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public static final class Builder<T, R> {
+        private final Class<R> outputClass;
+        private final FlowJoiner<T> joiner;
+        private final Function<T, List<R>> transformer;
+        private BiFunction<T, T, List<R>> pairOutput;
+        private Integer storageCapacity;
+        private String displayName;
+
+        private Builder(Class<R> outputClass,
+                        FlowJoiner<T> joiner,
+                        Function<T, List<R>> transformer) {
+            this.outputClass = Objects.requireNonNull(outputClass, "outputClass");
+            this.joiner = Objects.requireNonNull(joiner, "joiner");
+            this.transformer = Objects.requireNonNull(transformer, "transformer");
+        }
+
+        public Builder<T, R> pairOutput(BiFunction<T, T, List<R>> pairOutput) {
+            this.pairOutput = pairOutput;
+            return this;
+        }
+
+        public Builder<T, R> storageCapacity(Integer storageCapacity) {
+            this.storageCapacity = storageCapacity;
+            return this;
+        }
+
+        public Builder<T, R> displayName(String displayName) {
+            this.displayName = displayName;
+            return this;
+        }
+
+        public NextStageSpec<T, R> build() {
+            return new NextStageSpec<>(this);
+        }
     }
 }

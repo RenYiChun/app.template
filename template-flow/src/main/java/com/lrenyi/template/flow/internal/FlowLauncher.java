@@ -106,7 +106,7 @@ public class FlowLauncher<T> {
     public void launch(T data) {
         if (stopped) {
             Counter.builder(FlowMetricNames.ERRORS)
-                   .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
+                   .tags(metricTags().toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
@@ -119,7 +119,7 @@ public class FlowLauncher<T> {
         if (stopped) {
             tracker.onProductionReleased();
             Counter.builder(FlowMetricNames.ERRORS)
-                   .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
+                   .tags(metricTags().toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                    .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                    .register(registry())
@@ -132,6 +132,10 @@ public class FlowLauncher<T> {
 
     private MeterRegistry registry() {
         return flowManager.getMeterRegistry();
+    }
+
+    private FlowMetricTags metricTags() {
+        return FlowMetricTags.resolve(jobId, getMetricJobId(), tracker.getStageDisplayName());
     }
 
     private void depositNow(T data) {
@@ -193,7 +197,7 @@ public class FlowLauncher<T> {
             long depositLatency = System.currentTimeMillis() - depositStartTime;
 
             Timer.builder(FlowMetricNames.DEPOSIT_DURATION)
-                 .tags(FlowMetricTags.resolve(jobId, getMetricJobId()).toTags())
+                 .tags(metricTags().toTags())
                  .register(registry())
                  .record(depositLatency, TimeUnit.MILLISECONDS);
         } catch (Throwable e) {

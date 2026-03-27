@@ -11,18 +11,26 @@ import java.util.function.Function;
  *
  * @param <T> 本段 {@link com.lrenyi.template.flow.storage.FlowStorage} 驻留元素类型
  * @param <R> 本段产出类型（亦即下游阶段元素类型）
- * @param storageCapacity 非 null 时为本阶段单独设置 {@code limits.per-job.storage-capacity}（条数上限，必须 {@code > 0}）
- * @param consumerThreads 非 null 时为本阶段单独设置 {@code limits.per-job.consumer-threads}（线程数上限，必须 {@code > 0}）
  */
-public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType, Function<T, R> cacheProducer,
-                                long consumeInterval, TimeUnit consumeIntervalUnit, Integer storageCapacity,
-                                Integer consumerThreads) {
+public final class NextMapSpec<T, R> {
+    private final Class<T> storageElementType;
+    private final Class<R> outputType;
+    private final Function<T, R> cacheProducer;
+    private final long consumeInterval;
+    private final TimeUnit consumeIntervalUnit;
+    private final Integer storageCapacity;
+    private final Integer consumerThreads;
+    private final String displayName;
 
-    public NextMapSpec {
-        Objects.requireNonNull(storageElementType, "storageElementType");
-        Objects.requireNonNull(outputType, "outputType");
-        Objects.requireNonNull(cacheProducer, "cacheProducer");
-        Objects.requireNonNull(consumeIntervalUnit, "consumeIntervalUnit");
+    private NextMapSpec(Builder<T, R> builder) {
+        this.storageElementType = Objects.requireNonNull(builder.storageElementType, "storageElementType");
+        this.outputType = Objects.requireNonNull(builder.outputType, "outputType");
+        this.cacheProducer = Objects.requireNonNull(builder.cacheProducer, "cacheProducer");
+        this.consumeInterval = builder.consumeInterval;
+        this.consumeIntervalUnit = Objects.requireNonNull(builder.consumeIntervalUnit, "consumeIntervalUnit");
+        this.storageCapacity = builder.storageCapacity;
+        this.consumerThreads = builder.consumerThreads;
+        this.displayName = builder.displayName;
         if (consumeIntervalUnit.toMillis(consumeInterval) <= 0) {
             throw new IllegalArgumentException("consume interval must be positive in milliseconds");
         }
@@ -34,57 +42,83 @@ public record NextMapSpec<T, R>(Class<T> storageElementType, Class<R> outputType
         }
     }
 
-    /**
-     * 与直接构造等价，便于链式调用处阅读。
-     */
-    public static <T, R> NextMapSpec<T, R> of(Class<T> storageElementType,
-        Class<R> outputType,
-        Function<T, R> cacheProducer,
-        long consumeInterval,
-        TimeUnit consumeIntervalUnit) {
-        return new NextMapSpec<>(storageElementType,
-                outputType,
-                cacheProducer,
-                consumeInterval,
-                consumeIntervalUnit,
-                null,
-                null);
+    public static <T, R> Builder<T, R> builder(Class<T> storageElementType,
+                                               Class<R> outputType,
+                                               Function<T, R> cacheProducer) {
+        return new Builder<>(storageElementType, outputType, cacheProducer);
     }
 
-    /**
-     * 含本阶段存储条数上限覆盖。
-     */
-    public static <T, R> NextMapSpec<T, R> of(Class<T> storageElementType,
-        Class<R> outputType,
-        Function<T, R> cacheProducer,
-        long consumeInterval,
-        TimeUnit consumeIntervalUnit,
-        Integer storageCapacity) {
-        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
-                storageCapacity, null);
+    public Class<T> getStorageElementType() {
+        return storageElementType;
     }
 
-    /**
-     * 含本阶段存储条数上限与消费线程数覆盖。
-     */
-    public static <T, R> NextMapSpec<T, R> of(Class<T> storageElementType,
-        Class<R> outputType,
-        Function<T, R> cacheProducer,
-        long consumeInterval, TimeUnit consumeIntervalUnit, Integer storageCapacity, Integer consumerThreads) {
-        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
-                storageCapacity, consumerThreads);
+    public Class<R> getOutputType() {
+        return outputType;
     }
 
-    /**
-     * 含本阶段消费线程数覆盖。
-     */
-    public static <T, R> NextMapSpec<T, R> ofWithConsumerThreads(Class<T> storageElementType,
-        Class<R> outputType,
-        Function<T, R> cacheProducer,
-        long consumeInterval,
-        TimeUnit consumeIntervalUnit,
-        Integer consumerThreads) {
-        return new NextMapSpec<>(storageElementType, outputType, cacheProducer, consumeInterval, consumeIntervalUnit,
-                null, consumerThreads);
+    public Function<T, R> getCacheProducer() {
+        return cacheProducer;
+    }
+
+    public long getConsumeInterval() {
+        return consumeInterval;
+    }
+
+    public TimeUnit getConsumeIntervalUnit() {
+        return consumeIntervalUnit;
+    }
+
+    public Integer getStorageCapacity() {
+        return storageCapacity;
+    }
+
+    public Integer getConsumerThreads() {
+        return consumerThreads;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public static final class Builder<T, R> {
+        private final Class<T> storageElementType;
+        private final Class<R> outputType;
+        private final Function<T, R> cacheProducer;
+        private long consumeInterval;
+        private TimeUnit consumeIntervalUnit;
+        private Integer storageCapacity;
+        private Integer consumerThreads;
+        private String displayName;
+
+        private Builder(Class<T> storageElementType, Class<R> outputType, Function<T, R> cacheProducer) {
+            this.storageElementType = Objects.requireNonNull(storageElementType, "storageElementType");
+            this.outputType = Objects.requireNonNull(outputType, "outputType");
+            this.cacheProducer = Objects.requireNonNull(cacheProducer, "cacheProducer");
+        }
+
+        public Builder<T, R> consumeInterval(long consumeInterval, TimeUnit consumeIntervalUnit) {
+            this.consumeInterval = consumeInterval;
+            this.consumeIntervalUnit = Objects.requireNonNull(consumeIntervalUnit, "consumeIntervalUnit");
+            return this;
+        }
+
+        public Builder<T, R> storageCapacity(Integer storageCapacity) {
+            this.storageCapacity = storageCapacity;
+            return this;
+        }
+
+        public Builder<T, R> consumerThreads(Integer consumerThreads) {
+            this.consumerThreads = consumerThreads;
+            return this;
+        }
+
+        public Builder<T, R> displayName(String displayName) {
+            this.displayName = displayName;
+            return this;
+        }
+
+        public NextMapSpec<T, R> build() {
+            return new NextMapSpec<>(this);
+        }
     }
 }

@@ -58,7 +58,9 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     if (didFinalize) {
                         long latency = System.currentTimeMillis() - startTime;
                         Timer.builder(FlowMetricNames.FINALIZE_DURATION)
-                             .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
+                             .tags(FlowMetricTags.resolve(jobId,
+                                     launcher.getMetricJobId(),
+                                     launcher.getTracker().getStageDisplayName()).toTags())
                              .register(meterRegistry)
                              .record(latency, java.util.concurrent.TimeUnit.MILLISECONDS);
                     }
@@ -227,14 +229,18 @@ public record FlowFinalizer<T>(FlowResourceRegistry resourceRegistry, MeterRegis
                     }
                     long matchLatency = System.currentTimeMillis() - matchStartTime;
                     Timer.builder(FlowMetricNames.MATCH_DURATION)
-                         .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
+                         .tags(FlowMetricTags.resolve(jobId,
+                                 launcher.getMetricJobId(),
+                                 launcher.getTracker().getStageDisplayName()).toTags())
                          .register(meterRegistry)
                          .record(matchLatency, TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
                     FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.CONSUMPTION, "match_process_failed",
                             launcher.getMetricJobId());
                     Counter.builder(FlowMetricNames.ERRORS)
-                           .tags(FlowMetricTags.resolve(jobId, launcher.getMetricJobId()).toTags())
+                           .tags(FlowMetricTags.resolve(jobId,
+                                   launcher.getMetricJobId(),
+                                   launcher.getTracker().getStageDisplayName()).toTags())
                            .tag(FlowMetricNames.TAG_ERROR_TYPE, "match_process_failed")
                            .tag(FlowMetricNames.TAG_PHASE, "CONSUMPTION")
                            .register(meterRegistry)

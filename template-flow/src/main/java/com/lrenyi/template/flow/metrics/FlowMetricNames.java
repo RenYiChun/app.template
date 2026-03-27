@@ -45,10 +45,14 @@ public final class FlowMetricNames {
     public static final String TAG_JOB_ID = "jobId";
     /** 根任务标识，用于跨阶段聚合与 7 天历史回看。 */
     public static final String TAG_ROOT_JOB_ID = "rootJobId";
+    /** 根任务显示名，未配置时回退为 rootJobId。 */
+    public static final String TAG_ROOT_JOB_DISPLAY_NAME = "rootJobDisplayName";
     /** 阶段路径键，如 0 / 3/fork/7/0。 */
     public static final String TAG_STAGE_KEY = "stageKey";
     /** 阶段名称，用于人类可读展示。 */
     public static final String TAG_STAGE_NAME = "stageName";
+    /** 阶段显示名，未配置时回退为 stageKey。 */
+    public static final String TAG_STAGE_DISPLAY_NAME = "stageDisplayName";
     /** 根任务展示名。 */
     public static final String TAG_DISPLAY_NAME = "displayName";
     /** 错误类型。如 job_failed / deposit_failed / onConsume_failed 等 */

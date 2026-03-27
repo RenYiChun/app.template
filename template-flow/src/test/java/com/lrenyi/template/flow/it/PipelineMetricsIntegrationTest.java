@@ -174,7 +174,8 @@ public class PipelineMetricsIntegrationTest {
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(pipelineId, Integer.class, flowManager)
                 .nextStage(new IntPassThroughJoiner())
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), i -> List.of(i)))
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i)).build())
                 .sink(Integer.class, (i, jobId) -> sinkCount.incrementAndGet());
 
         pipeline.run(FlowSourceAdapters.fromIterator(generateData(total).iterator(), null), config);
@@ -228,8 +229,8 @@ public class PipelineMetricsIntegrationTest {
                 .nextStage(new IntPassThroughJoiner())
                 .fork(
                         (FlowPipeline.Builder<Integer> b) -> b
-                                .nextStage(NextStageSpec.of(Integer.class,
-                                        new IntPassThroughJoiner(), i -> List.of(i * 10)))
+                                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i * 10)).build())
                                 .sink(Integer.class, (i, jobId) -> sinkA.incrementAndGet()),
                         (FlowPipeline.Builder<Integer> b) -> b
                                 .sink(Integer.class, (i, jobId) -> sinkB.incrementAndGet())
@@ -340,8 +341,8 @@ public class PipelineMetricsIntegrationTest {
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(pipelineId, Integer.class, flowManager)
-                .nextStage(NextStageSpec.of(Integer.class,
-                                new IntPassThroughJoiner(), i -> List.of(i)),
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                                Integer.class, new IntPassThroughJoiner(), i -> List.of(i)).build(),
                         EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
                 .sink((List<Integer> list, String jobId) -> sinkItems.addAndGet(list.size()));
 
@@ -368,12 +369,12 @@ public class PipelineMetricsIntegrationTest {
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(pipelineId, Integer.class, flowManager)
-                .nextMap(NextMapSpec.of(
+                .nextMap(NextMapSpec.<Integer, Integer>builder(
                                 Integer.class,
                                 Integer.class,
-                                i -> i,
-                                100L,
-                                TimeUnit.MILLISECONDS),
+                                i -> i)
+                        .consumeInterval(100L, TimeUnit.MILLISECONDS)
+                        .build(),
                         EmbeddedBatchSpec.of(5, 3, TimeUnit.SECONDS))
                 .sink((List<Integer> list, String jobId) -> sinkItems.addAndGet(list.size()));
 
@@ -498,7 +499,8 @@ public class PipelineMetricsIntegrationTest {
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(pipelineId, Integer.class, flowManager)
                 .nextStage(new IntPassThroughJoiner())
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), i -> List.of(i)))
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i)).build())
                 .sink(Integer.class, (i, jobId) -> sinkCount.incrementAndGet());
 
         pipeline.getProgressTracker().setMetricJobId(displayName);
@@ -634,7 +636,8 @@ public class PipelineMetricsIntegrationTest {
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(pipelineId, Integer.class, flowManager)
                 .nextStage(new IntPassThroughJoiner())
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), i -> List.of(i)))
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i)).build())
                 .sink(Integer.class, (i, jobId) -> sinkCount.incrementAndGet());
 
         pipeline.run(FlowSourceAdapters.fromIterator(generateData(total).iterator(), null), config);
