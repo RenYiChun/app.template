@@ -142,7 +142,16 @@ public interface FlowPipeline<I> {
          * @return 可执行的管道实例
          */
         default FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink) {
-            return sink(sinkClass, onSink, null);
+            return sink(sinkClass, onSink, null, null);
+        }
+
+        /**
+         * 定义管道终点，并为本阶段指定显示名称。
+         *
+         * @param displayName 非 null / 非空白时作为 Sink 阶段显示名
+         */
+        default FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink, String displayName) {
+            return sink(sinkClass, onSink, null, displayName);
         }
 
         /**
@@ -150,13 +159,35 @@ public interface FlowPipeline<I> {
          *
          * @param storageCapacity 必须 {@code > 0}
          */
-        FlowPipeline<?> sink(Class<T> sinkClass, BiConsumer<T, String> onSink, Integer storageCapacity);
+        default FlowPipeline<?> sink(Class<T> sinkClass,
+                                     BiConsumer<T, String> onSink,
+                                     Integer storageCapacity) {
+            return sink(sinkClass, onSink, storageCapacity, null);
+        }
+
+        /**
+         * 定义管道终点，并可同时指定本阶段存储上限和显示名称。
+         *
+         * @param storageCapacity 必须 {@code > 0}
+         * @param displayName 非 null / 非空白时作为 Sink 阶段显示名
+         */
+        FlowPipeline<?> sink(Class<T> sinkClass,
+                             BiConsumer<T, String> onSink,
+                             Integer storageCapacity,
+                             String displayName);
 
         /**
          * 定义管道终点。
          */
         default FlowPipeline<?> sink(BiConsumer<T, String> onSink) {
-            return sink(null, onSink);
+            return sink(null, onSink, null, null);
+        }
+
+        /**
+         * 定义管道终点，并为本阶段指定显示名称。
+         */
+        default FlowPipeline<?> sink(BiConsumer<T, String> onSink, String displayName) {
+            return sink(null, onSink, null, displayName);
         }
     }
 

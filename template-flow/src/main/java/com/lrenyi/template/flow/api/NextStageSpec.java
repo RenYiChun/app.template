@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import lombok.Getter;
 
 /**
  * {@link FlowPipeline.Builder#nextStage(NextStageSpec)} 的配置载体：下游类型、Joiner、列表转换器及可选的配对产出。
@@ -13,6 +14,7 @@ import java.util.function.Function;
  * @param <T> 本段输入（当前管道阶段元素类型）
  * @param <R> 本段产出、亦即下游阶段元素类型
  */
+@Getter
 public final class NextStageSpec<T, R> {
     private final Class<R> outputClass;
     private final FlowJoiner<T> joiner;
@@ -37,30 +39,6 @@ public final class NextStageSpec<T, R> {
                                                FlowJoiner<T> joiner,
                                                Function<T, List<R>> transformer) {
         return new Builder<>(outputClass, joiner, transformer);
-    }
-
-    public Class<R> getOutputClass() {
-        return outputClass;
-    }
-
-    public FlowJoiner<T> getJoiner() {
-        return joiner;
-    }
-
-    public Function<T, List<R>> getTransformer() {
-        return transformer;
-    }
-
-    public BiFunction<T, T, List<R>> getPairOutput() {
-        return pairOutput;
-    }
-
-    public Integer getStorageCapacity() {
-        return storageCapacity;
-    }
-
-    public String getDisplayName() {
-        return displayName;
     }
 
     public static final class Builder<T, R> {

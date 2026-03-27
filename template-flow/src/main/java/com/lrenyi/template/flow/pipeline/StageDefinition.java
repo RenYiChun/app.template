@@ -7,37 +7,126 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 /**
  * 管道阶段定义。
  *
- * @param <I>          本阶段接收的输入数据类型
- * @param <O>          本阶段产出并传递给下一阶段的输出数据类型
- * @param joiner       负责本阶段业务逻辑的 Joiner
- * @param branchStages 分叉阶段专属：包含多个并行的子管道定义。
- *                     如果是普通顺序阶段，该字段为 null 或空。
- * @param dispatch       配对/单条下发策略（已内联含 transformer 语义）；fork 阶段为 null。
- * @param embeddedBatch  非 null 时在本阶段 Joiner 出口侧攒批后再 {@code push} 下游，不增加独立 aggregate Launcher
- * @param storageCapacityOverride 非 null 时覆盖本阶段 {@code limits.per-job.storage-capacity}，与运行时基底 flow 合并为独立快照
- * @param consumerThreadsOverride 非 null 时覆盖本阶段 {@code limits.per-job.consumer-threads}，与运行时基底 flow 合并为独立快照
- * @param displayNameOverride 非 null / 非空白时作为本阶段显示名
+ * @param <I> 本阶段接收的输入数据类型
+ * @param <O> 本阶段产出并传递给下一阶段的输出数据类型
  */
-record StageDefinition<I, O>(
-        FlowJoiner<I> joiner,
-        List<List<StageDefinition<?, ?>>> branchStages,
-        List<String> branchNames,
-        PipelineStageDispatch<I, O> dispatch,
-        EmbeddedBatchSpec embeddedBatch,
-        Integer storageCapacityOverride,
-        Integer consumerThreadsOverride,
-        String displayNameOverride) {
-    /**
-     * 判断当前阶段是否为分叉（扇出）阶段。
-     */
+final class StageDefinition<I, O> {
+    private final FlowJoiner<I> joiner;
+    private final List<List<StageDefinition<?, ?>>> branchStages;
+    private final List<String> branchNames;
+    private final PipelineStageDispatch<I, O> dispatch;
+    private final EmbeddedBatchSpec embeddedBatch;
+    private final Integer storageCapacityOverride;
+    private final Integer consumerThreadsOverride;
+    private final String displayNameOverride;
+
+    private StageDefinition(Builder<I, O> builder) {
+        this.joiner = builder.joiner;
+        this.branchStages = builder.branchStages;
+        this.branchNames = builder.branchNames;
+        this.dispatch = builder.dispatch;
+        this.embeddedBatch = builder.embeddedBatch;
+        this.storageCapacityOverride = builder.storageCapacityOverride;
+        this.consumerThreadsOverride = builder.consumerThreadsOverride;
+        this.displayNameOverride = builder.displayNameOverride;
+    }
+
+    static <I, O> Builder<I, O> builder() {
+        return new Builder<>();
+    }
+
+    FlowJoiner<I> getJoiner() {
+        return joiner;
+    }
+
+    List<List<StageDefinition<?, ?>>> getBranchStages() {
+        return branchStages;
+    }
+
+    List<String> getBranchNames() {
+        return branchNames;
+    }
+
+    PipelineStageDispatch<I, O> getDispatch() {
+        return dispatch;
+    }
+
+    EmbeddedBatchSpec getEmbeddedBatch() {
+        return embeddedBatch;
+    }
+
+    Integer getStorageCapacityOverride() {
+        return storageCapacityOverride;
+    }
+
+    Integer getConsumerThreadsOverride() {
+        return consumerThreadsOverride;
+    }
+
+    String getDisplayNameOverride() {
+        return displayNameOverride;
+    }
+
     boolean isFork() {
         return branchStages != null && !branchStages.isEmpty();
     }
 
-    /**
-     * 判断当前阶段是否为终端（Sink）阶段。
-     */
     boolean isSink() {
         return joiner instanceof SinkJoiner && !isFork();
+    }
+
+    static final class Builder<I, O> {
+        private FlowJoiner<I> joiner;
+        private List<List<StageDefinition<?, ?>>> branchStages;
+        private List<String> branchNames;
+        private PipelineStageDispatch<I, O> dispatch;
+        private EmbeddedBatchSpec embeddedBatch;
+        private Integer storageCapacityOverride;
+        private Integer consumerThreadsOverride;
+        private String displayNameOverride;
+
+        Builder<I, O> joiner(FlowJoiner<I> joiner) {
+            this.joiner = joiner;
+            return this;
+        }
+
+        Builder<I, O> branchStages(List<List<StageDefinition<?, ?>>> branchStages) {
+            this.branchStages = branchStages;
+            return this;
+        }
+
+        Builder<I, O> branchNames(List<String> branchNames) {
+            this.branchNames = branchNames;
+            return this;
+        }
+
+        Builder<I, O> dispatch(PipelineStageDispatch<I, O> dispatch) {
+            this.dispatch = dispatch;
+            return this;
+        }
+
+        Builder<I, O> embeddedBatch(EmbeddedBatchSpec embeddedBatch) {
+            this.embeddedBatch = embeddedBatch;
+            return this;
+        }
+
+        Builder<I, O> storageCapacityOverride(Integer storageCapacityOverride) {
+            this.storageCapacityOverride = storageCapacityOverride;
+            return this;
+        }
+
+        Builder<I, O> consumerThreadsOverride(Integer consumerThreadsOverride) {
+            this.consumerThreadsOverride = consumerThreadsOverride;
+            return this;
+        }
+
+        Builder<I, O> displayNameOverride(String displayNameOverride) {
+            this.displayNameOverride = displayNameOverride;
+            return this;
+        }
+
+        StageDefinition<I, O> build() {
+            return new StageDefinition<>(this);
+        }
     }
 }
