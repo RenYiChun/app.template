@@ -73,6 +73,20 @@ public interface ProgressTracker {
     }
 
     /**
+     * 设置根任务显示名；当前默认与 {@link #setMetricJobId(String)} 语义一致。
+     */
+    default void setRootJobDisplayName(String rootJobDisplayName) {
+        setMetricJobId(rootJobDisplayName);
+    }
+
+    /**
+     * 获取根任务显示名；当前默认与 {@link #getMetricJobId()} 语义一致。
+     */
+    default String getRootJobDisplayName() {
+        return getMetricJobId();
+    }
+
+    /**
      * 设置阶段显示名；未设置时由指标标签解析逻辑回退到当前默认阶段名。
      */
     default void setStageDisplayName(String stageDisplayName) {

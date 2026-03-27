@@ -157,6 +157,16 @@ public class DefaultProgressTracker implements ProgressTracker {
     }
 
     @Override
+    public void setRootJobDisplayName(String rootJobDisplayName) {
+        setMetricJobId(rootJobDisplayName);
+    }
+
+    @Override
+    public String getRootJobDisplayName() {
+        return getMetricJobId();
+    }
+
+    @Override
     public void setStageDisplayName(String stageDisplayName) {
         this.stageDisplayName = stageDisplayName;
     }

@@ -28,13 +28,14 @@ public record FlowMetricTags(String internalJobId,
         String displayName = extractDisplayName(safeMetricJobId, suffix);
         String stageKey = extractStageKey(suffix);
         String stageName = extractStageName(suffix);
+        String branchName = extractBranchName(suffix);
         return new FlowMetricTags(safeInternalJobId,
                 safeMetricJobId,
                 rootJobId,
                 extractRootJobDisplayName(displayName, rootJobId),
                 stageKey,
                 stageName,
-                extractStageDisplayName(explicitStageDisplayName, stageName, stageKey),
+                extractStageDisplayName(explicitStageDisplayName, stageName, stageKey, branchName),
                 displayName);
     }
 
@@ -110,12 +111,33 @@ public record FlowMetricTags(String internalJobId,
         return "stage-" + segments[segments.length - 1];
     }
 
+    private static String extractBranchName(String suffix) {
+        if (suffix == null || suffix.isBlank()) {
+            return null;
+        }
+        String[] segments = suffix.substring(1).split(":");
+        for (int i = 0; i < segments.length; i++) {
+            if ("fork".equals(segments[i]) && i + 1 < segments.length) {
+                String branch = segments[i + 1];
+                int dash = branch.indexOf('-');
+                String branchName = dash >= 0 && dash + 1 < branch.length() ? branch.substring(dash + 1) : branch;
+                return branchName.isBlank() ? null : branchName;
+            }
+        }
+        return null;
+    }
+
     private static String extractStageDisplayName(String explicitStageDisplayName,
                                                   String stageName,
-                                                  String stageKey) {
+                                                  String stageKey,
+                                                  String branchName) {
         String candidate = explicitStageDisplayName;
         if (candidate == null || candidate.isBlank()) {
             candidate = stageName;
+        } else if (branchName != null && !branchName.isBlank()
+                && !candidate.equals(branchName)
+                && !candidate.startsWith(branchName + ":")) {
+            candidate = branchName + ":" + candidate;
         }
         return blankToDefault(candidate, stageKey);
     }
