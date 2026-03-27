@@ -189,7 +189,7 @@
       ]
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -294,7 +294,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "全局 storage 使用量与上限。",
+          "description": "全局 storage 与全局 sink 并发的使用量和上限。",
           "fieldConfig": {
             "defaults": {
               "unit": "short",
@@ -318,18 +318,28 @@
               "mode": "multi"
             }
           },
-          "title": "全局 Storage",
+          "title": "全局 Storage / Sink",
           "type": "timeseries",
           "targets": [
             {
               "expr": "sum(app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\"})",
               "refId": "A",
-              "legendFormat": "上限"
+              "legendFormat": "Storage 上限"
             },
             {
               "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})",
               "refId": "B",
-              "legendFormat": "使用"
+              "legendFormat": "Storage 使用"
+            },
+            {
+              "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})",
+              "refId": "C",
+              "legendFormat": "Sink 上限"
+            },
+            {
+              "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})",
+              "refId": "D",
+              "legendFormat": "Sink 使用"
             }
           ]
         },
