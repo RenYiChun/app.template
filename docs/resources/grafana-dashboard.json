@@ -199,193 +199,191 @@
       "id": 300,
       "title": "Flow 全局概览",
       "type": "row",
-      "description": "全局流量、存储与错误。",
-      "panels": [
+      "description": "全局流量、存储与错误。"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 sourceType 统计每秒接收条数。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 301,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Source 输入速率",
+      "type": "timeseries",
+      "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "按 sourceType 统计每秒接收条数。",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "ops",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 8,
-            "w": 6,
-            "h": 6
-          },
-          "id": 301,
-          "options": {
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "title": "Source 输入速率",
-          "type": "timeseries",
-          "targets": [
-            {
-              "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "A",
-              "legendFormat": "{{sourceType}}"
-            }
-          ]
+          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{sourceType}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "全局入口、入库、终结速率。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 302,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "主吞吐（进入/入库/终结）",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "进入"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "全局入口、入库、终结速率。",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "ops",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "x": 6,
-            "y": 8,
-            "w": 6,
-            "h": 6
-          },
-          "id": 302,
-          "options": {
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "title": "主吞吐（进入/入库/终结）",
-          "type": "timeseries",
-          "targets": [
-            {
-              "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "A",
-              "legendFormat": "进入"
-            },
-            {
-              "expr": "sum(rate(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "B",
-              "legendFormat": "入库"
-            },
-            {
-              "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "C",
-              "legendFormat": "终结"
-            }
-          ]
+          "expr": "sum(rate(app_template_flow_production_released_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "入库"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "全局 storage 与全局 sink 并发的使用量和上限。",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 8,
-            "w": 6,
-            "h": 6
-          },
-          "id": 303,
-          "options": {
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "title": "全局 Storage / Sink",
-          "type": "timeseries",
-          "targets": [
-            {
-              "expr": "sum(app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\"})",
-              "refId": "A",
-              "legendFormat": "Storage 上限"
-            },
-            {
-              "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})",
-              "refId": "B",
-              "legendFormat": "Storage 使用"
-            },
-            {
-              "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})",
-              "refId": "C",
-              "legendFormat": "Sink 上限"
-            },
-            {
-              "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})",
-              "refId": "D",
-              "legendFormat": "Sink 使用"
-            }
-          ]
+          "expr": "sum(rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "C",
+          "legendFormat": "终结"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "全局 storage 与全局 sink 并发的使用量和上限。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 303,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "全局 Storage / Sink",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(app_template_flow_resources_storage_limit{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "A",
+          "legendFormat": "Storage 上限"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "按 phase/errorType 观察错误。",
-          "fieldConfig": {
-            "defaults": {
-              "unit": "ops",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 10,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "x": 18,
-            "y": 8,
-            "w": 6,
-            "h": 6
-          },
-          "id": 304,
-          "options": {
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "title": "Flow 错误率",
-          "type": "timeseries",
-          "targets": [
-            {
-              "expr": "sum by (phase) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "A",
-              "legendFormat": "{{phase}}"
-            },
-            {
-              "expr": "sum by (errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
-              "refId": "B",
-              "legendFormat": "{{errorType}}"
-            }
-          ]
+          "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "B",
+          "legendFormat": "Storage 使用"
+        },
+        {
+          "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "C",
+          "legendFormat": "Sink 上限"
+        },
+        {
+          "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})",
+          "refId": "D",
+          "legendFormat": "Sink 使用"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "按 phase/errorType 观察错误。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 8,
+        "w": 6,
+        "h": 6
+      },
+      "id": 304,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "Flow 错误率",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (phase) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{phase}}"
+        },
+        {
+          "expr": "sum by (errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "refId": "B",
+          "legendFormat": "{{errorType}}"
         }
       ]
     },
