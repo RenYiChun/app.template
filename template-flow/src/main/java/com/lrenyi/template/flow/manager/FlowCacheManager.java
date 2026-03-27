@@ -9,6 +9,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -50,7 +51,9 @@ public class FlowCacheManager {
         TemplateConfigProperties.Flow config,
         FlowFinalizer<T> finalizer,
         ProgressTracker progressTracker,
-        FlowEgressHandler<T> egressHandler) {
+        FlowEgressHandler<T> egressHandler,
+        FlowConsumeExecutionMode consumeExecutionMode,
+        int egressWorkerThreads) {
         String uniqueKey = buildStorageRegistryKey(jobId, joiner);
         FlowStorageType type = joiner.getStorageType();
 
@@ -65,6 +68,8 @@ public class FlowCacheManager {
                                          finalizer,
                                          progressTracker,
                                          egressHandler,
+                                         consumeExecutionMode,
+                                         egressWorkerThreads,
                                          resourceRegistry,
                                          resourceRegistry.getMeterRegistry()
             );

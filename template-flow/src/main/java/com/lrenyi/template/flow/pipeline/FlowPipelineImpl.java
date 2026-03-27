@@ -19,6 +19,7 @@ import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.internal.FlowInletImpl;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -227,12 +228,18 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 tracker.setMetricJobId(metricTag);
                 Integer storageOverride = def.getStorageCapacityOverride();
                 Integer consumerThreadsOverride = def.getConsumerThreadsOverride();
+                FlowConsumeExecutionMode consumeExecutionModeOverride = def.getConsumeExecutionModeOverride();
                 TemplateConfigProperties.Flow stageFlow = FlowPipelineConfigOverlay.copyWithPerJobOverrides(
                         flowConfig,
                         storageOverride,
                         consumerThreadsOverride);
                 FlowLauncher<Object> launcher =
-                        flowManager.createLauncher(stageJobId, metricTag, wrapper, tracker, stageFlow);
+                        flowManager.createLauncher(stageJobId,
+                                metricTag,
+                                wrapper,
+                                tracker,
+                                stageFlow,
+                                consumeExecutionModeOverride);
 
                 FlowInlet<Object> inlet = new FlowInletImpl<>(launcher);
                 if (currentChainHead != null) {

@@ -10,9 +10,13 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
 import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.context.FlowResourceContext;
+import com.lrenyi.template.flow.internal.AsyncEgressConsumeStrategy;
+import com.lrenyi.template.flow.internal.EgressConsumeStrategy;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
+import com.lrenyi.template.flow.internal.InlineEgressConsumeStrategy;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
@@ -31,7 +35,8 @@ final class FlowLauncherFactory {
             String metricJobId,
             FlowJoiner<T> flowJoiner,
             ProgressTracker tracker,
-            TemplateConfigProperties.Flow flow) {
+            TemplateConfigProperties.Flow flow,
+            FlowConsumeExecutionMode consumeExecutionMode) {
         FlowResourceRegistry registry = flowManager.getResourceRegistry();
         MeterRegistry meterRegistry = flowManager.getMeterRegistry();
         TemplateConfigProperties.Flow.Limits limits = flow.getLimits();
@@ -44,13 +49,19 @@ final class FlowLauncherFactory {
 
         FlowEgressHandler<T> egressHandler = new FlowEgressHandler<>(flowJoiner, tracker, meterRegistry);
         FlowFinalizer<T> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, flowJoiner);
+        EgressConsumeStrategy<T> egressConsumeStrategy = createEgressConsumeStrategy(finalizer, consumeExecutionMode);
+        int egressWorkerThreads = resolveEgressWorkerThreads(flow, consumeExecutionMode);
         FlowStorage<T> storage = registry.getCacheManager()
                                          .getOrCreateStorage(jobId,
                                                              flowJoiner,
                                                              flow,
                                                              finalizer,
                                                              tracker,
-                                                             egressHandler
+                                                             egressHandler,
+                                                             consumeExecutionMode != null
+                                                                     ? consumeExecutionMode
+                                                                     : FlowConsumeExecutionMode.ASYNC,
+                                                             egressWorkerThreads
                                          );
 
         BackpressureManager backpressureManager = createBackpressureManager(jobId,
@@ -73,11 +84,29 @@ final class FlowLauncherFactory {
                                                                  .producerExecutor(Executors.newThreadPerTaskExecutor(producerThreadFactory))
                                                                  .egressHandler(egressHandler)
                                                                  .finalizer(finalizer)
+                                                                 .egressConsumeStrategy(egressConsumeStrategy)
                                                                  .consumerPermitPair(permitPairs.consumer)
                                                                  .producerPermitPair(permitPairs.producer)
                                                                  .build();
 
         return FlowLauncher.create(jobId, metricJobId, flowJoiner, flowManager, tracker, flow, resourceContext);
+    }
+
+    private static <T> EgressConsumeStrategy<T> createEgressConsumeStrategy(FlowFinalizer<T> finalizer,
+            FlowConsumeExecutionMode consumeExecutionMode) {
+        FlowConsumeExecutionMode mode = consumeExecutionMode != null ? consumeExecutionMode : FlowConsumeExecutionMode.ASYNC;
+        return switch (mode) {
+            case INLINE -> new InlineEgressConsumeStrategy<>(finalizer);
+            case ASYNC -> new AsyncEgressConsumeStrategy<>(finalizer);
+        };
+    }
+
+    private static int resolveEgressWorkerThreads(TemplateConfigProperties.Flow flow,
+            FlowConsumeExecutionMode consumeExecutionMode) {
+        if (consumeExecutionMode == FlowConsumeExecutionMode.INLINE) {
+            return Math.max(1, flow.getLimits().getPerJob().getConsumerThreads());
+        }
+        return 1;
     }
 
     private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {

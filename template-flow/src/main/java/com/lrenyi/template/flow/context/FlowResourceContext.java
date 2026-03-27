@@ -6,6 +6,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import com.lrenyi.template.flow.backpressure.BackpressureManager;
+import com.lrenyi.template.flow.internal.EgressConsumeStrategy;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
@@ -67,6 +68,11 @@ public class FlowResourceContext {
      * FlowFinalizer：供背压超时时当前线程直接调用 submitDataToConsumer，数据不丢
      */
     private final FlowFinalizer<?> finalizer;
+
+    /**
+     * Storage egress 后进入消费逻辑的执行策略。
+     */
+    private final EgressConsumeStrategy<?> egressConsumeStrategy;
 
     /**
      * 消费许可对（global + per-job），创建时绑定，各处引用同一实例。

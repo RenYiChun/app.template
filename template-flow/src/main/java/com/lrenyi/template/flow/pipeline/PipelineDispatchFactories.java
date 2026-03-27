@@ -37,6 +37,15 @@ public final class PipelineDispatchFactories {
         return new LegacyDispatch<>(transformer);
     }
 
+    public static <I, O> PipelineStageDispatch<I, O> createSingleMap(
+            FlowJoiner<I> joiner,
+            Function<I, O> transformer) {
+        if (joiner instanceof PipelineEmitter) {
+            return new EmitterDispatch<>();
+        }
+        return new SingleMapDispatch<>(transformer);
+    }
+
     private static final class EmitterDispatch<I, O> implements PipelineStageDispatch<I, O> {
         @Override
         public void wireEmitter(FlowJoiner<I> delegate, Consumer<O> forwardDirect) {
@@ -83,6 +92,62 @@ public final class PipelineDispatchFactories {
                 return;
             }
             emitDownstream.accept(batch);
+        }
+    }
+
+    private static final class SingleMapDispatch<I, O> implements PipelineStageDispatch<I, O> {
+        private final Function<I, O> transformer;
+
+        private SingleMapDispatch(Function<I, O> transformer) {
+            this.transformer = transformer;
+        }
+
+        @Override
+        public void wireEmitter(FlowJoiner<I> delegate, Consumer<O> forwardDirect) {
+        }
+
+        @Override
+        public void afterPairConsumed(I existing, I incoming, Consumer<List<O>> emitDownstream) {
+            emitOne(transformer.apply(existing), emitDownstream);
+            emitOne(transformer.apply(incoming), emitDownstream);
+        }
+
+        @Override
+        public void afterSingleConsumed(I item, EgressReason reason, Consumer<List<O>> emitDownstream) {
+            if (reason == EgressReason.SINGLE_CONSUMED) {
+                emitOne(transformer.apply(item), emitDownstream);
+            }
+        }
+
+        @Override
+        public void afterPairConsumed(I existing,
+                                      I incoming,
+                                      Consumer<O> emitOneDownstream,
+                                      Consumer<List<O>> emitBatchDownstream) {
+            emitDirect(transformer.apply(existing), emitOneDownstream);
+            emitDirect(transformer.apply(incoming), emitOneDownstream);
+        }
+
+        @Override
+        public void afterSingleConsumed(I item,
+                                        EgressReason reason,
+                                        Consumer<O> emitOneDownstream,
+                                        Consumer<List<O>> emitBatchDownstream) {
+            if (reason == EgressReason.SINGLE_CONSUMED) {
+                emitDirect(transformer.apply(item), emitOneDownstream);
+            }
+        }
+
+        private void emitOne(O item, Consumer<List<O>> emitDownstream) {
+            if (item != null) {
+                emitDownstream.accept(List.of(item));
+            }
+        }
+
+        private void emitDirect(O item, Consumer<O> emitOneDownstream) {
+            if (item != null) {
+                emitOneDownstream.accept(item);
+            }
         }
     }
 

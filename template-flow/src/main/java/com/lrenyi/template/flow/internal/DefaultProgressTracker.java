@@ -33,9 +33,9 @@ public class DefaultProgressTracker implements ProgressTracker {
     // [生产许可释放数]：代表成功存入存储层（Storage）的总量
     private final LongAdder productionReleased = new LongAdder();
 
-    // --- 物理水位计数器 (使用 LongAdder 保证高并发写性能) ---
-    // [活跃消费许可数]：当前正在系统中"生存"的数据总量（已入库但未终结）
-    private final LongAdder activeConsumers = new LongAdder();
+    // --- 物理水位计数器 ---
+    // [活跃消费数]：ASYNC 模式表示正在执行中的 consumer 数；INLINE 模式表示已启动的 worker 数
+    private final AtomicLong activeConsumers = new AtomicLong();
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
@@ -84,14 +84,20 @@ public class DefaultProgressTracker implements ProgressTracker {
      */
     @Override
     public void onConsumerAcquired() {
-        activeConsumers.increment();
+        activeConsumers.incrementAndGet();
     }
 
     @Override
     public void onConsumerReleased(String jobId) {
-        activeConsumers.decrement();
+        activeConsumers.decrementAndGet();
         terminated.increment();
         incrementCounter(FlowMetricNames.TERMINATED);
+        checkCompletion(false);
+    }
+
+    @Override
+    public void setActiveConsumers(long activeConsumers) {
+        this.activeConsumers.set(Math.max(0L, activeConsumers));
         checkCompletion(false);
     }
 
@@ -124,7 +130,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                         totalExpected,
                                         productionAcquired.sum(),
                                         productionReleased.sum(),
-                                        activeConsumers.sum(),
+                                        activeConsumers.get(),
                                         inStorage,
                                         terminated.sum(),
                                         startTimeMillis,

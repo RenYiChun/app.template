@@ -23,6 +23,7 @@ import com.lrenyi.template.flow.health.HealthStatus;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.metrics.FlowResourceMetrics;
 import com.lrenyi.template.flow.metrics.FlowTerminalMetrics;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.util.FlowLogHelper;
@@ -320,6 +321,8 @@ public class FlowManager implements ActiveLauncherLookup {
         removeJobMetrics(meterRegistry, "app.template.flow.limits.storage.limit", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.deposit.duration", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.finalize.duration", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.egress.active_workers", metricJobId);
+        removeJobMetrics(meterRegistry, "app.template.flow.egress.worker_limit", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.match.duration", metricJobId);
         removeJobMetrics(meterRegistry, "app.template.flow.limits.acquire.duration", metricJobId);
         removeJobMetrics(meterRegistry, "backpressure.dimension.acquire.attempts.per_job", metricJobId);
@@ -397,7 +400,7 @@ public class FlowManager implements ActiveLauncherLookup {
         FlowJoiner<T> flowJoiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
-        return createLauncher(jobId, null, flowJoiner, tracker, flowConfig);
+        return createLauncher(jobId, null, flowJoiner, tracker, flowConfig, null);
     }
 
     /**
@@ -411,6 +414,15 @@ public class FlowManager implements ActiveLauncherLookup {
         FlowJoiner<T> flowJoiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
+        return createLauncher(jobId, displayName, flowJoiner, tracker, flowConfig, null);
+    }
+
+    public <T> FlowLauncher<T> createLauncher(String jobId,
+        String displayName,
+        FlowJoiner<T> flowJoiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow flowConfig,
+        FlowConsumeExecutionMode consumeExecutionMode) {
         try {
             synchronized (activeLaunchers) {
                 FlowLauncher<?> existing = activeLaunchers.get(jobId);
@@ -436,7 +448,7 @@ public class FlowManager implements ActiveLauncherLookup {
                         System.currentTimeMillis());
 
                 FlowLauncher<T> launcher =
-                    buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig);
+                    buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig, consumeExecutionMode);
                 jobGenerations.put(jobId, nextGeneration.incrementAndGet());
                 activeLaunchers.put(jobId, (FlowLauncher<Object>) launcher);
                 resourceRegistry.registerJob(jobId);
@@ -454,7 +466,17 @@ public class FlowManager implements ActiveLauncherLookup {
         FlowJoiner<T> flowJoiner,
         ProgressTracker tracker,
         TemplateConfigProperties.Flow flowConfig) {
-        return FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig);
+        return buildLauncher(jobId, metricJobId, flowJoiner, tracker, flowConfig, null);
+    }
+
+    <T> FlowLauncher<T> buildLauncher(String jobId,
+        String metricJobId,
+        FlowJoiner<T> flowJoiner,
+        ProgressTracker tracker,
+        TemplateConfigProperties.Flow flowConfig,
+        FlowConsumeExecutionMode consumeExecutionMode) {
+        return FlowLauncherFactory.create(this, jobId, metricJobId, flowJoiner, tracker, flowConfig,
+                consumeExecutionMode);
     }
 
     /** 解析用于指标标签的 jobId：Tracker 当前展示名优先，其次显式注册名，最后为内部 jobId */

@@ -59,6 +59,8 @@ public final class FlowMetricNames {
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
     public static final String TAG_PHASE = "phase";
+    /** 消费执行模式。async / inline */
+    public static final String TAG_CONSUME_EXECUTION_MODE = "consumeExecutionMode";
 
     // ==================== 资源限制/使用量 Gauges ====================
     /** 存储容量限制上限（Gauge） */
@@ -105,5 +107,9 @@ public final class FlowMetricNames {
     public static final String STAGE_END_TIME_SECONDS = PREFIX + ".stage.end_time_seconds";
     /** 阶段持续时间（秒） */
     public static final String STAGE_DURATION_SECONDS = PREFIX + ".stage.duration_seconds";
+    /** 当前活跃 egress worker 数 */
+    public static final String EGRESS_ACTIVE_WORKERS = PREFIX + ".egress.active_workers";
+    /** 当前 egress worker 上限 */
+    public static final String EGRESS_WORKER_LIMIT = PREFIX + ".egress.worker_limit";
     private FlowMetricNames() {}
 }

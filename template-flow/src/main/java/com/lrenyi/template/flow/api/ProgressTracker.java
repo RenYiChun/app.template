@@ -36,6 +36,13 @@ public interface ProgressTracker {
     void onConsumerReleased(String jobId);
 
     /**
+     * 直接设置当前活跃消费数。
+     * 适用于 INLINE 模式下以 worker 生命周期而非逐条消费驱动 activeConsumers 的场景。
+     */
+    default void setActiveConsumers(long activeConsumers) {
+    }
+
+    /**
      * 信号：数据已终结（未经过 consumer executor 的路径，如 REJECT）。
      *
      * @param count 终结条数
