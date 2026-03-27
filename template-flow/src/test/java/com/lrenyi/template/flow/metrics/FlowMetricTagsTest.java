@@ -42,6 +42,20 @@ class FlowMetricTagsTest {
     }
 
     @Test
+    void shouldPrefixForkBranchNameWhenExplicitStageDisplayNameProvided() {
+        FlowMetricTags tags = FlowMetricTags.resolve("job-001:0:fork:1-ProviderA:2",
+                "订单对账:0:fork:1-ProviderA:2",
+                "结果存储");
+
+        assertEquals("job-001", tags.rootJobId());
+        assertEquals("订单对账", tags.rootJobDisplayName());
+        assertEquals("0/fork/1/2", tags.stageKey());
+        assertEquals("ProviderA:stage-2", tags.stageName());
+        assertEquals("ProviderA:结果存储", tags.stageDisplayName());
+        assertEquals("订单对账", tags.displayName());
+    }
+
+    @Test
     void shouldFallbackToOriginalValuesWhenDisplayNameMissing() {
         FlowMetricTags tags = FlowMetricTags.resolve("job-001:3", "job-001:3");
 

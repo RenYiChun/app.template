@@ -206,7 +206,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "按 sourceType 统计每秒接收条数。",
+      "description": "按入口进入速率统计每秒接收条数，兼容 push 模式与标准 source 模式。",
       "fieldConfig": {
         "defaults": {
           "unit": "ops",
@@ -221,7 +221,7 @@
       "gridPos": {
         "x": 0,
         "y": 8,
-        "w": 6,
+        "w": 5,
         "h": 6
       },
       "id": 301,
@@ -234,9 +234,9 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (sourceType) (rate(app_template_source_received_total{instance=~\"$instance\",job=\"$job\"}[1m]))",
+          "expr": "sum(rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}[1m]))",
           "refId": "A",
-          "legendFormat": "{{sourceType}}"
+          "legendFormat": "输入"
         }
       ]
     },
@@ -258,9 +258,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 6,
+        "x": 5,
         "y": 8,
-        "w": 6,
+        "w": 5,
         "h": 6
       },
       "id": 302,
@@ -294,7 +294,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "全局 storage 与全局 sink 并发的使用量和上限。",
+      "description": "全局 storage 使用量和上限。",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -307,9 +307,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
+        "x": 10,
         "y": 8,
-        "w": 6,
+        "w": 5,
         "h": 6
       },
       "id": 303,
@@ -318,7 +318,7 @@
           "mode": "multi"
         }
       },
-      "title": "全局 Storage / Sink",
+      "title": "全局 Storage",
       "type": "timeseries",
       "targets": [
         {
@@ -330,15 +330,49 @@
           "expr": "sum(app_template_flow_resources_storage_used{instance=~\"$instance\",job=\"$job\"})",
           "refId": "B",
           "legendFormat": "Storage 使用"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "全局 sink 并发使用量和上限。",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 8,
+        "w": 4,
+        "h": 6
+      },
+      "id": 305,
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "title": "全局 Sink",
+      "type": "timeseries",
+      "targets": [
         {
           "expr": "sum(app_template_flow_resources_sink_concurrency_limit{instance=~\"$instance\",job=\"$job\"})",
-          "refId": "C",
+          "refId": "A",
           "legendFormat": "Sink 上限"
         },
         {
           "expr": "sum(app_template_flow_resources_sink_concurrency_used{instance=~\"$instance\",job=\"$job\"})",
-          "refId": "D",
+          "refId": "B",
           "legendFormat": "Sink 使用"
         }
       ]
@@ -361,9 +395,9 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 18,
+        "x": 19,
         "y": 8,
-        "w": 6,
+        "w": 5,
         "h": 6
       },
       "id": 304,
@@ -398,14 +432,14 @@
       "id": 900,
       "title": "Flow 根任务总览",
       "type": "row",
-      "description": "根任务视角：查看 rootJobId 的吞吐、错误和总 backlog。",
+      "description": "根任务视角：查看 rootJobDisplayName 的吞吐、错误和总 backlog。",
       "panels": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "按 rootJobId 聚合进入速率与终结 TPS。",
+          "description": "按 rootJobDisplayName 聚合进入速率与终结 TPS。",
           "fieldConfig": {
             "defaults": {
               "unit": "ops",
@@ -433,12 +467,12 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}[1m]))",
               "refId": "A",
               "legendFormat": "进入 {{rootJobDisplayName}}"
             },
             {
-              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}[1m]))",
               "refId": "B",
               "legendFormat": "终结 {{rootJobDisplayName}}"
             }
@@ -449,7 +483,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "按 rootJobId 聚合错误率。",
+          "description": "按 rootJobDisplayName 聚合错误率。",
           "fieldConfig": {
             "defaults": {
               "unit": "ops",
@@ -477,7 +511,7 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (rootJobDisplayName, rootJobId, errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}[1m]))",
+              "expr": "sum by (rootJobDisplayName, rootJobId, errorType) (rate(app_template_flow_errors_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}[1m]))",
               "refId": "A",
               "legendFormat": "{{rootJobDisplayName}} {{errorType}}"
             }
@@ -488,7 +522,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "按 rootJobId 聚合所有 stage backlog。",
+          "description": "按 rootJobDisplayName 聚合所有 stage backlog。",
           "fieldConfig": {
             "defaults": {
               "unit": "short",
@@ -516,7 +550,7 @@
           "type": "timeseries",
           "targets": [
             {
-              "expr": "sum by (rootJobDisplayName, rootJobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"})",
+              "expr": "sum by (rootJobDisplayName, rootJobId) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"})",
               "refId": "A",
               "legendFormat": "{{rootJobDisplayName}}"
             }
@@ -535,7 +569,7 @@
       "id": 910,
       "title": "Flow 阶段下钻",
       "type": "row",
-      "description": "阶段视角：按 rootJobId + stageKey 查看 TPS、Storage、ActiveConsumers 和完成水位。"
+      "description": "阶段视角：按 rootJobId + stageDisplayName 查看 TPS、Storage、ActiveConsumers 和完成水位。"
     },
     {
       "datasource": {
@@ -570,12 +604,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_production_acquired_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}[1m]))",
           "refId": "A",
           "legendFormat": "进入 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m]))",
+          "expr": "sum by (stageKey, stageDisplayName) (rate(app_template_flow_terminated_total{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}[1m]))",
           "refId": "B",
           "legendFormat": "终结 {{stageDisplayName}}"
         }
@@ -614,12 +648,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_limit{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})",
           "refId": "A",
           "legendFormat": "上限 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})",
           "refId": "B",
           "legendFormat": "使用 {{stageDisplayName}}"
         }
@@ -658,12 +692,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_active_consumers_limit{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_resources_per_job_active_consumers_limit{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})",
           "refId": "A",
           "legendFormat": "上限 {{stageDisplayName}}"
         },
         {
-          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})",
+          "expr": "sum by (stageKey, stageDisplayName) (app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})",
           "refId": "B",
           "legendFormat": "使用 {{stageDisplayName}}"
         }
@@ -702,17 +736,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_deposit_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "A",
           "legendFormat": "Deposit {{stageDisplayName}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_match_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "B",
           "legendFormat": "Match {{stageDisplayName}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"}[1m])) by (le, stageKey, stageDisplayName))",
+          "expr": "histogram_quantile(0.99, sum(rate(app_template_flow_finalize_duration_seconds_bucket{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}[1m])) by (le, stageKey, stageDisplayName))",
           "refId": "C",
           "legendFormat": "Finalize {{stageDisplayName}}"
         }
@@ -723,7 +757,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "未完成阶段数：总阶段数减去已 source finished 的阶段数。",
+      "description": "未结束阶段数：已启动且开始时间大于 0 的阶段数，减去结束时间大于 0 的阶段数。",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -769,7 +803,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "clamp_min((((count(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)) - ((sum(app_template_flow_completion_source_finished{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0))), 0)",
+          "expr": "clamp_min((((count((app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}) > 0)) or on() vector(0)) - ((count((app_template_flow_stage_end_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"}) > 0)) or on() vector(0))), 0)",
           "refId": "A",
           "legendFormat": "__auto",
           "instant": true
@@ -827,7 +861,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "(sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "expr": "(sum(app_template_flow_resources_per_job_storage_used{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})) or on() vector(0)",
           "refId": "A",
           "legendFormat": "__auto",
           "instant": true
@@ -885,7 +919,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "(sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "expr": "(sum(app_template_flow_completion_active_consumers{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})) or on() vector(0)",
           "refId": "A",
           "legendFormat": "__auto",
           "instant": true
@@ -943,7 +977,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "(sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\",stageKey=~\"$stageKey\"})) or on() vector(0)",
+          "expr": "(sum(app_template_flow_completion_in_flight_push{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\",stageDisplayName=~\"$stageDisplayName\"})) or on() vector(0)",
           "refId": "A",
           "legendFormat": "__auto",
           "instant": true
@@ -1047,15 +1081,15 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(app_template_flow_job_start_time_seconds{instance=~\"$instance\",job=\"$job\"}, rootJobId)",
+        "definition": "label_values(app_template_flow_job_start_time_seconds{instance=~\"$instance\",job=\"$job\"}, rootJobDisplayName)",
         "hide": 0,
         "includeAll": true,
         "label": "Root Job",
         "multi": false,
-        "name": "rootJobId",
+        "name": "rootJobDisplayName",
         "options": [],
         "query": {
-          "query": "label_values(app_template_flow_job_start_time_seconds{instance=~\"$instance\",job=\"$job\"}, rootJobId)",
+          "query": "label_values(app_template_flow_job_start_time_seconds{instance=~\"$instance\",job=\"$job\"}, rootJobDisplayName)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1079,15 +1113,15 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}, stageKey)",
+        "definition": "label_values(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}, stageDisplayName)",
         "hide": 0,
         "includeAll": true,
-        "label": "Stage Key",
+        "label": "Stage",
         "multi": false,
-        "name": "stageKey",
+        "name": "stageDisplayName",
         "options": [],
         "query": {
-          "query": "label_values(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobId=~\"$rootJobId\"}, stageKey)",
+          "query": "label_values(app_template_flow_stage_start_time_seconds{instance=~\"$instance\",job=\"$job\",rootJobDisplayName=~\"$rootJobDisplayName\"}, stageDisplayName)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
