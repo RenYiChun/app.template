@@ -28,4 +28,26 @@ public interface PipelineStageDispatch<I, O> {
      * 在 {@code delegate.onSingleConsumed} 之后调用。
      */
     void afterSingleConsumed(I item, EgressReason reason, Consumer<List<O>> emitDownstream);
+
+    /**
+     * 允许实现直接下发单条元素，避免为单元素结果额外创建 List。
+     * 默认回退到批量下发语义。
+     */
+    default void afterPairConsumed(I existing,
+                                   I incoming,
+                                   Consumer<O> emitOneDownstream,
+                                   Consumer<List<O>> emitBatchDownstream) {
+        afterPairConsumed(existing, incoming, emitBatchDownstream);
+    }
+
+    /**
+     * 允许实现直接下发单条元素，避免为单元素结果额外创建 List。
+     * 默认回退到批量下发语义。
+     */
+    default void afterSingleConsumed(I item,
+                                     EgressReason reason,
+                                     Consumer<O> emitOneDownstream,
+                                     Consumer<List<O>> emitBatchDownstream) {
+        afterSingleConsumed(item, reason, emitBatchDownstream);
+    }
 }

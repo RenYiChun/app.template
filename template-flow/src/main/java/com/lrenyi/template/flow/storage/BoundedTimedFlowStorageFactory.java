@@ -5,6 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -31,6 +32,8 @@ public class BoundedTimedFlowStorageFactory implements FlowStorageFactory {
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
             FlowEgressHandler<T> egressHandler,
+            FlowConsumeExecutionMode consumeExecutionMode,
+            int egressWorkerThreads,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
         TemplateConfigProperties.Flow.Global global = config.getLimits().getGlobal();
@@ -52,4 +55,3 @@ public class BoundedTimedFlowStorageFactory implements FlowStorageFactory {
         return 5;
     }
 }
-

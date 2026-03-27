@@ -96,13 +96,13 @@ public class PipelineJoinerWrapper<I, O> implements FlowJoiner<I> {
         if (downstreams.isEmpty()) {
             return;
         }
-        dispatch.afterPairConsumed(existing, incoming, this::emitDownstreamList);
+        dispatch.afterPairConsumed(existing, incoming, this::forwardOneOrBatch, this::emitDownstreamList);
     }
 
     @Override
     public void onSingleConsumed(I item, String jobId, EgressReason reason) {
         delegate.onSingleConsumed(item, jobId, reason);
-        dispatch.afterSingleConsumed(item, reason, this::emitDownstreamList);
+        dispatch.afterSingleConsumed(item, reason, this::forwardOneOrBatch, this::emitDownstreamList);
     }
 
     private void forwardOneOrBatch(O out) {

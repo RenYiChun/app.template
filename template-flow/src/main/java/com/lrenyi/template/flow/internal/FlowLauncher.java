@@ -169,7 +169,7 @@ public class FlowLauncher<T> {
                                                     "storage_acquire_interrupted",
                                                     getMetricJobId()
                 );
-                getFinalizer().submitDataToConsumer(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
+                getEgressConsumeStrategy().submitSingle(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
                 ctx = null;
                 return;
             } catch (TimeoutException e) {
@@ -180,7 +180,7 @@ public class FlowLauncher<T> {
                                                     "storage_acquire_timeout",
                                                     getMetricJobId()
                 );
-                getFinalizer().submitDataToConsumer(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
+                getEgressConsumeStrategy().submitSingle(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
                 ctx = null;
                 return;
             }
@@ -220,17 +220,22 @@ public class FlowLauncher<T> {
      */
     @SuppressWarnings("unchecked")
     private void consumeOnBackpressureTimeout(T data) {
-        FlowFinalizer<?> fin = resourceContext.getFinalizer();
-        if (fin == null) {
+        EgressConsumeStrategy<?> strategy = resourceContext.getEgressConsumeStrategy();
+        if (strategy == null) {
             return;
         }
         FlowEntry<T> entry = new FlowEntry<>(data, jobId);
-        ((FlowFinalizer<T>) fin).submitDataToConsumer(entry, this, EgressReason.BACKPRESSURE_TIMEOUT);
+        ((EgressConsumeStrategy<T>) strategy).submitSingle(entry, this, EgressReason.BACKPRESSURE_TIMEOUT);
     }
 
     @SuppressWarnings("unchecked")
     private FlowFinalizer<T> getFinalizer() {
         return (FlowFinalizer<T>) resourceContext.getFinalizer();
+    }
+
+    @SuppressWarnings("unchecked")
+    private EgressConsumeStrategy<T> getEgressConsumeStrategy() {
+        return (EgressConsumeStrategy<T>) resourceContext.getEgressConsumeStrategy();
     }
 
     public long getCacheCapacity() {

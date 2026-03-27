@@ -15,6 +15,7 @@ import com.lrenyi.template.flow.api.NamedBranchSpec;
 import com.lrenyi.template.flow.api.NextMapSpec;
 import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 
 /**
  * FlowPipeline 构建器实现。
@@ -47,7 +48,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
     public <R> FlowPipeline.Builder<R> nextStage(NextStageSpec<T, R> spec) {
         Objects.requireNonNull(spec, "spec");
         return nextStageInternal(spec.getOutputClass(), spec.getJoiner(), spec.getTransformer(), spec.getPairOutput(),
-                null, spec.getStorageCapacity(), null, spec.getDisplayName());
+                null, spec.getStorageCapacity(), null, spec.getDisplayName(), null);
     }
 
     @Override
@@ -81,21 +82,16 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         }
         long millis = spec.getConsumeIntervalUnit().toMillis(spec.getConsumeInterval());
         MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
-        Function<T, List<R>> tf = t -> {
-            R r = spec.getCacheProducer().apply(t);
-            if (r == null) {
-                return List.of();
-            }
-            return List.of(r);
-        };
-        return nextStageInternal(spec.getOutputType(),
-                joiner,
-                tf,
-                null,
-                null,
-                spec.getStorageCapacity(),
-                spec.getConsumerThreads(),
-                spec.getDisplayName());
+        PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.createSingleMap(joiner, spec.getCacheProducer());
+        stages.add(StageDefinition.<Object, Object>builder()
+                .joiner((FlowJoiner<Object>) joiner)
+                .dispatch((PipelineStageDispatch<Object, Object>) (Object) dispatch)
+                .storageCapacityOverride(spec.getStorageCapacity())
+                .consumerThreadsOverride(spec.getConsumerThreads())
+                .displayNameOverride(spec.getDisplayName())
+                .consumeExecutionModeOverride(resolveNextMapConsumeExecutionMode(spec))
+                .build());
+        return new FlowPipelineBuilderImpl<>(jobId, spec.getOutputType(), flowManager, stages);
     }
 
     @Override
@@ -109,14 +105,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         }
         long millis = spec.getConsumeIntervalUnit().toMillis(spec.getConsumeInterval());
         MapOperatorJoiner<T> joiner = new MapOperatorJoiner<>(currentClass, millis);
-        Function<T, List<R>> tf = t -> {
-            R r = spec.getCacheProducer().apply(t);
-            if (r == null) {
-                return List.of();
-            }
-            return List.of(r);
-        };
-        PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, null);
+        PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.createSingleMap(joiner, spec.getCacheProducer());
         stages.add(StageDefinition.<Object, Object>builder()
                 .joiner((FlowJoiner<Object>) joiner)
                 .dispatch((PipelineStageDispatch<Object, Object>) (Object) dispatch)
@@ -124,6 +113,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 .storageCapacityOverride(spec.getStorageCapacity())
                 .consumerThreadsOverride(spec.getConsumerThreads())
                 .displayNameOverride(spec.getDisplayName())
+                .consumeExecutionModeOverride(resolveNextMapConsumeExecutionMode(spec))
                 .build());
         return new FlowPipelineBuilderImpl<>(jobId, (Class<List<R>>) (Class<?>) List.class, flowManager, stages);
     }
@@ -136,7 +126,8 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                                                           EmbeddedBatchSpec embeddedBatch,
                                                           Integer storageCapacityOverride,
                                                           Integer consumerThreadsOverride,
-                                                          String displayNameOverride) {
+                                                          String displayNameOverride,
+                                                          com.lrenyi.template.flow.model.FlowConsumeExecutionMode consumeExecutionModeOverride) {
         Function<T, List<R>> tf = transformer != null ? transformer : t -> List.of((R) t);
         PipelineStageDispatch<T, R> dispatch = PipelineDispatchFactories.create(joiner, tf, explicitPairOutput);
         stages.add(StageDefinition.<Object, Object>builder()
@@ -146,6 +137,7 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
                 .storageCapacityOverride(storageCapacityOverride)
                 .consumerThreadsOverride(consumerThreadsOverride)
                 .displayNameOverride(displayNameOverride)
+                .consumeExecutionModeOverride(consumeExecutionModeOverride)
                 .build());
         return new FlowPipelineBuilderImpl<>(jobId, outputClass, flowManager, stages);
     }
@@ -217,6 +209,10 @@ public class FlowPipelineBuilderImpl<T> implements FlowPipeline.Builder<T> {
         if (storageCapacity != null && storageCapacity <= 0) {
             throw new IllegalArgumentException("per-stage storageCapacity must be > 0 when set, got " + storageCapacity);
         }
+    }
+
+    private static <T, R> FlowConsumeExecutionMode resolveNextMapConsumeExecutionMode(NextMapSpec<T, R> spec) {
+        return spec.getConsumeExecutionMode() != null ? spec.getConsumeExecutionMode() : FlowConsumeExecutionMode.INLINE;
     }
 
     private FlowPipeline<Object> build() {

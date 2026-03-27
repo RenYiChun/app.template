@@ -16,11 +16,15 @@ import com.lrenyi.template.flow.api.NextMapSpec;
 import com.lrenyi.template.flow.api.NextStageSpec;
 import com.lrenyi.template.flow.api.FlowSourceAdapters;
 import com.lrenyi.template.flow.api.FlowSourceProvider;
+import com.lrenyi.template.flow.internal.AsyncEgressConsumeStrategy;
+import com.lrenyi.template.flow.internal.InlineEgressConsumeStrategy;
 import com.lrenyi.template.flow.manager.FlowManager;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.EgressReason;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -205,6 +209,76 @@ public class FlowPipelineIntegrationTest {
         awaitUntil("已构建 pipeline 应在时限内完成消费", 10_000L,
                 () -> sinkCount.get() == 3 && firstPipeline.getProgressTracker().isCompleted(true));
         assertEquals(3, sinkCount.get(), "已构建 pipeline 不应被 builder 后续追加的阶段污染");
+    }
+
+    @Test
+    void testNextMapInlineConsumeModeWiresInlineStrategy() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("inline-mode", Integer.class, flowManager)
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(10L, TimeUnit.MILLISECONDS)
+                        .consumeExecutionMode(FlowConsumeExecutionMode.INLINE)
+                        .build())
+                .sink((Integer i, String jobId) -> { });
+
+        pipeline.startPush(config);
+
+        assertTrue(flowManager.getActiveLaunchers().values().stream()
+                .map(launcher -> launcher.getResourceContext().getEgressConsumeStrategy())
+                .anyMatch(InlineEgressConsumeStrategy.class::isInstance));
+
+        pipeline.stop(true);
+    }
+
+    @Test
+    void testNextMapDefaultConsumeModeUsesInlineStrategy() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("inline-default-mode", Integer.class, flowManager)
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(10L, TimeUnit.MILLISECONDS)
+                        .build())
+                .sink((Integer i, String jobId) -> { });
+
+        pipeline.startPush(config);
+
+        assertTrue(flowManager.getActiveLaunchers().values().stream()
+                .map(launcher -> launcher.getResourceContext().getEgressConsumeStrategy())
+                .anyMatch(InlineEgressConsumeStrategy.class::isInstance));
+
+        pipeline.stop(true);
+    }
+
+    @Test
+    void testNextMapExplicitAsyncConsumeModeStillUsesAsyncStrategy() {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("async-override-mode", Integer.class, flowManager)
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(10L, TimeUnit.MILLISECONDS)
+                        .consumeExecutionMode(FlowConsumeExecutionMode.ASYNC)
+                        .build())
+                .sink((Integer i, String jobId) -> { });
+
+        pipeline.startPush(config);
+
+        assertTrue(flowManager.getActiveLaunchers().values().stream()
+                .map(launcher -> launcher.getResourceContext().getEgressConsumeStrategy())
+                .allMatch(AsyncEgressConsumeStrategy.class::isInstance));
+        assertInstanceOf(AsyncEgressConsumeStrategy.class,
+                flowManager.getActiveLaunchers().values().iterator().next().getResourceContext().getEgressConsumeStrategy());
+
+        pipeline.stop(true);
     }
 
     private static class IntegerPassThroughJoiner implements FlowJoiner<Integer> {

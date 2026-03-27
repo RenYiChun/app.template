@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.api;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import lombok.Getter;
 
 /**
@@ -23,6 +24,7 @@ public final class NextMapSpec<T, R> {
     private final Integer storageCapacity;
     private final Integer consumerThreads;
     private final String displayName;
+    private final FlowConsumeExecutionMode consumeExecutionMode;
 
     private NextMapSpec(Builder<T, R> builder) {
         this.storageElementType = Objects.requireNonNull(builder.storageElementType, "storageElementType");
@@ -33,6 +35,7 @@ public final class NextMapSpec<T, R> {
         this.storageCapacity = builder.storageCapacity;
         this.consumerThreads = builder.consumerThreads;
         this.displayName = builder.displayName;
+        this.consumeExecutionMode = builder.consumeExecutionMode;
         if (consumeIntervalUnit.toMillis(consumeInterval) <= 0) {
             throw new IllegalArgumentException("consume interval must be positive in milliseconds");
         }
@@ -59,6 +62,7 @@ public final class NextMapSpec<T, R> {
         private Integer storageCapacity;
         private Integer consumerThreads;
         private String displayName;
+        private FlowConsumeExecutionMode consumeExecutionMode;
 
         private Builder(Class<T> storageElementType, Class<R> outputType, Function<T, R> cacheProducer) {
             this.storageElementType = Objects.requireNonNull(storageElementType, "storageElementType");
@@ -84,6 +88,11 @@ public final class NextMapSpec<T, R> {
 
         public Builder<T, R> displayName(String displayName) {
             this.displayName = displayName;
+            return this;
+        }
+
+        public Builder<T, R> consumeExecutionMode(FlowConsumeExecutionMode consumeExecutionMode) {
+            this.consumeExecutionMode = consumeExecutionMode;
             return this;
         }
 

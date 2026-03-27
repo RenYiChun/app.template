@@ -4,6 +4,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -41,6 +42,8 @@ public interface FlowStorageFactory {
      * @param finalizer         FlowFinalizer 实例
      * @param progressTracker   ProgressTracker 实例
      * @param egressHandler     统一出口记账（joiner 回调 + 指标 + tracker）
+     * @param consumeExecutionMode 离库后的消费执行模式
+     * @param egressWorkerThreads Storage egress worker 数
      * @param resourceRegistry  全局资源注册表（Storage 离库时释放 global storage 额度）
      * @param meterRegistry     指标注册表
      * @param <T>               数据类型
@@ -53,6 +56,8 @@ public interface FlowStorageFactory {
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
             com.lrenyi.template.flow.internal.FlowEgressHandler<T> egressHandler,
+            FlowConsumeExecutionMode consumeExecutionMode,
+            int egressWorkerThreads,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry);
     

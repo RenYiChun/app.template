@@ -4,6 +4,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
+import com.lrenyi.template.flow.internal.EgressConsumeStrategy;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
@@ -77,12 +78,15 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
             handlePassiveFailure(entry, reason);
             return;
         }
+        @SuppressWarnings("unchecked")
+        EgressConsumeStrategy<T> strategy =
+                (EgressConsumeStrategy<T>) launcher.getResourceContext().getEgressConsumeStrategy();
         if (entry.getRetryRemaining() == -1) {
-            finalizer.submitDataToConsumer(entry, launcher, reason);
+            strategy.submitSingle(entry, launcher, reason);
         } else {
             RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
             if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                finalizer.submitDataToConsumer(entry, launcher, reason);
+                strategy.submitSingle(entry, launcher, reason);
             }
         }
     }
@@ -95,7 +99,10 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
             launcher = launcherLookup.getActiveLauncher(entry.getJobId());
         }
         if (launcher != null) {
-            finalizer.submitDataToConsumer(entry, launcher, reason);
+            @SuppressWarnings("unchecked")
+            EgressConsumeStrategy<T> strategy =
+                    (EgressConsumeStrategy<T>) launcher.getResourceContext().getEgressConsumeStrategy();
+            strategy.submitSingle(entry, launcher, reason);
         } else {
             try (entry) {
                 egressHandler.performSingleConsumed(entry, reason);

@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.pipeline;
 import java.util.List;
 import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.FlowJoiner;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 
 /**
  * 管道阶段定义。
@@ -19,6 +20,7 @@ final class StageDefinition<I, O> {
     private final Integer storageCapacityOverride;
     private final Integer consumerThreadsOverride;
     private final String displayNameOverride;
+    private final FlowConsumeExecutionMode consumeExecutionModeOverride;
 
     private StageDefinition(Builder<I, O> builder) {
         this.joiner = builder.joiner;
@@ -29,6 +31,7 @@ final class StageDefinition<I, O> {
         this.storageCapacityOverride = builder.storageCapacityOverride;
         this.consumerThreadsOverride = builder.consumerThreadsOverride;
         this.displayNameOverride = builder.displayNameOverride;
+        this.consumeExecutionModeOverride = builder.consumeExecutionModeOverride;
     }
 
     static <I, O> Builder<I, O> builder() {
@@ -67,6 +70,10 @@ final class StageDefinition<I, O> {
         return displayNameOverride;
     }
 
+    FlowConsumeExecutionMode getConsumeExecutionModeOverride() {
+        return consumeExecutionModeOverride;
+    }
+
     boolean isFork() {
         return branchStages != null && !branchStages.isEmpty();
     }
@@ -84,6 +91,7 @@ final class StageDefinition<I, O> {
         private Integer storageCapacityOverride;
         private Integer consumerThreadsOverride;
         private String displayNameOverride;
+        private FlowConsumeExecutionMode consumeExecutionModeOverride;
 
         Builder<I, O> joiner(FlowJoiner<I> joiner) {
             this.joiner = joiner;
@@ -122,6 +130,11 @@ final class StageDefinition<I, O> {
 
         Builder<I, O> displayNameOverride(String displayNameOverride) {
             this.displayNameOverride = displayNameOverride;
+            return this;
+        }
+
+        Builder<I, O> consumeExecutionModeOverride(FlowConsumeExecutionMode consumeExecutionModeOverride) {
+            this.consumeExecutionModeOverride = consumeExecutionModeOverride;
             return this;
         }
 

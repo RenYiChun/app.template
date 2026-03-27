@@ -11,6 +11,7 @@ import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -141,7 +142,8 @@ class FlowManagerTest {
                     String metricJobId,
                     FlowJoiner<T> flowJoiner,
                     ProgressTracker tracker,
-                    TemplateConfigProperties.Flow flowConfig) {
+                    TemplateConfigProperties.Flow flowConfig,
+                    FlowConsumeExecutionMode consumeExecutionMode) {
                 enteredFactory.countDown();
                 try {
                     releaseFactory.await();
@@ -198,7 +200,8 @@ class FlowManagerTest {
                     String metricJobId,
                     FlowJoiner<T> flowJoiner,
                     ProgressTracker tracker,
-                    TemplateConfigProperties.Flow flowConfig) {
+                    TemplateConfigProperties.Flow flowConfig,
+                    FlowConsumeExecutionMode consumeExecutionMode) {
                 @SuppressWarnings("unchecked")
                 FlowLauncher<T> launcher = (FlowLauncher<T>) (tracker == tracker1 ? launcher1 : launcher2);
                 return launcher;
