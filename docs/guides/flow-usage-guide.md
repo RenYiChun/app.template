@@ -312,8 +312,8 @@ System.out.println(inlet.getProgressTracker().getSnapshot());
 
 若某一阶段需要**单独**的存储条数上限，可在构建阶段指定（均为可选，与 YAML 基底合并为**独立快照**，不会改写你传入的基底配置对象）：
 
-- `NextStageSpec.of(..., int storageCapacity)`：五参数工厂，最后一参为本段覆盖值（须 `> 0`）。
-- `NextMapSpec.of(..., int storageCapacity)`：六参数工厂，最后一参为本段覆盖值。
+- `NextStageSpec.builder(...).storageCapacity(int).build()`：为本段覆盖值（须 `> 0`）。
+- `NextMapSpec.builder(...).storageCapacity(int).build()`：为本段覆盖值。
 - `aggregate(batchSize, timeout, unit, Integer storageCapacity)`：最后一参非 null 时覆盖该 aggregate 段。
 - `sink(sinkClass, onSink, Integer storageCapacity)`：最后一参非 null 时覆盖 Sink 段。
 

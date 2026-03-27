@@ -78,7 +78,9 @@ public final class FlowResourceMetrics {
      * Job 创建时调用，注册该 Job 的资源 limit/used Gauges（带 jobId 标签）。
      */
     public static void registerPerJob(FlowLauncher<?> launcher, MeterRegistry meterRegistry) {
-        FlowMetricTags metricTags = FlowMetricTags.resolve(launcher.getJobId(), launcher.getMetricJobId());
+        FlowMetricTags metricTags = FlowMetricTags.resolve(launcher.getJobId(),
+                launcher.getMetricJobId(),
+                launcher.getTracker().getStageDisplayName());
         Tags tags = metricTags.toTags();
         List<Meter> meters = new ArrayList<>(6);
         meters.add(Gauge.builder(FlowMetricNames.RESOURCES_PER_JOB_STORAGE_LIMIT,

@@ -204,9 +204,14 @@ class FlowPipelineForkSixDimsLoadIntegrationTest {
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline
                 .builder(PIPELINE_ID, Integer.class, flowManager)
-                .nextMap(NextMapSpec.of(Integer.class, Integer.class, i -> i, 1L, TimeUnit.MILLISECONDS))
-                .nextMap(NextMapSpec.of(Integer.class, Integer.class, i -> i, 1L, TimeUnit.MILLISECONDS))
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), List::of))
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(1L, TimeUnit.MILLISECONDS)
+                        .build())
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(1L, TimeUnit.MILLISECONDS)
+                        .build())
+                .nextStage(NextStageSpec.<Integer, Integer>builder(Integer.class, new IntPassThroughJoiner(), List::of)
+                        .build())
                 .forkNamed(
                         branch(0, sinkItemsPerDim[0]),
                         branch(1, sinkItemsPerDim[1]),

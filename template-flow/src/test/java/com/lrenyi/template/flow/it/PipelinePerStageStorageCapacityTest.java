@@ -40,8 +40,14 @@ class PipelinePerStageStorageCapacityTest {
 
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("pss-cap-job", Integer.class, fm)
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), i -> List.of(i), null, 111))
-                .nextStage(NextStageSpec.of(Integer.class, new IntPassThroughJoiner(), i -> List.of(i), null, 222))
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i))
+                        .storageCapacity(111)
+                        .build())
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntPassThroughJoiner(), i -> List.of(i))
+                        .storageCapacity(222)
+                        .build())
                 .sink(Integer.class, (i, jobId) -> { }, 333);
 
         pipeline.startPush(base);

@@ -73,6 +73,19 @@ public interface ProgressTracker {
     }
 
     /**
+     * 设置阶段显示名；未设置时由指标标签解析逻辑回退到当前默认阶段名。
+     */
+    default void setStageDisplayName(String stageDisplayName) {
+    }
+
+    /**
+     * 获取阶段显示名；未设置时返回 null。
+     */
+    default String getStageDisplayName() {
+        return null;
+    }
+
+    /**
      * 是否已完成。
      */
     boolean isCompleted(boolean showStatus);

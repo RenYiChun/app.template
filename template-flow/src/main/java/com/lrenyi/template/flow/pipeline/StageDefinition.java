@@ -16,6 +16,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
  * @param embeddedBatch  非 null 时在本阶段 Joiner 出口侧攒批后再 {@code push} 下游，不增加独立 aggregate Launcher
  * @param storageCapacityOverride 非 null 时覆盖本阶段 {@code limits.per-job.storage-capacity}，与运行时基底 flow 合并为独立快照
  * @param consumerThreadsOverride 非 null 时覆盖本阶段 {@code limits.per-job.consumer-threads}，与运行时基底 flow 合并为独立快照
+ * @param displayNameOverride 非 null / 非空白时作为本阶段显示名
  */
 record StageDefinition<I, O>(
         FlowJoiner<I> joiner,
@@ -24,7 +25,8 @@ record StageDefinition<I, O>(
         PipelineStageDispatch<I, O> dispatch,
         EmbeddedBatchSpec embeddedBatch,
         Integer storageCapacityOverride,
-        Integer consumerThreadsOverride) {
+        Integer consumerThreadsOverride,
+        String displayNameOverride) {
     /**
      * 判断当前阶段是否为分叉（扇出）阶段。
      */

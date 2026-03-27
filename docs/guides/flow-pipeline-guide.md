@@ -32,7 +32,9 @@ import com.lrenyi.template.flow.api.NextMapSpec;
 
 @SuppressWarnings("unchecked")
 FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("map-job", String.class, flowManager)
-    .nextMap(NextMapSpec.of(String.class, Integer.class, Integer::parseInt, 100, TimeUnit.MILLISECONDS))
+    .nextMap(NextMapSpec.<String, Integer>builder(String.class, Integer.class, Integer::parseInt)
+        .consumeInterval(100, TimeUnit.MILLISECONDS)
+        .build())
     .sink(Integer.class, (n, jobId) -> save(n));
 ```
 
@@ -45,7 +47,9 @@ FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("m
 ```java
 import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 
-.nextMap(NextMapSpec.of(Integer.class, Integer.class, i -> i, 100, TimeUnit.MILLISECONDS),
+.nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+            .consumeInterval(100, TimeUnit.MILLISECONDS)
+            .build(),
         EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
 .sink((List<Integer> batch, String jobId) -> { /* ... */ });
 ```
@@ -53,7 +57,8 @@ import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 常规阶段同样支持（在 **`nextStage` 上**增加攒批参数，而非写在 `NextStageSpec` 里）：
 
 ```java
-.nextStage(NextStageSpec.of(String.class, myJoiner, s -> List.of(transform(s))),
+.nextStage(NextStageSpec.<String, String>builder(String.class, myJoiner, s -> List.of(transform(s)))
+            .build(),
         EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
 ```
 
@@ -66,7 +71,7 @@ import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 更推荐的方式：
 
 - 让业务 `FlowJoiner` 实现 `com.lrenyi.template.flow.pipeline.PipelineStageOutput`，在 `outputsAfterPair` / `outputsAfterSingle` 中返回下发给下游的列表；或  
-- 使用 `NextStageSpec.of(outputClass, joiner, transformer, pairOutput)` 的 **第四个参数** `BiFunction<T,T,List<R>> pairOutput`，在一次配对后显式产出列表。
+- 使用 `NextStageSpec.builder(outputClass, joiner, transformer).pairOutput(...)` 显式指定 `BiFunction<T,T,List<R>> pairOutput`，在一次配对后产出列表。
 
 实现 `PipelineEmitter` 的 Joiner（如 `AggregationJoiner`）仍通过 `setDownstream` 自行下发，不经过上述 `transformer` 自动转发路径。
 
@@ -92,7 +97,10 @@ FlowPipeline<Integer> pipeline = FlowPipeline.builder("simple-job", Integer.clas
 import com.lrenyi.template.flow.api.NextStageSpec;
 
 FlowPipeline<Integer> pipeline = FlowPipeline.builder("fork-job", Integer.class, flowManager)
-    .nextStage(NextStageSpec.of(Integer.class, new FilterJoiner(), i -> i > 0 ? List.of(i) : List.of()))
+    .nextStage(NextStageSpec.<Integer, Integer>builder(Integer.class,
+            new FilterJoiner(),
+            i -> i > 0 ? List.of(i) : List.of())
+        .build())
     .fork(
         b -> b.nextStage(new BranchAJoiner()).sink((d, id) -> saveA(d)),
         b -> b.nextStage(new BranchBJoiner()).sink((d, id) -> saveB(d))
@@ -108,7 +116,11 @@ FlowPipeline<AuditLog> pipeline = FlowPipeline.builder("audit-pipeline", AuditLo
     // 转换为 List<AuditLog>
     .aggregate(100, 5, TimeUnit.SECONDS)
     // 处理聚合后的数据
-    .nextStage(NextStageSpec.of((Class<List<AuditLog>>) (Class<?>) List.class, new BatchSaveJoiner(), batch -> List.of(batch)))
+    .nextStage(NextStageSpec.<List<AuditLog>, List<AuditLog>>builder(
+            (Class<List<AuditLog>>) (Class<?>) List.class,
+            new BatchSaveJoiner(),
+            batch -> List.of(batch))
+        .build())
     .sink((batch, jobId) -> log.info("Saved batch of size {}", batch.size()));
 ```
 

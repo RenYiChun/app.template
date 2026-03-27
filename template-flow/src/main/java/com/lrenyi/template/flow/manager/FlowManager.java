@@ -428,7 +428,10 @@ public class FlowManager implements ActiveLauncherLookup {
                 }
                 String metricJobId = resolveMetricJobId(jobId);
                 tracker.setMetricJobId(metricJobId);
-                terminalMetrics.markStageRunning(jobId, metricJobId, System.currentTimeMillis());
+                terminalMetrics.markStageRunning(jobId,
+                        metricJobId,
+                        tracker.getStageDisplayName(),
+                        System.currentTimeMillis());
                 terminalMetrics.markJobRunning(extractRootJobId(jobId), extractDisplayName(jobId, metricJobId),
                         System.currentTimeMillis());
 
@@ -542,9 +545,10 @@ public class FlowManager implements ActiveLauncherLookup {
 
     public void markStageTerminal(String internalJobId,
                                   String metricJobId,
+                                  String stageDisplayName,
                                   long startTimeMillis,
                                   long endTimeMillis) {
-        terminalMetrics.markStageTerminal(internalJobId, metricJobId, startTimeMillis, endTimeMillis);
+        terminalMetrics.markStageTerminal(internalJobId, metricJobId, stageDisplayName, startTimeMillis, endTimeMillis);
     }
 
     public void markRootTerminal(String rootJobId,

@@ -206,7 +206,9 @@ public class FlowJoinerEngine {
             if (launcher.isStopped()) {
                 launcher.getTracker().onProductionReleased();
                 Counter.builder(FlowMetricNames.ERRORS)
-                       .tags(FlowMetricTags.resolve(launcher.getJobId(), launcher.getMetricJobId()).toTags())
+                       .tags(FlowMetricTags.resolve(launcher.getJobId(),
+                               launcher.getMetricJobId(),
+                               launcher.getTracker().getStageDisplayName()).toTags())
                        .tag(FlowMetricNames.TAG_ERROR_TYPE, "job_stopped")
                        .tag(FlowMetricNames.TAG_PHASE, PHASE_PRODUCTION)
                        .register(registry())

@@ -10,11 +10,17 @@ import io.micrometer.core.instrument.Tags;
 public record FlowMetricTags(String internalJobId,
                              String metricJobId,
                              String rootJobId,
+                             String rootJobDisplayName,
                              String stageKey,
                              String stageName,
+                             String stageDisplayName,
                              String displayName) {
 
     public static FlowMetricTags resolve(String internalJobId, String metricJobId) {
+        return resolve(internalJobId, metricJobId, null);
+    }
+
+    public static FlowMetricTags resolve(String internalJobId, String metricJobId, String explicitStageDisplayName) {
         String safeInternalJobId = blankToDefault(internalJobId, "unknown");
         String safeMetricJobId = blankToDefault(metricJobId, safeInternalJobId);
         String rootJobId = extractRootJobId(safeInternalJobId);
@@ -22,17 +28,30 @@ public record FlowMetricTags(String internalJobId,
         String displayName = extractDisplayName(safeMetricJobId, suffix);
         String stageKey = extractStageKey(suffix);
         String stageName = extractStageName(suffix);
-        return new FlowMetricTags(safeInternalJobId, safeMetricJobId, rootJobId, stageKey, stageName, displayName);
+        return new FlowMetricTags(safeInternalJobId,
+                safeMetricJobId,
+                rootJobId,
+                extractRootJobDisplayName(displayName, rootJobId),
+                stageKey,
+                stageName,
+                extractStageDisplayName(explicitStageDisplayName, stageName, stageKey),
+                displayName);
     }
 
     public Tags toTags() {
         return Tags.of(
                 FlowMetricNames.TAG_JOB_ID, metricJobId,
                 FlowMetricNames.TAG_ROOT_JOB_ID, rootJobId,
+                FlowMetricNames.TAG_ROOT_JOB_DISPLAY_NAME, rootJobDisplayName,
                 FlowMetricNames.TAG_STAGE_KEY, stageKey,
                 FlowMetricNames.TAG_STAGE_NAME, stageName,
+                FlowMetricNames.TAG_STAGE_DISPLAY_NAME, stageDisplayName,
                 FlowMetricNames.TAG_DISPLAY_NAME, displayName
         );
+    }
+
+    private static String extractRootJobDisplayName(String displayName, String rootJobId) {
+        return blankToDefault(displayName, rootJobId);
     }
 
     private static String extractRootJobId(String internalJobId) {
@@ -89,6 +108,16 @@ public record FlowMetricTags(String internalJobId,
             }
         }
         return "stage-" + segments[segments.length - 1];
+    }
+
+    private static String extractStageDisplayName(String explicitStageDisplayName,
+                                                  String stageName,
+                                                  String stageKey) {
+        String candidate = explicitStageDisplayName;
+        if (candidate == null || candidate.isBlank()) {
+            candidate = stageName;
+        }
+        return blankToDefault(candidate, stageKey);
     }
 
     private static String blankToDefault(String value, String defaultValue) {

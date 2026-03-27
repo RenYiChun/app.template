@@ -62,12 +62,12 @@ public class FlowPipelineIntegrationTest {
         FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("test-pipeline", Integer.class, flowManager);
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
-            .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
-                    (Integer i) -> i % 2 == 0 ? List.of(i) : List.of())) // 过滤奇数
+            .nextStage(NextStageSpec.<Integer, Integer>builder(Integer.class, new IntegerPassThroughJoiner(),
+                    (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()).build()) // 过滤奇数
             .fork(
                 // 分支 A：直接乘 10 并计数
-                (FlowPipeline.Builder<Integer> b) -> b.nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
-                        (Integer i) -> List.of(i * 10)))
+                (FlowPipeline.Builder<Integer> b) -> b.nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntegerPassThroughJoiner(), (Integer i) -> List.of(i * 10)).build())
                       .sink(Integer.class, (Integer i, String jobId) -> sinkCountA.incrementAndGet()),
                 // 分支 B：攒批 10 个后计数
                 (FlowPipeline.Builder<Integer> b) -> b.aggregate(10, 5, TimeUnit.SECONDS)
@@ -106,14 +106,14 @@ public class FlowPipelineIntegrationTest {
         FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("embedded-batch-pipeline", Integer.class, flowManager);
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
-                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
-                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()))
-                .nextMap(NextMapSpec.of(
+                .nextStage(NextStageSpec.<Integer, Integer>builder(Integer.class, new IntegerPassThroughJoiner(),
+                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()).build())
+                .nextMap(NextMapSpec.<Integer, Integer>builder(
                                 Integer.class,
                                 Integer.class,
-                                i -> i,
-                                100L,
-                                TimeUnit.MILLISECONDS),
+                                i -> i)
+                        .consumeInterval(100L, TimeUnit.MILLISECONDS)
+                        .build(),
                         EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
                 .sink((List<Integer> list, String jobId) -> sinkCountB.addAndGet(list.size()));
 
@@ -144,9 +144,10 @@ public class FlowPipelineIntegrationTest {
         FlowPipeline.Builder<Integer> builder = FlowPipeline.builder("embedded-batch-nextstage", Integer.class, flowManager);
         @SuppressWarnings("unchecked")
         FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) builder
-                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(),
-                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()))
-                .nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i)),
+                .nextStage(NextStageSpec.<Integer, Integer>builder(Integer.class, new IntegerPassThroughJoiner(),
+                        (Integer i) -> i % 2 == 0 ? List.of(i) : List.of()).build())
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i)).build(),
                         EmbeddedBatchSpec.of(10, 5, TimeUnit.SECONDS))
                 .sink((List<Integer> list, String jobId) -> sinkCountB.addAndGet(list.size()));
 
@@ -195,7 +196,8 @@ public class FlowPipelineIntegrationTest {
                 .sink((Integer i, String jobId) -> sinkCount.incrementAndGet());
 
         // 继续基于旧 builder 衍生新定义，不应污染已经 build 的 firstPipeline
-        builder.nextStage(NextStageSpec.of(Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i + 100)))
+        builder.nextStage(NextStageSpec.<Integer, Integer>builder(
+                Integer.class, new IntegerPassThroughJoiner(), i -> List.of(i + 100)).build())
                 .sink((Integer i, String jobId) -> { });
 
         firstPipeline.run(FlowSourceAdapters.fromIterator(List.of(1, 2, 3).iterator(), null), config);

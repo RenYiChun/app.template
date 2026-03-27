@@ -46,20 +46,24 @@ public final class FlowTerminalMetrics {
         scheduleCleanup(jobStates, key, state, endTimeMillis);
     }
 
-    public void markStageRunning(String internalJobId, String metricJobId, long startTimeMillis) {
+    public void markStageRunning(String internalJobId,
+                                 String metricJobId,
+                                 String stageDisplayName,
+                                 long startTimeMillis) {
         String key = internalJobId;
         TerminalMetricState state = stageStates.computeIfAbsent(key,
-                unused -> registerState(FlowMetricTags.resolve(internalJobId, metricJobId), false));
+                unused -> registerState(FlowMetricTags.resolve(internalJobId, metricJobId, stageDisplayName), false));
         state.markRunning(startTimeMillis);
     }
 
     public void markStageTerminal(String internalJobId,
                                   String metricJobId,
+                                  String stageDisplayName,
                                   long startTimeMillis,
                                   long endTimeMillis) {
         String key = internalJobId;
         TerminalMetricState state = stageStates.computeIfAbsent(key,
-                unused -> registerState(FlowMetricTags.resolve(internalJobId, metricJobId), false));
+                unused -> registerState(FlowMetricTags.resolve(internalJobId, metricJobId, stageDisplayName), false));
         state.markTerminal(startTimeMillis, endTimeMillis);
         scheduleCleanup(stageStates, key, state, endTimeMillis);
     }
@@ -135,11 +139,14 @@ public final class FlowTerminalMetrics {
             return jobLevel
                     ? Tags.of(
                             FlowMetricNames.TAG_ROOT_JOB_ID, tags.rootJobId(),
+                            FlowMetricNames.TAG_ROOT_JOB_DISPLAY_NAME, tags.rootJobDisplayName(),
                             FlowMetricNames.TAG_DISPLAY_NAME, tags.displayName())
                     : Tags.of(
                             FlowMetricNames.TAG_ROOT_JOB_ID, tags.rootJobId(),
+                            FlowMetricNames.TAG_ROOT_JOB_DISPLAY_NAME, tags.rootJobDisplayName(),
                             FlowMetricNames.TAG_STAGE_KEY, tags.stageKey(),
                             FlowMetricNames.TAG_STAGE_NAME, tags.stageName(),
+                            FlowMetricNames.TAG_STAGE_DISPLAY_NAME, tags.stageDisplayName(),
                             FlowMetricNames.TAG_DISPLAY_NAME, tags.displayName());
         }
 
