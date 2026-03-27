@@ -3,6 +3,7 @@ package com.lrenyi.template.flow.api;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import lombok.Getter;
 
 /**
  * {@link FlowPipeline.Builder#nextMap(NextMapSpec)} 的配置载体：驻留类型、下游类型、映射与存储消费节拍等。
@@ -12,6 +13,7 @@ import java.util.function.Function;
  * @param <T> 本段 {@link com.lrenyi.template.flow.storage.FlowStorage} 驻留元素类型
  * @param <R> 本段产出类型（亦即下游阶段元素类型）
  */
+@Getter
 public final class NextMapSpec<T, R> {
     private final Class<T> storageElementType;
     private final Class<R> outputType;
@@ -46,38 +48,6 @@ public final class NextMapSpec<T, R> {
                                                Class<R> outputType,
                                                Function<T, R> cacheProducer) {
         return new Builder<>(storageElementType, outputType, cacheProducer);
-    }
-
-    public Class<T> getStorageElementType() {
-        return storageElementType;
-    }
-
-    public Class<R> getOutputType() {
-        return outputType;
-    }
-
-    public Function<T, R> getCacheProducer() {
-        return cacheProducer;
-    }
-
-    public long getConsumeInterval() {
-        return consumeInterval;
-    }
-
-    public TimeUnit getConsumeIntervalUnit() {
-        return consumeIntervalUnit;
-    }
-
-    public Integer getStorageCapacity() {
-        return storageCapacity;
-    }
-
-    public Integer getConsumerThreads() {
-        return consumerThreads;
-    }
-
-    public String getDisplayName() {
-        return displayName;
     }
 
     public static final class Builder<T, R> {

@@ -163,10 +163,10 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
 
             if (def.isFork()) {
                 List<FlowInlet<Object>> branchInlets = new ArrayList<>();
-                for (int b = 0; b < def.branchStages().size(); b++) {
+                for (int b = 0; b < def.getBranchStages().size(); b++) {
                     String branchName = branchName(def, b);
                     String branchJobId = stageJobId + ":fork:" + b + "-" + branchName;
-                    branchInlets.add(buildStagesRecursive(branchJobId, def.branchStages().get(b), flowConfig, null));
+                    branchInlets.add(buildStagesRecursive(branchJobId, def.getBranchStages().get(b), flowConfig, null));
                 }
 
                 final FlowInlet<Object> finalNext = currentChainHead;
@@ -202,15 +202,15 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                     }
                 };
             } else {
-                FlowJoiner<Object> userJoiner = def.joiner();
+                FlowJoiner<Object> userJoiner = def.getJoiner();
                 if (userJoiner instanceof AggregationJoiner) {
                     ((AggregationJoiner<Object>) userJoiner).setScheduler(
                         flowManager.getResourceRegistry().getStorageEgressExecutor());
                 }
 
-                EmbeddedBatchSpec embeddedBatch = def.embeddedBatch();
+                EmbeddedBatchSpec embeddedBatch = def.getEmbeddedBatch();
                 PipelineJoinerWrapper<Object, Object> wrapper = new PipelineJoinerWrapper<>(
-                        userJoiner, def.dispatch(), embeddedBatch);
+                        userJoiner, def.getDispatch(), embeddedBatch);
                 if (embeddedBatch != null) {
                     wrapper.setSchedulerForEmbeddedBatch(
                             flowManager.getResourceRegistry().getStorageEgressExecutor());
@@ -222,11 +222,11 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
 
                 boolean isLeaf = (currentChainHead == null);
                 DefaultProgressTracker tracker = new DefaultProgressTracker(stageJobId, flowManager, true);
-                tracker.setStageDisplayName(def.displayNameOverride());
+                tracker.setStageDisplayName(def.getDisplayNameOverride());
                 String metricTag = stageMetricTag(stageJobId);
                 tracker.setMetricJobId(metricTag);
-                Integer storageOverride = def.storageCapacityOverride();
-                Integer consumerThreadsOverride = def.consumerThreadsOverride();
+                Integer storageOverride = def.getStorageCapacityOverride();
+                Integer consumerThreadsOverride = def.getConsumerThreadsOverride();
                 TemplateConfigProperties.Flow stageFlow = FlowPipelineConfigOverlay.copyWithPerJobOverrides(
                         flowConfig,
                         storageOverride,
@@ -256,10 +256,10 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
     }
 
     private String branchName(StageDefinition<Object, Object> def, int branchIndex) {
-        if (def.branchNames() == null || branchIndex >= def.branchNames().size()) {
+        if (def.getBranchNames() == null || branchIndex >= def.getBranchNames().size()) {
             return "branch-" + branchIndex;
         }
-        String raw = def.branchNames().get(branchIndex);
+        String raw = def.getBranchNames().get(branchIndex);
         if (raw == null || raw.isBlank()) {
             return "branch-" + branchIndex;
         }
