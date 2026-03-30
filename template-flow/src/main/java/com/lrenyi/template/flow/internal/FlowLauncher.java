@@ -13,6 +13,7 @@ import com.lrenyi.template.flow.backpressure.DimensionLease;
 import com.lrenyi.template.flow.backpressure.dimension.StorageDimension;
 import com.lrenyi.template.flow.context.FlowEntry;
 import com.lrenyi.template.flow.context.FlowResourceContext;
+import com.lrenyi.template.flow.exception.FlowExceptionContext;
 import com.lrenyi.template.flow.exception.FlowExceptionHelper;
 import com.lrenyi.template.flow.exception.FlowPhase;
 import com.lrenyi.template.flow.manager.FlowManager;
@@ -162,13 +163,24 @@ public class FlowLauncher<T> {
                 storageLease = backpressureManager.acquire(StorageDimension.ID, () -> stopped);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                FlowExceptionHelper.handleException(jobId,
-                                                    null,
-                                                    e,
-                                                    FlowPhase.STORAGE,
-                                                    "storage_acquire_interrupted",
-                                                    getMetricJobId()
-                );
+                if (stopped) {
+                    FlowExceptionContext context = new FlowExceptionContext(jobId,
+                            null,
+                            e,
+                            FlowPhase.STORAGE,
+                            "storage_acquire_interrupted");
+                    context.addContext("displayName", getMetricJobId());
+                    context.addContext("expectedInterruption", true);
+                    FlowExceptionHelper.handleException(context);
+                } else {
+                    FlowExceptionHelper.handleException(jobId,
+                                                        null,
+                                                        e,
+                                                        FlowPhase.STORAGE,
+                                                        "storage_acquire_interrupted",
+                                                        getMetricJobId()
+                    );
+                }
                 getEgressConsumeStrategy().submitSingle(ctx, this, EgressReason.BACKPRESSURE_TIMEOUT);
                 ctx = null;
                 return;

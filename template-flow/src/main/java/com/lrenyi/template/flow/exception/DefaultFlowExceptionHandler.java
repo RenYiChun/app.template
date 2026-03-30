@@ -40,6 +40,11 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
         }
         message.append("]");
         
+        if (isExpectedInterruption(context, exception)) {
+            log.info(message.toString());
+            return;
+        }
+        
         // 根据异常类型和阶段选择日志级别
         if (isCriticalException(exception, phase)) {
             log.error(message.toString(), exception);
@@ -61,5 +66,10 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
         
         // OutOfMemoryError、StackOverflowError 等严重错误
         return exception instanceof VirtualMachineError;
+    }
+
+    private boolean isExpectedInterruption(FlowExceptionContext context, Throwable exception) {
+        return exception instanceof InterruptedException
+                && Boolean.TRUE.equals(context.getContext().get("expectedInterruption"));
     }
 }
