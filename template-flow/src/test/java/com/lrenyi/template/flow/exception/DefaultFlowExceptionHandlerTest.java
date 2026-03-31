@@ -70,7 +70,6 @@ class DefaultFlowExceptionHandlerTest {
 
         assertDoesNotThrow(() -> handler.handleException(context));
 
-        assertTrue(output.getOut().contains("storage_acquire_interrupted"));
         assertFalse(output.getOut().contains("java.lang.InterruptedException"));
     }
 
@@ -85,7 +84,6 @@ class DefaultFlowExceptionHandlerTest {
 
         assertDoesNotThrow(() -> handler.handleException(context));
 
-        assertTrue(output.getOut().contains("storage_acquire_interrupted"));
         assertFalse(output.getOut().contains("java.lang.InterruptedException"));
     }
 }

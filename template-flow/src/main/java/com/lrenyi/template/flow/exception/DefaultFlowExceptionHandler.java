@@ -41,7 +41,7 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
         message.append("]");
         
         if (isExpectedInterruption(context, exception)) {
-            log.info(message.toString());
+            log.debug(message.toString());
             return;
         }
         
