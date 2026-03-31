@@ -23,6 +23,9 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
 
     @Override
     public void push(T item) {
+        if (item == null) {
+            return;
+        }
         // 使用 double-check 模式解决 check-then-act 竞态条件：
         // 问题：sourceClosed 检查与 inFlightPush 增量之间无原子性保证。
         // 当 markSourceFinished() 等待 inFlightPush==0 时，若 push() 刚通过检查但未增量，
