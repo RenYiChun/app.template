@@ -70,6 +70,12 @@ public class DefaultFlowExceptionHandler implements FlowExceptionHandler {
 
     private boolean isExpectedInterruption(FlowExceptionContext context, Throwable exception) {
         return exception instanceof InterruptedException
-                && Boolean.TRUE.equals(context.getContext().get("expectedInterruption"));
+                && (Boolean.TRUE.equals(context.getContext().get("expectedInterruption"))
+                || isStorageAcquireInterrupted(context));
+    }
+
+    private boolean isStorageAcquireInterrupted(FlowExceptionContext context) {
+        return context.getPhase() == FlowPhase.STORAGE
+                && "storage_acquire_interrupted".equals(context.getErrorType());
     }
 }

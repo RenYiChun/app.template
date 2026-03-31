@@ -73,4 +73,19 @@ class DefaultFlowExceptionHandlerTest {
         assertTrue(output.getOut().contains("storage_acquire_interrupted"));
         assertFalse(output.getOut().contains("java.lang.InterruptedException"));
     }
+
+    @Test
+    void handleExceptionStorageAcquireInterruptedLogsWithoutStackTraceEvenWithoutFlag(CapturedOutput output) {
+        FlowExceptionContext context = new FlowExceptionContext("job1",
+                                                                null,
+                                                                new InterruptedException("race stop"),
+                                                                FlowPhase.STORAGE,
+                                                                "storage_acquire_interrupted")
+                .addContext("displayName", "job1:1");
+
+        assertDoesNotThrow(() -> handler.handleException(context));
+
+        assertTrue(output.getOut().contains("storage_acquire_interrupted"));
+        assertFalse(output.getOut().contains("java.lang.InterruptedException"));
+    }
 }
