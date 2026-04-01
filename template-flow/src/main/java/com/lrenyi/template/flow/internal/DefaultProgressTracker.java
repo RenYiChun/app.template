@@ -149,7 +149,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         if (flowManager == null) {
             return;
         }
-        flowManager.removeMetricsForMetricJobId(oldEffective);
+        flowManager.removeMetricsForJob(jobId, oldEffective, getStageDisplayName());
         FlowLauncher<?> launcher = flowManager.getActiveLauncher(jobId);
         if (launcher != null) {
             FlowResourceMetrics.reregisterPerJob(launcher, flowManager.getMeterRegistry());
@@ -293,6 +293,9 @@ public class DefaultProgressTracker implements ProgressTracker {
                                               getStageDisplayName(),
                                               startTimeMillis,
                                               endTimeMillis.get());
+                if (!stopped) {
+                    activeLauncher.releaseRuntimeResources();
+                }
                 if (!stopped && !deferMetricsUnregister) {
                     flowManager.scheduleUnregister(jobId);
                 }

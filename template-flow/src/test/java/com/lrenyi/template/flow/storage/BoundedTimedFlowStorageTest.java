@@ -300,6 +300,44 @@ class BoundedTimedFlowStorageTest {
     }
 
     /**
+     * multi-match 下若一次配对将 slot 清空，后续同 key 再次入库时仍应重新创建 slot 并挂上新的 TTL。
+     */
+    @Test
+    void pairingMultiMatch_emptySlotAfterPair_shouldStillExpireOnLaterInsert() throws InterruptedException {
+        long ttlMs = 150L;
+        String jobId = JOB_ID + "-multi-match-expiry";
+        TemplateConfigProperties.Flow config = fakeFlowConfigForPairing(ttlMs);
+        config.getLimits().getPerJob().getKeyedCache().setPairingMultiMatchEnabled(true);
+        flowManager = FlowManager.getInstance(config, meterRegistry);
+        resourceRegistry = flowManager.getResourceRegistry();
+        FlowJoinerEngine engine = new FlowJoinerEngine(flowManager);
+
+        PairingCollectingJoiner joiner = new PairingCollectingJoiner();
+        FlowInlet<String> inlet = engine.startPush(jobId, joiner, config);
+
+        inlet.push("A");
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().productionReleased() >= 1, 5_000);
+        inlet.push("B");
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().terminated() >= 2
+                && inlet.getProgressTracker().getSnapshot().inStorage() == 0, 5_000);
+
+        Thread.sleep(ttlMs + 1_000L);
+
+        inlet.push("C");
+        inlet.markSourceFinished();
+
+        awaitCondition(() -> inlet.getProgressTracker().getSnapshot().terminated() >= 3
+                && inlet.getProgressTracker().getSnapshot().inStorage() == 0, 10_000);
+        awaitCondition(inlet::isCompleted, 5_000);
+
+        List<ConsumedRecord> consumed = joiner.getConsumed();
+        assertEquals(1, consumed.size(), "后续再次入库的未匹配条目应按 TTL 被动离库一次");
+        assertEquals("C", consumed.getFirst().item);
+        assertEquals(EgressReason.SINGLE_CONSUMED, consumed.getFirst().reason);
+        assertEquals(1, joiner.getPairConsumedCount(), "A-B 应只发生一次配对消费");
+    }
+
+    /**
      * 场景3：3 条数据不入缓存时配对，而是全部进缓存后由驱逐时再配对（A-B 在 processEvictedSlot 中配对，C 以 TIMEOUT 离库）。
      * 校验 job 结束条件各计数：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；
      * 被动出口含 1 条 TIMEOUT，且有一次配对消费。

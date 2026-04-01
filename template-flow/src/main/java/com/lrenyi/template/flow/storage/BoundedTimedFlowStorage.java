@@ -423,6 +423,9 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
                         savedEntryCount.decrement();
                     });
                     slotByKey.remove(key);
+                } else if (slot.isEmpty()) {
+                    slot.setQueuedForExpiry(false);
+                    slotByKey.remove(key);
                 }
             } else {
                 // 处理 overflow：若 slot 已满被淘汰的旧条目需正确核减计数并走被动出口

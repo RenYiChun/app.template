@@ -3,9 +3,11 @@ package com.lrenyi.template.flow.backpressure;
 import java.util.function.BooleanSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.resource.PermitPair;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -71,5 +73,23 @@ public final class DimensionContext {
             }
         }
         return (metricJobId != null && !metricJobId.isEmpty()) ? metricJobId : jobId;
+    }
+
+    public Tags getMetricTags() {
+        return resolveMetricTags(getMetricJobIdForTags()).toTags();
+    }
+
+    public Tags getMetricTagsForJobId(String metricJobIdValue) {
+        return resolveMetricTags(metricJobIdValue).toTags();
+    }
+
+    public Tags getDimensionMetricTags(String dimensionIdValue) {
+        return getMetricTags().and(BackpressureMetricNames.TAG_DIMENSION_ID, dimensionIdValue);
+    }
+
+    private FlowMetricTags resolveMetricTags(String metricJobIdValue) {
+        return FlowMetricTags.resolve(jobId,
+                metricJobIdValue,
+                progressTracker != null ? progressTracker.getStageDisplayName() : null);
     }
 }

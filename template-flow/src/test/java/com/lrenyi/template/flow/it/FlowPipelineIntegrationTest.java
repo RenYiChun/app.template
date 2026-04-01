@@ -11,6 +11,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.FlowPipeline;
+import com.lrenyi.template.flow.api.FlowSource;
 import com.lrenyi.template.flow.api.EmbeddedBatchSpec;
 import com.lrenyi.template.flow.api.NextMapSpec;
 import com.lrenyi.template.flow.api.NextStageSpec;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -279,6 +281,47 @@ public class FlowPipelineIntegrationTest {
                 flowManager.getActiveLaunchers().values().iterator().next().getResourceContext().getEgressConsumeStrategy());
 
         pipeline.stop(true);
+    }
+
+    @Test
+    void testRunFailureStopsPipelineAndReleasesAllLaunchers() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(4);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder("pipeline-run-failure",
+                        Integer.class,
+                        flowManager)
+                .nextStage(new IntegerPassThroughJoiner())
+                .sink((Integer i, String jobId) -> { });
+
+        FlowSource<Integer> failingSource = new FlowSource<>() {
+            private boolean first = true;
+
+            @Override
+            public boolean hasNext() {
+                return true;
+            }
+
+            @Override
+            public Integer next() {
+                if (first) {
+                    first = false;
+                    return 1;
+                }
+                throw new IllegalStateException("source failed");
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> pipeline.run(failingSource, config));
+
+        assertInstanceOf(IllegalStateException.class, ex.getCause());
+        awaitUntil("异常后不应残留 pipeline launcher", 10_000L, () -> flowManager.getActiveLaunchers().isEmpty());
     }
 
     private static class IntegerPassThroughJoiner implements FlowJoiner<Integer> {

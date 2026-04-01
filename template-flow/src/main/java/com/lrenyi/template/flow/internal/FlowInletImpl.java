@@ -27,21 +27,23 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
             return;
         }
         // 使用 double-check 模式解决 check-then-act 竞态条件：
-        // 问题：sourceClosed 检查与 inFlightPush 增量之间无原子性保证。
-        // 当 markSourceFinished() 等待 inFlightPush==0 时，若 push() 刚通过检查但未增量，
-        // 会导致 markSourceFinished() 误判为已排空并关闭入口，新数据被拒绝。
-        // 解决：增量后再次检查 sourceClosed，若已关闭则回滚计数并重试。
+        // 问题：sourceClosing/sourceClosed 检查与 inFlightPush 增量之间无原子性保证。
+        // 当 markSourceFinished() 开始关源时，新 push 不应再被接受，但已经通过首轮检查的调用仍需安全回滚。
+        // 解决：增量后再次检查 closing/closed，若入口已进入关闭态则回滚计数并拒绝该次 push。
         while (true) {
-            if (sourceClosed.get()) {
-                log.warn("Push rejected because source already closed, {}",
+            if (sourceClosing.get() || sourceClosed.get()) {
+                log.warn("Push rejected because source already closing, {}",
                         FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
                 throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
             }
             inFlightPush.incrementAndGet();
-            if (!sourceClosed.get()) {
+            if (!sourceClosing.get() && !sourceClosed.get()) {
                 break;
             }
             inFlightPush.decrementAndGet();
+            log.warn("Push rolled back because source already closing, {}",
+                    FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
+            throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
         }
         try {
             launcher.launch(item);
@@ -60,7 +62,7 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
         launcher.getTracker().markSourceFinished(launcher.getJobId(), true);
         log.info("Mark source finished declared, {}, inFlightPush={}",
                 FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()), inFlightPush.get());
-        // 有限等待 in-flight 排空后再关闭入口，避免「已提交未执行」的 push 被误拒（结束标志更准确）
+        // 有限等待已在途 push 排空后再关闭入口，避免 sourceClosing 之前已接纳的 push 被误伤
         long deadlineMs = System.currentTimeMillis() + 30_000L;
         while (inFlightPush.get() > 0 && System.currentTimeMillis() < deadlineMs) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));

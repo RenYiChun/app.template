@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -512,6 +513,28 @@ class FlowJoinerEngineIntegrationTest {
         inlet.stop(true);
         awaitConditionWithResult(inlet::isCompleted, TimeUnit.SECONDS.toMillis(10));
 
+    }
+
+    @Test
+    void itRestartCompletedJobUsesFreshStorageInstance() throws Exception {
+        String jobId = "job-restart-fresh-storage";
+        OverwriteJoiner firstJoiner = new OverwriteJoiner();
+        var firstInlet = engine.startPush(jobId, firstJoiner, flowConfig);
+        firstInlet.push(new PairItem("first", "v1", null));
+        FlowLauncher<?> firstLauncher = manager.getActiveLauncher(jobId);
+        assertNotNull(firstLauncher);
+        Object firstStorage = firstLauncher.getStorage();
+        firstInlet.markSourceFinished();
+        awaitCompleted(firstInlet::isCompleted);
+        awaitCondition(() -> firstJoiner.getOnConsumeCount() >= 1, 10_000);
+
+        OverwriteJoiner secondJoiner = new OverwriteJoiner();
+        var secondInlet = engine.startPush(jobId, secondJoiner, flowConfig);
+        FlowLauncher<?> secondLauncher = manager.getActiveLauncher(jobId);
+        assertNotNull(secondLauncher);
+        assertNotSame(firstStorage, secondLauncher.getStorage(), "完成后重跑同 jobId 应拿到全新的 storage");
+
+        secondInlet.stop(true);
     }
 
     @Test

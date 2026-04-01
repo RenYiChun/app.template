@@ -4,6 +4,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -48,6 +49,7 @@ public class FlowLauncher<T> {
     private final FlowResourceContext resourceContext;
     private final MatchRetryCoordinator<T> matchRetryCoordinator;
     private final ProgressTracker tracker;
+    private final AtomicBoolean runtimeReleased = new AtomicBoolean(false);
     private volatile boolean stopped = false;
     /** 推送模式下 in-flight push 计数，由 FlowInletImpl 注册，用于完成判定（未注册时视为 0）。
      * -- SETTER --
@@ -262,17 +264,37 @@ public class FlowLauncher<T> {
         return tracker.isCompleted(false);
     }
 
-    public void stop(boolean force) {
-        if (stopped) {
-            return;
+    public boolean releaseRuntimeResources() {
+        if (!runtimeReleased.compareAndSet(false, true)) {
+            return false;
         }
-        log.info("停止 Job [{}], force={}", FlowLogHelper.formatJobContext(jobId, getMetricJobId()), force);
-        this.stopped = true;
-        tracker.markSourceFinished(jobId, true);
         try {
             resourceContext.getCacheManager().invalidateForJoiner(jobId, getMetricJobId(), flowJoiner);
         } catch (Exception e) {
-            log.error("Job [{}] 停止时清理 Storage 失败", FlowLogHelper.formatJobContext(jobId, getMetricJobId()), e);
+            log.error("Job [{}] 释放运行期资源时清理 Storage 失败",
+                    FlowLogHelper.formatJobContext(jobId, getMetricJobId()),
+                    e);
+        }
+        try {
+            resourceContext.getResourceRegistry().deregisterJob(jobId);
+        } catch (Exception e) {
+            log.error("Job [{}] 释放运行期资源时注销 FairShare 失败",
+                    FlowLogHelper.formatJobContext(jobId, getMetricJobId()),
+                    e);
+        }
+        ExecutorService producerExecutor = resourceContext.getProducerExecutor();
+        if (producerExecutor != null && !producerExecutor.isShutdown()) {
+            producerExecutor.shutdown();
+        }
+        return true;
+    }
+
+    public void stop(boolean force) {
+        if (!stopped) {
+            log.info("停止 Job [{}], force={}", FlowLogHelper.formatJobContext(jobId, getMetricJobId()), force);
+            this.stopped = true;
+            tracker.markSourceFinished(jobId, true);
+            releaseRuntimeResources();
         }
         if (force) {
             flowManager.unregister(jobId);

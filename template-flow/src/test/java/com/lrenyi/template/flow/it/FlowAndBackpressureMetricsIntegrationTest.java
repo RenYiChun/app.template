@@ -17,7 +17,9 @@ import com.lrenyi.template.flow.health.FlowHealth;
 import com.lrenyi.template.flow.internal.DefaultProgressTracker;
 import com.lrenyi.template.flow.manager.FlowManager;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -372,6 +375,39 @@ class FlowAndBackpressureMetricsIntegrationTest {
                     ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_ATTEMPTS_PER_JOB 应有记录");
             assertTrue(getBackpressureTimerCount(BackpressureMetricNames.DIM_ACQUIRE_DURATION_PER_JOB, jobId,
                     ConsumerConcurrencyDimension.ID) >= 1, "consumer-concurrency DIM_ACQUIRE_DURATION_PER_JOB 应有记录");
+        }
+
+        @Test
+        void stoppingOneJobShouldNotRemoveAnotherJobsMetricsWhenDisplayNameMatches() throws Exception {
+            String sharedDisplayName = "shared-dashboard";
+            String firstJobId = "job-shared-name-1";
+            String secondJobId = "job-shared-name-2";
+            var firstInlet = engine.startPush(firstJobId, sharedDisplayName,
+                    new com.lrenyi.template.flow.OverwriteJoiner(), 1L, flowConfig);
+            var secondInlet = engine.startPush(secondJobId, sharedDisplayName,
+                    new com.lrenyi.template.flow.OverwriteJoiner(), 1L, flowConfig);
+
+            firstInlet.push(new PairItem("one", "v1", null));
+            secondInlet.push(new PairItem("two", "v2", null));
+            awaitCompleted(() -> firstInlet.getProgressTracker().getSnapshot().productionReleased() >= 1
+                    && secondInlet.getProgressTracker().getSnapshot().productionReleased() >= 1, 10_000);
+
+            manager.stopById(firstJobId, true);
+            awaitCompleted(() -> manager.isStopped(firstJobId), 5_000);
+
+            Tags secondFlowTags = FlowMetricTags.resolve(secondJobId, sharedDisplayName).toTags();
+            Tags secondBackpressureTags = secondFlowTags.and(
+                    BackpressureMetricNames.TAG_DIMENSION_ID,
+                    StorageDimension.ID);
+
+            assertNotNull(meterRegistry.find(FlowMetricNames.PRODUCTION_ACQUIRED)
+                    .tags(secondFlowTags)
+                    .counter(), "同展示名的其他任务 Flow 指标不应被误删");
+            assertNotNull(meterRegistry.find(BackpressureMetricNames.DIM_ACQUIRE_ATTEMPTS_PER_JOB)
+                    .tags(secondBackpressureTags)
+                    .counter(), "同展示名的其他任务背压指标不应被误删");
+
+            secondInlet.stop(true);
         }
     }
 }

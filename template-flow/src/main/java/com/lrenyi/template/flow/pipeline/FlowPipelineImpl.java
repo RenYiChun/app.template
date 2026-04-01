@@ -63,8 +63,10 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
         } catch (InterruptedException e) {
             log.warn("Pipeline run interrupted, jobId={}", jobId);
             Thread.currentThread().interrupt();
+            inlet.stop(true);
         } catch (Exception e) {
             log.error("Pipeline run failed, jobId={}", jobId, e);
+            inlet.stop(true);
             throw new RuntimeException(e);
         }
     }

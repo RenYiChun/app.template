@@ -23,6 +23,7 @@ import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -317,7 +318,7 @@ public class BackpressureManager {
 
     private Counter counter(String name) {
         return Counter.builder(name)
-                      .tag(BackpressureMetricNames.TAG_JOB_ID, baseCtx.getMetricJobIdForTags())
+                      .tags(baseCtx.getMetricTags())
                       .register(baseCtx.getMeterRegistry());
     }
 
@@ -331,22 +332,23 @@ public class BackpressureManager {
             return;
         }
         if (leaseGaugeRegisteredTag != null) {
-            removeMetersWithTag(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, leaseGaugeRegisteredTag);
-            removeMetersWithTag(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, leaseGaugeRegisteredTag);
+            Tags oldTags = baseCtx.getMetricTagsForJobId(leaseGaugeRegisteredTag);
+            removeMetersWithTags(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, oldTags);
+            removeMetersWithTags(reg, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, oldTags);
         }
         Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL,
                       activeLeasesGaugeGlobal,
                       AtomicInteger::get
-        ).tag(BackpressureMetricNames.TAG_JOB_ID, tag).register(reg);
+        ).tags(baseCtx.getMetricTags()).register(reg);
         Gauge.builder(BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB,
                       activeLeasesGaugePerJob,
                       AtomicInteger::get
-        ).tag(BackpressureMetricNames.TAG_JOB_ID, tag).register(reg);
+        ).tags(baseCtx.getMetricTags()).register(reg);
         leaseGaugeRegisteredTag = tag;
     }
 
-    private static void removeMetersWithTag(MeterRegistry reg, String metricName, String tagJobId) {
-        reg.find(metricName).tag(BackpressureMetricNames.TAG_JOB_ID, tagJobId).meters().forEach(reg::remove);
+    private static void removeMetersWithTags(MeterRegistry reg, String metricName, Tags tags) {
+        reg.find(metricName).tags(tags).meters().forEach(reg::remove);
     }
 
     private static Map<String, ResourceBackpressureDimension> loadDimensions() {
@@ -387,18 +389,18 @@ public class BackpressureManager {
         if (!metricsEnabled) {
             return;
         }
-        String tag = baseCtx.getMetricJobIdForTags();
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_GLOBAL, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_PER_JOB, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_GLOBAL, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_PER_JOB, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_GLOBAL, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_PER_JOB, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_GLOBAL, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_PER_JOB, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, tag);
-        removeMetersWithTag(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, tag);
+        Tags tags = baseCtx.getMetricTags();
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_GLOBAL, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_SUCCESS_PER_JOB, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_GLOBAL, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_PER_JOB, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_ACQUIRE_FAILED_OTHER, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_GLOBAL, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_IDEMPOTENT_HIT_PER_JOB, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_GLOBAL, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_RELEASE_LEAK_DETECTED_PER_JOB, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_GLOBAL, tags);
+        removeMetersWithTags(meterRegistry, BackpressureMetricNames.MANAGER_LEASE_ACTIVE_PER_JOB, tags);
         log.debug("BackpressureManager: 已注销 Job [{}] 的所有背压指标", jobId);
     }
 }

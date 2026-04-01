@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.NoSuchElementException;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.FlowJoiner;
@@ -63,13 +64,12 @@ public class FlowJoinerEngine {
         ProgressTracker tracker,
         TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始: {}", FlowLogHelper.formatJobContext(jobId, displayName));
+        FlowLauncher<T> launcher = null;
         try {
-            FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
-
-            try (FlowSourceProvider<T> provider = joiner.sourceProvider()) {
-                runUntilNoMoreSubSources(provider, jobId, launcher);
-            }
+            launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
+            runWithProvider(jobId, launcher, joiner.sourceProvider());
         } catch (Exception e) {
+            stopOnRunFailure(launcher);
             FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "job_failed");
             throw e;
         }
@@ -162,11 +162,21 @@ public class FlowJoinerEngine {
             );
             return false;
         }
+        FlowSource<T> subSource;
+        try {
+            subSource = provider.nextSubSource();
+        } catch (NoSuchElementException e) {
+            producerLease.close();
+            return false;
+        } catch (RuntimeException e) {
+            producerLease.close();
+            throw e;
+        }
         int subSourceSeq = submittedSubSources.incrementAndGet();
         activeSubSources.incrementAndGet();
         launcher.getProducerExecutor().submit(() -> {
             try {
-                runSubSourceInVirtualThread(provider, launcher, jobId, subSourceSeq);
+                runSubSourceInVirtualThread(subSource, launcher, jobId, subSourceSeq);
             } finally {
                 producerLease.close();
                 activeSubSources.decrementAndGet();
@@ -175,11 +185,10 @@ public class FlowJoinerEngine {
         return true;
     }
 
-    private <T> void runSubSourceInVirtualThread(FlowSourceProvider<T> provider,
+    private <T> void runSubSourceInVirtualThread(FlowSource<T> sub,
         FlowLauncher<T> launcher,
         String jobId,
         int subSourceSeq) {
-        FlowSource<T> sub = provider.nextSubSource();
         long startMillis = System.currentTimeMillis();
         try (sub) {
             long pulledCount = drainSubSource(sub, launcher);
@@ -276,11 +285,37 @@ public class FlowJoinerEngine {
         ProgressTracker tracker,
         TemplateConfigProperties.Flow jc) {
         log.info("驱动流聚合任务开始（单流）: {}", FlowLogHelper.formatJobContext(jobId, displayName));
+        FlowLauncher<T> launcher = null;
+        try {
+            launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
+            runWithProvider(jobId, launcher, FlowSourceAdapters.singleSourceProvider(singleSource));
+        } catch (Exception e) {
+            stopOnRunFailure(launcher);
+            FlowExceptionHelper.handleException(jobId, null, e, FlowPhase.PRODUCTION, "job_failed");
+            throw e;
+        }
+    }
 
-        FlowLauncher<T> launcher = flowManager.createLauncher(jobId, displayName, joiner, tracker, jc);
-
-        try (FlowSourceProvider<T> provider = FlowSourceAdapters.singleSourceProvider(singleSource)) {
+    private <T> void runWithProvider(String jobId,
+                                     FlowLauncher<T> launcher,
+                                     FlowSourceProvider<T> provider) {
+        try (provider) {
             runUntilNoMoreSubSources(provider, jobId, launcher);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void stopOnRunFailure(FlowLauncher<?> launcher) {
+        if (launcher == null) {
+            return;
+        }
+        try {
+            launcher.stop(true);
+        } catch (Exception stopException) {
+            log.warn("Flow run 失败后强制停止 Job 失败, jobId={}", launcher.getJobId(), stopException);
         }
     }
 
