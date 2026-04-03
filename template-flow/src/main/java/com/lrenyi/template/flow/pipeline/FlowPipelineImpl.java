@@ -247,7 +247,7 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 if (currentChainHead != null) {
                     final FlowInlet<Object> nextInletRef = currentChainHead;
                     if (embeddedBatch != null) {
-                        tracker.getCompletionFuture().thenRun(() -> {
+                        tracker.getProductionDrainedFuture().thenRun(() -> {
                             wrapper.flushEmbeddedBatchOnUpstreamComplete();
                             nextInletRef.markSourceFinished();
                         });

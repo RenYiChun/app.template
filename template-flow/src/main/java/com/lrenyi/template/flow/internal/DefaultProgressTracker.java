@@ -38,6 +38,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     private final AtomicLong activeConsumers = new AtomicLong();
     // [物理终结计数]：数据彻底离开框架、释放所有资源的累计总量
     private final LongAdder terminated = new LongAdder();
+    private final CompletableFuture<Void> productionDrainedFuture = new CompletableFuture<>();
     private final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
     // 使用 Lock 替代 synchronized，避免虚拟线程 Pinning 现象
     private final ReentrantLock finishLock = new ReentrantLock();
@@ -76,6 +77,7 @@ public class DefaultProgressTracker implements ProgressTracker {
     public void onProductionReleased() {
         productionReleased.increment();
         incrementCounter(FlowMetricNames.PRODUCTION_RELEASED);
+        checkProductionDrained();
     }
 
     /**
@@ -92,12 +94,14 @@ public class DefaultProgressTracker implements ProgressTracker {
         activeConsumers.decrementAndGet();
         terminated.increment();
         incrementCounter(FlowMetricNames.TERMINATED);
+        checkProductionDrained();
         checkCompletion(false);
     }
 
     @Override
     public void setActiveConsumers(long activeConsumers) {
         this.activeConsumers.set(Math.max(0L, activeConsumers));
+        checkProductionDrained();
         checkCompletion(false);
     }
 
@@ -107,6 +111,7 @@ public class DefaultProgressTracker implements ProgressTracker {
             terminated.increment();
             incrementCounter(FlowMetricNames.TERMINATED);
         }
+        checkProductionDrained();
         checkCompletion(false);
     }
 
@@ -199,6 +204,10 @@ public class DefaultProgressTracker implements ProgressTracker {
         return completionFuture;
     }
 
+    public CompletableFuture<Void> getProductionDrainedFuture() {
+        return productionDrainedFuture;
+    }
+
     @Override
     public void markSourceFinished(String jobId, boolean showStatus) {
         if (sourceFinished) {
@@ -218,6 +227,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                  state.pendingConsumer(),
                  state.inFlightPush()
         );
+        checkProductionDrained();
         checkCompletion(showStatus);
     }
 
@@ -303,6 +313,16 @@ public class DefaultProgressTracker implements ProgressTracker {
             }
         } finally {
             finishLock.unlock();
+        }
+    }
+
+    private void checkProductionDrained() {
+        if (productionDrainedFuture.isDone()) {
+            return;
+        }
+        CompletionState state = computeCompletionState();
+        if (state.productionDrained()) {
+            productionDrainedFuture.complete(null);
         }
     }
 
@@ -401,6 +421,11 @@ public class DefaultProgressTracker implements ProgressTracker {
                         && s.activeConsumers() <= 0L
                         && s.terminated() >= s.productionReleased()
                         && inFlightPush == 0;
+        boolean productionDrained =
+                sourceFinished
+                        && s.inStorage() <= 0L
+                        && s.terminated() >= s.productionReleased()
+                        && inFlightPush == 0;
         return new CompletionState(s.productionAcquired(),
                                    s.productionReleased(),
                                    s.terminated(),
@@ -409,6 +434,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    inProduction,
                                    pendingConsumer,
                                    inFlightPush,
+                                   productionDrained,
                                    completionConditionMet
         );
     }
@@ -421,6 +447,7 @@ public class DefaultProgressTracker implements ProgressTracker {
                                    long inProduction,
                                    long pendingConsumer,
                                    int inFlightPush,
+                                   boolean productionDrained,
                                    boolean completionConditionMet) {
     }
 }
