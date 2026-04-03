@@ -137,4 +137,12 @@ public interface ProgressTracker {
     default CompletableFuture<Void> getCompletionFuture() {
         return CompletableFuture.completedFuture(null);
     }
+
+    /**
+     * 生产已排空：source 已结束，且当前阶段已接收的数据都已离开本阶段存储并完成终结/下发。
+     * 与 {@link #getCompletionFuture()} 相比，不要求空转 worker 已完全退出，适合用作下游关源或优雅停止的等待点。
+     */
+    default CompletableFuture<Void> getProductionDrainedFuture() {
+        return getCompletionFuture();
+    }
 }

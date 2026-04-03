@@ -200,6 +200,36 @@ public class FlowPipelineIntegrationTest {
     }
 
     @Test
+    public void testGracefulStopWaitsForEmbeddedBatchTailFlush() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        AtomicLong sinkCount = new AtomicLong();
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder(
+                        "embedded-batch-graceful-stop",
+                        Integer.class,
+                        flowManager)
+                .nextMap(NextMapSpec.<Integer, Integer>builder(Integer.class, Integer.class, i -> i)
+                        .consumeInterval(10L, TimeUnit.MILLISECONDS)
+                        .build(), EmbeddedBatchSpec.of(100, 1, TimeUnit.MINUTES))
+                .sink((List<Integer> list, String jobId) -> sinkCount.addAndGet(list.size()));
+
+        FlowInlet<Integer> inlet = pipeline.startPush(config);
+        for (int i = 1; i <= 20; i++) {
+            inlet.push(i);
+        }
+        inlet.markSourceFinished();
+
+        pipeline.stop(false);
+
+        assertEquals(20, sinkCount.get(), "优雅 stop 返回时应已刷出全部尾批数据");
+        awaitUntil("优雅 stop 返回后管道最终应完成", 15_000L, () -> pipeline.getProgressTracker().isCompleted(true));
+    }
+
+    @Test
     public void testStartPushReturnsSameInletInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(4);

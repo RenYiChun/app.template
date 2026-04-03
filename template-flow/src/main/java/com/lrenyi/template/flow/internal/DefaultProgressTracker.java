@@ -204,6 +204,7 @@ public class DefaultProgressTracker implements ProgressTracker {
         return completionFuture;
     }
 
+    @Override
     public CompletableFuture<Void> getProductionDrainedFuture() {
         return productionDrainedFuture;
     }

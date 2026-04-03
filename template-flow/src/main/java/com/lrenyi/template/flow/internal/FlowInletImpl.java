@@ -1,5 +1,6 @@
 package com.lrenyi.template.flow.internal;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -104,6 +105,18 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
 
     @Override
     public void stop(boolean force) {
-        launcher.stop(force);
+        if (force) {
+            launcher.stop(true);
+            return;
+        }
+        markSourceFinished();
+        try {
+            launcher.getTracker().getProductionDrainedFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Graceful stop interrupted for job " + launcher.getJobId(), e);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Graceful stop failed for job " + launcher.getJobId(), e.getCause());
+        }
     }
 }

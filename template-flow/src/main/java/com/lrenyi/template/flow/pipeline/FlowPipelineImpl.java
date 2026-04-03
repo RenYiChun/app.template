@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -103,6 +104,21 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
 
     @Override
     public void stop(boolean force) {
+        if (!force) {
+            FlowInlet<I> inlet = firstInlet.get();
+            if (inlet != null) {
+                inlet.markSourceFinished();
+            }
+            try {
+                pipelineTracker.getProductionDrainedFuture().get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Graceful pipeline stop interrupted for job " + jobId, e);
+            } catch (ExecutionException e) {
+                throw new IllegalStateException("Graceful pipeline stop failed for job " + jobId, e.getCause());
+            }
+            return;
+        }
         for (FlowLauncher<?> launcher : launchers) {
             launcher.stop(force);
         }
@@ -246,14 +262,12 @@ public class FlowPipelineImpl<I> implements FlowPipeline<I> {
                 FlowInlet<Object> inlet = new FlowInletImpl<>(launcher);
                 if (currentChainHead != null) {
                     final FlowInlet<Object> nextInletRef = currentChainHead;
-                    if (embeddedBatch != null) {
-                        tracker.getProductionDrainedFuture().thenRun(() -> {
+                    tracker.getProductionDrainedFuture().thenRun(() -> {
+                        if (embeddedBatch != null) {
                             wrapper.flushEmbeddedBatchOnUpstreamComplete();
-                            nextInletRef.markSourceFinished();
-                        });
-                    } else {
-                        tracker.getCompletionFuture().thenRun(nextInletRef::markSourceFinished);
-                    }
+                        }
+                        nextInletRef.markSourceFinished();
+                    });
                 }
 
                 pipelineTracker.addTracker(tracker, isLeaf);

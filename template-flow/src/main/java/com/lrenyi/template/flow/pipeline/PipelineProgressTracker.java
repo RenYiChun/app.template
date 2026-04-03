@@ -184,4 +184,15 @@ public class PipelineProgressTracker implements ProgressTracker {
                 .toArray(CompletableFuture[]::new);
         return CompletableFuture.allOf(futures);
     }
+
+    @Override
+    public CompletableFuture<Void> getProductionDrainedFuture() {
+        if (trackers.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        CompletableFuture<?>[] futures = trackers.stream()
+                .map(ProgressTracker::getProductionDrainedFuture)
+                .toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(futures);
+    }
 }
