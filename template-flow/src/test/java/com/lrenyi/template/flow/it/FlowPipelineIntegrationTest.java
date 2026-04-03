@@ -230,6 +230,35 @@ public class FlowPipelineIntegrationTest {
     }
 
     @Test
+    public void testEmbeddedBatchTailFlushSurvivesInterruptedCompletionThread() throws Exception {
+        TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
+        config.getLimits().getGlobal().setConsumerThreads(8);
+        FlowManager flowManager = FlowManager.getInstance(config, new SimpleMeterRegistry());
+
+        AtomicLong sinkCount = new AtomicLong();
+
+        @SuppressWarnings("unchecked")
+        FlowPipeline<Integer> pipeline = (FlowPipeline<Integer>) FlowPipeline.builder(
+                        "embedded-batch-interrupted-completion",
+                        Integer.class,
+                        flowManager)
+                .nextStage(NextStageSpec.<Integer, Integer>builder(
+                        Integer.class,
+                        new InterruptAfterConsumeJoiner(),
+                        i -> List.of(i)).build(), EmbeddedBatchSpec.of(100, 1, TimeUnit.MINUTES))
+                .sink((List<Integer> list, String jobId) -> sinkCount.addAndGet(list.size()));
+
+        FlowInlet<Integer> inlet = pipeline.startPush(config);
+        for (int i = 1; i <= 20; i++) {
+            inlet.push(i);
+        }
+        inlet.markSourceFinished();
+
+        awaitUntil("完成线程被中断时尾批仍应被刷到 sink", 15_000L, () -> sinkCount.get() == 20);
+        awaitUntil("中断完成线程场景下管道仍应完成", 15_000L, () -> pipeline.getProgressTracker().isCompleted(true));
+    }
+
+    @Test
     public void testStartPushReturnsSameInletInstance() {
         TemplateConfigProperties.Flow config = new TemplateConfigProperties.Flow();
         config.getLimits().getGlobal().setConsumerThreads(4);
@@ -405,6 +434,15 @@ public class FlowPipelineIntegrationTest {
         @Override
         public FlowSourceProvider<Integer> sourceProvider() {
             return null;
+        }
+    }
+
+    private static class InterruptAfterConsumeJoiner extends IntegerPassThroughJoiner {
+        @Override
+        public void onSingleConsumed(Integer item, String jobId, EgressReason reason) {
+            if (reason == EgressReason.SINGLE_CONSUMED) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
