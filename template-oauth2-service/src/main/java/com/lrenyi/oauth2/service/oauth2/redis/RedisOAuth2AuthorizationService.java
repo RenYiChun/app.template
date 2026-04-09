@@ -158,18 +158,18 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
                             OAuth2ParameterNames.DEVICE_CODE, OAuth2ParameterNames.USER_CODE};
             
             for (String type : types) {
-                OAuth2Authorization result = findByTokenAndType(shorten, type);
+                OAuth2Authorization result = findByTokenAndType(shorten, type, false);
                 if (result != null) {
                     return result;
                 }
             }
             return null;
         } else {
-            return findByTokenAndType(shorten, tokenType.getValue());
+            return findByTokenAndType(shorten, tokenType.getValue(), shouldTouchSession(tokenType));
         }
     }
     
-    private OAuth2Authorization findByTokenAndType(String shortenToken, String type) {
+    private OAuth2Authorization findByTokenAndType(String shortenToken, String type, boolean touchSession) {
         String key = buildKey(type, shortenToken);
         HashOperations<String, String, String> forHash = stringRedisTemplate.opsForHash();
         String authorData = forHash.get(key, TemplateConstant.AUTHORIZATION_DATA_KEY);
@@ -177,7 +177,7 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         if (authorData != null) {
             byte[] value = ByteBufUtil.decodeHexDump(authorData);
             OAuth2Authorization authorization = strategy.deserialize(value, OAuth2Authorization.class);
-            return updateToken(authorization);
+            return touchSession ? updateToken(authorization) : authorization;
         }
         return null;
     }
@@ -199,6 +199,10 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
             return null;
         }
         return t.getToken().getTokenValue();
+    }
+    
+    private boolean shouldTouchSession(OAuth2TokenType tokenType) {
+        return tokenType != null && OAuth2TokenType.ACCESS_TOKEN.getValue().equals(tokenType.getValue());
     }
     
     private OAuth2Authorization updateToken(OAuth2Authorization authorization) {

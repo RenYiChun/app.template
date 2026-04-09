@@ -2,6 +2,7 @@ package com.lrenyi.oauth2.service.config;
 
 import java.util.Set;
 import com.lrenyi.oauth2.service.oauth2.TemplateLogOutHandler;
+import com.lrenyi.oauth2.service.oauth2.introspection.SessionAwareOAuth2TokenIntrospectionAuthenticationProvider;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationConverter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationProvider;
@@ -16,8 +17,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenIntrospectionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -53,6 +56,7 @@ public class OauthSecurityFilterChainBuilder {
     private final AuthenticationFailureHandler templateAuthenticationFailureHandler;
     private final PasswordAuthenticationFilter preAuthenticationFilter;
     private final ObjectProvider<OAuth2AuditFilter> oauth2AuditFilterProvider;
+    private final RegisteredClientRepository registeredClientRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserDetailsService userDetailsService;
     
@@ -139,7 +143,11 @@ public class OauthSecurityFilterChainBuilder {
     }
     
     private void configureIntrospectionAndOidc(OAuth2AuthorizationServerConfigurer configurer) {
-        configurer.tokenIntrospectionEndpoint(Customizer.withDefaults());
+        configurer.tokenIntrospectionEndpoint(endpoint -> endpoint.authenticationProviders(providers -> {
+            providers.removeIf(OAuth2TokenIntrospectionAuthenticationProvider.class::isInstance);
+            providers.add(new SessionAwareOAuth2TokenIntrospectionAuthenticationProvider(registeredClientRepository,
+                                                                                         authorizationService));
+        }));
         configurer.oidc(Customizer.withDefaults());
     }
     
