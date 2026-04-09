@@ -68,6 +68,10 @@ public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2Authori
             return authorization;
         }
         OAuth2AccessToken originalToken = accessTokenToken.getToken();
+        Instant expiresAt = originalToken.getExpiresAt();
+        if (expiresAt != null && !expiresAt.isAfter(Instant.now())) {
+            return null;
+        }
         Long lifetimeSeconds = security.getTokenMaxLifetimeSeconds();
         Instant issuedAt = originalToken.getIssuedAt();
         if (issuedAt != null && lifetimeSeconds != null) {

@@ -222,6 +222,10 @@ public class RedisOAuth2AuthorizationService implements OAuth2AuthorizationServi
         }
         
         OAuth2AccessToken originalToken = accessToken.getToken();
+        Instant expiresAt = originalToken.getExpiresAt();
+        if (expiresAt != null && !expiresAt.isAfter(Instant.now())) {
+            return null;
+        }
         Long lifetimeSeconds = security.getTokenMaxLifetimeSeconds();
         Instant issuedAt = originalToken.getIssuedAt();
         if (issuedAt != null && lifetimeSeconds != null) {
