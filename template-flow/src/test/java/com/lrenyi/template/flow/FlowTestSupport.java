@@ -48,10 +48,10 @@ public final class FlowTestSupport {
      */
     public static TemplateConfigProperties.Flow defaultFlowConfig() {
         TemplateConfigProperties.Flow flow = new TemplateConfigProperties.Flow();
-        flow.getLimits().getPerJob().setStorage(1000);
+        flow.getLimits().getPerJob().getKeyedCache().setCacheTtlMill(5000);
+        flow.getLimits().getPerJob().setStorageCapacity(1000);
         flow.getLimits().getPerJob().setProducerThreads(4);
-        flow.getLimits().getGlobal().setConsumerConcurrency(100);
-        flow.getLimits().getPerJob().setCacheTtlMill(5000);
+        flow.getLimits().getGlobal().setConsumerThreads(100);
         flow.getLimits().getPerJob().setQueuePollIntervalMill(5000);
         return flow;
     }

@@ -1,196 +1,163 @@
 package com.lrenyi.template.flow.manager;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.function.IntSupplier;
-import java.util.function.LongSupplier;
+import java.util.concurrent.ThreadFactory;
+import com.lrenyi.template.flow.model.FlowConstants;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.backpressure.BackpressureManager;
+import com.lrenyi.template.flow.backpressure.DimensionContext;
 import com.lrenyi.template.flow.context.FlowResourceContext;
-import com.lrenyi.template.flow.context.Registration;
-import com.lrenyi.template.flow.internal.BackpressureController;
+import com.lrenyi.template.flow.internal.AsyncEgressConsumeStrategy;
+import com.lrenyi.template.flow.internal.EgressConsumeStrategy;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
-import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.internal.InlineEgressConsumeStrategy;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
+import com.lrenyi.template.flow.resource.PermitPair;
 import com.lrenyi.template.flow.storage.FlowStorage;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * 创建 FlowLauncher 的工厂类，将创建逻辑从 FlowManager 中抽离。
  */
 final class FlowLauncherFactory {
-    
+
     private FlowLauncherFactory() {
     }
-    
+
     static <T> FlowLauncher<T> create(FlowManager flowManager,
             String jobId,
+            String metricJobId,
             FlowJoiner<T> flowJoiner,
             ProgressTracker tracker,
-            Registration registration) {
-        FlowResourceRegistry resourceRegistry = flowManager.getResourceRegistry();
+            TemplateConfigProperties.Flow flow,
+            FlowConsumeExecutionMode consumeExecutionMode) {
+        FlowResourceRegistry registry = flowManager.getResourceRegistry();
         MeterRegistry meterRegistry = flowManager.getMeterRegistry();
-        TemplateConfigProperties.Flow flow = registration.getFlow();
         TemplateConfigProperties.Flow.Limits limits = flow.getLimits();
         TemplateConfigProperties.Flow.Global global = limits.getGlobal();
         TemplateConfigProperties.Flow.PerJob perJob = limits.getPerJob();
-        
+
         boolean fair = global.isFairScheduling();
-        Semaphore jobProducerSemaphore = new Semaphore(perJob.getProducerThreads(), fair);
-        Semaphore globalProducerThreads = resourceRegistry.getGlobalProducerThreadsSemaphore();
-        ExecutorService producerExecutor = globalProducerThreads != null ? resourceRegistry.getExecutorProvider()
-                                                                                           .createProducerExecutor(
-                                                                                                   globalProducerThreads,
-                                                                                                   jobProducerSemaphore,
-                                                                                                   meterRegistry,
-                                                                                                   jobId
-                                                                                           ) :
-                resourceRegistry.getExecutorProvider().createProducerExecutor(jobProducerSemaphore);
-        
+        PerJobSemaphores semaphores = createPerJobSemaphores(perJob, fair);
+        PermitPairs permitPairs = createPermitPairs(registry, semaphores);
+
         FlowEgressHandler<T> egressHandler = new FlowEgressHandler<>(flowJoiner, tracker, meterRegistry);
-        FlowFinalizer<T> finalizer = new FlowFinalizer<>(resourceRegistry, meterRegistry, egressHandler);
-        FlowStorage<T> storage = resourceRegistry.getCacheManager()
-                                                 .getOrCreateStorage(jobId,
-                                                                     flowJoiner,
-                                                                     flow,
-                                                                     finalizer,
-                                                                     tracker,
-                                                                     egressHandler
-                                                 );
-        
-        IntSupplier consumerPermits = () -> resourceRegistry.getGlobalSemaphore().availablePermits();
-        LongSupplier perJobPendingCount = () -> tracker.getSnapshot().getPendingConsumerCount();
-        LongSupplier globalPendingCount = () -> resourceRegistry.getGlobalPendingConsumerAdder().sum();
-        int effectivePendingConsumer = perJob.getEffectivePendingConsumer();
-        BackpressureController backpressureController = new BackpressureController(storage,
-                                                                                   consumerPermits,
-                                                                                   perJobPendingCount,
-                                                                                   effectivePendingConsumer,
-                                                                                   globalPendingCount,
-                                                                                   global.getPendingConsumer(),
-                                                                                   meterRegistry,
-                                                                                   jobId
+        FlowFinalizer<T> finalizer = new FlowFinalizer<>(registry, meterRegistry, egressHandler, flowJoiner);
+        EgressConsumeStrategy<T> egressConsumeStrategy = createEgressConsumeStrategy(finalizer, consumeExecutionMode);
+        int egressWorkerThreads = resolveEgressWorkerThreads(flow, consumeExecutionMode);
+        FlowStorage<T> storage = registry.getCacheManager()
+                                         .getOrCreateStorage(jobId,
+                                                             flowJoiner,
+                                                             flow,
+                                                             finalizer,
+                                                             tracker,
+                                                             egressHandler,
+                                                             consumeExecutionMode != null
+                                                                     ? consumeExecutionMode
+                                                                     : FlowConsumeExecutionMode.ASYNC,
+                                                             egressWorkerThreads
+                                         );
+
+        BackpressureManager backpressureManager = createBackpressureManager(jobId,
+                                                                            tracker,
+                                                                            metricJobId,
+                                                                            flow,
+                                                                            registry,
+                                                                            meterRegistry,
+                                                                            permitPairs,
+                                                                            global.getConsumerThreads()
         );
-        
-        int inFlightLimit = perJob.getInFlightProduction();
-        Semaphore inFlightProductionSemaphore = new Semaphore(inFlightLimit, fair);
-        
-        int consumerConcurrencyLimit = perJob.getConsumerConcurrency();
-        Semaphore jobConsumerSemaphore = new Semaphore(consumerConcurrencyLimit, fair);
-        
+
+        ThreadFactory producerThreadFactory =
+                Thread.ofVirtual().name(FlowConstants.THREAD_NAME_PREFIX_PRODUCER, 0).factory();
         FlowResourceContext resourceContext = FlowResourceContext.builder()
-                                                                 .resourceRegistry(resourceRegistry)
+                                                                 .resourceRegistry(registry)
                                                                  .flowManager(flowManager)
-                                                                 .jobProducerSemaphore(jobProducerSemaphore)
                                                                  .storage(storage)
-                                                                 .backpressureController(backpressureController)
-                                                                 .producerExecutor(producerExecutor)
-                                                                 .inFlightProductionSemaphore(inFlightProductionSemaphore)
-                                                                 .jobConsumerSemaphore(jobConsumerSemaphore)
+                                                                 .backpressureManager(backpressureManager)
+                                                                 .producerExecutor(Executors.newThreadPerTaskExecutor(producerThreadFactory))
                                                                  .egressHandler(egressHandler)
+                                                                 .finalizer(finalizer)
+                                                                 .egressConsumeStrategy(egressConsumeStrategy)
+                                                                 .consumerPermitPair(permitPairs.consumer)
+                                                                 .producerPermitPair(permitPairs.producer)
                                                                  .build();
-        
-        // limits 维度指标
-        String tagJobId = FlowMetricNames.TAG_JOB_ID;
-        int producerThreadsLimit = perJob.getProducerThreads();
-        Gauge.builder(FlowMetricNames.LIMITS_PRODUCER_THREADS_USED,
-                      jobProducerSemaphore,
-                      s -> producerThreadsLimit - s.availablePermits()
-        ).tag(tagJobId, jobId).description("每 Job 已占用生产线程数").register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_PRODUCER_THREADS_LIMIT, jobProducerSemaphore, s -> producerThreadsLimit)
-             .tag(tagJobId, jobId)
-             .description("每 Job 生产线程上限")
-             .register(meterRegistry);
-        
-        Gauge.builder(FlowMetricNames.LIMITS_IN_FLIGHT_USED, inFlightProductionSemaphore,
-                      s -> inFlightLimit - s.availablePermits()
-        ).tag(tagJobId, jobId).description("每 Job 在途数据条数").register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_IN_FLIGHT_LIMIT, inFlightProductionSemaphore, s -> inFlightLimit)
-             .tag(tagJobId, jobId)
-             .description("每 Job 在途数据上限")
-             .register(meterRegistry);
-        
-        Gauge.builder(FlowMetricNames.LIMITS_PENDING_CONSUMER_COUNT,
-                      () -> tracker.getSnapshot().getPendingConsumerCount()
-        ).tag(tagJobId, jobId).description("每 Job 已离库未终结条数").register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_PENDING_CONSUMER_LIMIT, () -> effectivePendingConsumer)
-             .tag(tagJobId, jobId)
-             .description("每 Job 背压阈值")
-             .register(meterRegistry);
-        
-        Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_USED, jobConsumerSemaphore,
-                      s -> consumerConcurrencyLimit - s.availablePermits()
-        ).tag(tagJobId, jobId).description("每 Job 已占用消费许可数").register(meterRegistry);
-        Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_LIMIT, jobConsumerSemaphore,
-                      s -> consumerConcurrencyLimit
-        ).tag(tagJobId, jobId).description("每 Job 消费许可上限").register(meterRegistry);
-        
-        Semaphore globalProducerThreadsSem = resourceRegistry.getGlobalProducerThreadsSemaphore();
-        if (globalProducerThreadsSem != null
-                && meterRegistry.find(FlowMetricNames.LIMITS_PRODUCER_THREADS_GLOBAL_USED).gauge() == null) {
-            int globalProducerLimit = global.getProducerThreads();
-            Gauge.builder(FlowMetricNames.LIMITS_PRODUCER_THREADS_GLOBAL_USED,
-                          globalProducerThreadsSem,
-                          s -> globalProducerLimit - s.availablePermits()
-            ).description("全主机已占用生产线程数").register(meterRegistry);
-            Gauge.builder(FlowMetricNames.LIMITS_PRODUCER_THREADS_GLOBAL_LIMIT, () -> globalProducerLimit)
-                 .description("全主机生产线程上限")
-                 .register(meterRegistry);
-        }
-        Semaphore globalInFlightSem = resourceRegistry.getGlobalInFlightSemaphore();
-        if (globalInFlightSem != null
-                && meterRegistry.find(FlowMetricNames.LIMITS_IN_FLIGHT_GLOBAL_USED).gauge() == null) {
-            int globalInFlightLimit = global.getInFlightProduction();
-            Gauge.builder(FlowMetricNames.LIMITS_IN_FLIGHT_GLOBAL_USED,
-                          globalInFlightSem,
-                          s -> globalInFlightLimit - s.availablePermits()
-            ).description("全主机在途数据条数").register(meterRegistry);
-            Gauge.builder(FlowMetricNames.LIMITS_IN_FLIGHT_GLOBAL_LIMIT, () -> globalInFlightLimit)
-                 .description("全主机在途数据上限")
-                 .register(meterRegistry);
-        }
 
-        Semaphore globalSemaphore = resourceRegistry.getGlobalSemaphore();
-        int globalConsumerLimit = global.getConsumerConcurrency();
-        if (globalConsumerLimit > 0
-                && meterRegistry.find(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED).gauge() == null) {
-            Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED,
-                          globalSemaphore,
-                          s -> globalConsumerLimit - s.availablePermits()
-            ).description("全主机已占用消费许可数").register(meterRegistry);
-            Gauge.builder(FlowMetricNames.LIMITS_CONSUMER_CONCURRENCY_GLOBAL_LIMIT, () -> globalConsumerLimit)
-                 .description("全主机消费许可上限")
-                 .register(meterRegistry);
-        }
-        Semaphore globalStorageSem = resourceRegistry.getGlobalStorageSemaphore();
-        if (globalStorageSem != null
-                && meterRegistry.find(FlowMetricNames.LIMITS_STORAGE_GLOBAL_USED).gauge() == null) {
-            int globalStorageLimit = global.getStorage();
-            Gauge.builder(FlowMetricNames.LIMITS_STORAGE_GLOBAL_USED,
-                          globalStorageSem,
-                          s -> globalStorageLimit - s.availablePermits()
-            ).description("全主机缓存总条数").register(meterRegistry);
-            Gauge.builder(FlowMetricNames.LIMITS_STORAGE_GLOBAL_LIMIT, () -> globalStorageLimit)
-                 .description("全主机缓存容量上限")
-                 .register(meterRegistry);
-        }
-        int globalPendingLimit = global.getPendingConsumer();
-        if (globalPendingLimit > 0
-                && meterRegistry.find(FlowMetricNames.LIMITS_PENDING_CONSUMER_GLOBAL_COUNT).gauge() == null) {
-            Gauge.builder(FlowMetricNames.LIMITS_PENDING_CONSUMER_GLOBAL_COUNT,
-                          resourceRegistry.getGlobalPendingConsumerAdder(),
-                          LongAdder::sum
-            ).description("全主机已离库未终结条数").register(meterRegistry);
-            Gauge.builder(FlowMetricNames.LIMITS_PENDING_CONSUMER_GLOBAL_LIMIT, () -> globalPendingLimit)
-                 .description("全主机背压阈值")
-                 .register(meterRegistry);
-        }
-
-        return FlowLauncher.create(jobId, flowJoiner, flowManager, tracker, registration, resourceContext);
+        return FlowLauncher.create(jobId, metricJobId, flowJoiner, flowManager, tracker, flow, resourceContext);
     }
+
+    private static <T> EgressConsumeStrategy<T> createEgressConsumeStrategy(FlowFinalizer<T> finalizer,
+            FlowConsumeExecutionMode consumeExecutionMode) {
+        FlowConsumeExecutionMode mode = consumeExecutionMode != null ? consumeExecutionMode : FlowConsumeExecutionMode.ASYNC;
+        return switch (mode) {
+            case INLINE -> new InlineEgressConsumeStrategy<>(finalizer);
+            case ASYNC -> new AsyncEgressConsumeStrategy<>(finalizer);
+        };
+    }
+
+    private static int resolveEgressWorkerThreads(TemplateConfigProperties.Flow flow,
+            FlowConsumeExecutionMode consumeExecutionMode) {
+        if (consumeExecutionMode == FlowConsumeExecutionMode.INLINE) {
+            return Math.max(1, flow.getLimits().getPerJob().getConsumerThreads());
+        }
+        return 1;
+    }
+
+    private static PerJobSemaphores createPerJobSemaphores(TemplateConfigProperties.Flow.PerJob perJob, boolean fair) {
+        int consumerLimit = perJob.getConsumerThreads();
+        return new PerJobSemaphores(new Semaphore(perJob.getProducerThreads(), fair),
+                                    consumerLimit > 0 ? new Semaphore(consumerLimit, fair) : null,
+                                    new Semaphore(perJob.getStorageCapacity(), fair)
+        );
+    }
+
+    private static PermitPairs createPermitPairs(FlowResourceRegistry registry, PerJobSemaphores semaphores) {
+        return new PermitPairs(PermitPair.of(registry.getGlobalSemaphore(), semaphores.jobConsumer),
+                               PermitPair.of(registry.getGlobalProducerThreadsSemaphore(), semaphores.jobProducer),
+                               PermitPair.of(registry.getGlobalStorageSemaphore(), semaphores.perJobStorage)
+        );
+    }
+
+    private static BackpressureManager createBackpressureManager(String jobId,
+            ProgressTracker tracker,
+            String metricJobId,
+            TemplateConfigProperties.Flow flow,
+            FlowResourceRegistry registry,
+            MeterRegistry meterRegistry,
+            PermitPairs pairs,
+            int globalConsumerLimit) {
+        DimensionContext baseCtx = DimensionContext.builder()
+                                                   .jobId(jobId)
+                                                   .metricJobId(metricJobId)
+                                                   .progressTracker(tracker)
+                                                   .dimensionId(null)
+                                                   .stopCheck(() -> false)
+                                                   .permits(1)
+                                                   .meterRegistry(meterRegistry)
+                                                   .flowConfig(flow)
+                                                   .resourceRegistry(registry)
+                                                   .producerPermitPair(pairs.producer)
+                                                   .consumerPermitPair(pairs.consumer)
+                                                   .storagePermitPair(pairs.storage)
+                                                   .globalConsumerLimit(globalConsumerLimit)
+                                                   .build();
+        return new BackpressureManager(baseCtx, meterRegistry);
+    }
+
+
+    //@formatter:off
+    private record PerJobSemaphores(Semaphore jobProducer,
+                                    Semaphore jobConsumer,
+                                    Semaphore perJobStorage) {}
+
+    private record PermitPairs(PermitPair consumer,
+                               PermitPair producer,
+                               PermitPair storage) {}
+    //@formatter:on
 }

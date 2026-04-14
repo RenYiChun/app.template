@@ -1,11 +1,13 @@
 package com.lrenyi.template.flow.internal;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import com.lrenyi.template.flow.api.FlowInlet;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,64 +21,102 @@ public class FlowInletImpl<T> implements FlowInlet<T> {
     private final AtomicBoolean sourceClosing = new AtomicBoolean(false);
     private final AtomicBoolean sourceClosed = new AtomicBoolean(false);
     private final AtomicInteger inFlightPush = new AtomicInteger(0);
-    
+
     @Override
     public void push(T item) {
-        if (sourceClosed.get()) {
-            log.warn("Push rejected because source already closed, jobId={}", launcher.getJobId());
-            throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
+        if (item == null) {
+            return;
         }
-        inFlightPush.incrementAndGet();
-        try {
-            if (sourceClosed.get()) {
-                log.warn("Push rejected during closing, jobId={}", launcher.getJobId());
+        // 使用 double-check 模式解决 check-then-act 竞态条件：
+        // 问题：sourceClosing/sourceClosed 检查与 inFlightPush 增量之间无原子性保证。
+        // 当 markSourceFinished() 开始关源时，新 push 不应再被接受，但已经通过首轮检查的调用仍需安全回滚。
+        // 解决：增量后再次检查 closing/closed，若入口已进入关闭态则回滚计数并拒绝该次 push。
+        while (true) {
+            if (sourceClosing.get() || sourceClosed.get()) {
+                log.warn("Push rejected because source already closing, {}",
+                        FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
                 throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
             }
+            inFlightPush.incrementAndGet();
+            if (!sourceClosing.get() && !sourceClosed.get()) {
+                break;
+            }
+            inFlightPush.decrementAndGet();
+            log.warn("Push rolled back because source already closing, {}",
+                    FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()));
+            throw new IllegalStateException("Source already closed for job " + launcher.getJobId());
+        }
+        try {
             launcher.launch(item);
         } finally {
             inFlightPush.decrementAndGet();
         }
     }
-    
+
     @Override
     public void markSourceFinished() {
         if (!sourceClosing.compareAndSet(false, true)) {
             return;
         }
-        long waitStartMillis = System.currentTimeMillis();
-        log.info("Mark source finished started, jobId={}, inFlightPush={}", launcher.getJobId(), inFlightPush.get());
-        while (inFlightPush.get() > 0) {
+        // 先声明 source 结束并通知 tracker，使引擎可排空存储、解除背压；若先无限等待 inFlightPush，
+        // 而 push 因背压阻塞，会导致死锁（caller 等 inFlightPush，inFlightPush 等存储排空，排空依赖 sourceFinished）。
+        launcher.getTracker().markSourceFinished(launcher.getJobId(), true);
+        log.info("Mark source finished declared, {}, inFlightPush={}",
+                FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()), inFlightPush.get());
+        // 有限等待已在途 push 排空后再关闭入口，避免 sourceClosing 之前已接纳的 push 被误伤
+        long deadlineMs = System.currentTimeMillis() + 30_000L;
+        while (inFlightPush.get() > 0 && System.currentTimeMillis() < deadlineMs) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
             if (Thread.interrupted()) {
                 Thread.currentThread().interrupt();
-                log.warn("Waiting inFlightPush interrupted, jobId={}, remaining={}",
-                         launcher.getJobId(),
-                         inFlightPush.get()
-                );
+                log.warn("Waiting inFlightPush interrupted, {}, remaining={}",
+                        FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()),
+                        inFlightPush.get());
                 break;
             }
         }
+        if (inFlightPush.get() > 0) {
+            log.info("Mark source finished done with in-flight remaining, {}, remainingInFlightPush={}",
+                    FlowLogHelper.formatJobContext(launcher.getJobId(), launcher.getMetricJobId()),
+                    inFlightPush.get());
+        }
+        // 在等待 in-flight 排空后再关闭入口，避免其他线程刚准备 push 时被拒绝
         sourceClosed.set(true);
-        launcher.getTaskOrchestrator().tracker().markSourceFinished(launcher.getJobId());
-        log.info("Mark source finished completed, jobId={}, waitedMs={}, remainingInFlightPush={}",
-                 launcher.getJobId(),
-                 System.currentTimeMillis() - waitStartMillis,
-                 inFlightPush.get()
-        );
+        // push 全部完成后若生产也已结束，触发 completion drain（非匹配模式）
+        if (launcher.getTracker().isProductionComplete()) {
+            launcher.getStorage().triggerCompletionDrain();
+        }
     }
-    
+
+    /** 供完成判定使用：当前尚未结束的 push 调用数（已 increment 未 decrement）。 */
+    public int getInFlightPushCount() {
+        return inFlightPush.get();
+    }
+
     @Override
     public ProgressTracker getProgressTracker() {
-        return launcher.getTaskOrchestrator().tracker();
+        return launcher.getTracker();
     }
-    
+
     @Override
     public boolean isCompleted() {
         return launcher.isCompleted();
     }
-    
+
     @Override
     public void stop(boolean force) {
-        launcher.stop(force);
+        if (force) {
+            launcher.stop(true);
+            return;
+        }
+        markSourceFinished();
+        try {
+            launcher.getTracker().getProductionDrainedFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Graceful stop interrupted for job " + launcher.getJobId(), e);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Graceful stop failed for job " + launcher.getJobId(), e.getCause());
+        }
     }
 }

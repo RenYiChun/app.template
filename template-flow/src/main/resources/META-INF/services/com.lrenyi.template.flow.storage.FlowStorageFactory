@@ -1,2 +1,2 @@
-com.lrenyi.template.flow.storage.CaffeineFlowStorageFactory
+com.lrenyi.template.flow.storage.BoundedTimedFlowStorageFactory
 com.lrenyi.template.flow.storage.QueueFlowStorageFactory

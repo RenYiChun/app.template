@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.lrenyi</groupId>
         <artifactId>app.template</artifactId>
-        <version>2.5.1</version>
+        <version>2.5.2</version>
     </parent>
     <artifactId>template-oauth2-service</artifactId>
     <name>Template Oauth2 Service</name>
@@ -21,13 +21,8 @@
             <artifactId>template-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.lrenyi</groupId>
-            <artifactId>template-dataforge</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>

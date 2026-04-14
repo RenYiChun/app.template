@@ -14,14 +14,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Feign 请求拦截：打标内部调用、透传指定 Header、无用户上下文时用 Client 凭证。
- * <p>
- * 安全注意：
+ * <p>安全注意：</p>
  * <ul>
  *   <li>app.template.feign.headers 仅配置可信且需透传的 Header（如 Authorization），避免透传客户端可控且下游信任的 Header 导致越权。</li>
  *   <li>无 RequestContext 时使用 Client 凭证，下游收到的是服务身份而非用户身份，需按需区分。</li>
  *   <li>X-Internal-Call 由本拦截器设置，下游若据此放行需配合 app.template.feign.internal-call-allowed-ip-patterns 防伪造。</li>
  * </ul>
- * </p>
  */
 @Slf4j
 public class TemplateRequestInterceptor implements RequestInterceptor {
@@ -49,6 +47,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         }
         List<String> headers = feign.getHeaders();
         if (headers == null || headers.isEmpty()) {
+            makeClientOauth(template);
             return;
         }
         // 获取请求对象
@@ -56,6 +55,7 @@ public class TemplateRequestInterceptor implements RequestInterceptor {
         // 获取当前请求的header，获取到jwt令牌
         Enumeration<String> headerNames = request.getHeaderNames();
         if (headerNames == null) {
+            makeClientOauth(template);
             return;
         }
         boolean haveAuthorization = false;

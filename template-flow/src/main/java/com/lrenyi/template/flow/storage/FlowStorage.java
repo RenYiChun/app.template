@@ -43,6 +43,28 @@ public interface FlowStorage<T> {
     long size();
     
     long maxCacheSize();
+
+    /**
+     * 当前已使用的 entry 数量。支持受控超时实现按 entry 计数。
+     * 默认回退到 size()，以兼容旧实现。
+     */
+    default long savedEntries() {
+        return size();
+    }
+
+    /**
+     * entry 容量上限。默认回退到 maxCacheSize()。
+     */
+    default long entryLimit() {
+        return maxCacheSize();
+    }
+
+    /**
+     * 是否支持延迟驱逐（受控超时 + 下游压力协同）。
+     */
+    default boolean supportsDeferredExpiry() {
+        return false;
+    }
     
     /**
      * 系统关闭时的清理逻辑
@@ -70,12 +92,11 @@ public interface FlowStorage<T> {
     }
     
     /**
-     * 当 source 已结束时，将存储内剩余条目排空并交给 finalizer（SINGLE_CONSUMED）。
-     * 仅 Caffeine 等支持「完成时排空」的实现覆写；默认无操作。
-     *
-     * @return 本次排空并提交的条目数
+     * 生产完成时的完成清理（completion drain）：
+     * 非匹配模式下，主动将剩余存储中的条目提交给消费者，而不等待 TTL 驱逐。
+     * 实现类需保证幂等（多次调用仅执行一次）。
      */
-    default int drainRemainingToFinalizer() {
-        return 0;
+    default void triggerCompletionDrain() {
+        // no-op by default
     }
 }

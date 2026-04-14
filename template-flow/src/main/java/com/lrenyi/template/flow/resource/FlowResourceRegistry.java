@@ -1,8 +1,12 @@
 package com.lrenyi.template.flow.resource;
 
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,13 +15,14 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import com.lrenyi.template.core.TemplateConfigProperties;
-import com.lrenyi.template.flow.context.Orchestrator;
-import com.lrenyi.template.flow.executor.BoundedVirtualExecutor;
 import com.lrenyi.template.flow.executor.DefaultFlowExecutorProvider;
 import com.lrenyi.template.flow.executor.FlowExecutorProvider;
 import com.lrenyi.template.flow.manager.FlowCacheManager;
 import com.lrenyi.template.flow.model.FlowConstants;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowResourceRegistry implements ResourceLifecycle {
     private static final AtomicReference<FlowResourceRegistry> instanceRef = new AtomicReference<>();
     private static final AtomicInteger lastConcurrencyLimitRef = new AtomicInteger(-1);
+    private static volatile String lastConfigFingerprint;
     
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -48,16 +54,19 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     
     private final TemplateConfigProperties.Flow flowConfig;
     private final Semaphore globalSemaphore;
-    private final Semaphore globalInFlightSemaphore;
     private final Semaphore globalStorageSemaphore;
     private final Semaphore globalProducerThreadsSemaphore;
-    private final LongAdder globalPendingConsumerAdder;
+    /** 全主机 Sink 终端并发（limits.global.sink-consumer-threads），<=0 时为 null */
+    private final Semaphore globalSinkSemaphore;
     private final FlowExecutorProvider executorProvider;
-    private final BoundedVirtualExecutor flowConsumerExecutor;
+    private final ExecutorService flowConsumerExecutor;
     private final ScheduledExecutorService storageEgressExecutor;
     private final ExecutorService cacheRemovalExecutor;
     private final Lock fairLock;
     private final Condition permitReleased;
+    private final AtomicInteger activeJobCount = new AtomicInteger(0);
+    private final Lock fairShareLock = new ReentrantLock(true);
+    private final Map<String, Condition> fairShareConditions = new ConcurrentHashMap<>();
     private final FlowCacheManager flowCacheManager;
     private final MeterRegistry meterRegistry;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
@@ -77,25 +86,23 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         TemplateConfigProperties.Flow.Global global = limits.getGlobal();
         boolean fair = global.isFairScheduling();
         
-        int concurrencyLimit = global.getConsumerConcurrency();
-        int effectiveGlobalLimit = concurrencyLimit > 0 ? concurrencyLimit : Integer.MAX_VALUE;
-        this.globalSemaphore = new Semaphore(effectiveGlobalLimit, fair);
+        int concurrencyLimit = global.getConsumerThreads();
+        this.globalSemaphore = concurrencyLimit > 0 ? new Semaphore(concurrencyLimit, fair) : null;
         log.info("FlowResourceRegistry 启动：全局消费并发限制={}（<=0 时禁用）", concurrencyLimit);
         
-        int globalInFlight = global.getInFlightProduction();
-        this.globalInFlightSemaphore = globalInFlight > 0 ? new Semaphore(globalInFlight, fair) : null;
-        
-        int globalStorage = global.getStorage();
+        int globalStorage = global.getStorageCapacity();
         this.globalStorageSemaphore = globalStorage > 0 ? new Semaphore(globalStorage, fair) : null;
         
         int globalProducerThreads = global.getProducerThreads();
         this.globalProducerThreadsSemaphore =
                 globalProducerThreads > 0 ? new Semaphore(globalProducerThreads, fair) : null;
-        
-        this.globalPendingConsumerAdder = new LongAdder();
-        
-        this.executorProvider = new DefaultFlowExecutorProvider(globalSemaphore, concurrencyLimit);
-        this.flowConsumerExecutor = (BoundedVirtualExecutor) executorProvider.getFlowConsumerExecutor();
+
+        int sinkGlobal = global.getSinkConsumerThreads();
+        this.globalSinkSemaphore = sinkGlobal > 0 ? new Semaphore(sinkGlobal, fair) : null;
+        log.info("FlowResourceRegistry 启动：全局 Sink 并发限制={}（<=0 时禁用）", sinkGlobal);
+
+        this.executorProvider = new DefaultFlowExecutorProvider(concurrencyLimit);
+        this.flowConsumerExecutor = executorProvider.getFlowConsumerExecutor();
         this.storageEgressExecutor = executorProvider.getStorageEgressExecutor();
         this.cacheRemovalExecutor = executorProvider.getCacheRemovalExecutor();
         
@@ -118,7 +125,7 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                     if (current != null) {
                         log.info("检测到配置变更 [Limit: {} -> {}], 正在重新初始化资源...",
                                  lastConcurrencyLimitRef.get(),
-                                 globalConfig.getLimits().getGlobal().getConsumerConcurrency()
+                                 globalConfig.getLimits().getGlobal().getConsumerThreads()
                         );
                         try {
                             current.shutdown();
@@ -128,7 +135,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                     }
                     FlowResourceRegistry newInstance = create(globalConfig, meterRegistry);
                     instanceRef.set(newInstance);
-                    lastConcurrencyLimitRef.set(globalConfig.getLimits().getGlobal().getConsumerConcurrency());
+                    lastConcurrencyLimitRef.set(globalConfig.getLimits().getGlobal().getConsumerThreads());
+                    lastConfigFingerprint = fingerprint(globalConfig);
                     return newInstance;
                 }
             }
@@ -140,7 +148,17 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         if (config == null) {
             return false;
         }
-        return config.getLimits().getGlobal().getConsumerConcurrency() != lastConcurrencyLimitRef.get();
+        return !Objects.equals(fingerprint(config), lastConfigFingerprint);
+    }
+
+    private static String fingerprint(TemplateConfigProperties.Flow config) {
+        TemplateConfigProperties.Flow.Global global = config.getLimits().getGlobal();
+        return String.join("|",
+                String.valueOf(global.getConsumerThreads()),
+                String.valueOf(global.getStorageCapacity()),
+                String.valueOf(global.getProducerThreads()),
+                String.valueOf(global.getSinkConsumerThreads()),
+                String.valueOf(global.isFairScheduling()));
     }
     
     private static FlowResourceRegistry create(TemplateConfigProperties.Flow globalConfig,
@@ -192,6 +210,8 @@ public class FlowResourceRegistry implements ResourceLifecycle {
                 }
             }
             instanceRef.set(null);
+            lastConfigFingerprint = null;
+            lastConcurrencyLimitRef.set(-1);
         }
     }
     
@@ -263,69 +283,6 @@ public class FlowResourceRegistry implements ResourceLifecycle {
         return flowCacheManager;
     }
     
-    public void submitConsumerToGlobal(Orchestrator orchestrator, Runnable task) {
-        submitConsumerToGlobal(orchestrator, 1, task);
-    }
-    
-    public void submitConsumerToGlobal(Orchestrator orchestrator, int permits, Runnable task) {
-        globalPendingConsumerAdder.add(permits);
-        Semaphore perJobSemaphore = orchestrator.resourceContext().getJobConsumerSemaphore();
-        AtomicBoolean acquiredForSubmission = new AtomicBoolean(false);
-        AtomicBoolean pendingCompensated = new AtomicBoolean(false);
-        BoundedVirtualExecutor.PermitStrategy strategy = new BoundedVirtualExecutor.PermitStrategy() {
-            @Override
-            public void acquire() throws InterruptedException, TimeoutException {
-                int acquiredPermits = 0;
-                try {
-                    for (int i = 0; i < permits; i++) {
-                        orchestrator.acquire();
-                        acquiredPermits++;
-                    }
-                    acquiredForSubmission.set(true);
-                } catch (InterruptedException | TimeoutException | RuntimeException e) {
-                    rollbackAcquire(acquiredPermits);
-                    pendingCompensated.set(true);
-                    throw e;
-                }
-            }
-            
-            @Override
-            public void release() {
-                acquiredForSubmission.set(false);
-                extracted(permits, permits, orchestrator, perJobSemaphore);
-            }
-            
-            private void rollbackAcquire(int acquiredPermits) {
-                if (acquiredPermits <= 0) {
-                    globalPendingConsumerAdder.add(-permits);
-                    return;
-                }
-                extracted(acquiredPermits, permits, orchestrator, perJobSemaphore);
-            }
-        };
-        try {
-            flowConsumerExecutor.submitWithStrategy(strategy, task);
-        } catch (RuntimeException e) {
-            if (acquiredForSubmission.get()) {
-                strategy.release();
-            } else if (!pendingCompensated.get()) {
-                globalPendingConsumerAdder.add(-permits);
-            }
-            throw e;
-        }
-    }
-    
-    private void extracted(int acquiredPermits, int permits, Orchestrator orchestrator, Semaphore perJobSemaphore) {
-        globalPendingConsumerAdder.add(-permits);
-        for (int i = 0; i < acquiredPermits; i++) {
-            orchestrator.releaseWithoutSemaphore();
-        }
-        if (perJobSemaphore != null) {
-            PermitPair.createHeld(globalSemaphore, perJobSemaphore, acquiredPermits).release();
-        } else {
-            globalSemaphore.release(acquiredPermits);
-        }
-    }
     
     /**
      * 释放全局存储额度（Storage 离库时调用）
@@ -333,6 +290,97 @@ public class FlowResourceRegistry implements ResourceLifecycle {
     public void releaseGlobalStorage(int n) {
         if (globalStorageSemaphore != null && n > 0) {
             globalStorageSemaphore.release(n);
+        }
+    }
+    
+    // ─── 动态 Fair Share 协调 ─────────────────────────────────────────────────
+    
+    /** Job 创建时调用，用于动态 fair share 的 activeJobCount */
+    public void registerJob(String jobId) {
+        activeJobCount.incrementAndGet();
+        log.trace("FairShare: job registered, {}, activeJobCount={}", FlowLogHelper.formatJobContext(jobId, null),
+                activeJobCount.get());
+    }
+    
+    /** Job 注销时调用，唤醒等待配额的其他 Job */
+    public void deregisterJob(String jobId) {
+        int remaining = activeJobCount.decrementAndGet();
+        if (remaining < 0) {
+            activeJobCount.set(0);
+            log.warn("FairShare: activeJobCount underflow, {}", FlowLogHelper.formatJobContext(jobId, null));
+        }
+        log.trace("FairShare: job deregistered, {}, activeJobCount={}", FlowLogHelper.formatJobContext(jobId, null),
+                activeJobCount.get());
+        signalAllDimensions();
+    }
+    
+    /** 当前活跃 Job 数（用于动态 fair share 配额计算） */
+    public int getActiveJobCount() {
+        return Math.max(1, activeJobCount.get());
+    }
+    
+    /**
+     * 在持有配额前等待，直到 holding &lt; ceil(globalLimit / activeJobCount) 或超时/中断。
+     *
+     * @param dimensionId   维度 ID
+     * @param globalLimit   该维度的全局上限（&lt;=0 时直接返回）
+     * @param holdingSupplier 当前 Job 在该维度的持有数
+     * @param timeoutMs    超时毫秒
+     * @param stopCheck    停止检查（返回 true 时提前退出）
+     */
+    public void awaitFairShare(String dimensionId,
+            int globalLimit,
+            IntSupplier holdingSupplier,
+            long timeoutMs,
+            BooleanSupplier stopCheck) throws InterruptedException, TimeoutException {
+        if (globalLimit <= 0) {
+            return;
+        }
+        Condition cond = fairShareConditions.computeIfAbsent(dimensionId, k -> fairShareLock.newCondition());
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        fairShareLock.lock();
+        try {
+            while (true) {
+                int active = getActiveJobCount();
+                int quota = (globalLimit + active - 1) / active;
+                if (holdingSupplier.getAsInt() < quota) {
+                    return;
+                }
+                if (stopCheck != null && stopCheck.getAsBoolean()) {
+                    return;
+                }
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    throw new TimeoutException("fair share await timeout, dimensionId=" + dimensionId);
+                }
+                cond.await(remaining, TimeUnit.NANOSECONDS);
+            }
+        } finally {
+            fairShareLock.unlock();
+        }
+    }
+    
+    /** 某维度释放 lease 后调用，唤醒等待该维度配额的 Job */
+    public void signalFairShare(String dimensionId) {
+        Condition cond = fairShareConditions.get(dimensionId);
+        if (cond != null) {
+            fairShareLock.lock();
+            try {
+                cond.signalAll();
+            } finally {
+                fairShareLock.unlock();
+            }
+        }
+    }
+    
+    private void signalAllDimensions() {
+        fairShareLock.lock();
+        try {
+            for (Condition cond : fairShareConditions.values()) {
+                cond.signalAll();
+            }
+        } finally {
+            fairShareLock.unlock();
         }
     }
 }

@@ -203,15 +203,15 @@ under the License.
             <jdk>1.4</jdk>
           </activation>
 
-          <repositories>
-            <repository>
+            <repositories>
+                <repository>
               <id>jdk14</id>
               <name>Repository for JDK 1.4 builds</name>
               <url>http://www.myhost.com/maven/jdk14</url>
               <layout>default</layout>
               <snapshotPolicy>always</snapshotPolicy>
-            </repository>
-          </repositories>
+                </repository>
+            </repositories>
         </profile>
         -->
 

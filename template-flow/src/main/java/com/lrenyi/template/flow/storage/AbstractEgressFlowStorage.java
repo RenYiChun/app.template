@@ -4,12 +4,14 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.context.FlowEntry;
+import com.lrenyi.template.flow.internal.EgressConsumeStrategy;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
 import com.lrenyi.template.flow.internal.FlowLauncher;
 import com.lrenyi.template.flow.internal.MatchRetryCoordinator;
 import com.lrenyi.template.flow.internal.RetryHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import com.lrenyi.template.flow.model.EgressReason;
 import com.lrenyi.template.flow.resource.ActiveLauncherLookup;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
@@ -53,6 +55,9 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
         ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
         if (launcherLookup == null) {
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(entry.getJobId(),
+                           progressTracker.getMetricJobId(),
+                           progressTracker.getStageDisplayName()).toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_manager_unavailable")
                    .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
                    .register(meterRegistry)
@@ -61,47 +66,64 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
             return;
         }
         FlowLauncher<Object> launcher = launcherLookup.getActiveLauncher(entry.getJobId());
-        try {
-            if (launcher == null) {
-                Counter.builder(FlowMetricNames.ERRORS)
-                       .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
-                       .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
-                       .register(meterRegistry)
-                       .increment();
-                handlePassiveFailure(entry, reason);
-                return;
-            }
-            if (entry.getRetryRemaining() == -1) {
-                finalizer.submitBodyOnly(entry, launcher);
-            } else {
-                RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
-                if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
-                    finalizer.submitBodyOnly(entry, launcher);
-                }
-            }
-        } finally {
-            if (launcher != null) {
-                launcher.getBackpressureController().signalRelease();
+        if (launcher == null) {
+            Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(FlowMetricTags.resolve(entry.getJobId(),
+                           progressTracker.getMetricJobId(),
+                           progressTracker.getStageDisplayName()).toTags())
+                   .tag(FlowMetricNames.TAG_ERROR_TYPE, "flow_launcher_unavailable")
+                   .tag(FlowMetricNames.TAG_PHASE, "FINALIZATION")
+                   .register(meterRegistry)
+                   .increment();
+            handlePassiveFailure(entry, reason);
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        EgressConsumeStrategy<T> strategy =
+                (EgressConsumeStrategy<T>) launcher.getResourceContext().getEgressConsumeStrategy();
+        if (entry.getRetryRemaining() == -1) {
+            strategy.submitSingle(entry, launcher, reason);
+        } else {
+            RetryHandler<T> retryHandler = getRetryHandler(entry, launcher);
+            if (!retryHandler.tryHandleRetry(key, entry, reason, launcher)) {
+                strategy.submitSingle(entry, launcher, reason);
             }
         }
     }
     
     @Override
     public void handlePassiveFailure(FlowEntry<T> entry, EgressReason reason) {
-        try (entry) {
-            egressHandler.performSingleConsumed(entry, reason);
+        ActiveLauncherLookup launcherLookup = resourceRegistry.getLauncherLookup();
+        FlowLauncher<Object> launcher = null;
+        if (launcherLookup != null && entry != null) {
+            launcher = launcherLookup.getActiveLauncher(entry.getJobId());
+        }
+        if (launcher != null) {
+            @SuppressWarnings("unchecked")
+            EgressConsumeStrategy<T> strategy =
+                    (EgressConsumeStrategy<T>) launcher.getResourceContext().getEgressConsumeStrategy();
+            strategy.submitSingle(entry, launcher, reason);
+        } else {
+            try (entry) {
+                egressHandler.performSingleConsumed(entry, reason);
+            }
+            progressTracker.onTerminated(1);
         }
     }
     
     protected final FlowEgressHandler<T> egressHandler() {
         return egressHandler;
     }
+
+    protected final FlowFinalizer<T> finalizer() {
+        return finalizer;
+    }
     
     private @NonNull RetryHandler<T> getRetryHandler(FlowEntry<T> entry, FlowLauncher<Object> launcher) {
         TemplateConfigProperties.Flow.PerJob perJob = launcher.getFlow().getLimits().getPerJob();
-        long backoffMill = launcher.getFlow().getLimits().getPerJob().getMustMatchRetryBackoffMill();
+        long backoffMill = launcher.getFlow().getLimits().getPerJob().getKeyedCache().getMustMatchRetryBackoffMill();
         MatchRetryCoordinator<T> coordinator =
-                new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager(), meterRegistry);
+                new MatchRetryCoordinator<>(entry.getJobId(), perJob, joiner, launcher.getFlowManager());
         return new RetryHandler<>(coordinator, this, backoffMill);
     }
     
@@ -111,6 +133,10 @@ public abstract class AbstractEgressFlowStorage<T> implements RetryStorageAdapte
     
     protected final FlowResourceRegistry resourceRegistry() {
         return resourceRegistry;
+    }
+
+    protected final ProgressTracker progressTracker() {
+        return progressTracker;
     }
     
     protected final MeterRegistry meterRegistry() {

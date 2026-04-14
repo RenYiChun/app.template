@@ -8,29 +8,14 @@ package com.lrenyi.template.flow.metrics;
  */
 public final class FlowMetricNames {
     public static final String PREFIX = "app.template.flow";
-    /** Job 启动次数。每次 FlowJoinerEngine.run() 调用时 +1。高：任务触发活跃 */
-    public static final String JOB_STARTED = PREFIX + ".job.started";
-    
+
     // ==================== Counters ====================
-    /** Job 正常完成次数。run() 正常返回时 +1。completed/started 即任务成功率 */
-    public static final String JOB_COMPLETED = PREFIX + ".job.completed";
-    /** Job 被手动停止次数。高：频繁人工干预，正常应接近 0 */
-    public static final String JOB_STOPPED = PREFIX + ".job.stopped";
-    /** 已获取生产许可的数据条数（进场量）。高：数据源产出快 */
-    public static final String PRODUCTION_ACQUIRED = PREFIX + ".production.acquired";
-    /** 已成功存入 Storage 的数据条数（入库量）。acquired - released = 在途生产中 */
-    public static final String PRODUCTION_RELEASED = PREFIX + ".production.released";
-    /** 主动出口累计数（业务达成量）。onPairConsumed 或 onSingleConsumed(SINGLE_CONSUMED) 时 +1 */
-    public static final String EGRESS_ACTIVE = PREFIX + ".egress.active";
-    /**
-     * 被动出口累计数（损耗量），按 reason 标签区分原因。
-     * <p>reason 值域：TIMEOUT / EVICTION / REPLACE / MISMATCH / REJECT / SHUTDOWN / CLEARED_AFTER_PAIR_SUCCESS /
-     * OVERFLOW_DROP_* 等。
-     * {@code passive / (active + passive)} = 损耗率，高于 10% 需关注。
-     */
-    public static final String EGRESS_PASSIVE = PREFIX + ".egress.passive";
+    /** 生产许可获取累计数。数据进入框架生产链路时 +1，{@code rate(production_acquired[1m])} 即进入速率（条/秒）。 */
+    public static final String PRODUCTION_ACQUIRED = PREFIX + ".production_acquired";
     /** 物理终结累计数。数据彻底离场、信号量释放时 +1。{@code rate(terminated[1m])} 即 TPS */
     public static final String TERMINATED = PREFIX + ".terminated";
+    /** 生产许可释放累计数。与 production_acquired 配对，用于完成判定。 */
+    public static final String PRODUCTION_RELEASED = PREFIX + ".production_released";
     /**
      * 统一错误计数器，按 errorType + phase 维度聚合。
      * <p>errorType 值域：job_failed / deposit_failed / onSingleConsumed_failed / onPairConsumed_failed /
@@ -40,103 +25,91 @@ public final class FlowMetricNames {
      * <br>高：系统异常频繁，需按 errorType 和 phase 下钻定位。
      */
     public static final String ERRORS = PREFIX + ".errors";
+
+    // ==================== Timers ====================
     /** 单条数据存入 Storage 的耗时。高：Storage 写入瓶颈（锁争用/队列满） */
     public static final String DEPOSIT_DURATION = PREFIX + ".deposit.duration";
-    
-    // ==================== Timers ====================
     /**
      * Caffeine 配对处理的端到端耗时（含消费许可获取等待）。
      * 高：消费端饱和导致 acquire 久，或 onPairConsumed 回调慢。
      */
     public static final String MATCH_DURATION = PREFIX + ".match.duration";
     /**
-     * 终结处理端到端耗时（含排队等待），从 submitBodyOnly 入口到 onSingleConsumed 完成。
+     * 终结处理端到端耗时（含排队等待），从 submitDataToConsumer 入口到 onSingleConsumed 完成。
      * 高：消费执行器积压或 onSingleConsumed 回调慢。
      */
     public static final String FINALIZE_DURATION = PREFIX + ".finalize.duration";
-    /** 背压等待总耗时。生产者因缓存满/许可耗尽阻塞。高：生产远超消费，系统过载 */
-    public static final String BACKPRESSURE_DURATION = PREFIX + ".backpressure.duration";
-    
-    // ==================== Gauges ====================
-    /** 当前正在运行的 Job 数量。为 0 时系统空闲 */
-    public static final String LAUNCHERS_ACTIVE = PREFIX + ".launchers.active";
-    
-    // ==================== limits 维度指标（OOM 控制） ====================
-    public static final String LIMITS_PREFIX = PREFIX + ".limits";
-    /** 各维度许可获取等待耗时（按 dimension 标签区分） */
-    public static final String LIMITS_ACQUIRE_WAIT_DURATION = LIMITS_PREFIX + ".acquire-wait-duration";
-    /** 生产线程：每 Job 已占用 */
-    public static final String LIMITS_PRODUCER_THREADS_USED = LIMITS_PREFIX + ".producer-threads.used";
-    /** 生产线程：每 Job 上限 */
-    public static final String LIMITS_PRODUCER_THREADS_LIMIT = LIMITS_PREFIX + ".producer-threads.limit";
-    /** 生产线程：全主机已占用 */
-    public static final String LIMITS_PRODUCER_THREADS_GLOBAL_USED = LIMITS_PREFIX + ".producer-threads.global.used";
-    /** 生产线程：全主机上限 */
-    public static final String LIMITS_PRODUCER_THREADS_GLOBAL_LIMIT = LIMITS_PREFIX + ".producer-threads.global.limit";
-    /** 在途数据量：每 Job 已占用 */
-    public static final String LIMITS_IN_FLIGHT_USED = LIMITS_PREFIX + ".in-flight.used";
-    /** 在途数据量：每 Job 上限 */
-    public static final String LIMITS_IN_FLIGHT_LIMIT = LIMITS_PREFIX + ".in-flight.limit";
-    /** 在途数据量：全主机已占用 */
-    public static final String LIMITS_IN_FLIGHT_GLOBAL_USED = LIMITS_PREFIX + ".in-flight.global.used";
-    /** 在途数据量：全主机上限 */
-    public static final String LIMITS_IN_FLIGHT_GLOBAL_LIMIT = LIMITS_PREFIX + ".in-flight.global.limit";
-    /** 消费并发数：每 Job 已占用 */
-    public static final String LIMITS_CONSUMER_CONCURRENCY_USED = LIMITS_PREFIX + ".consumer-concurrency.used";
-    /** 消费并发数：每 Job 上限 */
-    public static final String LIMITS_CONSUMER_CONCURRENCY_LIMIT = LIMITS_PREFIX + ".consumer-concurrency.limit";
-    /** 消费并发数：全主机已占用 */
-    public static final String LIMITS_CONSUMER_CONCURRENCY_GLOBAL_USED =
-            LIMITS_PREFIX + ".consumer-concurrency.global.used";
-    /** 消费并发数：全主机上限 */
-    public static final String LIMITS_CONSUMER_CONCURRENCY_GLOBAL_LIMIT =
-            LIMITS_PREFIX + ".consumer-concurrency.global.limit";
-    /** 等待消费许可：每 Job 已离库未终结条数 */
-    public static final String LIMITS_PENDING_CONSUMER_COUNT = LIMITS_PREFIX + ".pending-consumer.count";
-    /** 等待消费许可：每 Job 背压阈值 */
-    public static final String LIMITS_PENDING_CONSUMER_LIMIT = LIMITS_PREFIX + ".pending-consumer.limit";
-    /** 等待消费许可：全主机已离库未终结条数 */
-    public static final String LIMITS_PENDING_CONSUMER_GLOBAL_COUNT = LIMITS_PREFIX + ".pending-consumer.global.count";
-    /** 等待消费许可：全主机背压阈值 */
-    public static final String LIMITS_PENDING_CONSUMER_GLOBAL_LIMIT = LIMITS_PREFIX + ".pending-consumer.global.limit";
-    /** 存储容量：每 Job 当前条数 */
-    public static final String LIMITS_STORAGE_USED = LIMITS_PREFIX + ".storage.used";
-    /** 存储容量：每 Job 容量上限 */
-    public static final String LIMITS_STORAGE_LIMIT = LIMITS_PREFIX + ".storage.limit";
-    /** 存储容量：全主机当前条数 */
-    public static final String LIMITS_STORAGE_GLOBAL_USED = LIMITS_PREFIX + ".storage.global.used";
-    /** 存储容量：全主机容量上限 */
-    public static final String LIMITS_STORAGE_GLOBAL_LIMIT = LIMITS_PREFIX + ".storage.global.limit";
-    /** 多值模式：丢弃/覆盖计数，reason 标签 overflow_drop_oldest / overflow_drop_newest */
-    public static final String STORAGE_MULTI_VALUE_DISCARD_TOTAL = PREFIX + ".storage.multi-value.discard.total";
-    /** 配对重入：尝试次数 */
-    public static final String MATCH_RETRY_ATTEMPTED = PREFIX + ".match.retry.attempted";
-    /** 配对重入：成功回灌次数 */
-    public static final String MATCH_RETRY_SUCCEEDED = PREFIX + ".match.retry.succeeded";
-    /** 配对重入：耗尽次数 */
-    public static final String MATCH_RETRY_EXHAUSTED = PREFIX + ".match.retry.exhausted";
+
+    // ==================== Tags ====================
     /** 任务标识。注意高基数风险，仅在任务数可控时使用 */
     public static final String TAG_JOB_ID = "jobId";
-    
-    // ==================== Tags ====================
+    /** 根任务标识，用于跨阶段聚合与 7 天历史回看。 */
+    public static final String TAG_ROOT_JOB_ID = "rootJobId";
+    /** 根任务显示名，未配置时回退为 rootJobId。 */
+    public static final String TAG_ROOT_JOB_DISPLAY_NAME = "rootJobDisplayName";
+    /** 阶段路径键，如 0 / 3/fork/7/0。 */
+    public static final String TAG_STAGE_KEY = "stageKey";
+    /** 阶段名称，用于人类可读展示。 */
+    public static final String TAG_STAGE_NAME = "stageName";
+    /** 阶段显示名，未配置时回退为 stageKey。 */
+    public static final String TAG_STAGE_DISPLAY_NAME = "stageDisplayName";
+    /** 根任务展示名。 */
+    public static final String TAG_DISPLAY_NAME = "displayName";
     /** 错误类型。如 job_failed / deposit_failed / onConsume_failed 等 */
     public static final String TAG_ERROR_TYPE = "errorType";
     /** 错误发生阶段。PRODUCTION / STORAGE / CONSUMPTION / FINALIZATION */
     public static final String TAG_PHASE = "phase";
-    /** 被动出口原因。TIMEOUT / EVICTION / REPLACE / MISMATCH / REJECT / SHUTDOWN */
-    public static final String TAG_REASON = "reason";
-    /** 存储引擎类型。caffeine / queue */
-    public static final String TAG_STORAGE_TYPE = "storageType";
-    /** 许可维度。producer-threads / in-flight / storage / consumer-concurrency */
-    public static final String TAG_DIMENSION = "dimension";
-    /** 许可维度值：生产线程 */
-    public static final String DIMENSION_PRODUCER_THREADS = "producer-threads";
-    /** 许可维度值：在途数据 */
-    public static final String DIMENSION_IN_FLIGHT = "in-flight";
-    /** 许可维度值：存储容量 */
-    public static final String DIMENSION_STORAGE = "storage";
-    /** 许可维度值：消费并发 */
-    public static final String DIMENSION_CONSUMER_CONCURRENCY = "consumer-concurrency";
-    
+    /** 消费执行模式。async / inline */
+    public static final String TAG_CONSUME_EXECUTION_MODE = "consumeExecutionMode";
+
+    // ==================== 资源限制/使用量 Gauges ====================
+    /** 存储容量限制上限（Gauge） */
+    public static final String RESOURCES_STORAGE_LIMIT = PREFIX + ".resources.storage.limit";
+    /** 存储容量当前使用（Gauge） */
+    public static final String RESOURCES_STORAGE_USED = PREFIX + ".resources.storage.used";
+    /** Sink 终端全局并发限制上限（Gauge） */
+    public static final String RESOURCES_SINK_CONCURRENCY_LIMIT = PREFIX + ".resources.sink_concurrency.limit";
+    /** Sink 终端全局并发当前占用（Gauge） */
+    public static final String RESOURCES_SINK_CONCURRENCY_USED = PREFIX + ".resources.sink_concurrency.used";
+    /** 等待 Sink 全局并发许可的耗时（Timer） */
+    public static final String SINK_CONCURRENCY_WAIT_DURATION = PREFIX + ".sink_concurrency.wait.duration";
+    /** Sink 全局并发许可获取超时次数（Counter） */
+    public static final String SINK_CONCURRENCY_ACQUIRE_TIMEOUT = PREFIX + ".sink_concurrency.acquire.timeout";
+
+    // ==================== Per-job 资源指标（与全局区分，避免同名冲突） ====================
+    /** Per-job 存储容量限制上限 */
+    public static final String RESOURCES_PER_JOB_STORAGE_LIMIT = PREFIX + ".resources.per_job.storage.limit";
+    /** Per-job 存储容量当前使用 */
+    public static final String RESOURCES_PER_JOB_STORAGE_USED = PREFIX + ".resources.per_job.storage.used";
+    /** Per-job 活跃消费上限 */
+    public static final String RESOURCES_PER_JOB_ACTIVE_CONSUMERS_LIMIT =
+            PREFIX + ".resources.per_job.active_consumers.limit";
+
+    // ==================== Job 完成判定 Gauges（per-job） ====================
+    /** Source 是否已读完（0/1），用于完成判定。 */
+    public static final String COMPLETION_SOURCE_FINISHED = PREFIX + ".completion.source_finished";
+    /** 推送模式下 in-flight push 数量，用于完成判定。 */
+    public static final String COMPLETION_IN_FLIGHT_PUSH = PREFIX + ".completion.in_flight_push";
+    /**
+     * 活跃消费数（ProgressTracker 的 activeConsumers），用于完成判定。
+     * 该值仅统计已拿到消费许可、正在执行回调的条数，不等同于任意背压信号量占用。
+     */
+    public static final String COMPLETION_ACTIVE_CONSUMERS = PREFIX + ".completion.active_consumers";
+    /** 根任务启动时间（秒） */
+    public static final String JOB_START_TIME_SECONDS = PREFIX + ".job.start_time_seconds";
+    /** 根任务结束时间（秒） */
+    public static final String JOB_END_TIME_SECONDS = PREFIX + ".job.end_time_seconds";
+    /** 根任务持续时间（秒） */
+    public static final String JOB_DURATION_SECONDS = PREFIX + ".job.duration_seconds";
+    /** 阶段启动时间（秒） */
+    public static final String STAGE_START_TIME_SECONDS = PREFIX + ".stage.start_time_seconds";
+    /** 阶段结束时间（秒） */
+    public static final String STAGE_END_TIME_SECONDS = PREFIX + ".stage.end_time_seconds";
+    /** 阶段持续时间（秒） */
+    public static final String STAGE_DURATION_SECONDS = PREFIX + ".stage.duration_seconds";
+    /** 当前活跃 egress worker 数 */
+    public static final String EGRESS_ACTIVE_WORKERS = PREFIX + ".egress.active_workers";
+    /** 当前 egress worker 上限 */
+    public static final String EGRESS_WORKER_LIMIT = PREFIX + ".egress.worker_limit";
     private FlowMetricNames() {}
 }

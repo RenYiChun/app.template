@@ -36,6 +36,9 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
      * @param onClose  关闭时回调，可为 null
      */
     public PagedFlowSource(PageFetcher<T> fetcher, Runnable onClose) {
+        if (fetcher == null) {
+            throw new IllegalArgumentException("fetcher 非 null");
+        }
         this.fetcher = fetcher;
         this.onClose = onClose;
     }
@@ -95,7 +98,11 @@ public final class PagedFlowSource<T> implements FlowSource<T> {
         currentPage = null;
         nextPageToken = null;
         if (onClose != null) {
-            onClose.run();
+            try {
+                onClose.run();
+            } catch (Exception ignored) {
+                // best-effort cleanup: close failure should not mask the terminal state
+            }
         }
     }
 }

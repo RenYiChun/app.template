@@ -2,8 +2,7 @@ package com.lrenyi.template.flow.model;
 
 /**
  * 消费数据的出口原因，覆盖所有消费场景。
- * PAIR_MATCHED 对应 onPairConsumed；SINGLE_CONSUMED 对应单条正常消费；其余对应 onSingleConsumed(reason)（被动/损耗等）。
- * 统计口径：仅「被动原因」计入 onPassiveEgress / passiveEgressByReason，见 {@link #isPassive()}。
+ * PAIR_MATCHED 对应 onPairConsumed；SINGLE_CONSUMED 对应单条正常消费；其余对应 onSingleConsumed(reason)。
  */
 public enum EgressReason {
     /**
@@ -43,6 +42,10 @@ public enum EgressReason {
      */
     REJECT,
     /**
+     * 背压获取许可超时，绕过存储直接消费（数据不丢）
+     */
+    BACKPRESSURE_TIMEOUT,
+    /**
      * 系统关闭时残留未处理数据
      */
     SHUTDOWN,
@@ -53,13 +56,5 @@ public enum EgressReason {
     /**
      * 未知或未分类
      */
-    UNKNOWN;
-    
-    /**
-     * 是否为被动出口原因（用于 ProgressTracker.onPassiveEgress 与 passiveEgressByReason 统计）。
-     * PAIR_MATCHED、SINGLE_CONSUMED 为主动，不计入被动统计。
-     */
-    public boolean isPassive() {
-        return this != PAIR_MATCHED && this != SINGLE_CONSUMED;
-    }
+    UNKNOWN
 }

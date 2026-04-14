@@ -5,6 +5,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import com.lrenyi.template.flow.api.FlowExceptionHandler;
 import com.lrenyi.template.flow.metrics.FlowMetricNames;
+import com.lrenyi.template.flow.metrics.FlowMetricTags;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -91,10 +92,27 @@ public class FlowExceptionHelper {
             Throwable exception,
             FlowPhase phase,
             String errorType) {
+        handleException(jobId, entryId, exception, phase, errorType, null);
+    }
+
+    /**
+     * 处理异常并记录 ERRORS 指标，支持 displayName 用于日志展示。
+     */
+    public static void handleException(String jobId,
+            String entryId,
+            Throwable exception,
+            FlowPhase phase,
+            String errorType,
+            String displayName) {
         FlowExceptionContext context = new FlowExceptionContext(jobId, entryId, exception, phase, errorType);
+        if (displayName != null && !displayName.isEmpty()) {
+            context.addContext("displayName", displayName);
+        }
         MeterRegistry registry = meterRegistryRef.get();
         if (registry != null && errorType != null) {
+            FlowMetricTags metricTags = FlowMetricTags.resolve(jobId, displayName);
             Counter.builder(FlowMetricNames.ERRORS)
+                   .tags(metricTags.toTags())
                    .tag(FlowMetricNames.TAG_ERROR_TYPE, errorType)
                    .tag(FlowMetricNames.TAG_PHASE, phase.name())
                    .register(registry)

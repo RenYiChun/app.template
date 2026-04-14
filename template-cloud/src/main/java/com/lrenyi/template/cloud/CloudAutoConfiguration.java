@@ -3,6 +3,7 @@ package com.lrenyi.template.cloud;
 import java.util.ArrayList;
 import java.util.List;
 import com.lrenyi.template.api.ApiAutoConfiguration;
+import com.lrenyi.template.api.config.OpaqueTokenIntrospectorUtils;
 import com.lrenyi.template.cloud.config.FeignClientConfiguration;
 import com.lrenyi.template.cloud.config.FeignClientErrorDecoder;
 import com.lrenyi.template.core.TemplateConfigProperties;
@@ -62,8 +63,7 @@ public class CloudAutoConfiguration {
     public OpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
             ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,
             ObjectProvider<LoadBalancerClient> loadBalancerClientProvider,
-            ObjectProvider<LoadBalancerRequestFactory> loadBalancerRequestFactoryProvider,
-            ApiAutoConfiguration.SecurityAutoConfiguration securityAutoConfiguration) {
+            ObjectProvider<LoadBalancerRequestFactory> loadBalancerRequestFactoryProvider) {
         TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken = oauth2.getOpaqueToken();
         String uri = opaqueToken.getIntrospectionUri();
@@ -83,7 +83,7 @@ public class CloudAutoConfiguration {
         client.setInterceptors(interceptors);
         
         SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, client);
-        return securityAutoConfiguration.makeSpringOpaqueTokenIntrospector(introspector);
+        return OpaqueTokenIntrospectorUtils.customize(introspector);
     }
     
     private LoadBalancerInterceptor getBalancerInterceptor(ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,

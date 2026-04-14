@@ -7,10 +7,13 @@ import java.util.function.Function;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
+import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import com.lrenyi.template.flow.storage.FlowStorage;
+import com.lrenyi.template.flow.util.FlowLogHelper;
 import com.lrenyi.template.flow.storage.FlowStorageFactory;
 import com.lrenyi.template.flow.storage.FlowStorageFactoryLoader;
 import lombok.extern.slf4j.Slf4j;
@@ -23,24 +26,37 @@ import lombok.extern.slf4j.Slf4j;
 public class FlowCacheManager {
     private final Map<String, FlowStorage<?>> storageRegistry = new ConcurrentHashMap<>();
     private final FlowResourceRegistry resourceRegistry;
-    
+
     /**
      * @param resourceRegistry 全局资源注册表，用于获取存储出口执行器
      */
     public FlowCacheManager(FlowResourceRegistry resourceRegistry) {
         this.resourceRegistry = resourceRegistry;
     }
-    
+
+    /**
+     * 与 {@link #getOrCreateStorage} / Job 停止时清理逻辑共用的注册表键（含可选的消费节拍后缀）。
+     */
+    public static String buildStorageRegistryKey(String jobId, FlowJoiner<?> joiner) {
+        FlowStorageType type = joiner.getStorageType();
+        String base = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
+        return joiner.storageConsumerTickIntervalMillis().isPresent()
+                ? base + ":tick:" + joiner.storageConsumerTickIntervalMillis().getAsLong()
+                : base;
+    }
+
     @SuppressWarnings("unchecked")
     public <T> FlowStorage<T> getOrCreateStorage(String jobId,
-            FlowJoiner<T> joiner,
-            TemplateConfigProperties.Flow config,
-            FlowFinalizer<T> finalizer,
-            ProgressTracker progressTracker,
-            com.lrenyi.template.flow.internal.FlowEgressHandler<T> egressHandler) {
+        FlowJoiner<T> joiner,
+        TemplateConfigProperties.Flow config,
+        FlowFinalizer<T> finalizer,
+        ProgressTracker progressTracker,
+        FlowEgressHandler<T> egressHandler,
+        FlowConsumeExecutionMode consumeExecutionMode,
+        int egressWorkerThreads) {
+        String uniqueKey = buildStorageRegistryKey(jobId, joiner);
         FlowStorageType type = joiner.getStorageType();
-        String uniqueKey = jobId + ":" + type.name() + ":" + joiner.getDataType().getSimpleName();
-        
+
         Function<String, FlowStorage<?>> storageFunction = k -> {
             FlowStorageFactory factory = FlowStorageFactoryLoader.findFactory(type);
             if (factory == null) {
@@ -52,25 +68,29 @@ public class FlowCacheManager {
                                          finalizer,
                                          progressTracker,
                                          egressHandler,
+                                         consumeExecutionMode,
+                                         egressWorkerThreads,
                                          resourceRegistry,
                                          resourceRegistry.getMeterRegistry()
             );
         };
         return (FlowStorage<T>) storageRegistry.computeIfAbsent(uniqueKey, storageFunction);
     }
-    
+
     /**
-     * 按 jobId + 存储类型使对应缓存失效并 shutdown，与 getOrCreateStorage 的 key 约定一致（用于 Job 强制停止）
+     * 按 {@link #buildStorageRegistryKey} 使对应缓存失效并 shutdown（用于 Job 停止）。
      */
-    public void invalidateByJobId(String jobId, FlowStorageType type, String className) {
-        String uniqueKey = jobId + ":" + type.name() + ":" + className;
+    public void invalidateForJoiner(String jobId, String displayName, FlowJoiner<?> joiner) {
+        String uniqueKey = buildStorageRegistryKey(jobId, joiner);
+        FlowStorageType type = joiner.getStorageType();
         FlowStorage<?> storage = storageRegistry.remove(uniqueKey);
         if (storage != null) {
             storage.shutdown();
-            log.debug("FlowStorage invalidated for jobId={}, type={}", jobId, type);
+            log.debug("FlowStorage invalidated for {}, type={}", FlowLogHelper.formatJobContext(jobId, displayName),
+                    type);
         }
     }
-    
+
     /**
      * 系统停机清理
      */

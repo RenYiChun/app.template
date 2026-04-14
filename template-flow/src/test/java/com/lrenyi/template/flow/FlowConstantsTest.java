@@ -29,8 +29,10 @@ class FlowConstantsTest {
         assertEquals(3, FlowConstants.DEFAULT_MAX_RETRIES);
         assertEquals(1000L, FlowConstants.DEFAULT_INITIAL_RETRY_DELAY_MS);
         assertEquals(2.0, FlowConstants.DEFAULT_RETRY_MULTIPLIER);
-        assertEquals("flow-storage-egress", FlowConstants.THREAD_NAME_STORAGE_EGRESS);
-        assertEquals("prod-", FlowConstants.THREAD_NAME_PREFIX_PRODUCER);
+        assertEquals("flow-producer-", FlowConstants.THREAD_NAME_PREFIX_PRODUCER);
+        assertEquals("flow-consumer-", FlowConstants.THREAD_NAME_PREFIX_CONSUMER);
+        assertEquals("flow-eviction", FlowConstants.THREAD_NAME_PREFIX_EVICTION);
+        assertEquals("flow-storage-egress-", FlowConstants.THREAD_NAME_PREFIX_STORAGE_EGRESS);
         assertEquals("flow-resource-registry-shutdown", FlowConstants.THREAD_NAME_SHUTDOWN_HOOK);
         assertEquals("flow-progress-display", FlowConstants.THREAD_NAME_PROGRESS_DISPLAY);
     }

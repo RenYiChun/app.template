@@ -3,10 +3,12 @@ package com.lrenyi.template.flow.sources.paged;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,6 +105,26 @@ class PagedFlowSourceTest {
         PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of("a")));
         source.close();
         assertThrows(NoSuchElementException.class, source::next);
+    }
+
+    @Test
+    void constructorNullFetcherThrows() {
+        assertThrows(IllegalArgumentException.class, () -> new PagedFlowSource<String>(null));
+    }
+
+    @Test
+    void closeBestEffortSwallowsCallbackFailure() {
+        AtomicInteger calls = new AtomicInteger();
+        PagedFlowSource<String> source = new PagedFlowSource<>(token -> PageResult.of(List.of()),
+                                                               () -> {
+                                                                   calls.incrementAndGet();
+                                                                   throw new RuntimeException("close failed");
+                                                               });
+
+        assertDoesNotThrow(source::close);
+        assertEquals(1, calls.get());
+        assertDoesNotThrow(source::close);
+        assertEquals(1, calls.get());
     }
     
     /** 第一页有数据带 token，第二页为空且无 token */

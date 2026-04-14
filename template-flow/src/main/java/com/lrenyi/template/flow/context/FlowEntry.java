@@ -1,6 +1,7 @@
 package com.lrenyi.template.flow.context;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import com.lrenyi.template.flow.backpressure.DimensionLease;
 import lombok.Getter;
 
 @Getter
@@ -26,6 +27,8 @@ public class FlowEntry<T> implements AutoCloseable {
     private volatile int refCnt = 1;
     private volatile int status = 0;
     private volatile int retryRemaining = -1;
+    /** 存储槽位租约：entry 进入 storage 时持有，离库时通过 closeStorageLease() 释放。 */
+    private volatile DimensionLease storageLease;
     
     public FlowEntry(T data, String jobId) {
         this.data = data;
@@ -93,6 +96,24 @@ public class FlowEntry<T> implements AutoCloseable {
         }
     }
     
+    /**
+     * 绑定存储槽位租约。由 FlowLauncher 在 deposit 成功后调用，租约随 entry 在 slot 中存活。
+     */
+    public void setStorageLease(DimensionLease lease) {
+        this.storageLease = lease;
+    }
+
+    /**
+     * 释放存储槽位租约（幂等）。entry 离库时由存储层调用，触发 StorageDimension.onBusinessRelease。
+     * 若租约已关闭或为 null，则为空操作。
+     */
+    public void closeStorageLease() {
+        DimensionLease lease = storageLease;
+        if (lease != null) {
+            lease.close();
+        }
+    }
+
     @Override
     public void close() {
         // 仅仅是内存引用减一，不触发任何业务逻辑

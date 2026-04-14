@@ -25,9 +25,9 @@ class InternalRequestMatcherTest {
     }
     
     @Test
-    void matchesHeaderTrueReturnsTrue() {
+    void matchesHeaderTrueWithoutWhitelistReturnsFalse() {
         when(request.getHeader(TemplateConstant.HEADER_NAME)).thenReturn("true");
-        assertTrue(matcher.matches(request));
+        assertFalse(matcher.matches(request));
     }
     
     @Test

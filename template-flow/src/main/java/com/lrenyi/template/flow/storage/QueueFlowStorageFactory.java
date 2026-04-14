@@ -5,6 +5,7 @@ import com.lrenyi.template.flow.api.FlowJoiner;
 import com.lrenyi.template.flow.api.ProgressTracker;
 import com.lrenyi.template.flow.internal.FlowEgressHandler;
 import com.lrenyi.template.flow.internal.FlowFinalizer;
+import com.lrenyi.template.flow.model.FlowConsumeExecutionMode;
 import com.lrenyi.template.flow.model.FlowStorageType;
 import com.lrenyi.template.flow.resource.FlowResourceRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -31,15 +32,21 @@ public class QueueFlowStorageFactory implements FlowStorageFactory {
             FlowFinalizer<T> finalizer,
             ProgressTracker progressTracker,
             FlowEgressHandler<T> egressHandler,
+            FlowConsumeExecutionMode consumeExecutionMode,
+            int egressWorkerThreads,
             FlowResourceRegistry resourceRegistry,
             MeterRegistry meterRegistry) {
-        return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorage(),
+        long pollMillis = joiner.storageConsumerTickIntervalMillis()
+                .orElseGet(() -> config.getLimits().getPerJob().getQueuePollIntervalMill());
+        return new QueueFlowStorage<>(config.getLimits().getPerJob().getStorageCapacity(),
                 joiner,
                 progressTracker,
                 finalizer,
                 egressHandler,
                 jobId,
-                config.getLimits().getPerJob().getQueuePollIntervalMill(),
+                pollMillis,
+                consumeExecutionMode,
+                egressWorkerThreads,
                 meterRegistry
         );
     }

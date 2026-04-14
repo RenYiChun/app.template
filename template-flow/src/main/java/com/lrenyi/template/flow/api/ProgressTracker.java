@@ -1,32 +1,32 @@
 package com.lrenyi.template.flow.api;
 
+import java.util.concurrent.CompletableFuture;
 import com.lrenyi.template.flow.context.FlowProgressSnapshot;
-import com.lrenyi.template.flow.model.EgressReason;
 
 /**
  * 进度追踪器：基于物理位移的流控观测模型
  */
 public interface ProgressTracker {
-    
+
     /**
      * 信号：生产许可已获取 (Permit Acquired)
      * 含义：Source 开始读取数据，系统并发负载 +1
      */
     void onProductionAcquired();
-    
+
     /**
      * 信号：生产许可已释放 (Permit Released)
      * 含义：数据已成功存入 Storage，生产端压力解除
      * 此时数据进入"驻留状态"
      */
     void onProductionReleased();
-    
+
     /**
      * 信号：消费许可已获取 (Permit Acquired)
      * 物理含义：数据正式占用全局名额，从"等待处理"转为"正在消费"
      */
     void onConsumerAcquired();
-    
+
     /**
      * 信号：消费许可已释放 (Permit Released)
      * 含义：回调执行完毕，全局信号量释放，数据彻底离场
@@ -34,47 +34,115 @@ public interface ProgressTracker {
      * @param jobId 任务 ID
      */
     void onConsumerReleased(String jobId);
-    
+
     /**
-     * 信号：主动出口触发 (Active Egress)
-     * 含义：数据通过业务接口（如 onSuccess/onConsume）主动离库
-     * 框架通过此信号自动计算"有效流转率"
+     * 直接设置当前活跃消费数。
+     * 适用于 INLINE 模式下以 worker 生命周期而非逐条消费驱动 activeConsumers 的场景。
      */
-    void onActiveEgress();
-    
+    default void setActiveConsumers(long activeConsumers) {
+    }
+
     /**
-     * 信号：被动出口触发 (Passive Egress)，带失败原因
-     * 含义：数据通过框架策略（如 TTL 过期、驱逐、替换、不匹配等）离库
-     * 框架通过此信号计算损耗率并按原因统计
+     * 信号：数据已终结（未经过 consumer executor 的路径，如 REJECT）。
      *
-     * @param reason 失败原因，用于 Snapshot/指标按原因统计
+     * @param count 终结条数
      */
-    void onPassiveEgress(EgressReason reason);
-    
-    
+    void onTerminated(int count);
+
     /**
      * 获取当前物理水位快照
      * 包含：生产中、缓存中、回调中（Stuck）、已终结等物理计数
      */
     FlowProgressSnapshot getSnapshot();
-    
+
     /**
      * 动态更新任务预期总量（用于计算完成率）
      */
     void setTotalExpected(String jobId, long total);
-    
+
     /**
      * 标记任务输入已截止（Source 读完了）
      */
-    void markSourceFinished(String jobId);
-    
+    void markSourceFinished(String jobId, boolean showStatus);
+
+    /**
+     * 设置用于监控指标标签的 jobId（可读展示名）。
+     * 默认 no-op；{@link com.lrenyi.template.flow.internal.DefaultProgressTracker} 会使用此值记录 TERMINATED 等指标。
+     */
+    default void setMetricJobId(String metricJobId) {
+    }
+
+    /**
+     * 获取用于监控/日志的展示名。默认返回 null；DefaultProgressTracker 返回 setMetricJobId 设置的值。
+     */
+    default String getMetricJobId() {
+        return null;
+    }
+
+    /**
+     * 设置根任务显示名；当前默认与 {@link #setMetricJobId(String)} 语义一致。
+     */
+    default void setRootJobDisplayName(String rootJobDisplayName) {
+        setMetricJobId(rootJobDisplayName);
+    }
+
+    /**
+     * 获取根任务显示名；当前默认与 {@link #getMetricJobId()} 语义一致。
+     */
+    default String getRootJobDisplayName() {
+        return getMetricJobId();
+    }
+
+    /**
+     * 设置阶段显示名；未设置时由指标标签解析逻辑回退到当前默认阶段名。
+     */
+    default void setStageDisplayName(String stageDisplayName) {
+    }
+
+    /**
+     * 获取阶段显示名；未设置时返回 null。
+     */
+    default String getStageDisplayName() {
+        return null;
+    }
+
     /**
      * 是否已完成。
      */
-    boolean isCompleted();
-    
+    boolean isCompleted(boolean showStatus);
+
     /**
      * 当前是否满足完成条件（只读判定，不产生额外副作用）。
      */
     boolean isCompletionConditionMet();
+
+    /**
+     * 生产是否已完成：Source 已截止且所有生产许可已释放。
+     * 用于触发非匹配模式下的 completion drain。
+     */
+    default boolean isProductionComplete() {
+        return false;
+    }
+
+    /**
+     * Source 是否已读完。用于完成判定监控。
+     */
+    default boolean isSourceFinished() {
+        return false;
+    }
+
+    /**
+     * 获取完成 Future，当任务彻底完成时触发。
+     */
+    default CompletableFuture<Void> getCompletionFuture() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * 生产已排空：source 已结束，且当前阶段已接收的数据都已离开本阶段存储并完成终结/下发。
+     * 与 {@link #getCompletionFuture()} 相比，不要求空转 worker 已完全退出，适合用作下游关源或优雅停止的等待点。
+     */
+    default CompletableFuture<Void> getProductionDrainedFuture() {
+        return getCompletionFuture();
+    }
 }

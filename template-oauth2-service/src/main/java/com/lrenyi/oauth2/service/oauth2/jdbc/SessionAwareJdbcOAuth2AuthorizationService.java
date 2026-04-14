@@ -12,8 +12,8 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 
 /**
  * 包装 {@link org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService}，
- * 在 findById/findByToken 时根据 {@link TemplateConfigProperties#getSecurity()} 的 sessionIdleTimeout 配置
- * 延长 access token 过期时间并写回库，与 Redis 方案的 updateToken 行为一致。
+ * 在 access token 查找路径上根据 {@link TemplateConfigProperties#getSecurity()} 的 sessionIdleTimeout 配置
+ * 延长 access token 过期时间并写回库，避免在 findById/refresh token 等纯读取路径产生隐式写库副作用。
  */
 public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2AuthorizationService {
     
@@ -38,14 +38,20 @@ public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2Authori
     
     @Override
     public OAuth2Authorization findById(String id) {
-        OAuth2Authorization authorization = delegate.findById(id);
-        return authorization != null ? updateTokenIfNeeded(authorization) : null;
+        return delegate.findById(id);
     }
     
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
         OAuth2Authorization authorization = delegate.findByToken(token, tokenType);
-        return authorization != null ? updateTokenIfNeeded(authorization) : null;
+        if (authorization == null || !shouldTouchSession(tokenType)) {
+            return authorization;
+        }
+        return updateTokenIfNeeded(authorization);
+    }
+
+    private boolean shouldTouchSession(OAuth2TokenType tokenType) {
+        return tokenType != null && OAuth2TokenType.ACCESS_TOKEN.getValue().equals(tokenType.getValue());
     }
     
     private OAuth2Authorization updateTokenIfNeeded(OAuth2Authorization authorization) {
@@ -62,6 +68,10 @@ public class SessionAwareJdbcOAuth2AuthorizationService implements OAuth2Authori
             return authorization;
         }
         OAuth2AccessToken originalToken = accessTokenToken.getToken();
+        Instant expiresAt = originalToken.getExpiresAt();
+        if (expiresAt != null && !expiresAt.isAfter(Instant.now())) {
+            return null;
+        }
         Long lifetimeSeconds = security.getTokenMaxLifetimeSeconds();
         Instant issuedAt = originalToken.getIssuedAt();
         if (issuedAt != null && lifetimeSeconds != null) {

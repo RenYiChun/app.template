@@ -24,12 +24,32 @@ public final class FlowSlot<T> {
     private final Deque<FlowEntry<T>> deque;
     private final int maxPerKey;
     private final TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy;
-    
-    public FlowSlot(int maxPerKey, TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy) {
+    // Slot 级调度元信息（超时按 key：以该 key 下首次写入时间为起点）
+    private final String slotId;
+    /** 该 key 下首次写入的时间（epoch ms），用于计算 slot 级过期点 */
+    private long earliestStoredAtEpochMs;
+    private long earliestExpireAt;
+    private long nextCheckAt;
+    private boolean queuedForExpiry;
+    /** 是否正在配对中（配对消费执行期间为 true），驱逐时若为 true 则跳过本次驱逐 */
+    private volatile boolean pairingInProgress;
+
+    /**
+     * 创建槽位（超时按 key：createdAtEpochMs 为该 key 下首次写入时间，用于计算 slot 级过期）。
+     *
+     * @param slotId 槽位 ID
+     * @param maxPerKey 每 key 最大条目数
+     * @param overflowPolicy 溢出策略
+     * @param createdAtEpochMs 该 key 首次写入时间（epoch ms）
+     */
+    public FlowSlot(String slotId, int maxPerKey, TemplateConfigProperties.Flow.MultiValueOverflowPolicy overflowPolicy,
+            long createdAtEpochMs) {
+        this.slotId = slotId;
         this.deque = new ArrayDeque<>(Math.max(1, maxPerKey));
         this.maxPerKey = Math.max(1, maxPerKey);
         this.overflowPolicy = overflowPolicy != null ? overflowPolicy :
                 TemplateConfigProperties.Flow.MultiValueOverflowPolicy.DROP_OLDEST;
+        this.earliestStoredAtEpochMs = createdAtEpochMs;
     }
     
     /**
@@ -125,5 +145,57 @@ public final class FlowSlot<T> {
         for (FlowEntry<T> e : deque) {
             action.accept(e);
         }
+    }
+    
+    public String getSlotId() {
+        return slotId;
+    }
+
+    public long getEarliestStoredAtEpochMs() {
+        return earliestStoredAtEpochMs;
+    }
+
+    public void setEarliestStoredAtEpochMs(long earliestStoredAtEpochMs) {
+        this.earliestStoredAtEpochMs = earliestStoredAtEpochMs;
+    }
+
+    public long getEarliestExpireAt() {
+        return earliestExpireAt;
+    }
+
+    public void setEarliestExpireAt(long earliestExpireAt) {
+        this.earliestExpireAt = earliestExpireAt;
+    }
+    
+    public long getNextCheckAt() {
+        return nextCheckAt;
+    }
+
+    public void setNextCheckAt(long nextCheckAt) {
+        this.nextCheckAt = nextCheckAt;
+    }
+
+    public boolean isQueuedForExpiry() {
+        return queuedForExpiry;
+    }
+
+    public void setQueuedForExpiry(boolean queuedForExpiry) {
+        this.queuedForExpiry = queuedForExpiry;
+    }
+    
+    public boolean isPairingInProgress() {
+        return pairingInProgress;
+    }
+    
+    public void setPairingInProgress(boolean pairingInProgress) {
+        this.pairingInProgress = pairingInProgress;
+    }
+
+    public Iterable<FlowEntry<T>> entries() {
+        return deque;
+    }
+
+    public boolean remove(FlowEntry<T> entry) {
+        return deque.remove(entry);
     }
 }

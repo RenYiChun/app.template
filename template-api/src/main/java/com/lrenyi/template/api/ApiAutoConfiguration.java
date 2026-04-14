@@ -1,9 +1,8 @@
 package com.lrenyi.template.api;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import com.lrenyi.template.api.config.DefaultSecurityFilterChainBuilder;
+import com.lrenyi.template.api.config.JpaAuditingConfig;
+import com.lrenyi.template.api.config.OpaqueTokenIntrospectorUtils;
 import com.lrenyi.template.api.config.RsaPublicAndPrivateKey;
 import com.lrenyi.template.api.config.TemplateRsaPublicAndPrivateKey;
 import com.lrenyi.template.core.CoreAutoConfiguration;
@@ -21,11 +20,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.security.oauth2.server.resource.introspection.OAuth2IntrospectionAuthenticatedPrincipal;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.oauth2.server.resource.introspection.SpringOpaqueTokenIntrospector;
 import org.springframework.security.web.SecurityFilterChain;
@@ -53,7 +49,8 @@ import org.springframework.security.web.SecurityFilterChain;
 //@formatter:off
 @Import({
         ApiAutoConfiguration.SecurityAutoConfiguration.class,
-        ApiAutoConfiguration.MethodSecurityConfig.class
+        ApiAutoConfiguration.MethodSecurityConfig.class,
+        JpaAuditingConfig.class
 })
 //@formatter:on
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -91,26 +88,11 @@ public class ApiAutoConfiguration {
             String clientId = opaqueToken.getClientId();
             String clientSecret = opaqueToken.getClientSecret();
             SpringOpaqueTokenIntrospector introspector = new SpringOpaqueTokenIntrospector(uri, clientId, clientSecret);
-            return makeSpringOpaqueTokenIntrospector(introspector);
+            return OpaqueTokenIntrospectorUtils.customize(introspector);
         }
         
-        /**
-         * 配置 Opaque Token 内省结果到 Spring Security 认证主体的转换逻辑。
-         * 将内省响应中的 scope 转为 GrantedAuthority，供资源服务器侧 @PreAuthorize("hasAuthority('xxx')") 等使用。
-         */
         public SpringOpaqueTokenIntrospector makeSpringOpaqueTokenIntrospector(SpringOpaqueTokenIntrospector introspector) {
-            introspector.setAuthenticationConverter(accessor -> {
-                // 内省响应中的 scope 列表（授权服务器签发 token 时写入，如来自 RBAC 权限）转为 Authority
-                Collection<GrantedAuthority> authorities = new ArrayList<>();
-                List<String> scopes = accessor.getScopes();
-                if (scopes != null) {
-                    for (String scope : scopes) {
-                        authorities.add(new SimpleGrantedAuthority(scope));
-                    }
-                }
-                return new OAuth2IntrospectionAuthenticatedPrincipal(accessor.getClaims(), authorities);
-            });
-            return introspector;
+            return OpaqueTokenIntrospectorUtils.customize(introspector);
         }
         
         @Bean

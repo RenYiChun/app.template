@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FlowStorageTypeTest {
     
     @Test
-    void fromCaffeineReturnsCaffeine() {
-        assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("caffeine"));
-        assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("CAFFEINE"));
+    void fromLocalBoundedReturnsLocalBounded() {
+        assertEquals(FlowStorageType.LOCAL_BOUNDED, FlowStorageType.from("local_bounded"));
+        assertEquals(FlowStorageType.LOCAL_BOUNDED, FlowStorageType.from("LOCAL_BOUNDED"));
     }
     
     @Test
@@ -20,9 +20,9 @@ class FlowStorageTypeTest {
     }
     
     @Test
-    void fromUnknownReturnsCaffeineDefault() {
-        assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from("unknown"));
-        assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from(""));
-        assertEquals(FlowStorageType.CAFFEINE, FlowStorageType.from(null));
+    void fromUnknownReturnsLocalBoundedDefault() {
+        assertEquals(FlowStorageType.LOCAL_BOUNDED, FlowStorageType.from("unknown"));
+        assertEquals(FlowStorageType.LOCAL_BOUNDED, FlowStorageType.from(""));
+        assertEquals(FlowStorageType.LOCAL_BOUNDED, FlowStorageType.from(null));
     }
 }
