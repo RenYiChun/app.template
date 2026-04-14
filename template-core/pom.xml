@@ -12,7 +12,6 @@
     <name>Template Core</name>
 
     <properties>
-        <nimbus-jose-jwt.version>9.39.3</nimbus-jose-jwt.version>
         <checker.root.dir>${project.parent.basedir}</checker.root.dir>
     </properties>
 
@@ -41,12 +40,6 @@
         <dependency>
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-redis</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.nimbusds</groupId>
-            <artifactId>nimbus-jose-jwt</artifactId>
-            <version>${nimbus-jose-jwt.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
