@@ -44,7 +44,7 @@ public class SinkJoiner<T> implements FlowJoiner<T> {
     }
 
     /**
-     * @param flowManager 非 null 时启用全局 Sink 并发（由 {@link FlowResourceRegistry#getGlobalSinkSemaphore()} 提供）
+     * @param flowManager 非 null 时启用全局 Sink 并发（由 {@link FlowResourceRegistry} 持有的全局 Sink 信号量提供）
      */
     public SinkJoiner(Class<T> dataType, BiConsumer<T, String> onSink, FlowManager flowManager) {
         this.dataType = dataType;

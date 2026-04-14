@@ -23,7 +23,8 @@ public interface FlowJoiner<T> {
      *   <li>{@link com.lrenyi.template.flow.model.FlowStorageType#QUEUE}：队列出队/轮询间隔</li>
      *   <li>{@link com.lrenyi.template.flow.model.FlowStorageType#LOCAL_BOUNDED}：驱逐协调扫描间隔（与全局/每 Job 配置二选一，见实现）</li>
      * </ul>
-     * 无值时沿用 {@link com.lrenyi.template.core.TemplateConfigProperties.Flow.Limits.PerJob} 与 Global 中的有效值。
+     * 无值时沿用 {@link com.lrenyi.template.core.TemplateConfigProperties.Flow.PerJob} 与
+     * {@link com.lrenyi.template.core.TemplateConfigProperties.Flow.Global} 中的有效值。
      */
     default OptionalLong storageConsumerTickIntervalMillis() {
         return OptionalLong.empty();

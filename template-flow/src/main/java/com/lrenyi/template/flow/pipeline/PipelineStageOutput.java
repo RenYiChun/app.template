@@ -6,7 +6,7 @@ import com.lrenyi.template.flow.model.EgressReason;
 /**
  * 管道阶段在 Joiner 回调之后、向下游下发的显式产出策略。
  * <p>
- * 若 {@link FlowJoiner} 实现本接口，则构建期 {@link PipelineDispatchFactories} 会选择 {@code PsoDispatch}，由 {@link PipelineJoinerWrapper} 在
+ * 若 {@link com.lrenyi.template.flow.api.FlowJoiner FlowJoiner} 实现本接口，则构建期 {@link PipelineDispatchFactories} 会选择 {@code PsoDispatch}，由 {@link PipelineJoinerWrapper} 在
  * {@link com.lrenyi.template.flow.api.FlowJoiner#onPairConsumed} /
  * {@link com.lrenyi.template.flow.api.FlowJoiner#onSingleConsumed} 执行 delegate 之后，
  * 优先根据此处返回的列表下发；未实现本接口时，配对场景可使用
