@@ -305,14 +305,14 @@ public class TemplateConfigProperties implements InitializingBean {
         public static class Global {
             /** 是否对全局信号量采用公平调度（FIFO），true 防饥饿、false 更高吞吐 */
             private boolean fairScheduling = true;
-            /** 全主机生产线程数上限（producer-threads.global.limit），<=0 表示不限制 */
+            /** 全主机生产线程数上限（producer-threads.global.limit），{@code <= 0} 表示不限制 */
             private int producerThreads = 0;
-            /** 全主机存储条数上限（storage-capacity.global.limit），<=0 表示不限制 */
+            /** 全主机存储条数上限（storage-capacity.global.limit），{@code <= 0} 表示不限制 */
             private int storageCapacity = 0;
-            /** 全主机关联消费线程数上限（consumer-threads.global.limit），<=0 表示不限制 */
+            /** 全主机关联消费线程数上限（consumer-threads.global.limit），{@code <= 0} 表示不限制 */
             private int consumerThreads = 0;
             /**
-             * 全主机 Sink 终端并发上限（sink-consumer-threads.global.limit），<=0 表示不限制。
+             * 全主机 Sink 终端并发上限（sink-consumer-threads.global.limit），{@code <= 0} 表示不限制。
              * 仅作用于管道终端 Sink 用户回调，与 consumer-threads 独立。
              */
             private int sinkConsumerThreads = 64;
@@ -410,7 +410,7 @@ public class TemplateConfigProperties implements InitializingBean {
                 return multiValueEnabled ? Math.max(1, multiValueMaxPerKey) : 1;
             }
 
-            /** 有效超时时长（毫秒），<=0 时回退到 cacheTtlMill */
+            /** 有效超时时长（毫秒），{@code <= 0} 时回退到 cacheTtlMill */
             public long getEffectiveTimeoutMill() {
                 return cacheTtlMill > 0 ? cacheTtlMill : 10_000L;
             }
