@@ -32,23 +32,8 @@
         <url>https://github.com/RenYiChun/app.template</url>
     </scm>
 
-    <distributionManagement>
-        <repository>
-            <id>releases</id>
-            <url>${deployment.repository.url}</url>
-        </repository>
-        <snapshotRepository>
-            <id>snapshots</id>
-            <url>${deployment.repository.snapshotUrl}</url>
-        </snapshotRepository>
-    </distributionManagement>
-
     <properties>
-        <deployment.repository.url>http://nexus.htcc.com:8081/repository/maven-releases/
-        </deployment.repository.url>
-        <deployment.repository.snapshotUrl>http://nexus.htcc.com:8081/repository/maven-snapshots/
-        </deployment.repository.snapshotUrl>
-        <app.template.version>2.5.2-SNAPSHOT</app.template.version>
+        <app.template.version>${project.version}</app.template.version>
         <nats-spring.version>1.5.8</nats-spring.version>
         <jnats.version>2.21.2</jnats.version>
         <jarenc-maven-plugin.version>1.3.3</jarenc-maven-plugin.version>
