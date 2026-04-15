@@ -63,6 +63,8 @@
         <caffeine.version>3.2.3</caffeine.version>
         <nimbus-jose-jwt.version>9.37.4</nimbus-jose-jwt.version>
         <bcprov-lts8on.version>2.73.10</bcprov-lts8on.version>
+        <!-- 修复 JRuby-OpenSSL 主机名校验缺失漏洞（CVE-2025-46551 / GHSA-72qj-48g4-5xgx） -->
+        <jruby.version>9.4.12.1</jruby.version>
 
         <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
@@ -172,6 +174,11 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-lts8on</artifactId>
                 <version>${bcprov-lts8on.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jruby</groupId>
+                <artifactId>jruby</artifactId>
+                <version>${jruby.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.lrenyi</groupId>
@@ -347,6 +354,11 @@
                             <groupId>org.springframework.restdocs</groupId>
                             <artifactId>spring-restdocs-asciidoctor</artifactId>
                             <version>${spring-restdocs-asciidoctor.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.jruby</groupId>
+                            <artifactId>jruby</artifactId>
+                            <version>${jruby.version}</version>
                         </dependency>
                     </dependencies>
                 </plugin>
