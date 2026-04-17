@@ -1,2 +1,4 @@
 org.springframework.context.ApplicationContextInitializer=\
   com.lrenyi.template.core.boot.CoreBootInitializer
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.lrenyi.template.core.boot.EarlyDecryptPostProcessor

@@ -4,6 +4,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import com.lrenyi.template.core.coder.DefaultTemplateEncryptService;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 
@@ -20,6 +23,7 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
 
     private static final String PREFIX = "aENC(";
     private static final String SUFFIX = ")";
+    private static final Logger log = LoggerFactory.getLogger(LazyDecryptingPropertySource.class);
     
     /** 重入保护：configurationProperties.getProperty 会委托回本链，需在重入时返回 null 打破循环 */
     private static final ThreadLocal<Boolean> IN_RESOLVE = ThreadLocal.withInitial(() -> false);
@@ -46,10 +50,11 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
             if (!(raw instanceof String value)) {
                 return raw;
             }
-            if (!value.startsWith(PREFIX) || !value.endsWith(SUFFIX)) {
+            String encryptedValue = normalizeEncryptedValue(value);
+            if (encryptedValue == null) {
                 return value;
             }
-            return decryptedCache.computeIfAbsent(name, k -> decryptValue(value));
+            return decryptedCache.computeIfAbsent(encryptedValue, LazyDecryptingPropertySource::decryptValue);
         } finally {
             IN_RESOLVE.remove();
         }
@@ -67,9 +72,23 @@ final class LazyDecryptingPropertySource extends PropertySource<Object> {
         return null;
     }
     
+    @Nullable
+    private static String normalizeEncryptedValue(String value) {
+        String trimmed = value.trim();
+        if (!trimmed.startsWith(PREFIX) || !trimmed.endsWith(SUFFIX)) {
+            return null;
+        }
+        return trimmed;
+    }
+
     private static String decryptValue(String encryptedValue) {
         String ciphertext = encryptedValue.substring(PREFIX.length(), encryptedValue.length() - SUFFIX.length());
-        return DefaultTemplateEncryptService.decodeStatic(ciphertext);
+        try {
+            return DefaultTemplateEncryptService.decodeStatic(ciphertext);
+        } catch (RuntimeException ex) {
+            log.warn("Failed to decrypt property value wrapped by aENC(...), keep original value", ex);
+            return encryptedValue;
+        }
     }
     
     @Override
