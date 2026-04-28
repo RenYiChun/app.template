@@ -122,7 +122,6 @@ class BoundedTimedFlowStorageTest {
         assertNotNull(storage);
         assertEquals(0, storage.size());
         assertEquals(100, storage.maxCacheSize());
-        assertTrue(storage.supportsDeferredExpiry());
 
         storage.shutdown();
     }
@@ -206,7 +205,7 @@ class BoundedTimedFlowStorageTest {
 
     /**
      * 场景1：第 2 条与第 1 条入缓存前就配对成功，第 3 条通过驱逐出缓存。
-     * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条 TIMEOUT。
+     * 预期：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；被动出口含 1 条单条离场。
      */
     @Test
     void pairingScenario1_secondPairsWithFirst_thirdEvicted_jobCountsCorrect() throws InterruptedException {
@@ -338,9 +337,9 @@ class BoundedTimedFlowStorageTest {
     }
 
     /**
-     * 场景3：3 条数据不入缓存时配对，而是全部进缓存后由驱逐时再配对（A-B 在 processEvictedSlot 中配对，C 以 TIMEOUT 离库）。
+     * 场景3：3 条数据不入缓存时配对，而是全部进缓存后由驱逐时再配对（A-B 在 processEvictedSlot 中配对，C 单条离库）。
      * 校验 job 结束条件各计数：productionAcquired=3, productionReleased=3, terminated=3, inStorage=0；
-     * 被动出口含 1 条 TIMEOUT，且有一次配对消费。
+     * 被动出口含 1 条单条离场，且有一次配对消费。
      */
     @Test
     void pairingScenario3_allInCache_thenPairOnEviction_jobCountsCorrect() throws InterruptedException {

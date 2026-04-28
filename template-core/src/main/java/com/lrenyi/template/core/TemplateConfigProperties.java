@@ -138,11 +138,6 @@ public class TemplateConfigProperties implements InitializingBean {
 
     private Flow.@NonNull PerJob getPerJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = getJob(limits, global);
-        Flow.KeyedCache keyedCache = judgmentJobConfig(perJob);
-        if (keyedCache.getEvictionBatchSize() <= 0) {
-            throw new IllegalArgumentException(
-                    "flow.limits.per-job.eviction-batch-size 必须 > 0，当前值: " + keyedCache.getEvictionBatchSize());
-        }
         if (flow.getProducerBackpressureBlockingMode() == Flow.BackpressureBlockingMode.BLOCK_WITH_TIMEOUT
                 && flow.getProducerBackpressureTimeoutMill() <= 0) {
             throw new IllegalArgumentException("flow.producer-backpressure-timeout-mill 必须 > 0，当前值: "
@@ -156,34 +151,16 @@ public class TemplateConfigProperties implements InitializingBean {
         return perJob;
     }
 
-    private static Flow.@NonNull KeyedCache judgmentJobConfig(Flow.PerJob perJob) {
-        Flow.KeyedCache keyedCache = judgmentConfig(perJob);
-        if (keyedCache.getExpiryDeferInitialMill() <= 0) {
-            throw new IllegalArgumentException("flow.limits.per-job.expiry-defer-initial-mill 必须 > 0，当前值: "
-                                                       + keyedCache.getExpiryDeferInitialMill());
-        }
-        if (keyedCache.getExpiryDeferMaxMill() < keyedCache.getExpiryDeferInitialMill()) {
-            throw new IllegalArgumentException(
-                    "flow.limits.per-job.expiry-defer-max-mill 必须 >= expiry-defer-initial-mill，当前值: "
-                            + keyedCache.getExpiryDeferMaxMill());
-        }
-        return keyedCache;
-    }
-
-    private static Flow.@NonNull KeyedCache judgmentConfig(Flow.PerJob perJob) {
-        Flow.KeyedCache keyedCache = perJob.getKeyedCache();
-        if (keyedCache.getCacheTtlMill() <= 0) {
-            throw new IllegalArgumentException(
-                    "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + keyedCache.getCacheTtlMill());
-        }
-        return keyedCache;
-    }
-
     private static Flow.@NonNull PerJob getJob(Flow.Limits limits, Flow.Global global) {
         Flow.PerJob perJob = judgmentValidate(limits, global);
         if (perJob.getStorageCapacity() <= 0) {
             throw new IllegalArgumentException(
                     "flow.limits.per-job.storage-capacity 必须 > 0，当前值: " + perJob.getStorageCapacity());
+        }
+        Flow.KeyedCache keyedCache = perJob.getKeyedCache();
+        if (keyedCache.getCacheTtlMill() <= 0) {
+            throw new IllegalArgumentException(
+                    "flow.limits.per-job.cache-ttl-mill 必须 > 0，当前值: " + keyedCache.getCacheTtlMill());
         }
         return perJob;
     }
@@ -379,16 +356,6 @@ public class TemplateConfigProperties implements InitializingBean {
 
             /** 缓存 TTL（毫秒，必须 >0） */
             private long cacheTtlMill = 10000L;
-            /** 首次延期时长（毫秒） */
-            private long expiryDeferInitialMill = 100L;
-            /** 单次最大延期时长（毫秒） */
-            private long expiryDeferMaxMill = 1000L;
-            /** 延期退避倍数 */
-            private double expiryDeferBackoffMultiplier = 2.0D;
-            /** 单次协调扫描处理的最多 entry 数 */
-            private int evictionBatchSize = 128;
-            /** 存储容量是否按 entry 计数 */
-            private boolean storageCountByEntry = true;
 
             /** 仅配对模式：是否启用强制配对重入 */
             private boolean mustMatchRetryEnabled = false;

@@ -373,16 +373,15 @@ Flow 指标名定义在 `template-flow/src/main/java/com/lrenyi/template/flow/me
 
 当前真实键是：
 
+- `producer-threads`
 - `consumer-threads`
 - `storage-capacity`
-- `in-flight-consumer`
+- `queue-poll-interval-mill`
 - `keyed-cache.cache-ttl-mill`
 
 不是：
 
-- `consumer-concurrency`
-- `storage`
-- `pending-consumer`
+- 历史旧文档里的已移除配置键
 
 ### 推送模式忘记调用 `markSourceFinished()`
 

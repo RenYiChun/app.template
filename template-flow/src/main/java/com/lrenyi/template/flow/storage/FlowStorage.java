@@ -45,28 +45,6 @@ public interface FlowStorage<T> {
     long maxCacheSize();
 
     /**
-     * 当前已使用的 entry 数量。支持受控超时实现按 entry 计数。
-     * 默认回退到 size()，以兼容旧实现。
-     */
-    default long savedEntries() {
-        return size();
-    }
-
-    /**
-     * entry 容量上限。默认回退到 maxCacheSize()。
-     */
-    default long entryLimit() {
-        return maxCacheSize();
-    }
-
-    /**
-     * 是否支持延迟驱逐（受控超时 + 下游压力协同）。
-     */
-    default boolean supportsDeferredExpiry() {
-        return false;
-    }
-    
-    /**
      * 系统关闭时的清理逻辑
      * 实现类需负责释放存储内所有 FlowEntry 的引用计数
      */
@@ -78,13 +56,6 @@ public interface FlowStorage<T> {
      */
     default void remove(String key) {
         throw new UnsupportedOperationException("This storage does not support key-based retrieval.");
-    }
-    
-    /**
-     * 可选：已提交到消费执行器的移除回调数（仅 Caffeine 等有驱逐回调的实现有值，用于诊断「待消费」积压）。
-     */
-    default long getRemovalSubmittedCount() {
-        return 0L;
     }
     
     default boolean requeue(FlowEntry<T> entry) {

@@ -160,20 +160,10 @@ public final class BoundedTimedFlowStorage<T> extends AbstractEgressFlowStorage<
         return perJob.getStorageCapacity();
     }
 
-    @Override
-    public long entryLimit() {
-        return perJob.getStorageCapacity();
-    }
-
-    @Override
-    public boolean supportsDeferredExpiry() {
-        return true;
-    }
-
     /**
      * 生产完成时主动将剩余条目提交给消费者（completion drain）。
      * 仅对非匹配模式生效，保证幂等：多次调用仅执行一次。
-     * 在匹配模式下，孤立条目仍由 TTL 驱逐以 TIMEOUT 被动离库。
+     * 在匹配模式下，孤立条目仍由 TTL 驱逐后走单条离库路径。
      */
     @Override
     public void triggerCompletionDrain() {

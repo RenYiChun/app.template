@@ -65,7 +65,6 @@ app:
         per-job:
           producer-threads: 4
           consumer-threads: 8
-          in-flight-production: 256
           storage-capacity: 2048
           queue-poll-interval-mill: 1000
           keyed-cache:
@@ -184,12 +183,13 @@ System.out.println(inlet.getProgressTracker().getSnapshot());
 
 当前真实配置键是：
 
+- `producer-threads`
 - `consumer-threads`
 - `storage-capacity`
-- `in-flight-consumer`
+- `queue-poll-interval-mill`
 - `keyed-cache.cache-ttl-mill`
 
-不是旧文档里的 `consumer-concurrency`、`storage`、`pending-consumer`。
+不要照抄历史旧文档里的已移除配置键。
 
 ### 7.2 只启动了 Push，但没调用 `markSourceFinished()`
 

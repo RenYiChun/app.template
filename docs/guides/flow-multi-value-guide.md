@@ -94,7 +94,7 @@ keyedCache.setPairingMultiMatchEnabled(false);
 - `multi-value-max-per-key` 达到上限后：
   - `DROP_OLDEST` 会淘汰最老条目，对应 `EgressReason.OVERFLOW_DROP_OLDEST`
   - `DROP_NEWEST` 会丢弃新入条目，对应 `EgressReason.OVERFLOW_DROP_NEWEST`
-- TTL 到期或驱逐时，条目会以 `EgressReason.TIMEOUT` 或 `EgressReason.EVICTION` 离场。
+- TTL 到期时，未配对条目会通过单条消费路径离场；当前实现使用 `EgressReason.SINGLE_CONSUMED`。
 
 ## 5. 接入代码示例
 
@@ -145,8 +145,6 @@ class OrderJoiner implements FlowJoiner<OrderEvent> {
 - `REPLACE`
 - `OVERFLOW_DROP_OLDEST`
 - `OVERFLOW_DROP_NEWEST`
-- `TIMEOUT`
-- `EVICTION`
 - `CLEARED_AFTER_PAIR_SUCCESS`
 
 主动成功路径仍然是：
@@ -156,12 +154,12 @@ class OrderJoiner implements FlowJoiner<OrderEvent> {
 
 ## 7. 监控与排障建议
 
-- 先看 `FlowProgressSnapshot.passiveEgressByReason()`，确认被动离场是否集中在 overflow、timeout 或 eviction。
+- 先看业务侧 `onSingleConsumed(item, jobId, reason)` 收到的 `EgressReason`，确认是否集中在 overflow、replace 或配对成功后的清理。
 - 若 `OVERFLOW_DROP_*` 明显升高，优先检查：
   - `multi-value-max-per-key` 是否过小
   - `joinKey` 是否过于集中
   - 下游 `onPairConsumed` / `onSingleConsumed` 是否过慢
-- 若 `TIMEOUT` 升高，优先检查：
+- 若未配对单条离场明显升高，优先检查：
   - `keyed-cache.cache-ttl-mill` 是否过短
   - `isMatched` 规则是否过严
 

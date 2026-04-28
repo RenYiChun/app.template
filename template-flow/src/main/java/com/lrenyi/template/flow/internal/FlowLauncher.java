@@ -228,25 +228,6 @@ public class FlowLauncher<T> {
         }
     }
 
-    /**
-     * 背压超时时，当前线程直接调用 submitDataToConsumer 消费数据，避免丢数。
-     * entry 生命周期由 submitDataToConsumer 内部的 consumer 任务负责。
-     */
-    @SuppressWarnings("unchecked")
-    private void consumeOnBackpressureTimeout(T data) {
-        EgressConsumeStrategy<?> strategy = resourceContext.getEgressConsumeStrategy();
-        if (strategy == null) {
-            return;
-        }
-        FlowEntry<T> entry = new FlowEntry<>(data, jobId);
-        ((EgressConsumeStrategy<T>) strategy).submitSingle(entry, this, EgressReason.BACKPRESSURE_TIMEOUT);
-    }
-
-    @SuppressWarnings("unchecked")
-    private FlowFinalizer<T> getFinalizer() {
-        return (FlowFinalizer<T>) resourceContext.getFinalizer();
-    }
-
     @SuppressWarnings("unchecked")
     private EgressConsumeStrategy<T> getEgressConsumeStrategy() {
         return (EgressConsumeStrategy<T>) resourceContext.getEgressConsumeStrategy();

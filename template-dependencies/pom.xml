@@ -35,7 +35,7 @@
     <properties>
         <app.template.version>${project.version}</app.template.version>
         <!-- Spring Cloud 2025.0.x 对齐 Spring Boot 3.5.x；Spring Cloud Alibaba 2025.0.x 对齐 Spring Cloud 2025.0.x -->
-        <spring-boot.version>3.5.13</spring-boot.version>
+        <spring-boot.version>3.5.14</spring-boot.version>
         <spring-cloud.version>2025.0.2</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
 
@@ -64,6 +64,8 @@
         <caffeine.version>3.2.3</caffeine.version>
         <nimbus-jose-jwt.version>9.37.4</nimbus-jose-jwt.version>
         <bcprov-lts8on.version>2.73.10</bcprov-lts8on.version>
+        <!-- 修复 Bouncy Castle LDAP 注入漏洞（CVE-2026-0636 / GHSA-c3fc-8qff-9hwx） -->
+        <bcprov-jdk18on.version>1.84</bcprov-jdk18on.version>
         <!-- 修复 JRuby-OpenSSL 主机名校验缺失漏洞（CVE-2025-46551 / GHSA-72qj-48g4-5xgx） -->
         <jruby.version>9.4.12.1</jruby.version>
 
@@ -175,6 +177,11 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-lts8on</artifactId>
                 <version>${bcprov-lts8on.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bcprov-jdk18on.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.jruby</groupId>

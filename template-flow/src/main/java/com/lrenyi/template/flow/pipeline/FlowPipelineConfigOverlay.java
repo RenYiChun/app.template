@@ -87,11 +87,6 @@ public final class FlowPipelineConfigOverlay {
         nk.setMultiValueMaxPerKey(k.getMultiValueMaxPerKey());
         nk.setMultiValueOverflowPolicy(k.getMultiValueOverflowPolicy());
         nk.setCacheTtlMill(k.getCacheTtlMill());
-        nk.setExpiryDeferInitialMill(k.getExpiryDeferInitialMill());
-        nk.setExpiryDeferMaxMill(k.getExpiryDeferMaxMill());
-        nk.setExpiryDeferBackoffMultiplier(k.getExpiryDeferBackoffMultiplier());
-        nk.setEvictionBatchSize(k.getEvictionBatchSize());
-        nk.setStorageCountByEntry(k.isStorageCountByEntry());
         nk.setMustMatchRetryEnabled(k.isMustMatchRetryEnabled());
         nk.setMustMatchRetryMaxTimes(k.getMustMatchRetryMaxTimes());
         nk.setMustMatchRetryBackoffMill(k.getMustMatchRetryBackoffMill());

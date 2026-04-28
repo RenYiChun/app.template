@@ -14,11 +14,9 @@ app:
       limits:
         global:
           consumer-threads: 32
-          sink-consumer-threads: 0
         per-job:
           producer-threads: 4
           consumer-threads: 8
-          in-flight-production: 256
           storage-capacity: 2048
           queue-poll-interval-mill: 1000
           keyed-cache:
@@ -41,33 +39,23 @@ app:
         global:
           fair-scheduling: true
           producer-threads: 0
-          in-flight-production: 0
           storage-capacity: 0
           consumer-threads: 0
-          in-flight-consumer: 0
-          sink-consumer-threads: 0
+          sink-consumer-threads: 64
           eviction-coordinator-threads: 1
           eviction-scan-interval-mill: 0
         per-job:
           producer-threads: 40
-          in-flight-production: 4000
           consumer-threads: 1000
-          in-flight-consumer: 0
           storage-capacity: 40000
           queue-poll-interval-mill: 10000
           eviction-coordinator-threads: 0
           eviction-scan-interval-mill: 0
-          strict-pending-consumer-slot: true
           keyed-cache:
             multi-value-enabled: false
             multi-value-max-per-key: 1
             multi-value-overflow-policy: DROP_OLDEST
             cache-ttl-mill: 10000
-            expiry-defer-initial-mill: 100
-            expiry-defer-max-mill: 1000
-            expiry-defer-backoff-multiplier: 2.0
-            eviction-batch-size: 128
-            storage-count-by-entry: true
             must-match-retry-enabled: false
             must-match-retry-max-times: 3
             must-match-retry-backoff-mill: 0
@@ -128,11 +116,6 @@ app:
 - 默认值：`0`
 - 含义：全局生产线程上限，`<= 0` 表示不限制。
 
-### `in-flight-production`
-
-- 默认值：`0`
-- 含义：全局生产在途条数上限，`<= 0` 表示不限制。
-
 ### `storage-capacity`
 
 - 默认值：`0`
@@ -143,14 +126,9 @@ app:
 - 默认值：`0`
 - 含义：全局消费线程上限，`<= 0` 表示不限制。
 
-### `in-flight-consumer`
-
-- 默认值：`0`
-- 含义：全局已离库未终结条数上限，`<= 0` 表示不限制。
-
 ### `sink-consumer-threads`
 
-- 默认值：`0`
+- 默认值：`64`
 - 含义：全主机 **管道终端 Sink**（`.sink(...)` 用户回调）并发上限，`<= 0` 表示不限制。与 `consumer-threads` 独立：数据仍先经过既有消费背压（全局/每 Job 消费线程、在途消费槽位等），进入 Sink 回调前再占用本信号量。
 - 阻塞与超时：与顶层 `consumer-acquire-blocking-mode`、`consumer-acquire-timeout-mill` 一致（与消费许可 acquire 相同语义）。
 
@@ -173,21 +151,10 @@ per-job 限制作用于单个 Flow Job。
 - 默认值：`40`
 - 约束：必须 `> 0`
 
-### `in-flight-production`
-
-- 默认值：`4000`
-- 约束：必须 `> 0`
-
 ### `consumer-threads`
 
 - 默认值：`1000`
 - 约束：当全局 `consumer-threads <= 0` 时，per-job 至少要有一个有效值
-
-### `in-flight-consumer`
-
-- 默认值：`0`
-- 含义：单 Job 的已离库未终结条数上限
-- 说明：`0` 时回退到 `consumer-threads`
 
 ### `storage-capacity`
 
@@ -210,11 +177,6 @@ per-job 限制作用于单个 Flow Job。
 
 - 默认值：`0`
 - 含义：`0` 时继承 `limits.global.eviction-scan-interval-mill`
-
-### `strict-pending-consumer-slot`
-
-- 默认值：`true`
-- 含义：pending consumer slot 获取超时后是否严格拒绝继续提交
 
 ## 7. `limits.per-job.keyed-cache`
 
@@ -241,31 +203,6 @@ per-job 限制作用于单个 Flow Job。
 - 约束：必须 `> 0`
 - 含义：缓存中单条数据的 TTL
 
-### `expiry-defer-initial-mill`
-
-- 默认值：`100`
-- 约束：必须 `> 0`
-
-### `expiry-defer-max-mill`
-
-- 默认值：`1000`
-- 约束：必须大于等于 `expiry-defer-initial-mill`
-
-### `expiry-defer-backoff-multiplier`
-
-- 默认值：`2.0`
-- 含义：延期退避倍数
-
-### `eviction-batch-size`
-
-- 默认值：`128`
-- 约束：必须 `> 0`
-
-### `storage-count-by-entry`
-
-- 默认值：`true`
-- 含义：存储容量是否按 entry 计数
-
 ### `must-match-retry-enabled`
 
 - 默认值：`false`
@@ -291,7 +228,6 @@ per-job 限制作用于单个 Flow Job。
 启动时会做基础合法性校验。最常见的失败原因是：
 
 - `per-job.producer-threads <= 0`
-- `per-job.in-flight-production <= 0`
 - `per-job.storage-capacity <= 0`
 - `per-job.queue-poll-interval-mill <= 0`
 - `keyed-cache.cache-ttl-mill <= 0`
@@ -311,7 +247,6 @@ app:
         per-job:
           producer-threads: 2
           consumer-threads: 4
-          in-flight-production: 128
           storage-capacity: 512
           queue-poll-interval-mill: 500
           keyed-cache:
@@ -328,13 +263,10 @@ app:
         global:
           consumer-threads: 128
           producer-threads: 64
-          in-flight-production: 20000
           storage-capacity: 100000
         per-job:
           producer-threads: 8
           consumer-threads: 32
-          in-flight-production: 2000
-          in-flight-consumer: 256
           storage-capacity: 10000
           queue-poll-interval-mill: 1000
           keyed-cache:

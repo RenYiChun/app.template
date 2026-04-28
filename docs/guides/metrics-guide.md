@@ -74,31 +74,18 @@ Flow 指标前缀是 `app.template.flow.`，Prometheus 导出时 `.` 会变成 `
 
 | 指标名 | 标签 | 说明 |
 |---|---|---|
-| `app.template.flow.resources.in_flight_production.used` | 无 | 全局生产在途已占用量 |
-| `app.template.flow.resources.in_flight_production.limit` | 无 | 全局生产在途上限 |
-| `app.template.flow.resources.producer_threads.used` | 无 | 全局生产线程已占用量 |
-| `app.template.flow.resources.producer_threads.limit` | 无 | 全局生产线程上限 |
 | `app.template.flow.resources.storage.used` | 无 | 全局存储已占用量 |
 | `app.template.flow.resources.storage.limit` | 无 | 全局存储上限 |
-| `app.template.flow.resources.in_flight_consumer.used` | 无 | 全局已离库未终结数量 |
-| `app.template.flow.resources.in_flight_consumer.limit` | 无 | 全局已离库未终结上限 |
-| `app.template.flow.resources.consumer_threads.used` | 无 | 全局消费线程已占用量 |
-| `app.template.flow.resources.consumer_threads.limit` | 无 | 全局消费线程上限 |
+| `app.template.flow.resources.sink_concurrency.used` | 无 | 全局 Sink 终端并发已占用量 |
+| `app.template.flow.resources.sink_concurrency.limit` | 无 | 全局 Sink 终端并发上限 |
 
 按 job 资源指标：
 
 | 指标名 | 标签 | 说明 |
 |---|---|---|
-| `app.template.flow.resources.per_job.in_flight_production.used` | `jobId` | 每个 job 的生产在途已占用量 |
-| `app.template.flow.resources.per_job.in_flight_production.limit` | `jobId` | 每个 job 的生产在途上限 |
-| `app.template.flow.resources.per_job.producer_threads.used` | `jobId` | 每个 job 的生产线程已占用量 |
-| `app.template.flow.resources.per_job.producer_threads.limit` | `jobId` | 每个 job 的生产线程上限 |
 | `app.template.flow.resources.per_job.storage.used` | `jobId` | 每个 job 的存储已占用量 |
 | `app.template.flow.resources.per_job.storage.limit` | `jobId` | 每个 job 的存储上限 |
-| `app.template.flow.resources.per_job.in_flight_consumer.used` | `jobId` | 每个 job 的已离库未终结数量 |
-| `app.template.flow.resources.per_job.in_flight_consumer.limit` | `jobId` | 每个 job 的已离库未终结上限 |
-| `app.template.flow.resources.per_job.consumer_threads.used` | `jobId` | 每个 job 的消费线程已占用量 |
-| `app.template.flow.resources.per_job.consumer_threads.limit` | `jobId` | 每个 job 的消费线程上限 |
+| `app.template.flow.resources.per_job.active_consumers.limit` | `jobId` | 每个 job 的活跃消费上限 |
 
 完成判定相关指标：
 
@@ -107,7 +94,13 @@ Flow 指标前缀是 `app.template.flow.`，Prometheus 导出时 `.` 会变成 `
 | `app.template.flow.completion.source_finished` | `jobId` | source 是否已读完，`0/1` |
 | `app.template.flow.completion.in_flight_push` | `jobId` | 推送模式下尚未完成的 push 数量 |
 | `app.template.flow.completion.active_consumers` | `jobId` | 正在执行消费回调的活跃消费者数量 |
-| `app.template.flow.completion.pending_consumers` | `jobId` | 已离库但尚未终结的待消费未清数量 |
+
+队列出口 worker 指标：
+
+| 指标名 | 标签 | 说明 |
+|---|---|---|
+| `app.template.flow.egress.active_workers` | `jobId`, `consumeExecutionMode` | 当前活跃的 Queue egress worker 数 |
+| `app.template.flow.egress.worker_limit` | `jobId`, `consumeExecutionMode` | 当前 Queue egress worker 上限 |
 
 ## 3. Flow 出口原因怎么看
 
@@ -115,7 +108,6 @@ Flow 当前没有单独暴露 `egress.active` / `egress.passive` 这组旧口径
 排障时应优先看：
 
 - 业务侧 `onSingleConsumed(item, jobId, reason)` 收到的 `EgressReason`
-- `FlowProgressSnapshot.passiveEgressByReason()`
 - `terminated`、`production_acquired`、`production_released` 之间的数量关系
 
 当前 `EgressReason` 主要包括：
