@@ -10,7 +10,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -44,7 +44,9 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Component
 @AllArgsConstructor
-@ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class OauthSecurityFilterChainBuilder {
     
     private static final String LOGIN_URL = "/login";

@@ -33,7 +33,6 @@ public class CoreAutoConfiguration {
         //ignore
     }
     
-    @ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
     static class WebConfig {
         @Bean
         @ConditionalOnMissingBean(JsonProcessor.class)

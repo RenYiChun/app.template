@@ -6,6 +6,7 @@ import com.lrenyi.oauth2.service.oauth2.jdbc.OAuth2InitialDataSeeder;
 import com.lrenyi.oauth2.service.oauth2.jdbc.SessionAwareJdbcOAuth2AuthorizationService;
 import com.lrenyi.template.core.TemplateConfigProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,9 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
  * authorization.store-type=jdbc 时启用：使用数据库存储 OAuth2 客户端与授权，自动建表并可从配置初始化客户端。
  */
 @Configuration
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 @ConditionalOnProperty(value = "app.template.security.authorization.store-type", havingValue = "jdbc")
 @ConditionalOnBean(JdbcOperations.class)
 public class JdbcOauthServiceConfig {

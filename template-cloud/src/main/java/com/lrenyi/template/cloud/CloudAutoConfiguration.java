@@ -14,7 +14,6 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerRequestFactory;
@@ -46,7 +45,10 @@ public class CloudAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnProperty(name = "app.template.feign.retry.enabled", havingValue = "true")
+    @ConditionalOnExpression(
+            "'${app.template.enabled:false}' == 'true' && '${app.template.feign.enabled:true}' == 'true' "
+                    + "&& '${app.template.feign.retry.enabled:false}' == 'true'"
+    )
     public Retryer feignRetryer(TemplateConfigProperties properties) {
         TemplateConfigProperties.RetryConfig retry = properties.getFeign().getRetry();
         return new Retryer.Default(retry.getPeriod(), retry.getMaxPeriod(), retry.getMaxAttempts());
@@ -57,8 +59,9 @@ public class CloudAutoConfiguration {
      * 本配置在 ApiAutoConfiguration 之前执行，与 api 同时存在时以此实现为准。
      */
     @Bean
-    @ConditionalOnProperty(
-            name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
+    @ConditionalOnExpression(
+            "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true' "
+                    + "&& '${app.template.oauth2.opaque-token.enabled:false}' == 'true'"
     )
     public OpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties,
             ObjectProvider<LoadBalancerInterceptor> loadBalancerInterceptorProvider,
@@ -105,7 +108,7 @@ public class CloudAutoConfiguration {
      */
     @ConditionalOnClass(name = "feign.RequestInterceptor")
     @ConditionalOnExpression(
-            "'${app.template.enabled:true}' == 'true' && '${app.template.feign.enabled:true}' == 'true'"
+            "'${app.template.enabled:false}' == 'true' && '${app.template.feign.enabled:true}' == 'true'"
     )
     @Import(FeignClientConfiguration.class)
     static class FeignAutoConfiguration {

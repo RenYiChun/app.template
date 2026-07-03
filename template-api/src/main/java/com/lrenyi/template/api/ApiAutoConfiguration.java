@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -62,7 +61,7 @@ public class ApiAutoConfiguration {
     
     @EnableMethodSecurity()
     @ConditionalOnExpression(
-            "'${app.template.enabled:true}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'"
+            "'${app.template.enabled:false}' == 'true' && '${app.template.method-security.enabled:true}' == 'true'"
     )
     static class MethodSecurityConfig {
         // 可以在这里添加其他方法级别安全的配置
@@ -78,8 +77,9 @@ public class ApiAutoConfiguration {
         
         @Bean
         @ConditionalOnMissingBean({OpaqueTokenIntrospector.class})
-        @ConditionalOnProperty(
-                name = "app.template.oauth2.opaque-token.enabled", havingValue = "true", matchIfMissing = true
+        @ConditionalOnExpression(
+                "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true' "
+                        + "&& '${app.template.oauth2.opaque-token.enabled:false}' == 'true'"
         )
         public SpringOpaqueTokenIntrospector opaqueTokenIntrospector(TemplateConfigProperties properties) {
             TemplateConfigProperties.OAuth2Config oauth2 = properties.getOauth2();

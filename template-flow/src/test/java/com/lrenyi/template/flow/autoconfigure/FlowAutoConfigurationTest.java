@@ -46,18 +46,25 @@ class FlowAutoConfigurationTest {
     }
 
     @Test
-    void defaultConfigurationRegistersSingleFlowHealthBridge() {
+    void missingAppTemplateEnabledKeepsAutoConfigurationAndDisablesFlowHealthBridge() {
         contextRunner.run(context -> {
             assertEquals(1, context.getBeansOfType(FlowAutoConfiguration.class).size());
-            assertEquals(1, context.getBeansOfType(FlowActuatorHealthIndicator.class).size());
-            assertEquals(1, context.getBeansOfType(FlowActuatorHealthIndicator.class).size());
+            assertTrue(context.getBeansOfType(FlowActuatorHealthIndicator.class).isEmpty());
         });
     }
 
     @Test
-    void appTemplateEnabledFalseDisablesFlowAutoConfigurationAndHealthBridge() {
+    void appTemplateEnabledFalseKeepsAutoConfigurationAndDisablesFlowHealthBridge() {
         contextRunner.withPropertyValues("app.template.enabled=false").run(context -> {
-            assertTrue(context.getBeansOfType(FlowAutoConfiguration.class).isEmpty());
+            assertEquals(1, context.getBeansOfType(FlowAutoConfiguration.class).size());
+            assertTrue(context.getBeansOfType(FlowActuatorHealthIndicator.class).isEmpty());
+        });
+    }
+
+    @Test
+    void flowEnabledFalseKeepsAutoConfigurationAndDisablesFlowHealthBridge() {
+        contextRunner.withPropertyValues("app.template.flow.enabled=false").run(context -> {
+            assertEquals(1, context.getBeansOfType(FlowAutoConfiguration.class).size());
             assertTrue(context.getBeansOfType(FlowActuatorHealthIndicator.class).isEmpty());
         });
     }
@@ -66,7 +73,7 @@ class FlowAutoConfigurationTest {
     void healthEndpointExposesFlowBridgeStatusAndDetails() {
         FlowHealth.registerIndicator(fixedIndicator("registry", HealthStatus.DEGRADED));
 
-        contextRunner.run(context -> {
+        contextRunner.withPropertyValues("app.template.enabled=true").run(context -> {
             FlowActuatorHealthIndicator indicator = context.getBean(FlowActuatorHealthIndicator.class);
             Health flowHealth = indicator.health();
 

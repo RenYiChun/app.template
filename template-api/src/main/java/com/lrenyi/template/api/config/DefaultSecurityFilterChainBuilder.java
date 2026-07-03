@@ -67,7 +67,7 @@ public class DefaultSecurityFilterChainBuilder {
     private final TemplateConfigProperties templateConfigProperties;
     private final ObjectProvider<JsonService> jsonServiceProvider;
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
-    private final OpaqueTokenIntrospector opaqueTokenIntrospector;
+    private final ObjectProvider<OpaqueTokenIntrospector> opaqueTokenIntrospectorProvider;
     private final MeterRegistry meterRegistry;
     
     public SecurityFilterChain build(HttpSecurity http) throws Exception {
@@ -138,7 +138,11 @@ public class DefaultSecurityFilterChainBuilder {
         TemplateConfigProperties.OAuth2Config.OpaqueTokenConfig opaqueToken =
                 templateConfigProperties.getOauth2().getOpaqueToken();
         if (opaqueToken.isEnabled()) {
-            http.oauth2ResourceServer(oauth2 -> oauth2.opaqueToken(opaque -> opaque.introspector(opaqueTokenIntrospector)));
+            OpaqueTokenIntrospector introspector = opaqueTokenIntrospectorProvider.getIfAvailable();
+            if (introspector == null) {
+                throw new IllegalStateException("Opaque Token 模式已启用，但未找到 OpaqueTokenIntrospector Bean");
+            }
+            http.oauth2ResourceServer(oauth2 -> oauth2.opaqueToken(opaque -> opaque.introspector(introspector)));
             return;
         }
         if (security.isLocalJwtPublicKey()) {

@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
 @Getter
 @ConfigurationProperties(prefix = "app.template")
 public class TemplateConfigProperties implements InitializingBean {
-    private boolean enabled = true;
+    private boolean enabled = false;
 
     /**
      * OAuth2模块配置
@@ -88,6 +88,29 @@ public class TemplateConfigProperties implements InitializingBean {
      * Flow limits 校验失败时抛出 IllegalArgumentException，应用启动中止。
      */
     private void validateConfig() {
+        Flow.Global global = flow.getLimits().getGlobal();
+        if (isFlowEffectivelyEnabled()) {
+            validateFlowConfig();
+        }
+        if (isSecurityEffectivelyEnabled() && !security.isLocalJwtPublicKey()
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
+                && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
+            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
+        }
+        log.info("[配置摘要] enabled={}, security.effective={}, flow.effective={}, flow.consumerThreads={}, "
+                         + "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
+                 enabled,
+                 isSecurityEffectivelyEnabled(),
+                 isFlowEffectivelyEnabled(),
+                 global.getConsumerThreads(),
+                 isFeignEffectivelyEnabled(),
+                 isOauth2EffectivelyEnabled(),
+                 isAuditEffectivelyEnabled(),
+                 isMethodSecurityEffectivelyEnabled()
+        );
+    }
+
+    private void validateFlowConfig() {
         Flow.Limits limits = flow.getLimits();
         Flow.Global global = limits.getGlobal();
         Flow.PerJob perJob = getPerJob(limits, global);
@@ -107,20 +130,6 @@ public class TemplateConfigProperties implements InitializingBean {
                      maxEntries
             );
         }
-        if (security.isEnabled() && !security.isLocalJwtPublicKey()
-                && !StringUtils.hasLength(security.getNetJwtPublicKeyUri())
-                && !StringUtils.hasLength(security.getNetJwtPublicKeyDomain())) {
-            log.warn("[配置校验] 安全已启用但 JWT 配置为远程公钥模式，请设置 net-jwt-public-key-uri（完整 URI）或 net-jwt-public-key-domain（域名）");
-        }
-        log.info("[配置摘要] enabled={}, security.effective={}, flow.consumerThreads={}, "
-                         + "feign.effective={}, oauth2.effective={}, audit.effective={}, methodSecurity.effective={}",
-                 enabled,
-                 isSecurityEffectivelyEnabled(), global.getConsumerThreads(),
-                 isFeignEffectivelyEnabled(),
-                 isOauth2EffectivelyEnabled(),
-                 isAuditEffectivelyEnabled(),
-                 isMethodSecurityEffectivelyEnabled()
-        );
     }
 
     private static Flow.@NonNull KeyedCache judgmentPerJobConfig(Flow.PerJob perJob) {
@@ -196,6 +205,10 @@ public class TemplateConfigProperties implements InitializingBean {
         return enabled && oauth2.isEnabled();
     }
 
+    public boolean isFlowEffectivelyEnabled() {
+        return enabled && flow.isEnabled();
+    }
+
     public boolean isAuditEffectivelyEnabled() {
         return enabled && audit.isEnabled();
     }
@@ -217,6 +230,8 @@ public class TemplateConfigProperties implements InitializingBean {
     @Setter
     @Getter
     public static class Flow {
+        private boolean enabled = true;
+
         /**
          * 背压阻塞模式：控制生产/消费在背压场景下是无限等待还是带超时等待。
          */

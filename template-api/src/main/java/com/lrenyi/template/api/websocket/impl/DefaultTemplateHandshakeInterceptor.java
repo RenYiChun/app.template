@@ -6,7 +6,7 @@ import com.lrenyi.template.core.TemplateConfigProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -36,7 +36,9 @@ import org.springframework.web.util.UriComponentsBuilder;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "app.template.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.security.enabled:true}' == 'true'"
+)
 public class DefaultTemplateHandshakeInterceptor implements TemplateHandshakeInterceptor {
     
     /** 握手属性中存放已认证 Principal 的 key，供 HandshakeHandler 使用 */

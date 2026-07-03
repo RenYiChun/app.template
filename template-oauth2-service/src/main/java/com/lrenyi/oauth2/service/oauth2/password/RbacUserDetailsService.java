@@ -4,6 +4,7 @@ import java.util.List;
 import com.lrenyi.oauth2.service.config.IdentifierType;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 @AllArgsConstructor
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class RbacUserDetailsService implements UserDetailsService {
     private final ObjectProvider<IRbacService> rbacService;
     

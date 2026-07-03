@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -19,6 +20,9 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @Component
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class TemplateLogOutHandler implements LogoutHandler, LogoutSuccessHandler {
     private final OAuth2AuthorizationService oAuth2AuthorizationService;
     private final ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider;

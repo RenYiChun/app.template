@@ -2,6 +2,7 @@ package com.lrenyi.template.cloud;
 
 import com.lrenyi.template.api.ApiAutoConfiguration;
 import com.lrenyi.template.core.CoreAutoConfiguration;
+import feign.Retryer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -17,22 +18,71 @@ class CloudAutoConfigurationTest {
                     JacksonAutoConfiguration.class,
                     CoreAutoConfiguration.class,
                     CloudAutoConfiguration.class
-            ))
-            .withPropertyValues(
+            ));
+
+    @Test
+    void feignRetryerBacksOffWhenAppTemplateSwitchIsMissing() {
+        contextRunner.withPropertyValues("app.template.feign.retry.enabled=true").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(Retryer.class);
+        });
+    }
+
+    @Test
+    void feignRetryerLoadsWhenAppTemplateAndRetrySwitchesAreEnabled() {
+        contextRunner.withPropertyValues(
+                "app.template.enabled=true",
+                "app.template.feign.retry.enabled=true"
+        ).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(Retryer.class);
+        });
+    }
+
+    @Test
+    void opaqueTokenIntrospectorLoadsInReactiveContextWithoutServletSecurityConfiguration() {
+        contextRunner.withPropertyValues(
                     "app.template.enabled=true",
                     "app.template.oauth2.enabled=true",
                     "app.template.oauth2.opaque-token.enabled=true",
                     "app.template.oauth2.opaque-token.introspection-uri=http://auth-service/oauth2/introspect",
                     "app.template.oauth2.opaque-token.client-id=test-client",
                     "app.template.oauth2.opaque-token.client-secret=test-secret"
-            );
-
-    @Test
-    void opaqueTokenIntrospectorLoadsInReactiveContextWithoutServletSecurityConfiguration() {
-        contextRunner.run(context -> {
+        ).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(OpaqueTokenIntrospector.class);
             assertThat(context).doesNotHaveBean(ApiAutoConfiguration.SecurityAutoConfiguration.class);
+        });
+    }
+
+    @Test
+    void opaqueTokenIntrospectorBacksOffWhenOpaqueTokenSwitchIsMissing() {
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(OpaqueTokenIntrospector.class);
+        });
+    }
+
+    @Test
+    void opaqueTokenIntrospectorBacksOffWhenAppTemplateDisabled() {
+        contextRunner.withPropertyValues(
+                "app.template.enabled=false",
+                "app.template.oauth2.enabled=true",
+                "app.template.oauth2.opaque-token.enabled=true"
+        ).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(OpaqueTokenIntrospector.class);
+        });
+    }
+
+    @Test
+    void opaqueTokenIntrospectorBacksOffWhenOauth2Disabled() {
+        contextRunner.withPropertyValues(
+                "app.template.oauth2.enabled=false",
+                "app.template.oauth2.opaque-token.enabled=true"
+        ).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(OpaqueTokenIntrospector.class);
         });
     }
 }

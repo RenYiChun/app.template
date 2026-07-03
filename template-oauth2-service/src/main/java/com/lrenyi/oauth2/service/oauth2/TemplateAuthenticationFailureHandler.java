@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -22,6 +23,9 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Component
 @AllArgsConstructor
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class TemplateAuthenticationFailureHandler implements AuthenticationFailureHandler {
     private final JsonService jsonService;
     private final MeterRegistry meterRegistry;

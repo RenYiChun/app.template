@@ -23,7 +23,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Slf4j
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
-@ConditionalOnProperty(name = "app.template.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
 public class GlobalExceptionHandler {
     
     @ExceptionHandler(TemplateException.class)

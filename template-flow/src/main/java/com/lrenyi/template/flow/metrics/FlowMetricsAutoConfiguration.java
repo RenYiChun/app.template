@@ -3,8 +3,9 @@ package com.lrenyi.template.flow.metrics;
 import com.lrenyi.template.flow.health.FlowActuatorHealthIndicator;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.actuate.health.HealthIndicator;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,9 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @ConditionalOnClass(MeterRegistry.class)
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.flow.enabled:true}' == 'true'"
+)
 public class FlowMetricsAutoConfiguration {
     
     @Bean

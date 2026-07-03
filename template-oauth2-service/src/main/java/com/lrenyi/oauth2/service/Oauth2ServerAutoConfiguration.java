@@ -11,6 +11,7 @@ import com.lrenyi.oauth2.service.config.OAuth2AuditFilter;
 import com.lrenyi.oauth2.service.config.OAuth2ClientPropertiesMapper;
 import com.lrenyi.oauth2.service.config.OAuth2PrincipalNameExtractor;
 import com.lrenyi.oauth2.service.config.OauthSecurityFilterChainBuilder;
+import com.lrenyi.oauth2.service.config.RegisteredClientsConfiguredCondition;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordAuthenticationFilter;
 import com.lrenyi.oauth2.service.oauth2.password.PasswordGrantAuthenticationToken;
 import com.lrenyi.oauth2.service.oauth2.password.PreAuthenticationChecker;
@@ -26,11 +27,12 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
@@ -56,7 +58,6 @@ import org.springframework.security.web.SecurityFilterChain;
 @ComponentScan
 @Import(ConfigImportSelector.class)
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "app.template.enabled", havingValue = "true")
 public class Oauth2ServerAutoConfiguration {
     
     @Bean
@@ -66,6 +67,7 @@ public class Oauth2ServerAutoConfiguration {
     }
     
     @Bean
+    @Conditional(RegisteredClientsConfiguredCondition.class)
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(OAuth2AuthorizationServerProperties properties) {
         return new InMemoryRegisteredClientRepository(OAuth2ClientPropertiesMapper.fromProperties(properties));
@@ -103,20 +105,27 @@ public class Oauth2ServerAutoConfiguration {
     
     @Bean
     @Order(1)
-    @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression(
+            "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+    )
     public SecurityFilterChain authorizationServerFilterChain(HttpSecurity http,
             OauthSecurityFilterChainBuilder builder) throws Exception {
         return builder.build(http);
     }
     
     @Bean
+    @ConditionalOnExpression(
+            "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+    )
     public PasswordAuthenticationFilter preAuthenticationFilter(ObjectProvider<PreAuthenticationChecker> preAuthenticationCheckers,
             TemplateConfigProperties templateConfigProperties) {
         return new PasswordAuthenticationFilter(preAuthenticationCheckers, templateConfigProperties);
     }
     
     @Bean
-    @ConditionalOnProperty(name = "app.template.oauth2.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnExpression(
+            "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+    )
     public OAuth2AuditFilter oauth2AuditFilter(TemplateConfigProperties templateConfigProperties,
             ObjectProvider<OAuth2AuditRecorder> auditRecorderProvider,
             ObjectProvider<OAuth2PrincipalNameExtractor> principalNameExtractorProvider) {

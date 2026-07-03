@@ -11,6 +11,7 @@ app:
   template:
     enabled: true
     flow:
+      enabled: true
       limits:
         global:
           consumer-threads: 32
@@ -30,6 +31,7 @@ app:
   template:
     enabled: true
     flow:
+      enabled: true
       producer-backpressure-blocking-mode: BLOCK_WITH_TIMEOUT
       producer-backpressure-timeout-mill: 30000
       consumer-acquire-blocking-mode: BLOCK_WITH_TIMEOUT
@@ -67,8 +69,14 @@ app:
 ### `app.template.enabled`
 
 - 类型：`boolean`
+- 默认值：`false`
+- 含义：框架总开关。需显式配置为 `true` 才启用各模块运行能力。关闭或未配置时，基础 Bean 仍可注册，Flow 运行能力、配置校验和 Actuator health bridge 不生效。
+
+### `app.template.flow.enabled`
+
+- 类型：`boolean`
 - 默认值：`true`
-- 含义：框架总开关。关闭后，Flow 自动配置也不会生效。
+- 含义：Flow 模块开关。关闭后，Flow 基础 Bean/类型仍保留，Flow 运行能力、配置校验和 Actuator health bridge 不生效。
 
 ### `app.template.flow.show-status`
 

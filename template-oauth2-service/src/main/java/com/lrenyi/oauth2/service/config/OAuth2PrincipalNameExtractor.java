@@ -2,6 +2,7 @@ package com.lrenyi.oauth2.service.config;
 
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.OAuth2TokenIntrospectionClaimNames;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Component;
  * 使用 direct type cast 替代反射，由具备 authorization-server 依赖的 oauth2-service 模块提供。
  */
 @Component
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class OAuth2PrincipalNameExtractor {
     
     /**

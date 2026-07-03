@@ -2,6 +2,7 @@ package com.lrenyi.oauth2.service.config;
 
 import com.lrenyi.oauth2.service.oauth2.redis.RedisOAuth2AuthorizationService;
 import com.lrenyi.oauth2.service.oauth2.redis.RedisRegisteredClientRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +10,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 
+@ConditionalOnExpression(
+        "'${app.template.enabled:false}' == 'true' && '${app.template.oauth2.enabled:true}' == 'true'"
+)
 public class RedisOauthServiceConfig {
     
     @Bean
